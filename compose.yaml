@@ -1,0 +1,19 @@
+﻿services:
+  studentservice.api:
+    image: studentservice.api
+    build:
+      context: .
+      dockerfile: Services/StudentService.API/Dockerfile
+
+  authservice.api-1:
+    image: authservice.api
+    build:
+      context: .
+      dockerfile: Services/AuthService/AuthService.API/Dockerfile
+
+  baseservice.api:
+    image: baseservice.api
+    build:
+      context: .
+      dockerfile: Services/BaseService/BaseService.API/Dockerfile
+

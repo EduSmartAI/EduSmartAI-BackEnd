@@ -1,0 +1,73 @@
+# Build outputs
+bin/
+obj/
+out/
+artifacts/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# Binaries
+*.exe
+*.dll
+*.pdb
+
+# Logs & temp
+*.log
+*.tmp
+
+# System files
+Thumbs.db
+.DS_Store
+
+# Environment files
+.env
+**/.env
+
+# App settings (giữ lại appsettings.json mẫu, bỏ qua env-specific)
+appsettings.*.json
+!appsettings.json
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# .NET user secrets
+secrets.json
+
+# Publish output
+wwwroot/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Resharper (nếu dùng cùng Rider/VS plugin)
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# Test results
+TestResult*/
+*.VisualState.xml
+*.vsp
+*.vspx
+*.coverage
+*.coveragexml
+
+# Others
+*.dbmdl        # Local DB files
+*.bak          # Backup files
+*.mdf
+*.ldf
