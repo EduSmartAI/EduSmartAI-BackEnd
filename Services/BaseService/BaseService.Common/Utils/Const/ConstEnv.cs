@@ -43,4 +43,13 @@ public static class ConstEnv
     public const string JwtAudience = "JWT_AUDIENCE";
     
     public const string ClientId = "CLIENT_ID";
+    
+    public const string RabbitMqHost = "RABBITMQ_HOST";
+    
+    public const string RabbitMqUsername = "RABBITMQ_USERNAME";
+    
+    public const string RabbitMqPassword = "RABBITMQ_PASSWORD";
+    
+    public const string RedisCacheConnection = "REDIS_CACHE_CONNECTION";
+    
 }
