@@ -17,3 +17,15 @@
       context: .
       dockerfile: Services/BaseService/BaseService.API/Dockerfile
 
+  authservice.api:
+    image: authservice.api
+    build:
+      context: .
+      dockerfile: Services/AuthService/AuthService.API/Dockerfile
+
+  reverseproxy:
+    image: reverseproxy
+    build:
+      context: .
+      dockerfile: Gateways/ReverseProxy/Dockerfile
+
