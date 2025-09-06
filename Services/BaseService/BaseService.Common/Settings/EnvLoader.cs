@@ -2,7 +2,7 @@ namespace BaseService.Common.Settings;
 
 public static class EnvLoader
 {
-    public static void Load(string envFilePath = ".env")
+    public static void Load(string envFilePath = "../Services/.env")
     {
         if (!File.Exists(envFilePath))
             return;

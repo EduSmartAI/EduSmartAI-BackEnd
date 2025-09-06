@@ -6,6 +6,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{DB6BE480-3758-48ED-8261-8F8F3DFCFCBB}"
+	ProjectSection(SolutionItems) = preProject
+		Services\.env = Services\.env
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "AuthService", "AuthService", "{7735D66C-F8B2-4FF5-9675-FD1E441E0AA0}"
 EndProject
@@ -54,6 +57,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks", "BuildingBlocks\BuildingBlocks\BuildingBlocks.csproj", "{FDA8051B-952F-4EB7-A6DC-7FF1D035ECE6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BuildingBlocks.Messaging", "BuildingBlocks\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj", "{EED809CB-E402-4BAA-9933-B79832FEFB44}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentService.API", "Services\StudentService\StudentService.API\StudentService.API.csproj", "{144D16BE-9E9D-4957-AEA2-566F2D150557}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentService.Application", "Services\StudentService\StudentService.Application\StudentService.Application.csproj", "{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentService.Infrastructure", "Services\StudentService\StudentService.Infrastructure\StudentService.Infrastructure.csproj", "{31F5BD91-1932-4C02-A42A-E1BB0FA76133}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentService.Domain", "Services\StudentService\StudentService.Domain\StudentService.Domain.csproj", "{871796EC-4E31-45FF-9DB6-3F32D3141469}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -109,6 +120,22 @@ Global
 		{EED809CB-E402-4BAA-9933-B79832FEFB44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EED809CB-E402-4BAA-9933-B79832FEFB44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EED809CB-E402-4BAA-9933-B79832FEFB44}.Release|Any CPU.Build.0 = Release|Any CPU
+		{144D16BE-9E9D-4957-AEA2-566F2D150557}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{144D16BE-9E9D-4957-AEA2-566F2D150557}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{144D16BE-9E9D-4957-AEA2-566F2D150557}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{144D16BE-9E9D-4957-AEA2-566F2D150557}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31F5BD91-1932-4C02-A42A-E1BB0FA76133}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31F5BD91-1932-4C02-A42A-E1BB0FA76133}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31F5BD91-1932-4C02-A42A-E1BB0FA76133}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31F5BD91-1932-4C02-A42A-E1BB0FA76133}.Release|Any CPU.Build.0 = Release|Any CPU
+		{871796EC-4E31-45FF-9DB6-3F32D3141469}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{871796EC-4E31-45FF-9DB6-3F32D3141469}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{871796EC-4E31-45FF-9DB6-3F32D3141469}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{871796EC-4E31-45FF-9DB6-3F32D3141469}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7735D66C-F8B2-4FF5-9675-FD1E441E0AA0} = {DB6BE480-3758-48ED-8261-8F8F3DFCFCBB}
@@ -133,5 +160,9 @@ Global
 		{392BA9E6-08E5-47F0-9AFB-D4E98A8F3CA6} = {8D63378E-6941-4164-B2BF-EC4A8B84A90E}
 		{FDA8051B-952F-4EB7-A6DC-7FF1D035ECE6} = {9B7497B2-54CE-42B6-93F6-AAFF732B0452}
 		{EED809CB-E402-4BAA-9933-B79832FEFB44} = {9B7497B2-54CE-42B6-93F6-AAFF732B0452}
+		{144D16BE-9E9D-4957-AEA2-566F2D150557} = {F2898991-8067-41EE-8B83-F635F040D477}
+		{E6EBD2EB-66B9-4D31-AB00-5B72B9D34E92} = {F2898991-8067-41EE-8B83-F635F040D477}
+		{31F5BD91-1932-4C02-A42A-E1BB0FA76133} = {F2898991-8067-41EE-8B83-F635F040D477}
+		{871796EC-4E31-45FF-9DB6-3F32D3141469} = {F2898991-8067-41EE-8B83-F635F040D477}
 	EndGlobalSection
 EndGlobal

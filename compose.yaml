@@ -35,3 +35,9 @@
       context: .
       dockerfile: BuildingBlocks/BuildingBlocks.Messaging/Dockerfile
 
+  studentservice.api-1:
+    image: studentservice.api-1
+    build:
+      context: .
+      dockerfile: Services/StudentService/StudentService.API/Dockerfile
+
