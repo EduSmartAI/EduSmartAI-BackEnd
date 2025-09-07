@@ -109,11 +109,11 @@ public class AuthController : ControllerBase
         }
     }
 
-    [HttpGet("/session")]
+    [HttpPost("/verify-token")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public UserSessionResponse UserSession()
+    public TokenVerifyResponse VerifyToken()
     {
-        return _tokenService.UserSession();
+        return _tokenService.VerifyToken();
     }
 
     /// <summary>

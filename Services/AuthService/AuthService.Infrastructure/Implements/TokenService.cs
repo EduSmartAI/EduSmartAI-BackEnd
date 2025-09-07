@@ -187,16 +187,29 @@ public class TokenService : ITokenService
     /// Retrieves the current user's session details (email, name, user ID, role).
     /// </summary>
     /// <returns></returns>
-    public UserSessionResponse UserSession()
+    public TokenVerifyResponse VerifyToken()
     {
+        var response = new TokenVerifyResponse {Success = true};
         var currentUser = _identityApiClient.GetCurrentUser();
-
-        return new UserSessionResponse
+        if (currentUser == null)
+        {
+            response.Success = false;
+            response.SetMessage(MessageId.I00000, CommonMessages.UserNotFound);
+            return response;
+        }
+        
+        var entityResponse = new TokenVerifyResponseEntity
         {
             Email = currentUser!.Email,
             Name = currentUser.FullName,
             UserId = currentUser.UserId,
             Role = currentUser.RoleName,
         };
+        
+        // True
+        response.Success = true;
+        response.SetMessage(MessageId.I00001, "Xác thực");
+        response.Response = entityResponse;
+        return response;
     }
 }

@@ -31,5 +31,5 @@ public interface ITokenService
     /// Retrieves the current user's session details
     /// </summary>
     /// <returns></returns>
-    UserSessionResponse UserSession();
+    TokenVerifyResponse VerifyToken();
 }
