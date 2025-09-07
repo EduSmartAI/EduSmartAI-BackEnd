@@ -47,8 +47,6 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-app.Urls.Clear();
-app.Urls.Add("http://0.0.0.0:7001");
 app.UseCors();
 app.UsePathBase("/auth");
 app.UseRouting();

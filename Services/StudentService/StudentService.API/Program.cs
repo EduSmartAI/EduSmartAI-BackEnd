@@ -40,8 +40,9 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-app.Urls.Clear();
-app.Urls.Add("http://0.0.0.0:7002");
+// Remove hardcoded URL configuration - let Docker handle port mapping
+// app.Urls.Clear();
+// app.Urls.Add("http://0.0.0.0:7002");
 app.UseCors();
 app.UseRouting();
 app.UsePathBase("/student");
