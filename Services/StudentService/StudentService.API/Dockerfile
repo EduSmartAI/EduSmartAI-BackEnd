@@ -1,4 +1,5 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+﻿# Services/StudentService/StudentService.API/Dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
@@ -14,7 +15,6 @@ COPY Services/StudentService/StudentService.Application/*.csproj Services/Studen
 COPY Services/StudentService/StudentService.Domain/*.csproj Services/StudentService/StudentService.Domain/
 
 # Copy BaseService dependencies
-COPY Services/BaseService/BaseService.API/*.csproj Services/BaseService/BaseService.API/
 COPY Services/BaseService/BaseService.Infrastructure/*.csproj Services/BaseService/BaseService.Infrastructure/
 COPY Services/BaseService/BaseService.Application/*.csproj Services/BaseService/BaseService.Application/
 COPY Services/BaseService/BaseService.Domain/*.csproj Services/BaseService/BaseService.Domain/
@@ -26,9 +26,13 @@ COPY BuildingBlocks/BuildingBlocks.Messaging/*.csproj BuildingBlocks/BuildingBlo
 
 RUN dotnet restore Services/StudentService/StudentService.API/StudentService.API.csproj
 
-# Copy all source files
+# Copy source files - ONLY copy what's needed for StudentService
 COPY Services/StudentService/ Services/StudentService/
-COPY Services/BaseService/ Services/BaseService/
+# Only copy BaseService source files (excluding BaseService.API to avoid conflicts)
+COPY Services/BaseService/BaseService.Infrastructure/ Services/BaseService/BaseService.Infrastructure/
+COPY Services/BaseService/BaseService.Application/ Services/BaseService/BaseService.Application/
+COPY Services/BaseService/BaseService.Domain/ Services/BaseService/BaseService.Domain/
+COPY Services/BaseService/BaseService.Common/ Services/BaseService/BaseService.Common/
 COPY BuildingBlocks/ BuildingBlocks/
 
 WORKDIR /src/Services/StudentService/StudentService.API

@@ -51,12 +51,16 @@ jobs:
             echo "🔧 Setting permissions for scripts"
             chmod +x *.sh || true
 
-            echo "🐳 Stopping and rebuilding Docker containers"
+            echo "🧹 Cleanup old containers and images"
             docker compose down || true
-            docker compose up -d --build
+            docker system prune -f || true
+
+            echo "🐳 Building and starting Docker containers"
+            docker compose build --no-cache
+            docker compose up -d
 
             echo "⏳ Waiting for containers to start..."
-            sleep 20
+            sleep 30
 
             echo "✅ Docker containers status:"
             docker ps -a
@@ -64,11 +68,19 @@ jobs:
             echo "📊 docker-compose service status:"
             docker compose ps
 
-            echo "📄 Logs from studentservice.api:"
-            docker logs $(docker ps -q --filter "name=studentservice.api") --tail=50 || true
+            echo "🔍 Check container health"
+            for service in studentservice.api authservice.api reverseproxy; do
+              container_id=$(docker compose ps -q $service)
+              if [ ! -z "$container_id" ]; then
+                echo "📄 Logs from $service:"
+                docker logs $container_id --tail=20
+                echo "---"
+              else
+                echo "❌ No container found for $service"
+              fi
+            done
 
-            echo "📄 Logs from authservice.api:"
-            docker logs $(docker ps -q --filter "name=authservice.api") --tail=50 || true
-
-            echo "📄 Logs from reverseproxy:"
-            docker logs $(docker ps -q --filter "name=reverseproxy") --tail=50 || true
+            echo "🌐 Testing endpoints"
+            curl -f http://localhost:8080/health || echo "❌ Gateway health check failed"
+            
+            echo "✅ Deployment completed!"
