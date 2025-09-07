@@ -25,6 +25,12 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     options.SuppressModelStateInvalidFilter = true;
 });
+
+// Kestrel configuration
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
+});
 #endregion
 
 #region Application build and middleware pipeline
@@ -36,6 +42,8 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
+app.Urls.Clear();
+app.Urls.Add("http://0.0.0.0:7002");
 app.UseCors();
 app.UseRouting();
 app.UsePathBase("/student");

@@ -1,0 +1,66 @@
+name: Deploy EduSmartAI Microservices to VPS
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Lấy source code
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. Tạo file .env từ secret trong GitHub
+      - name: Write .env file from ENV_FILE_CONTENT
+        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+
+      # 3. Copy source code và .env lên VPS
+      - name: Copy source code and .env to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "~/apps/EduSmart-BackEnd"
+          rm: true
+
+      # 4. SSH vào VPS, chạy docker-compose
+      - name: SSH into VPS and deploy Docker Compose
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "📦 Deploying EduSmartAI Microservices..."
+            cd ~/apps/EduSmart-BackEnd
+
+            echo "🔧 Setting permissions for scripts"
+            chmod +x *.sh || true
+
+            echo "🐳 Stopping and rebuilding Docker containers"
+            docker-compose down || true
+            docker-compose up -d --build
+
+            echo "⏳ Waiting for containers to start..."
+            sleep 20
+
+            echo "✅ Docker containers status:"
+            docker ps -a
+
+            echo "📊 docker-compose service status:"
+            docker-compose ps
+
+            echo "📄 Logs from studentservice.api:"
+            docker logs $(docker ps -q --filter "name=studentservice.api") --tail=50 || true
+
+            echo "📄 Logs from authservice.api:"
+            docker logs $(docker ps -q --filter "name=authservice.api") --tail=50 || true
+
+            echo "📄 Logs from reverseproxy:"
+            docker logs $(docker ps -q --filter "name=reverseproxy") --tail=50 || true

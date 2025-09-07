@@ -28,8 +28,15 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 
+// Kestrel configuration
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
+});
+
 var app = builder.Build();
 app.UseForwardedHeaders();
+
 // Ensure the database is created
 await app.EnsureDatabaseCreatedAsync();
 
@@ -40,6 +47,8 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
+app.Urls.Clear();
+app.Urls.Add("http://0.0.0.0:7001");
 app.UseCors();
 app.UsePathBase("/auth");
 app.UseRouting();
