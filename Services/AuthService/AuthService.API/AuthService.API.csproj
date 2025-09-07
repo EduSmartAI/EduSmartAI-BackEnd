@@ -5,12 +5,16 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <WarningsAsErrors />
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.6.0"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.6" />
         <PackageReference Include="OpenIddict.AspNetCore" Version="7.0.0" />
+        <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.0.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -20,7 +24,12 @@
     </ItemGroup>
 
     <ItemGroup>
+      <!-- Remove BaseService.API reference to avoid appsettings.json conflict -->
       <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
+      <ProjectReference Include="..\..\BaseService\BaseService.Infrastructure\BaseService.Infrastructure.csproj" />
+      <ProjectReference Include="..\..\BaseService\BaseService.Application\BaseService.Application.csproj" />
+      <ProjectReference Include="..\..\BaseService\BaseService.Common\BaseService.Common.csproj" />
+      <ProjectReference Include="..\..\BaseService\BaseService.Domain\BaseService.Domain.csproj" />
       <ProjectReference Include="..\AuthService.Application\AuthService.Application.csproj" />
       <ProjectReference Include="..\AuthService.Infrastructure\AuthService.Infrastructure.csproj" />
     </ItemGroup>

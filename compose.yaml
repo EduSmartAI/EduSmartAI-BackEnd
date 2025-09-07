@@ -6,13 +6,22 @@
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
     ports:
       - "7002:80"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
-      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
-      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - USER_SERVICE_DB=${USER_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=redis:6379,password=${REDIS_PASSWORD},allowAdmin=true
+      - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=http://authservice.api:80
+      - STUDENT_SERVICE_URL=http://studentservice.api:80
     networks:
       - edusmartai-network
 
@@ -22,15 +31,48 @@
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
     ports:
       - "7001:80"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
       - AUTH_SERVICE_DB=${AUTH_SERVICE_DB}
-      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
-      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - REDIS_CACHE_CONNECTION=redis:6379,password=${REDIS_PASSWORD},allowAdmin=true
+      - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - JWT_AUDIENCE=${JWT_AUDIENCE}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=http://authservice.api:80
+      - STUDENT_SERVICE_URL=http://studentservice.api:80
+    networks:
+      - edusmartai-network
+
+  baseservice.api:
+    build:
+      context: .
+      dockerfile: Services/BaseService/BaseService.API/Dockerfile
+    ports:
+      - "7003:80"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - UTILITY_SERVICE_DB=${UTILITY_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=redis:6379,password=${REDIS_PASSWORD},allowAdmin=true
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
     networks:
       - edusmartai-network
 
@@ -44,12 +86,52 @@
     depends_on:
       - studentservice.api
       - authservice.api
+      - baseservice.api
     environment:
-      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
-      - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
-      - CLIENT_ID=${CLIENT_ID}
-      - CLIENT_SECRET=${CLIENT_SECRET}
-      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+    networks:
+      - edusmartai-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: edusmartai-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - edusmartai-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: edusmartai-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - edusmartai-network
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: edusmartai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - edusmartai-network
 
