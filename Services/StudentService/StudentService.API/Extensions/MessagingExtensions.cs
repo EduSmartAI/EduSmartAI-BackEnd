@@ -1,6 +1,7 @@
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
+using StudentService.Application.Students.Consumers;
 using StudentService.Application.Users.Consumers;
 
 namespace StudentService.API.Extensions;

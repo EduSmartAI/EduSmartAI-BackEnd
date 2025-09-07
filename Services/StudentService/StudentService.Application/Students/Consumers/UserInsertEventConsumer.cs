@@ -3,7 +3,7 @@ using MassTransit;
 using MediatR;
 using StudentService.Application.Students.Commands.Inserts;
 
-namespace StudentService.Application.Users.Consumers;
+namespace StudentService.Application.Students.Consumers;
 
 public class UserInsertEventConsumer(IMediator mediator) : IConsumer<UserInsertEvent>
 {

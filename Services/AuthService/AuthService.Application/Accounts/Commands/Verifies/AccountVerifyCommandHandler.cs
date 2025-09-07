@@ -16,6 +16,12 @@ public class AccountVerifyCommandHandler : ICommandHandler<AccountVerifyCommand,
         _accountService = accountService;
     }
 
+    /// <summary>
+    /// Handles account verification by validating the provided key
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<AccountVerifyResponse> Handle(AccountVerifyCommand request, CancellationToken cancellationToken)
     {
         return await _accountService.VerifyAccount(request.Key);
