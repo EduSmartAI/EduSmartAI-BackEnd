@@ -7,17 +7,20 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
 COPY ["Services/StudentService/StudentService.API/StudentService.API.csproj", "Services/StudentService/StudentService.API/"]
 RUN dotnet restore "Services/StudentService/StudentService.API/StudentService.API.csproj"
+
 COPY . .
 WORKDIR "/src/Services/StudentService/StudentService.API"
+
 RUN dotnet build "./StudentService.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./StudentService.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./StudentService.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish/studentservice /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+COPY --from=publish /app/publish/studentservice .
 ENTRYPOINT ["dotnet", "StudentService.API.dll"]
