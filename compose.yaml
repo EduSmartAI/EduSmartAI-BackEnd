@@ -7,7 +7,7 @@
     ports:
       - "7002:80"
     environment:
-      - USER_SERVICE_DB=${USER_SERVICE_DB}
+      - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
       - REDIS_CACHE_CONNECTION=redis:6379,password=${REDIS_PASSWORD},allowAdmin=true
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
