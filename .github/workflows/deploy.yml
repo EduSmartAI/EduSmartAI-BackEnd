@@ -69,19 +69,4 @@ jobs:
             echo "📊 docker-compose service status:"
             docker compose ps
 
-            echo "🔍 Check container health"
-            for service in studentservice.api authservice.api reverseproxy; do
-              container_id=$(docker compose ps -q $service)
-              if [ ! -z "$container_id" ]; then
-                echo "📄 Logs from $service:"
-                docker logs $container_id --tail=20
-                echo "---"
-              else
-                echo "❌ No container found for $service"
-              fi
-            done
-
-            echo "🌐 Testing endpoints"
-            curl -f http://localhost:8080/health || echo "❌ Gateway health check failed"
-            
             echo "✅ Deployment completed!"
