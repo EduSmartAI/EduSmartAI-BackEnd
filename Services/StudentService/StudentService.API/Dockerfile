@@ -36,7 +36,7 @@ COPY Services/BaseService/BaseService.Common/ Services/BaseService/BaseService.C
 COPY BuildingBlocks/ BuildingBlocks/
 
 WORKDIR /src/Services/StudentService/StudentService.API
-RUN dotnet build StudentService.API.csproj -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build StudentService.API.csproj -c $BUILD_CONFIGURATION -o /app/build --no-warnings
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
