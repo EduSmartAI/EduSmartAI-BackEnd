@@ -1,7 +1,6 @@
 ﻿services:
   # API Services
   studentservice.api:
-    image: studentservice.api
     build:
       context: .
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
@@ -18,7 +17,6 @@
       - edusmartai-network
 
   authservice.api:
-    image: authservice.api
     build:
       context: .
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
@@ -38,7 +36,6 @@
 
   # Gateway
   reverseproxy:
-    image: reverseproxy
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
