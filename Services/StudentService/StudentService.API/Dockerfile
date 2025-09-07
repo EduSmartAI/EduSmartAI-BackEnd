@@ -7,15 +7,29 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
+# Copy all project files first for better caching
 COPY Services/StudentService/StudentService.API/*.csproj Services/StudentService/StudentService.API/
 COPY Services/StudentService/StudentService.Infrastructure/*.csproj Services/StudentService/StudentService.Infrastructure/
 COPY Services/StudentService/StudentService.Application/*.csproj Services/StudentService/StudentService.Application/
+COPY Services/StudentService/StudentService.Domain/*.csproj Services/StudentService/StudentService.Domain/
+
+# Copy BaseService dependencies
+COPY Services/BaseService/BaseService.API/*.csproj Services/BaseService/BaseService.API/
+COPY Services/BaseService/BaseService.Infrastructure/*.csproj Services/BaseService/BaseService.Infrastructure/
+COPY Services/BaseService/BaseService.Application/*.csproj Services/BaseService/BaseService.Application/
+COPY Services/BaseService/BaseService.Domain/*.csproj Services/BaseService/BaseService.Domain/
+COPY Services/BaseService/BaseService.Common/*.csproj Services/BaseService/BaseService.Common/
+
+# Copy BuildingBlocks dependencies
+COPY BuildingBlocks/BuildingBlocks/*.csproj BuildingBlocks/BuildingBlocks/
+COPY BuildingBlocks/BuildingBlocks.Messaging/*.csproj BuildingBlocks/BuildingBlocks.Messaging/
 
 RUN dotnet restore Services/StudentService/StudentService.API/StudentService.API.csproj
 
-COPY Services/StudentService/StudentService.API/ Services/StudentService/StudentService.API/
-COPY Services/StudentService/StudentService.Infrastructure/ Services/StudentService/StudentService.Infrastructure/
-COPY Services/StudentService/StudentService.Application/*.csproj Services/StudentService/StudentService.Application/
+# Copy all source files
+COPY Services/StudentService/ Services/StudentService/
+COPY Services/BaseService/ Services/BaseService/
+COPY BuildingBlocks/ BuildingBlocks/
 
 WORKDIR /src/Services/StudentService/StudentService.API
 RUN dotnet build StudentService.API.csproj -c $BUILD_CONFIGURATION -o /app/build
