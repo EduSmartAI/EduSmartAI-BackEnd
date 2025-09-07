@@ -29,11 +29,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
 #region Application build and middleware pipeline
 var app = builder.Build();
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<UserServiceContext>();
-    await dbContext.Database.EnsureCreatedAsync();
-}
+await app.EnsureDatabaseCreatedAsync();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

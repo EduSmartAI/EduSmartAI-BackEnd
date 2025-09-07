@@ -1,4 +1,3 @@
-using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BaseService.Infrastructure.Contexts;
 using JasperFx;
@@ -14,12 +13,11 @@ public static class DatabaseExtensions
 {
     public static IServiceCollection AddDatabaseServices(this IServiceCollection services)
     {
-        var connectionString = Environment.GetEnvironmentVariable(ConstEnv.UserServiceDb);
+        var connectionString = Environment.GetEnvironmentVariable(ConstEnv.StudentServiceDb);
+        var redisConnectionString = Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!;
         
-        services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!));        
-        services.AddScoped<IDatabase>(sp =>
-            sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
+        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));        
+        services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
         
         // Entity Framework configuration
         services.AddDbContext<UserServiceContext>(options =>

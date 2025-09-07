@@ -1,43 +1,114 @@
 ﻿services:
+  # API Services
   studentservice.api:
     image: studentservice.api
     build:
       context: .
-      dockerfile: Services/StudentService.API/Dockerfile
-
-  authservice.api-1:
-    image: authservice.api
-    build:
-      context: .
-      dockerfile: Services/AuthService/AuthService.API/Dockerfile
-
-  baseservice.api:
-    image: baseservice.api
-    build:
-      context: .
-      dockerfile: Services/BaseService/BaseService.API/Dockerfile
+      dockerfile: Services/StudentService/StudentService.API/Dockerfile
+    ports:
+      - "7002:80"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${USER_SERVICE_DB}
+      - Redis__ConnectionString=${REDIS_CACHE_CONNECTION}
+      - RabbitMQ__Host=${RABBITMQ_HOST}
+      - RabbitMQ__Username=${RABBITMQ_USERNAME}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD}
+    networks:
+      - edusmartai-network
 
   authservice.api:
     image: authservice.api
     build:
       context: .
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
+    ports:
+      - "7001:80"
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=${AUTH_SERVICE_DB}
+      - Redis__ConnectionString=${REDIS_CACHE_CONNECTION}
+      - RabbitMQ__Host=${RABBITMQ_HOST}
+      - RabbitMQ__Username=${RABBITMQ_USERNAME}
+      - RabbitMQ__Password=${RABBITMQ_PASSWORD}
+      - JWT__Audience=${JWT_AUDIENCE}
+      - JWT__ClientId=${CLIENT_ID}
+      - JWT__ClientSecret=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
 
+  # Gateway
   reverseproxy:
     image: reverseproxy
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - studentservice.api
+      - authservice.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    networks:
+      - edusmartai-network
 
-  buildingblocks.messaging:
-    image: buildingblocks.messaging
-    build:
-      context: .
-      dockerfile: BuildingBlocks/BuildingBlocks.Messaging/Dockerfile
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: edusmartai-postgres
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - edusmartai-network
 
-  studentservice.api-1:
-    image: studentservice.api-1
-    build:
-      context: .
-      dockerfile: Services/StudentService/StudentService.API/Dockerfile
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: edusmartai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - edusmartai-network
 
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: edusmartai-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - edusmartai-network
+
+# Networks
+networks:
+  edusmartai-network:
+    driver: bridge
+
+# Volumes
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
