@@ -7,10 +7,6 @@
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
     ports:
       - "7002:80"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
@@ -28,10 +24,6 @@
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
     ports:
       - "7001:80"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
     environment:
       - AUTH_SERVICE_DB=${AUTH_SERVICE_DB}
       - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
