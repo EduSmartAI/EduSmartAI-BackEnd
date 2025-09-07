@@ -7,15 +7,19 @@
     ports:
       - "7002:80"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
       - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
       - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
-      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
       - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - ENCRYPTION_IV=${ENCRYPTION_IV}
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
     networks:
       - edusmartai-network
 
@@ -26,6 +30,8 @@
     ports:
       - "7001:80"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
       - AUTH_SERVICE_DB=${AUTH_SERVICE_DB}
       - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
       - RABBITMQ_HOST=${RABBITMQ_HOST}
@@ -40,19 +46,22 @@
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
     networks:
       - edusmartai-network
+
   # Gateway
   reverseproxy:
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
     ports:
-      - "7000:80"
+      - "8080:80"
     depends_on:
       - studentservice.api
       - authservice.api
     networks:
       - edusmartai-network
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
       - CLIENT_ID=${CLIENT_ID}
