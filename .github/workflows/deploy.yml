@@ -52,8 +52,8 @@ jobs:
             chmod +x *.sh || true
 
             echo "🐳 Stopping and rebuilding Docker containers"
-            docker-compose down || true
-            docker-compose up -d --build
+            docker compose down || true
+            docker compose up -d --build
 
             echo "⏳ Waiting for containers to start..."
             sleep 20
@@ -62,7 +62,7 @@ jobs:
             docker ps -a
 
             echo "📊 docker-compose service status:"
-            docker-compose ps
+            docker compose ps
 
             echo "📄 Logs from studentservice.api:"
             docker logs $(docker ps -q --filter "name=studentservice.api") --tail=50 || true
