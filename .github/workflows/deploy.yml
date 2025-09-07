@@ -14,28 +14,36 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Tạo file .env từ secret trong GitHub
+      # 2. Setup SSH key từ secret base64
+      - name: Setup SSH key
+        run: |
+          echo "${{ secrets.VPS_SSH_KEY }}" | base64 --decode > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # 3. Tạo file .env từ secret trong GitHub
       - name: Write .env file from ENV_FILE_CONTENT
         run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
 
-      # 3. Copy source code và .env lên VPS
+      # 4. Copy source code và .env lên VPS
       - name: Copy source code and .env to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key: ${{ secrets.VPS_SSH_KEY }} # <-- CÓ THỂ ĐỔI THÀNH ~/.ssh/id_rsa
           source: "."
           target: "~/apps/EduSmart-BackEnd"
           rm: true
 
-      # 4. SSH vào VPS, chạy docker-compose
+      # 5. SSH vào VPS và deploy Docker
       - name: SSH into VPS and deploy Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key: ${{ secrets.VPS_SSH_KEY }} # <-- CÓ THỂ ĐỔI THÀNH ~/.ssh/id_rsa
           script: |
             echo "📦 Deploying EduSmartAI Microservices..."
             cd ~/apps/EduSmart-BackEnd
