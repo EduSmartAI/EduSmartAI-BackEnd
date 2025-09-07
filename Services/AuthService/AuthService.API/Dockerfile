@@ -13,11 +13,12 @@ COPY Services/AuthService/AuthService.Infrastructure/*.csproj Services/AuthServi
 COPY Services/AuthService/AuthService.Application/*.csproj Services/AuthService/AuthService.Application/
 COPY Services/AuthService/AuthService.Domain/*.csproj Services/AuthService/AuthService.Domain/
 
-# Copy BaseService dependencies (excluding API layer)
+# Copy BaseService projects (including API for shared AbstractControllers)
 COPY Services/BaseService/BaseService.Infrastructure/*.csproj Services/BaseService/BaseService.Infrastructure/
 COPY Services/BaseService/BaseService.Application/*.csproj Services/BaseService/BaseService.Application/
 COPY Services/BaseService/BaseService.Domain/*.csproj Services/BaseService/BaseService.Domain/
 COPY Services/BaseService/BaseService.Common/*.csproj Services/BaseService/BaseService.Common/
+COPY Services/BaseService/BaseService.API/*.csproj Services/BaseService/BaseService.API/
 
 # Copy BuildingBlocks dependencies
 COPY BuildingBlocks/BuildingBlocks/*.csproj BuildingBlocks/BuildingBlocks/
@@ -25,12 +26,13 @@ COPY BuildingBlocks/BuildingBlocks.Messaging/*.csproj BuildingBlocks/BuildingBlo
 
 RUN dotnet restore Services/AuthService/AuthService.API/AuthService.API.csproj
 
-# Copy source files (excluding BaseService.API)
+# Copy source files (including BaseService.API for shared AbstractControllers)
 COPY Services/AuthService/ Services/AuthService/
 COPY Services/BaseService/BaseService.Infrastructure/ Services/BaseService/BaseService.Infrastructure/
 COPY Services/BaseService/BaseService.Application/ Services/BaseService/BaseService.Application/
 COPY Services/BaseService/BaseService.Domain/ Services/BaseService/BaseService.Domain/
 COPY Services/BaseService/BaseService.Common/ Services/BaseService/BaseService.Common/
+COPY Services/BaseService/BaseService.API/ Services/BaseService/BaseService.API/
 COPY BuildingBlocks/ BuildingBlocks/
 
 WORKDIR /src/Services/AuthService/AuthService.API

@@ -12,11 +12,12 @@ WORKDIR /src
 COPY BuildingBlocks/BuildingBlocks/*.csproj BuildingBlocks/BuildingBlocks/
 COPY BuildingBlocks/BuildingBlocks.Messaging/*.csproj BuildingBlocks/BuildingBlocks.Messaging/
 
-# Copy BaseService projects (excluding API to avoid appsettings.json conflict)
+# Copy BaseService projects (including API for shared AbstractControllers)
 COPY Services/BaseService/BaseService.Domain/*.csproj Services/BaseService/BaseService.Domain/
 COPY Services/BaseService/BaseService.Common/*.csproj Services/BaseService/BaseService.Common/
 COPY Services/BaseService/BaseService.Application/*.csproj Services/BaseService/BaseService.Application/
 COPY Services/BaseService/BaseService.Infrastructure/*.csproj Services/BaseService/BaseService.Infrastructure/
+COPY Services/BaseService/BaseService.API/*.csproj Services/BaseService/BaseService.API/
 
 # Copy StudentService projects
 COPY Services/StudentService/StudentService.Domain/*.csproj Services/StudentService/StudentService.Domain/
@@ -30,11 +31,12 @@ RUN dotnet restore Services/StudentService/StudentService.API/StudentService.API
 # Copy source files in the same dependency order
 COPY BuildingBlocks/ BuildingBlocks/
 
-# Copy BaseService source (excluding API layer)
+# Copy BaseService source (including API for shared AbstractControllers)
 COPY Services/BaseService/BaseService.Domain/ Services/BaseService/BaseService.Domain/
 COPY Services/BaseService/BaseService.Common/ Services/BaseService/BaseService.Common/
 COPY Services/BaseService/BaseService.Application/ Services/BaseService/BaseService.Application/
 COPY Services/BaseService/BaseService.Infrastructure/ Services/BaseService/BaseService.Infrastructure/
+COPY Services/BaseService/BaseService.API/ Services/BaseService/BaseService.API/
 
 # Copy StudentService source
 COPY Services/StudentService/ Services/StudentService/

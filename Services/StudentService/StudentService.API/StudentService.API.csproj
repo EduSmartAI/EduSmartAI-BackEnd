@@ -24,8 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <!-- Loại bỏ BaseService.API để tránh xung đột appsettings.json -->
-      <!-- <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" /> -->
+      <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
       <ProjectReference Include="..\..\BaseService\BaseService.Infrastructure\BaseService.Infrastructure.csproj" />
       <ProjectReference Include="..\..\BaseService\BaseService.Application\BaseService.Application.csproj" />
       <ProjectReference Include="..\..\BaseService\BaseService.Common\BaseService.Common.csproj" />

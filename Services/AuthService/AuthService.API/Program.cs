@@ -2,7 +2,6 @@ using AuthService.API;
 using AuthService.API.Extensions;
 using AuthService.API.Helpers;
 using BaseService.Common.Settings;
-using BaseService.Common.Utils.Const;
 using Microsoft.AspNetCore.Mvc;
 
 // Load environment variables
