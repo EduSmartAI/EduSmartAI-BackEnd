@@ -1,5 +1,5 @@
 using AuthService.Application.Accounts.Commands.Inserts;
-using BaseService.API.AbstractControllers;
+using AuthService.API.AbstractControllers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NLog;

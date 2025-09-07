@@ -15,6 +15,7 @@
         <PackageReference Include="OpenIddict.AspNetCore" Version="7.0.0" />
         <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+        <PackageReference Include="Npgsql" Version="9.0.3" />
     </ItemGroup>
 
     <ItemGroup>
@@ -25,7 +26,7 @@
 
     <ItemGroup>
       <!-- Remove BaseService.API reference to avoid appsettings.json conflict -->
-      <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
+      <!-- <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" /> -->
       <ProjectReference Include="..\..\BaseService\BaseService.Infrastructure\BaseService.Infrastructure.csproj" />
       <ProjectReference Include="..\..\BaseService\BaseService.Application\BaseService.Application.csproj" />
       <ProjectReference Include="..\..\BaseService\BaseService.Common\BaseService.Common.csproj" />
