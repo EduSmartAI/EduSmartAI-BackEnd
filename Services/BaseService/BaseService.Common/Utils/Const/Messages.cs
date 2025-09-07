@@ -67,7 +67,7 @@ public partial class Messages
     private static string LoadCsvFromEmbeddedResource()
     {
         var assembly = Assembly.GetExecutingAssembly();
-        var resourceName = "Shared.Common.Settings.ConstanstCSV.MessageId.csv";
+        var resourceName = "BaseService.Common.Settings.ConstanstCSV.MessageId.csv";
         
         using var stream = assembly.GetManifestResourceStream(resourceName);
         if (stream == null)

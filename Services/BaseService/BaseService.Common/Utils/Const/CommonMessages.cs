@@ -2,10 +2,11 @@ namespace BaseService.Common.Utils.Const;
 
 public class CommonMessages
 {
-    public static readonly string LecturerNotFound = "Không tìm thấy giảng viên";
+    public const string LecturerNotFound = "Không tìm thấy giảng viên";
     
-    public static readonly string CourseNotFound = "Không tìm thấy khóa học";
+    public const string CourseNotFound = "Không tìm thấy khóa học";
 
-    public static readonly string StudentNotFound = "Không tìm thấy sinh viên";
+    public const string StudentNotFound = "Không tìm thấy sinh viên";
     
+    public const string UserNotFound = "Không tìm thấy người dùng";
 }

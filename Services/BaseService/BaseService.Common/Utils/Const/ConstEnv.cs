@@ -6,7 +6,7 @@ public static class ConstEnv
     
     public const string AuthServiceDb = "AUTH_SERVICE_DB";
     
-    public const string UserServiceDb = "USER_SERVICE_DB";
+    public const string StudentServiceDb = "STUDENT_SERVICE_DB";
     
     public const string UtilityServiceDb = "UTILITY_SERVICE_DB";
     
@@ -21,8 +21,6 @@ public static class ConstEnv
     public const string CloudApiSecret = "CLOUDINARY_API_SECRET";
     
     public const string AuthServiceUrl = "AUTH_SERVICE_URL";
-    
-    public const string UserServiceUrl = "USER_SERVICE_URL";
     
     public const string TeacherServiceUrl = "TEACHER_SERVICE_URL";
     
@@ -51,5 +49,4 @@ public static class ConstEnv
     public const string RabbitMqPassword = "RABBITMQ_PASSWORD";
     
     public const string RedisCacheConnection = "REDIS_CACHE_CONNECTION";
-    
 }

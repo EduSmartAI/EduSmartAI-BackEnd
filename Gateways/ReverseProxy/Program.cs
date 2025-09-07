@@ -30,6 +30,12 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseRouting();
+app.Use(async (context, next) =>
+{
+    context.Request.EnableBuffering();
+    context.Request.Body.Position = 0;
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseHttpsRedirection();

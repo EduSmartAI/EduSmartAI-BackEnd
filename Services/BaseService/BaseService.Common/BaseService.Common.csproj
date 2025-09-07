@@ -9,5 +9,7 @@
     <ItemGroup>
       <PackageReference Include="NLog" Version="6.0.3" />
     </ItemGroup>
-
+    <ItemGroup>
+        <EmbeddedResource Include="Settings/ConstanstCSV/MessageId.csv" />
+    </ItemGroup>
 </Project>
