@@ -1,41 +1,56 @@
+using AuthService.API;
+using AuthService.API.Extensions;
+using AuthService.API.Helpers;
+using BaseService.Common.Settings;
+using Microsoft.AspNetCore.Mvc;
+
+// Load environment variables
+EnvLoader.Load();
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Core services
+builder.Services.AddControllers();
+builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<RoleSeederHostedService>();
+
+// Configure services using extension methods
+builder.Services.AddDatabaseServices();
+builder.Services.AddRepositoryServices();
+builder.Services.AddMessagingServices();
+builder.Services.AddSwaggerServices();
+builder.Services.AddCorsServices();
+builder.Services.AddAuthenticationServices();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+});
 
 var app = builder.Build();
+app.UseForwardedHeaders();
+// Ensure the database is created
+await app.EnsureDatabaseCreatedAsync();
 
-// Configure the HTTP request pipeline.
+// Configure middleware pipeline
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseDeveloperExceptionPage();
 }
 
+app.UseCors();
+app.UsePathBase("/auth");
+app.UseRouting();
+app.UseAuthentication();
+app.UseStatusCodePages();
+app.UseAuthorization();
 app.UseHttpsRedirection();
-
-var summaries = new[]
+app.MapControllers();
+app.UseSwagger();
+app.UseSwaggerUI(settings =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
-
+    settings.RoutePrefix = "swagger";
+});
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
