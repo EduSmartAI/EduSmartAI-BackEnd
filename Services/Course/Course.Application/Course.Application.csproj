@@ -7,12 +7,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\BuildingBlocks\BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BuildingBlocks\BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
     <ProjectReference Include="..\Course.Domain\Course.Domain.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="DTOs\" />
+    <Folder Include="Courses\Commands\" />
+    <Folder Include="Courses\Consumers\" />
   </ItemGroup>
 
 </Project>

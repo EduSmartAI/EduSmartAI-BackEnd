@@ -2,14 +2,14 @@
 #nullable disable
 using System;
 using System.Collections.Generic;
+using BaseService.Infrastructure.Contexts;
 using Course.Domain.Models;
 using Microsoft.EntityFrameworkCore;
-using CourseEntity = Course.Domain.Models.Course;
 
 namespace Course.Infrastructure.Data;
 
 
-public partial class CourseDbContext : DbContext
+public partial class CourseDbContext : AppDbContext
 {
     public CourseDbContext(DbContextOptions<CourseDbContext> options)
         : base(options)

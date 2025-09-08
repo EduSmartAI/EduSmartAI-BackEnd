@@ -1,0 +1,14 @@
+﻿using BuildingBlocks.Pagination;
+using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.DTOs;
+
+namespace Course.Application.Interfaces
+{
+	public interface ICourseService
+	{
+		Task<GetCoursesResponse> GetAllAsync(
+			PaginationRequest pagination,
+			CourseQuery? query = null,
+			CancellationToken ct = default);
+	}
+}

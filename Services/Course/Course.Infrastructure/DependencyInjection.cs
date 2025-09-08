@@ -1,4 +1,12 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using BaseService.Application.Interfaces.Repositories;
+using BaseService.Infrastructure.Contexts;
+using BaseService.Infrastructure.Repositories;
+using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.Interfaces;
+using Course.Infrastructure.Data;
+using Course.Infrastructure.Implements;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Course.Infrastructure
@@ -9,6 +17,17 @@ namespace Course.Infrastructure
 		{
 			// Add infrastructure services here, e.g., database context, repositories, etc.
 			var connectionString = configuration.GetConnectionString("Database");
+
+			// DbContext (PostgreSQL)
+			services.AddDbContext<AppDbContext, CourseDbContext>(opt =>
+	opt.UseNpgsql(connectionString));
+
+			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
+			services.AddScoped<ICourseService, CourseService>();
+
+			// MediatR configuration
+			services.AddMediatR(cfg =>
+				cfg.RegisterServicesFromAssemblyContaining<GetCoursesHandler>());
 
 			return services;
 		}
