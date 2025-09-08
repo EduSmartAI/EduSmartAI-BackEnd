@@ -1,0 +1,113 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "CourseDbContext",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "Data",
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "Course.Infrastructure",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 1,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "public.course_comments",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_ratings",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_recommendations",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_tags",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.courses",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.lessons",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.majors",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.modules",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.notes",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.semesters",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.subject_prerequisites",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.subjects",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.syllabus",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.syllabus_semesters",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.syllabus_subjects",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.tags",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.user_lesson_progress",
+         "ObjectType": 0
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": true,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": false,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}
