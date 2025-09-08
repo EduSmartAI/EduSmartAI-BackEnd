@@ -1,5 +1,5 @@
 using AuthService.Application.Accounts.Commands.Inserts;
-using BaseService.API.AbstractControllers;
+using BaseService.API.BaseControllers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -11,7 +11,7 @@ namespace AuthService.API.Controllers.Accounts;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-public class InsertStudentController : AbstractApiAsyncControllerNotToken<StudentInsertCommand, StudentInsertResponse, string>
+public class InsertStudentController : ControllerBase, IApiAsyncController<StudentInsertCommand, StudentInsertResponse>
 {
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly IMediator _mediator;
@@ -26,24 +26,19 @@ public class InsertStudentController : AbstractApiAsyncControllerNotToken<Studen
     }
 
     /// <summary>
-    /// Insert student account
     /// Incoming Post
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost]
-    public override async Task<StudentInsertResponse> ProcessRequest(StudentInsertCommand request)
+    public async Task<StudentInsertResponse> ProcessRequest(StudentInsertCommand request)
     {
-        return await ProcessRequest(request, _logger, new StudentInsertResponse());
-    }
-
-    /// <summary>
-    /// Main processing
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    protected override async Task<StudentInsertResponse> Exec(StudentInsertCommand request)
-    {
-        return await _mediator.Send(request);
+        return await ApiControllerHelperNotAuth.HandleRequest<StudentInsertCommand, StudentInsertResponse, string>(
+            request,
+            _logger,
+            new StudentInsertResponse(),
+            ModelState,
+            async () => await _mediator.Send(request)
+        );
     }
 }
