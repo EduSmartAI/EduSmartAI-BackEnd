@@ -52,11 +52,12 @@ public static class RouteConfiguration
                 },
                 Transforms =
                 [
-                    new Dictionary<string, string> { { "PathRemovePrefix", "/student" } }
+                    new Dictionary<string, string> { { "PathRemovePrefix", "/student" } },
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
                 ],
                 Metadata = new Dictionary<string, string>
                 {
-                    { "AllowedRoles", "Student" },
+                    { "AllowedRoles", ConstRole.Student },
                     { "Exceptions", "" }
                 }
             }

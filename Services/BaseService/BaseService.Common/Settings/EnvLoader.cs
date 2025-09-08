@@ -2,9 +2,24 @@ namespace BaseService.Common.Settings;
 
 public static class EnvLoader
 {
-    public static void Load(string envFilePath = "../Services/.env")
+    public static void Load(string envFileName = ".env")
     {
-        if (!File.Exists(envFilePath))
+        var dir = Directory.GetCurrentDirectory();
+        string? envFilePath = null;
+
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir, envFileName);
+            if (File.Exists(candidate))
+            {
+                envFilePath = candidate;
+                break;
+            }
+
+            dir = Directory.GetParent(dir)?.FullName;
+        }
+
+        if (envFilePath == null || !File.Exists(envFilePath))
             return;
 
         var lines = File.ReadAllLines(envFilePath);
