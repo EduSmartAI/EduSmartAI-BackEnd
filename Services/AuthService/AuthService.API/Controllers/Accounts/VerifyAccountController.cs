@@ -1,5 +1,5 @@
 using AuthService.Application.Accounts.Commands.Verifies;
-using BaseService.API.AbstractControllers;
+using BaseService.API.BaseControllers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
@@ -11,7 +11,7 @@ namespace AuthService.API.Controllers.Accounts;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-public class VerifyAccountController : AbstractApiAsyncControllerNotToken<AccountVerifyCommand, AccountVerifyResponse, string>
+public class VerifyAccountController : ControllerBase, IApiAsyncController<AccountVerifyCommand, AccountVerifyResponse>
 {
     private readonly IMediator _mediator;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
@@ -31,18 +31,14 @@ public class VerifyAccountController : AbstractApiAsyncControllerNotToken<Accoun
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost]
-    public override async Task<AccountVerifyResponse> ProcessRequest([FromBody] AccountVerifyCommand request)
+    public async Task<AccountVerifyResponse> ProcessRequest([FromBody] AccountVerifyCommand request)
     {
-        return await ProcessRequest(request, _logger, new AccountVerifyResponse());
-    }
-
-    /// <summary>
-    /// Main processing
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    protected override async Task<AccountVerifyResponse> Exec(AccountVerifyCommand request)
-    {
-        return await _mediator.Send(request);
+        return await ApiControllerHelperNotAuth.HandleRequest<AccountVerifyCommand, AccountVerifyResponse, string>(
+            request,
+            _logger,
+            new AccountVerifyResponse(),
+            ModelState,
+            async () => await _mediator.Send(request)
+        );
     }
 }

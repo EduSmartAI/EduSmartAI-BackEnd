@@ -1,0 +1,72 @@
+name: Deploy EduSmartAI Microservices to VPS
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source code
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. Setup SSH key từ secret
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # 3. Tạo file .env từ secret trong GitHub
+      - name: Write .env file from ENV_FILE_CONTENT
+        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+
+      # 4. Copy source code và .env lên VPS
+      - name: Copy source code and .env to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "~/apps/EduSmart-BackEnd"
+          rm: true
+
+      # 5. SSH vào VPS và deploy Docker Compose
+      - name: SSH into VPS and deploy Docker Compose
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            echo "📦 Deploying EduSmartAI Microservices..."
+            cd ~/apps/EduSmart-BackEnd
+
+            echo "🔧 Setting permissions for scripts"
+            chmod +x *.sh || true
+
+            echo "🧹 Cleanup old containers and images"
+            docker compose down --volumes --remove-orphans || true
+            docker system prune -af || true
+            docker builder prune -af || true
+
+            echo "🐳 Building and starting Docker containers"
+            docker compose build --no-cache --pull
+            docker compose up -d
+
+            echo "⏳ Waiting for containers to start..."
+            sleep 30
+
+            echo "✅ Docker containers status:"
+            docker ps -a
+
+            echo "📊 docker-compose service status:"
+            docker compose ps
+
+            echo "✅ Deployment completed!"

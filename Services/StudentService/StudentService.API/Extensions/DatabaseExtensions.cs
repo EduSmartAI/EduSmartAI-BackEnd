@@ -20,12 +20,12 @@ public static class DatabaseExtensions
         services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
         
         // Entity Framework configuration
-        services.AddDbContext<UserServiceContext>(options =>
+        services.AddDbContext<StudentServiceContext>(options =>
         {
             options.UseNpgsql(connectionString);
         });
         
-        services.AddScoped<AppDbContext, UserServiceContext>();
+        services.AddScoped<AppDbContext, StudentServiceContext>();
         
         // Marten document database configuration
         services.AddMarten(options =>
@@ -45,7 +45,7 @@ public static class DatabaseExtensions
     public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
     {
         using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<UserServiceContext>();
+        var db = scope.ServiceProvider.GetRequiredService<StudentServiceContext>();
         await db.Database.EnsureCreatedAsync();
         return app;
     }

@@ -4,7 +4,7 @@ using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using StudentService.Application.Interfaces;
 using StudentService.Application.Students.Commands.Inserts;
 using StudentService.Domain.ReadModels;
-using StudentService.Domain.WriteModels;
+using Student = StudentService.Domain.Models.Student;
 
 namespace StudentService.Infrastructure.Implements;
 
@@ -88,7 +88,7 @@ public class StudentService : IStudentService
         return response;
     }
 
-    public Task<(bool, Student?)> IsStudentExistAsync(Guid userId, CancellationToken cancellationToken = default)
+    public Task<(bool, Domain.WriteModels.Student?)> IsStudentExistAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         throw new NotImplementedException();
     }

@@ -26,16 +26,23 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 #endregion
-
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
+});
 #region Application build and middleware pipeline
 var app = builder.Build();
 await app.EnsureDatabaseCreatedAsync();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseDeveloperExceptionPage();
 }
 
+// Remove hardcoded URL configuration - let Docker handle port mapping
+// app.Urls.Clear();
+// app.Urls.Add("http://0.0.0.0:7002");
 app.UseCors();
 app.UseRouting();
 app.UsePathBase("/student");

@@ -2,7 +2,6 @@ using AuthService.API;
 using AuthService.API.Extensions;
 using AuthService.API.Helpers;
 using BaseService.Common.Settings;
-using BaseService.Common.Utils.Const;
 using Microsoft.AspNetCore.Mvc;
 
 // Load environment variables
@@ -28,8 +27,15 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 
+// Kestrel configuration
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
+});
+
 var app = builder.Build();
 app.UseForwardedHeaders();
+
 // Ensure the database is created
 await app.EnsureDatabaseCreatedAsync();
 
