@@ -1,6 +1,7 @@
-﻿using StudentService.Domain.Model;
+﻿using System;
+using System.Collections.Generic;
 
-namespace StudentService.Domain.Models;
+namespace StudentService.Domain.WriteModels;
 
 public partial class CourseLearningPath
 {
@@ -19,6 +20,6 @@ public partial class CourseLearningPath
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
-
+    
     public virtual LearningPath Path { get; set; } = null!;
 }

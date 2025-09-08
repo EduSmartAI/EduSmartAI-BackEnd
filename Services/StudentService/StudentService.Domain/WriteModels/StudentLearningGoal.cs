@@ -1,6 +1,7 @@
-﻿using StudentService.Domain.Models;
+﻿using System;
+using System.Collections.Generic;
 
-namespace StudentService.Domain.Model;
+namespace StudentService.Domain.WriteModels;
 
 public partial class StudentLearningGoal
 {

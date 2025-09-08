@@ -20,10 +20,8 @@ public static class RepositoryExtensions
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
-        services.AddScoped<IQueryRepository<TeacherCollection>, QueryRepository<TeacherCollection>>();
         services.AddScoped<ICommandRepository<Student>, CommandRepository<Student>>();
-        services.AddScoped<ICommandRepository<Teacher>, CommandRepository<Teacher>>();
-        
+
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
         

@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace StudentService.Domain.Model;
+namespace StudentService.Domain.WriteModels;
 
-public partial class Technology
+public partial class Type
 {
-    public Guid TechnologyId { get; set; }
+    public Guid TypeId { get; set; }
 
-    public string TechnologyName { get; set; } = null!;
+    public string TypeName { get; set; } = null!;
 
     public string? Description { get; set; }
 
@@ -21,5 +21,5 @@ public partial class Technology
 
     public bool IsActive { get; set; }
 
-    public virtual ICollection<Technologytype> Technologytypes { get; set; } = new List<Technologytype>();
+    public virtual ICollection<TechnologyType> TechnologyTypes { get; set; } = new List<TechnologyType>();
 }

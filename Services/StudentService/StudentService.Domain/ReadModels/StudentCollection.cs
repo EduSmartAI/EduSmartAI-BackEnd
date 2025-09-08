@@ -12,18 +12,23 @@ public sealed class StudentCollection
     public short? Gender { get; set; }
     public string? AvatarUrl { get; set; }
     public string? Address { get; set; }
-    public short? Marjor { get; set; }
-    public short? SkillLevel { get; set; }
+    public Guid? MajorId { get; set; }
+    public int? SemesterId { get; set; }
     public string? Bio { get; set; }
-    public DateTime? CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
-    public bool? IsActive { get; set; }
+    public bool IsActive { get; set; }
+
+    public MajorCollection? Major { get; set; }
+    public SemesterCollection? Semester { get; set; }
     
-    public static StudentCollection FromWriteModel(Student model)
+    public ICollection<LearningGoalCollection> LearningGoals { get; set; } = new List<LearningGoalCollection>();
+
+    public static StudentCollection FromWriteModel(Student model, bool included = false)
     {
-        return new StudentCollection
+        var studentCollection = new StudentCollection
         {
             StudentId = model.StudentId,
             FirstName = model.FirstName,
@@ -33,8 +38,8 @@ public sealed class StudentCollection
             Gender = model.Gender,
             AvatarUrl = model.AvatarUrl,
             Address = model.Address,
-            Marjor = model.Marjor,
-            SkillLevel = model.SkillLevel,
+            MajorId = model.MajorId,
+            SemesterId = model.SemesterId,
             Bio = model.Bio,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
@@ -42,5 +47,28 @@ public sealed class StudentCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
+
+        if (included)
+        {
+            if (model.Major != null)
+            {
+                studentCollection.Major = MajorCollection.FromWriteModel(model.Major);
+            }
+
+            if (model.Semester != null)
+            {
+                studentCollection.Semester = SemesterCollection.FromWriteModel(model.Semester);
+            }
+            
+            if (model.StudentLearningGoals.Any())
+            {
+                studentCollection.LearningGoals = model.StudentLearningGoals
+                    .Where(sl => sl.Goal != null)
+                    .Select(sl => LearningGoalCollection.FromWriteModel(sl.Goal!))
+                    .ToList();
+            }
+        }
+
+        return studentCollection;
     }
 }

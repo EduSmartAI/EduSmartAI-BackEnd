@@ -1,4 +1,7 @@
-﻿namespace StudentService.Domain.Models;
+﻿using System;
+using System.Collections.Generic;
+
+namespace StudentService.Domain.WriteModels;
 
 public partial class LearningPath
 {
@@ -17,4 +20,6 @@ public partial class LearningPath
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public virtual ICollection<CourseLearningPath> CourseLearningPaths { get; set; } = new List<CourseLearningPath>();
 }
