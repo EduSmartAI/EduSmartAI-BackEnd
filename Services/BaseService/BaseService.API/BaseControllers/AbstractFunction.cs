@@ -5,7 +5,7 @@ using BaseService.Common.Utils.Const;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Npgsql;
 
-namespace BaseService.API.AbstractControllers;
+namespace BaseService.API.BaseControllers;
 
 public abstract class AbstractFunction<TResponse, TEntityResponse>
     where TResponse : AbstractApiResponse<TEntityResponse>
