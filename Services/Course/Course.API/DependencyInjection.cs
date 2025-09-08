@@ -11,8 +11,8 @@ namespace Course.API
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
 			services.AddCorsServices();
-			services.AddAuthentication();
-			services.AddAuthorization();
+			//services.AddAuthentication();
+			//services.AddAuthorization();
 			return services;
 		}
 
@@ -20,19 +20,28 @@ namespace Course.API
 		{
 			// Configure the HTTP request pipeline here, e.g., app.UseSwagger(), app.UseAuthorization(), etc.
 
-			app.UseCors();
+			// Base path trước
 			app.UsePathBase("/auth");
-			app.UseRouting();
-			app.UseAuthentication();
-			app.UseStatusCodePages();
-			app.UseAuthorization();
+
 			app.UseHttpsRedirection();
-			app.MapControllers();
+
+			app.UseRouting();
+
+			app.UseCors();
+
+			//app.UseAuthentication();
+			app.UseStatusCodePages();
+			//app.UseAuthorization();
+
 			app.UseSwagger();
 			app.UseSwaggerUI(settings =>
 			{
-				settings.RoutePrefix = "swagger";
+				// Đặt endpoint có base path
+				settings.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "Auth Service v1");
+				settings.RoutePrefix = "swagger"; // => /auth/swagger
 			});
+
+			app.MapControllers();
 			return app;
 		}
 	}

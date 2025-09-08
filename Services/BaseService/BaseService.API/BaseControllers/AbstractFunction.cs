@@ -5,7 +5,7 @@ using BaseService.Common.Utils.Const;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Npgsql;
 
-namespace BaseService.API.AbstractControllers;
+namespace BaseService.API.BaseControllers;
 
 public abstract class AbstractFunction<TResponse, TEntityResponse>
     where TResponse : AbstractApiResponse<TEntityResponse>
@@ -39,17 +39,20 @@ public abstract class AbstractFunction<TResponse, TEntityResponse>
             case PostgresException ex:
                 if (ex.SqlState == "57014")
                 {
-                    loggingUtil.ErrorLog($"PostgresSQL timeout error: {ex.Message} {ex.StackTrace}");
+                    var stackTrace = ex.StackTrace ?? "No stack trace";
+                    loggingUtil.ErrorLog($"PostgresSQL timeout error: {ex.Message} {stackTrace}");
                     returnValue.SetMessage(MessageId.E99003);
                 }
                 else if (ex.SqlState == "42P01")
                 {
-                    loggingUtil.ErrorLog($"Schema/view changed during execution: {ex.Message} {ex.StackTrace}");
+                    var stackTrace = ex.StackTrace ?? "No stack trace";
+                    loggingUtil.ErrorLog($"Schema/view changed during execution: {ex.Message} {stackTrace}");
                     returnValue.SetMessage(MessageId.E99004);
                 }
                 else
                 {
-                    loggingUtil.ErrorLog($"PostgresSQL system error: {ex.Message} {ex.StackTrace}");
+                    var stackTrace = ex.StackTrace ?? "No stack trace";
+                    loggingUtil.ErrorLog($"PostgresSQL system error: {ex.Message} {stackTrace}");
                     returnValue.SetMessage(MessageId.E99005);
                 }
 

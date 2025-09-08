@@ -1,53 +1,54 @@
 ﻿services:
   # API Services
   studentservice.api:
-    image: studentservice.api
     build:
       context: .
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
     ports:
       - "7002:80"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${USER_SERVICE_DB}
-      - Redis__ConnectionString=${REDIS_CACHE_CONNECTION}
-      - RabbitMQ__Host=${RABBITMQ_HOST}
-      - RabbitMQ__Username=${RABBITMQ_USERNAME}
-      - RabbitMQ__Password=${RABBITMQ_PASSWORD}
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
     networks:
       - edusmartai-network
 
   authservice.api:
-    image: authservice.api
     build:
       context: .
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
     ports:
       - "7001:80"
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=${AUTH_SERVICE_DB}
-      - Redis__ConnectionString=${REDIS_CACHE_CONNECTION}
-      - RabbitMQ__Host=${RABBITMQ_HOST}
-      - RabbitMQ__Username=${RABBITMQ_USERNAME}
-      - RabbitMQ__Password=${RABBITMQ_PASSWORD}
-      - JWT__Audience=${JWT_AUDIENCE}
-      - JWT__ClientId=${CLIENT_ID}
-      - JWT__ClientSecret=${CLIENT_SECRET}
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - AUTH_SERVICE_DB=${AUTH_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
     networks:
       - edusmartai-network
 
   # Gateway
   reverseproxy:
-    image: reverseproxy
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
@@ -56,51 +57,17 @@
     depends_on:
       - studentservice.api
       - authservice.api
+    networks:
+      - edusmartai-network
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-    networks:
-      - edusmartai-network
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
 
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15
-    container_name: edusmartai-postgres
-    environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - edusmartai-network
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: edusmartai-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - edusmartai-network
-
-  # RabbitMQ Message Broker
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: edusmartai-rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-    ports:
-      - "5672:5672"    # AMQP port
-      - "15672:15672"  # Management UI port
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - edusmartai-network
 
 # Networks
 networks:

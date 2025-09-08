@@ -6,7 +6,7 @@ namespace Course.API.Extensions
 	{
 		public static IServiceCollection AddSwaggerServices(this IServiceCollection services)
 		{
-			services.AddOpenApi();
+			//services.AddOpenApi();
 
 			services.AddSwaggerGen(c =>
 			{

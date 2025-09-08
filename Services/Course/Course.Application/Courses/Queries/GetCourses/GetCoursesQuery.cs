@@ -9,6 +9,6 @@ namespace Course.Application.Courses.Queries.GetCourses
 
 	public record GetCoursesResponse : AbstractApiResponse<PaginatedResult<CourseDto>>
 	{
-		public override PaginatedResult<CourseDto> Response { get ; set ; }
+		public override PaginatedResult<CourseDto> Response { get; set; }
 	}
 }

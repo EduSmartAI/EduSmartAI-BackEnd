@@ -1,32 +1,20 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <Nullable>enable</Nullable>
     </PropertyGroup>
-
-    <ItemGroup>
-        <PackageReference Include="MediatR" Version="13.0.0" />
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.6" />
-        <PackageReference Include="Npgsql" Version="9.0.3" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.4" />
-        <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.4" />
-        <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.0.0" />
-        <PackageReference Include="OpenIddict.Validation.SystemNetHttp" Version="7.0.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Content Include="..\..\..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
-    </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\BaseService.Application\BaseService.Application.csproj" />
       <ProjectReference Include="..\BaseService.Common\BaseService.Common.csproj" />
-      <ProjectReference Include="..\BaseService.Infrastructure\BaseService.Infrastructure.csproj" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="OpenIddict.Validation.AspNetCore" Version="7.0.0" />
+        <PackageReference Include="Npgsql" Version="9.0.3" />
+        <PackageReference Include="NLog" Version="6.0.3" />
     </ItemGroup>
 
 </Project>

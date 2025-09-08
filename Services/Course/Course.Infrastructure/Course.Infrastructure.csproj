@@ -21,6 +21,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\..\BaseService\BaseService.Infrastructure\BaseService.Infrastructure.csproj" />
 		<ProjectReference Include="..\Course.Application\Course.Application.csproj" />
 	</ItemGroup>
 

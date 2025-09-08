@@ -8,6 +8,8 @@ public static class AuthenticationExtensions
 {
     public static IServiceCollection AddAuthenticationServices(this IServiceCollection services)
     {
+        EnvLoader.Load();
+        
         services.AddAuthentication(options =>
        {
            options.DefaultScheme = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
@@ -17,13 +19,17 @@ public static class AuthenticationExtensions
        services.AddOpenIddict()
            .AddValidation(options =>
            {
-               options.SetIssuer(Environment.GetEnvironmentVariable(ConstEnv.AuthServiceUrl)!);
-               options.AddAudiences(Environment.GetEnvironmentVariable(ConstEnv.ClientId)!);
+               var authServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.AuthServiceUrl);
+               var clientId = Environment.GetEnvironmentVariable(ConstEnv.ClientId);
+               var clientSecret = Environment.GetEnvironmentVariable(ConstEnv.ClientSecret);
+                   
+               options.SetIssuer(authServiceUrl);
+               options.AddAudiences(clientId);
 
                options.UseIntrospection()
-                   .AddAudiences(Environment.GetEnvironmentVariable(ConstEnv.ClientId)!)
-                   .SetClientId(Environment.GetEnvironmentVariable(ConstEnv.ClientId)!)
-                   .SetClientSecret(Environment.GetEnvironmentVariable(ConstEnv.ClientSecret)!);
+                   .AddAudiences(clientId)
+                   .SetClientId(clientId)
+                   .SetClientSecret(clientSecret);
 
                options.UseSystemNetHttp();
                options.UseAspNetCore();
