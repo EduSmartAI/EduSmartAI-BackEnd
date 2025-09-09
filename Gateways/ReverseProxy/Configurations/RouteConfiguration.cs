@@ -1,4 +1,5 @@
 using BaseService.Common.Utils.Const;
+using ReverseProxy.Authorizations;
 using Yarp.ReverseProxy.Configuration;
 
 namespace ReverseProxy.Configurations;
@@ -52,13 +53,14 @@ public static class RouteConfiguration
                 },
                 Transforms =
                 [
-                    new Dictionary<string, string> { { "PathRemovePrefix", "/student" } },
                     new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
                 ],
                 Metadata = new Dictionary<string, string>
                 {
                     { "AllowedRoles", ConstRole.Student },
-                    { "Exceptions", "" }
+                    { "Exceptions", "" },
+                    { nameof(RouteMeta.EndpointRules), 
+                    "GET:/api/v1/SelectMajors=Anonymous;"}
                 }
             }
         };
