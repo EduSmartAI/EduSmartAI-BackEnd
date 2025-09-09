@@ -1,10 +1,9 @@
 using BuildingBlocks.CQRS;
-using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Students.Commands.Inserts;
 
-public class UserInsertCommandHandler : ICommandHandler<UserInsertCommand, UserInsertEventResponse>
+public class StudentInsertProfileCommandHandler : ICommandHandler<StudentInsertProfileCommand, StudentInsertProfileResponse>
 {
     private readonly IStudentService _studentService;
 
@@ -12,19 +11,19 @@ public class UserInsertCommandHandler : ICommandHandler<UserInsertCommand, UserI
     /// Constructor
     /// </summary>
     /// <param name="studentService"></param>
-    public UserInsertCommandHandler(IStudentService studentService)
+    public StudentInsertProfileCommandHandler(IStudentService studentService)
     {
         _studentService = studentService;
     }
 
     /// <summary>
-    /// Handles user insertion by creating a new user record
+    /// Handle insert student profile command
     /// </summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<UserInsertEventResponse> Handle(UserInsertCommand request, CancellationToken cancellationToken)
+    public async Task<StudentInsertProfileResponse> Handle(StudentInsertProfileCommand request, CancellationToken cancellationToken)
     {
-        return await _studentService.InsertStudentAsync(request, cancellationToken);
+        return await _studentService.InsertStudentProfileAsync(request, cancellationToken);
     }
 }

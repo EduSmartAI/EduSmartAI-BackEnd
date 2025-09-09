@@ -37,6 +37,7 @@ public static class SwaggerExtensions
                     []
                 }
             });
+            c.EnableAnnotations();
         });
         
         return services;

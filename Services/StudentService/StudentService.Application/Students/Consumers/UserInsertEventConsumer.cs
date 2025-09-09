@@ -11,7 +11,7 @@ public class UserInsertEventConsumer(IMediator mediator) : IConsumer<UserInsertE
     {
         var evt = context.Message;
         
-        var command = new UserInsertCommand
+        var command = new StudentInsertCommand
         {
             UserId = evt.UserId,
             OldUserId = evt.OldUserId,

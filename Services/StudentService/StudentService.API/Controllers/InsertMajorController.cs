@@ -1,11 +1,13 @@
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Common.Utils.Const;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Majors.Commands;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;
 
@@ -38,7 +40,11 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost]
-    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Tạo chuyên ngành mới",
+        Description = "Cần cấp quyền Admin"
+    )]
     public async Task<MajorInsertResponse> ProcessRequest(MajorInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<MajorInsertCommand, MajorInsertResponse, string>(

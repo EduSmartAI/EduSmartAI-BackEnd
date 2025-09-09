@@ -4,7 +4,7 @@ using BuildingBlocks.Messaging.Events.InsertUserEvents;
 
 namespace StudentService.Application.Students.Commands.Inserts;
 
-public record UserInsertCommand : ICommand<UserInsertEventResponse>
+public record StudentInsertCommand : ICommand<UserInsertEventResponse>
 {
     [Required(ErrorMessage = "UserId is required")]
     public Guid UserId { get; init; }
