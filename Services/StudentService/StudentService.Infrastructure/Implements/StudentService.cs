@@ -1,8 +1,8 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
+using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Interfaces;
-using StudentService.Application.Students.Commands.Inserts;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 

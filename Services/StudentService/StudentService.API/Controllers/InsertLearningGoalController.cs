@@ -6,14 +6,17 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
-using StudentService.Application.Applications.Majors.Commands;
+using StudentService.Application.Applications.LearningGoals.Commands;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;
 
+/// <summary>
+/// InsertLearningGoalController - Insert new Learning Goal
+/// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-public class InsertMajorController : ControllerBase, IApiAsyncController<MajorInsertCommand, MajorInsertResponse>
+public class InsertLearningGoalController : ControllerBase, IApiAsyncController<LearningGoalInsertCommand, LearningGoalInsertResponse>
 {
     private readonly IMediator _mediator;
     private readonly IIdentityService _identityService;
@@ -27,7 +30,7 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
     /// <param name="mediator"></param>
     /// <param name="identityService"></param>
     /// <param name="httpContextAccessor"></param>
-    public InsertMajorController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
+    public InsertLearningGoalController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
     {
         _mediator = mediator;
         _identityService = identityService;
@@ -42,12 +45,12 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
     [HttpPost]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
-        Summary = "Tạo chuyên ngành mới",
+        Summary = "Tạo mục tiêu học tập mới",
         Description = "Cần cấp quyền Admin"
     )]
-    public async Task<MajorInsertResponse> ProcessRequest(MajorInsertCommand request)
+    public async Task<LearningGoalInsertResponse> ProcessRequest(LearningGoalInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<MajorInsertCommand, MajorInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<LearningGoalInsertCommand, LearningGoalInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -55,7 +58,7 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
             _identityService,
             _identityEntity,
             _httpContextAccessor,
-            new MajorInsertResponse()
+            new LearningGoalInsertResponse()
         );
     }
 }

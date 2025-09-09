@@ -8,9 +8,9 @@ public class CommonMessages
 
     public const string EStudentNotFound = "Không tìm thấy sinh viên";
     
-    public const string EUserNotFound = "Không tìm thấy người dùng";
+    public const string UserNotFound = "Không tìm thấy người dùng";
     
-    public const string IMajors = "Lấy danh sách chuyên ngành";
-
-    public const string EMajorsNotFound = "Hiện tại không có chuyên ngành nào";
+    public const string MajorsNotFound = "Hiện tại không có chuyên ngành nào";
+    
+    public const string LearningGoalExists = "Mục tiêu học tập đã tồn tại";
 }

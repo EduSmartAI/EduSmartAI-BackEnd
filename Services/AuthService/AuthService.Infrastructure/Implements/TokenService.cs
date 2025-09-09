@@ -194,7 +194,7 @@ public class TokenService : ITokenService
         if (currentUser == null)
         {
             response.Success = false;
-            response.SetMessage(MessageId.I00000, CommonMessages.EUserNotFound);
+            response.SetMessage(MessageId.I00000, CommonMessages.UserNotFound);
             return response;
         }
         
