@@ -28,7 +28,7 @@ public class StudentService : IStudentService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<UserInsertEventResponse> InsertStudentAsync(UserInsertCommand request, CancellationToken cancellationToken = default)
+    public async Task<UserInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default)
     {
         var response = new UserInsertEventResponse { Success = false };
 
@@ -86,5 +86,16 @@ public class StudentService : IStudentService
             return true;
         }, cancellationToken);
         return response;
+    }
+
+    /// <summary>
+    /// Insert student profile
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task<StudentInsertProfileResponse> InsertStudentProfileAsync(StudentInsertProfileCommand request, CancellationToken cancellationToken)
+    {
+        return null;
     }
 }

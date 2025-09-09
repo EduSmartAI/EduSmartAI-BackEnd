@@ -34,7 +34,7 @@ public static class RepositoryExtensions
         // MediatR configuration
         services.AddMediatR(cfg =>
         {
-            cfg.RegisterServicesFromAssemblyContaining<UserInsertCommandHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<StudentInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<MajorInsertCommandHandler>();
         });        
         return services;

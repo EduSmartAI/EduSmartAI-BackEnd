@@ -115,7 +115,7 @@ public class MajorService : IMajorService
         // True
         response.Success = true;
         response.Response = responseEntity;
-        response.SetMessage(MessageId.I00000, CommonMessages.IMajors);
+        response.SetMessage(MessageId.I00001, CommonMessages.IMajors);
         return response;
     }
 }

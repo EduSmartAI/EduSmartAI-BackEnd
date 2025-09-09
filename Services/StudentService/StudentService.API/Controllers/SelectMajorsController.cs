@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using StudentService.Application.Interfaces;
 using StudentService.Application.Majors.Queries;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;
 
@@ -32,6 +33,10 @@ public class SelectMajorsController : ControllerBase, IApiAsyncController<Majors
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpGet]
+    [SwaggerOperation(
+        Summary = "Lấy danh sách chuyên ngành",
+        Description = "Trả về danh sách tất cả chuyên ngành đang hoạt động. Ai cũng có thể xem"
+    )]
     public async Task<MajorsSelectResponse> ProcessRequest([FromQuery] MajorsSelectQuery request)
     {
         return await ApiControllerHelperNotAuth.HandleRequest<MajorsSelectQuery, MajorsSelectResponse, List<MajorsSelectResponseEntity>>(

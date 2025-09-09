@@ -6,5 +6,7 @@ namespace StudentService.Application.Interfaces;
 
 public interface IStudentService
 {
-    Task<UserInsertEventResponse> InsertStudentAsync(UserInsertCommand request, CancellationToken cancellationToken = default);
+    Task<UserInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default);
+    
+    Task<StudentInsertProfileResponse> InsertStudentProfileAsync(StudentInsertProfileCommand request, CancellationToken cancellationToken);
 }
