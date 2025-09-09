@@ -3,8 +3,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
-using StudentService.Application.Students.Consumers;
-using StudentService.Application.Users.Consumers;
+using StudentService.Application.Applications.Students.Consumers;
 
 namespace StudentService.API.Extensions;
 

@@ -2,8 +2,8 @@ using BaseService.API.BaseControllers;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using StudentService.Application.Applications.Majors.Queries;
 using StudentService.Application.Interfaces;
-using StudentService.Application.Majors.Queries;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;

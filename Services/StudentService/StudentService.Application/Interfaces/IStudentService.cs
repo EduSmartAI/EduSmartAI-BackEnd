@@ -1,5 +1,5 @@
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
-using StudentService.Application.Students.Commands.Inserts;
+using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Domain.WriteModels;
 
 namespace StudentService.Application.Interfaces;

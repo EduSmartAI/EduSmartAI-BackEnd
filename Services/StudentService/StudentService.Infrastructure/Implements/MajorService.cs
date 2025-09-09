@@ -1,9 +1,9 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using StudentService.Application.Applications.Majors.Commands;
+using StudentService.Application.Applications.Majors.Queries;
 using StudentService.Application.Interfaces;
-using StudentService.Application.Majors.Commands;
-using StudentService.Application.Majors.Queries;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 
@@ -100,7 +100,7 @@ public class MajorService : IMajorService
         );
         if (!majors.Any())
         {
-            response.SetMessage(MessageId.E00000, CommonMessages.EMajorsNotFound);
+            response.SetMessage(MessageId.E00000, CommonMessages.MajorsNotFound);
             return response;
         }
         
@@ -115,7 +115,7 @@ public class MajorService : IMajorService
         // True
         response.Success = true;
         response.Response = responseEntity;
-        response.SetMessage(MessageId.I00001, CommonMessages.IMajors);
+        response.SetMessage(MessageId.I00001, "Lấy danh sách chuyên ngành");
         return response;
     }
 }
