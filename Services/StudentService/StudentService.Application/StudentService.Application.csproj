@@ -13,9 +13,4 @@
       <ProjectReference Include="..\StudentService.Domain\StudentService.Domain.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Majors\Commands\" />
-      <Folder Include="Majors\Queries\" />
-    </ItemGroup>
-
 </Project>

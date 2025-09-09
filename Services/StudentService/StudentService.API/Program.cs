@@ -41,9 +41,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
-app.UseRouting();
 app.UsePathBase("/student");
+app.UseRouting();
 app.UseAuthentication();
+app.UseStatusCodePages();
 app.UseAuthorization();
 app.UseHttpsRedirection();
 app.MapControllers();

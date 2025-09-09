@@ -7,6 +7,8 @@ public sealed class MajorCollection
     public Guid MajorId { get; set; }
 
     public string MajorName { get; set; } = null!;
+    
+    public string MajorCode { get; set; } = null!;
 
     public string? Description { get; set; }
 
@@ -26,6 +28,7 @@ public sealed class MajorCollection
         {
             MajorId = model.MajorId,
             MajorName = model.MajorName,
+            MajorCode = model.MajorCode,
             Description = model.Description,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,

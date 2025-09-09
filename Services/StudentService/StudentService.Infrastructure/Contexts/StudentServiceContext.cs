@@ -149,6 +149,9 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.MajorName)
                 .HasMaxLength(100)
                 .HasColumnName("major_name");
+            entity.Property(e => e.MajorCode)
+                .HasMaxLength(100)
+                .HasColumnName("major_code");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
