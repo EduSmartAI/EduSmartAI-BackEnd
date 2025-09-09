@@ -11,7 +11,7 @@ public static class SwaggerExtensions
         {
             c.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "User Service",
+                Title = "Student Service Swagger",
                 Version = "v1"
             });
         
