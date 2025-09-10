@@ -28,12 +28,13 @@ public class ApiControllerHelper
     public static async Task<TResponse> HandleRequest<TRequest, TResponse, TEntityResponse>
         (TRequest request, 
             Logger logger, 
-            TResponse returnValue, 
             ModelStateDictionary modelState, 
             Func<Task<TResponse>> exec,
             IIdentityService identityService, 
             IdentityEntity identityEntity,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            TResponse returnValue
+            )
         where TResponse : AbstractApiResponse<TEntityResponse>
     {
         var user = httpContextAccessor.HttpContext?.User;

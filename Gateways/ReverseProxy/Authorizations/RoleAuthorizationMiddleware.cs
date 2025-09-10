@@ -34,6 +34,7 @@ public class RoleAuthorizationMiddleware
             return;
         }
         
+        
         // Extract service prefix and relative path
         var segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length == 0)
@@ -66,6 +67,7 @@ public class RoleAuthorizationMiddleware
             };
             
             // Set response status code and content type
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
             await context.Response.WriteAsJsonAsync(response);
             return;
         }
@@ -82,14 +84,17 @@ public class RoleAuthorizationMiddleware
     {
         var skipPaths = new[]
         {
-            "/swagger",
             "/health",
             "/metrics",
             "/.well-known"
         };
+        
+        if (path.Contains("swagger", StringComparison.OrdinalIgnoreCase))
+            return true;
 
         // Return true if the path starts with any of the skip paths
         return skipPaths.Any(skipPath =>
             path.StartsWith(skipPath, StringComparison.OrdinalIgnoreCase));
     }
+    
 }

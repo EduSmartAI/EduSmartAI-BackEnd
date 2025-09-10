@@ -13,4 +13,8 @@
       <ProjectReference Include="..\StudentService.Domain\StudentService.Domain.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Applications\Semesters\" />
+    </ItemGroup>
+
 </Project>

@@ -1,4 +1,7 @@
-﻿namespace StudentService.Domain.WriteModels;
+﻿using System;
+using System.Collections.Generic;
+
+namespace StudentService.Domain.WriteModels;
 
 public partial class Student
 {
@@ -18,21 +21,25 @@ public partial class Student
 
     public string? Address { get; set; }
 
-    public short? Marjor { get; set; }
+    public Guid? MajorId { get; set; }
 
-    public short? SkillLevel { get; set; }
+    public int? SemesterId { get; set; }
 
     public string? Bio { get; set; }
 
-    public DateTime? CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 
     public string? CreatedBy { get; set; }
 
     public string? UpdatedBy { get; set; }
 
-    public bool? IsActive { get; set; }
+    public bool IsActive { get; set; }
 
-    public virtual ICollection<TeacherRating> TeacherRatings { get; set; } = new List<TeacherRating>();
+    public virtual Major? Major { get; set; }
+
+    public virtual Semester? Semester { get; set; }
+
+    public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
 }

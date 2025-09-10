@@ -32,11 +32,16 @@ public static class DatabaseExtensions
         {
             options.Connection(connectionString!);
             options.AutoCreateSchemaObjects = AutoCreate.All;
-            options.DatabaseSchemaName = "UserServiceDB_Marten";
+            options.DatabaseSchemaName = "StudentServiceDB_Marten";
             
             options.Schema.For<StudentCollection>().Identity(x => x.StudentId);
-            options.Schema.For<TeacherCollection>().Identity(x => x.TeacherId);
-            options.Schema.For<TeacherRatingCollection>().Identity(x => x.RatingId);
+            options.Schema.For<LearningGoalCollection>().Identity(x => x.GoalId);
+            options.Schema.For<MajorCollection>().Identity(x => x.MajorId);
+            options.Schema.For<SemesterCollection>().Identity(x => x.SemesterId);
+            options.Schema.For<TechnologyCollection>().Identity(x => x.TechnologyId);
+            options.Schema.For<TypeCollection>().Identity(x => x.TypeId);
+            options.Schema.For<CourseLearningPathCollection>().Identity(x => x.CourseId);
+            options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
         });
         
         return services;

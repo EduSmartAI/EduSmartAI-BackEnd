@@ -1,10 +1,10 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
+using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Interfaces;
-using StudentService.Application.Students.Commands.Inserts;
 using StudentService.Domain.ReadModels;
-using Student = StudentService.Domain.Models.Student;
+using StudentService.Domain.WriteModels;
 
 namespace StudentService.Infrastructure.Implements;
 
@@ -28,7 +28,7 @@ public class StudentService : IStudentService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<UserInsertEventResponse> InsertStudentAsync(UserInsertCommand request, CancellationToken cancellationToken = default)
+    public async Task<UserInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default)
     {
         var response = new UserInsertEventResponse { Success = false };
 
@@ -88,8 +88,14 @@ public class StudentService : IStudentService
         return response;
     }
 
-    public Task<(bool, Domain.WriteModels.Student?)> IsStudentExistAsync(Guid userId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Insert student profile
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task<StudentInsertProfileResponse> InsertStudentProfileAsync(StudentInsertProfileCommand request, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        return null;
     }
 }
