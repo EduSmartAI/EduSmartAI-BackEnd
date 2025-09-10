@@ -56,7 +56,7 @@
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
-      - STUDENT_SERVICE_DB=${STUDENT_SERVICE_DB}
+      - QUIZ_SERVICE_DB=${QUIZ_SERVICE_DB}
       - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
       - RABBITMQ_HOST=${RABBITMQ_HOST}
       - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
@@ -80,6 +80,7 @@
     depends_on:
       - studentservice.api
       - authservice.api
+      - quizservice.api
     networks:
       - edusmartai-network
     environment:
@@ -87,6 +88,7 @@
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - QUIZ_SERVICE_URL=${QUIZ_SERVICE_URL}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
       - JWT_AUDIENCE=${JWT_AUDIENCE}
