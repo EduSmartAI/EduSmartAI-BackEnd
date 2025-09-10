@@ -1,8 +1,7 @@
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
-using StudentService.API.Extensions;
-using StudentService.Infrastructure.Contexts;
+using QuizService.API.Extensions;
 
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);
@@ -37,12 +36,11 @@ await app.EnsureDatabaseCreatedAsync();
 
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
     app.UseDeveloperExceptionPage();
 }
 
 app.UseCors();
-app.UsePathBase("/student");
+app.UsePathBase("/quiz");
 app.UseRouting();
 app.UseAuthentication();
 app.UseStatusCodePages();

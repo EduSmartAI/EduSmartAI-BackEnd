@@ -13,4 +13,6 @@ public class CommonMessages
     public const string MajorsNotFound = "Hiện tại không có chuyên ngành nào";
     
     public const string LearningGoalExists = "Mục tiêu học tập đã tồn tại";
+    
+    public const string TestNotFound = "Không tìm thấy bài kiểm tra";
 }

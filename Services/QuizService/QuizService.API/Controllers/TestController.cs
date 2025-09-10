@@ -6,14 +6,18 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
-using StudentService.Application.Applications.Majors.Commands;
+using QuizService.Application.Applications.Tests.Commands;
+using QuizService.Application.Applications.Tests.Queries;
 using Swashbuckle.AspNetCore.Annotations;
 
-namespace StudentService.API.Controllers;
+namespace QuizService.API.Controllers;
 
+/// <summary>
+/// InsertTestController - Insert new Test
+/// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-public class InsertMajorController : ControllerBase, IApiAsyncController<MajorInsertCommand, MajorInsertResponse>
+public class TestController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IIdentityService _identityService;
@@ -27,7 +31,7 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
     /// <param name="mediator"></param>
     /// <param name="identityService"></param>
     /// <param name="httpContextAccessor"></param>
-    public InsertMajorController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
+    public TestController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
     {
         _mediator = mediator;
         _identityService = identityService;
@@ -42,12 +46,12 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
     [HttpPost]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
-        Summary = "Tạo chuyên ngành mới",
-        Description = "Cần cấp quyền Admin"
+        Summary = "Tạo bài kiểm tra mới",
+        Description = "Cần cấp quyền Admin cho API"
     )]
-    public async Task<MajorInsertResponse> ProcessRequest(MajorInsertCommand request)
+    public async Task<IActionResult> InsertTest(TestInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<MajorInsertCommand, MajorInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<TestInsertCommand, TestInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -55,7 +59,21 @@ public class InsertMajorController : ControllerBase, IApiAsyncController<MajorIn
             _identityService,
             _identityEntity,
             _httpContextAccessor,
-            new MajorInsertResponse()
-        );
+            new TestInsertResponse());
+    }
+    
+    [HttpGet]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<IActionResult> GetTest([FromQuery] TestSelectQuery request)
+    {
+        return await ApiControllerHelper.HandleRequest<TestSelectQuery, TestSelectResponse, TestSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new TestSelectResponse());
     }
 }

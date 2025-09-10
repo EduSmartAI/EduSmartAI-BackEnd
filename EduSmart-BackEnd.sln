@@ -21,7 +21,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TeacherService", "TeacherSe
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CourseService", "CourseService", "{B50AF2DE-F02F-426B-80A8-21588622A053}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "QuizAndAssigmentService", "QuizAndAssigmentService", "{8412F6B5-9DD5-405B-BCFF-17107D39E7E3}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "QuizService", "QuizService", "{8412F6B5-9DD5-405B-BCFF-17107D39E7E3}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "PaymetService", "PaymetService", "{F14DA93A-EF27-454E-A070-16CA1288A2D3}"
 EndProject
@@ -68,6 +68,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StudentService.Domain", "Services\StudentService\StudentService.Domain\StudentService.Domain.csproj", "{871796EC-4E31-45FF-9DB6-3F32D3141469}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BaseService.API", "Services\BaseService\BaseService.API\BaseService.API.csproj", "{BCFE9C0F-3D16-47FD-A8E3-F2D25F0F1BBC}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Course.API", "Services\Course\Course.API\Course.API.csproj", "{B81B17B6-205C-124A-0AC9-02151FC44C76}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Course.Application", "Services\Course\Course.Application\Course.Application.csproj", "{5E2EB50D-87A0-63D4-B822-DE50498975CC}"
@@ -75,6 +76,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Course.Infrastructure", "Services\Course\Course.Infrastructure\Course.Infrastructure.csproj", "{40A54878-60FD-3D11-07FC-4EE97D3F7BF7}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Course.Domain", "Services\Course\Course.Domain\Course.Domain.csproj", "{A75B00A8-859B-3070-23DB-F951792FB63E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuizService.API", "Services\QuizService\QuizService.API\QuizService.API.csproj", "{AE03B907-2924-444A-AA4F-CB4E690686D7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuizService.Application", "Services\QuizService\QuizService.Application\QuizService.Application.csproj", "{A69A12ED-7E15-44CA-B742-801EEBC1F526}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuizService.Domain", "Services\QuizService\QuizService.Domain\QuizService.Domain.csproj", "{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QuizService.Infrastructure", "Services\QuizService\QuizService.Infrastructure\QuizService.Infrastructure.csproj", "{1040F67E-CA75-4593-A74B-33F61EFEAFEC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -162,6 +171,22 @@ Global
 		{A75B00A8-859B-3070-23DB-F951792FB63E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A75B00A8-859B-3070-23DB-F951792FB63E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A75B00A8-859B-3070-23DB-F951792FB63E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE03B907-2924-444A-AA4F-CB4E690686D7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE03B907-2924-444A-AA4F-CB4E690686D7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE03B907-2924-444A-AA4F-CB4E690686D7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE03B907-2924-444A-AA4F-CB4E690686D7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A69A12ED-7E15-44CA-B742-801EEBC1F526}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A69A12ED-7E15-44CA-B742-801EEBC1F526}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A69A12ED-7E15-44CA-B742-801EEBC1F526}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A69A12ED-7E15-44CA-B742-801EEBC1F526}.Release|Any CPU.Build.0 = Release|Any CPU
+		{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1040F67E-CA75-4593-A74B-33F61EFEAFEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1040F67E-CA75-4593-A74B-33F61EFEAFEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1040F67E-CA75-4593-A74B-33F61EFEAFEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1040F67E-CA75-4593-A74B-33F61EFEAFEC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -193,12 +218,9 @@ Global
 		{31F5BD91-1932-4C02-A42A-E1BB0FA76133} = {F2898991-8067-41EE-8B83-F635F040D477}
 		{871796EC-4E31-45FF-9DB6-3F32D3141469} = {F2898991-8067-41EE-8B83-F635F040D477}
 		{BCFE9C0F-3D16-47FD-A8E3-F2D25F0F1BBC} = {7ACBC8A5-E9D1-4BB7-BBE0-D9C28B8D731D}
-		{B81B17B6-205C-124A-0AC9-02151FC44C76} = {B50AF2DE-F02F-426B-80A8-21588622A053}
-		{5E2EB50D-87A0-63D4-B822-DE50498975CC} = {B50AF2DE-F02F-426B-80A8-21588622A053}
-		{40A54878-60FD-3D11-07FC-4EE97D3F7BF7} = {B50AF2DE-F02F-426B-80A8-21588622A053}
-		{A75B00A8-859B-3070-23DB-F951792FB63E} = {B50AF2DE-F02F-426B-80A8-21588622A053}
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {5D1ED41F-EC35-4C00-8BD9-9EDBAA5BC22E}
+		{AE03B907-2924-444A-AA4F-CB4E690686D7} = {8412F6B5-9DD5-405B-BCFF-17107D39E7E3}
+		{A69A12ED-7E15-44CA-B742-801EEBC1F526} = {8412F6B5-9DD5-405B-BCFF-17107D39E7E3}
+		{14EF29CF-F1FA-4DF6-8EE1-5A5CFA27ED6D} = {8412F6B5-9DD5-405B-BCFF-17107D39E7E3}
+		{1040F67E-CA75-4593-A74B-33F61EFEAFEC} = {8412F6B5-9DD5-405B-BCFF-17107D39E7E3}
 	EndGlobalSection
 EndGlobal
