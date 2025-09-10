@@ -27,7 +27,7 @@ public interface IQueryRepository<TEntity> where TEntity : class
     /// </summary>
     /// <param name="predicate"></param>
     /// <returns></returns>
-    Task<TEntity?> FirstOrDefaultAsync(Expression<Func<TEntity, bool>> predicate);
+    Task<TEntity?> FirstOrDefaultAsync(Expression<Func<TEntity, bool>>? predicate = null);
 
     /// <summary>
     /// Get or set a collection in cache

@@ -42,9 +42,10 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
     /// </summary>
     /// <param name="predicate"></param>
     /// <returns></returns>
-    public async Task<TCollection?> FirstOrDefaultAsync(Expression<Func<TCollection, bool>> predicate)
+    public async Task<TCollection?> FirstOrDefaultAsync(Expression<Func<TCollection, bool>>? predicate)
     {
-        return await documentSession.Query<TCollection>().FirstOrDefaultAsync(predicate);
+        if (predicate != null) return await documentSession.Query<TCollection>().FirstOrDefaultAsync(predicate);
+        return await documentSession.Query<TCollection>().FirstOrDefaultAsync();
     }
     
     /// <summary>
