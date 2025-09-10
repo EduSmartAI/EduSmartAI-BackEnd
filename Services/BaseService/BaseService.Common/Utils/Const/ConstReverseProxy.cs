@@ -8,7 +8,7 @@ public static class ConstReverseProxy
     public static string TeacherServiceClusterId => "teacherService";
     public static string PaymentServiceClusterId => "paymentService";
     public static string CourseServiceClusterId => "courseService";
-    public static string QuizAndAssignmentServiceClusterId => "quizAndAssignmentService";
+    public static string QuizServiceClusterId => "quizService";
     public static string UtilityServiceClusterId => "utilityService";
     public static string NotificationServiceClusterId => "notificationService";
     public static string AiServiceClusterId => "aiService";

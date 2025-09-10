@@ -8,6 +8,8 @@ public static class ConstEnv
     
     public const string StudentServiceDb = "STUDENT_SERVICE_DB";
     
+    public const string QuizServiceDb = "QUIZ_SERVICE_DB";
+    
     public const string UtilityServiceDb = "UTILITY_SERVICE_DB";
     
     public const string EncryptionIv = "ENCRYPTION_IV";
@@ -30,7 +32,7 @@ public static class ConstEnv
     
     public const string CourseServiceUrl = "COURSE_SERVICE_URL";
     
-    public const string QuizAndAssignmentServiceUrl = "QUIZ_AND_ASSIGNMENT_SERVICE_URL";
+    public const string QuizServiceUrl = "QUIZ_SERVICE_URL";
     
     public const string UtilityServiceUrl = "UTILITY_SERVICE_URL";
     
