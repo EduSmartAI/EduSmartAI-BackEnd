@@ -6,6 +6,7 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
+
 COPY ["Services/QuizService/QuizService.API/QuizService.API.csproj", "Services/QuizService/QuizService.API/"]
 COPY ["Services/BaseService/BaseService.API/BaseService.API.csproj", "Services/BaseService/BaseService.API/"]
 COPY ["Services/BaseService/BaseService.Application/BaseService.Application.csproj", "Services/BaseService/BaseService.Application/"]
@@ -17,15 +18,17 @@ COPY ["Services/QuizService/QuizService.Infrastructure/QuizService.Infrastructur
 COPY ["Services/BaseService/BaseService.Infrastructure/BaseService.Infrastructure.csproj", "Services/BaseService/BaseService.Infrastructure/"]
 COPY ["Services/BaseService/BaseService.Domain/BaseService.Domain.csproj", "Services/BaseService/BaseService.Domain/"]
 COPY ["Services/QuizService/QuizService.Domain/QuizService.Domain.csproj", "Services/QuizService/QuizService.Domain/"]
+
 RUN dotnet restore "Services/QuizService/QuizService.API/QuizService.API.csproj"
 
 COPY Services/QuizService/ Services/QuizService/
-WORKDIR "/src/Services/QuizService/QuizService.API"
-RUN dotnet build "./QuizService.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+WORKDIR /src/Services/QuizService/QuizService.API
+RUN dotnet build QuizService.API.csproj -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./QuizService.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /quizservice /p:UseAppHost=false
+RUN dotnet publish QuizService.API.csproj -c $BUILD_CONFIGURATION -o /app/publish/quizservice /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
