@@ -1,4 +1,5 @@
-﻿using Course.API.Extensions;
+﻿using BuildingBlocks.Exceptions.Handler;
+using Course.API.Extensions;
 
 namespace Course.API
 {
@@ -13,6 +14,9 @@ namespace Course.API
 			services.AddCorsServices();
 			//services.AddAuthentication();
 			//services.AddAuthorization();
+
+			services.AddExceptionHandler<CustomExceptionHandler>();
+			services.AddProblemDetails();
 			return services;
 		}
 
@@ -22,6 +26,8 @@ namespace Course.API
 
 			// Base path trước
 			app.UsePathBase("/auth");
+
+			app.UseExceptionHandler();
 
 			app.UseHttpsRedirection();
 

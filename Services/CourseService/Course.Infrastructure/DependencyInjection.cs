@@ -36,8 +36,8 @@ namespace Course.Infrastructure
 			});
 
 			// MediatR configuration
-			services.AddMediatR(cfg =>
-				cfg.RegisterServicesFromAssemblyContaining<GetCoursesHandler>());
+			//services.AddMediatR(cfg =>
+			//	cfg.RegisterServicesFromAssemblyContaining<GetCoursesHandler>());
 
 			return services;
 		}
