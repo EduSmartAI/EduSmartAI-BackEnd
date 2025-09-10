@@ -1,9 +1,9 @@
 ﻿using BaseService.API.BaseControllers;
 using BuildingBlocks.Pagination;
-using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 
@@ -11,10 +11,25 @@ namespace Course.API.Controllers
 {
 	[Route("api/[controller]")]
 	[ApiController]
-	public class CoursesController(ISender sender) : ControllerBase
+	public class TestController : ControllerBase
 	{
-		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+		private readonly Logger _logger = LogManager.GetCurrentClassLogger();
+		private readonly IMediator _mediator;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="mediator"></param>
+		public TestController(IMediator mediator)
+		{
+			_mediator = mediator;
+		}
+
+		/// <summary>
+		/// Incoming Post
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
 		[HttpGet]
 		public async Task<IActionResult> ProcessRequest([FromQuery] GetCoursesQuery request)
 		{
@@ -22,20 +37,8 @@ namespace Course.API.Controllers
 				request,
 				_logger,
 				ModelState,
-				async () => await sender.Send(request),
+				async () => await _mediator.Send(request),
 				new GetCoursesResponse()
-			);
-		}
-
-		[HttpPost]
-		public async Task<IActionResult> ProcessRequestPost([FromBody] CreateCourseCommand request)
-		{
-			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, CourseDetailDto>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new CreateCourseResponse()
 			);
 		}
 	}

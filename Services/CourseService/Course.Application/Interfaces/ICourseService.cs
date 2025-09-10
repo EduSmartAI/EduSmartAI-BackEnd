@@ -10,5 +10,9 @@ namespace Course.Application.Interfaces
 			PaginationRequest pagination,
 			CourseQuery? query = null,
 			CancellationToken ct = default);
+
+		Task<CourseDetailDto> CreateAsync(
+		CreateCourseDto dto,
+		CancellationToken ct = default);
 	}
 }

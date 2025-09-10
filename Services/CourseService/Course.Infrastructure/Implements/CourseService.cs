@@ -3,11 +3,12 @@ using BuildingBlocks.Pagination;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs;
 using Course.Application.Interfaces;
+using Course.Domain.Models;
 using System.Linq.Expressions;
 
 namespace Course.Infrastructure.Implements
 {
-	public class CourseService(ICommandRepository<CourseEntity> _courseRepository) : ICourseService
+	public class CourseService(ICommandRepository<CourseEntity> _courseRepository, IUnitOfWork unitOfWork) : ICourseService
 	{
 		public async Task<GetCoursesResponse> GetAllAsync(
 			PaginationRequest pagination,
@@ -84,6 +85,124 @@ namespace Course.Infrastructure.Implements
 				Message = "OK"
 			};
 		}
+
+		public async Task<CourseDetailDto> CreateAsync(CreateCourseDto dto, CancellationToken ct = default)
+		{
+			var now = DateTime.UtcNow;
+			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+
+			var course = new CourseEntity
+			{
+				CourseId = Guid.NewGuid(),
+				TeacherId = dto.TeacherId,
+				SubjectId = dto.SubjectId,
+				Title = dto.Title,
+				Description = dto.Description,
+				DurationMinutes = dto.DurationMinutes,
+				Level = dto.Level,
+				Price = dto.Price,
+				DealPrice = dto.DealPrice,
+				IsActive = dto.IsActive,
+				CreatedAt = now,
+				UpdatedAt = now,
+				CreatedBy = actor,
+				UpdatedBy = actor
+			};
+
+			// Map Modules + Lessons (giữ thứ tự PositionIndex)
+			foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
+			{
+				var module = new Module
+				{
+					ModuleId = Guid.NewGuid(),
+					CourseId = course.CourseId,
+					ModuleName = m.ModuleName,
+					//Description = m.Description,
+					PositionIndex = m.PositionIndex,
+					IsActive = m.IsActive,
+					CreatedAt = now,
+					UpdatedAt = now,
+					CreatedBy = actor,
+					UpdatedBy = actor
+				};
+
+				foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
+				{
+					module.Lessons.Add(new Lesson
+					{
+						LessonId = Guid.NewGuid(),
+						ModuleId = module.ModuleId,
+						Title = l.Title,
+						VideoUrl = l.VideoUrl,
+						VideoDurationSec = l.VideoDurationSec,
+						PositionIndex = l.PositionIndex,
+						IsActive = l.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					});
+				}
+
+				course.Modules.Add(module);
+			}
+
+			// Transaction qua UoW
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				await _courseRepository.AddAsync(course);   // hoặc Insert/Add tùy interface bạn đang dùng
+				await unitOfWork.SaveChangesAsync(actor, ct);         // EF: SaveChanges; Marten: cũng qua UoW
+																	  // Nếu có Outbox/Event:
+																	  // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
+																	  // await _uow.SessionSaveChangesAsync();
+
+				return true; // yêu cầu của BeginTransactionAsync: trả true để commit
+			}, ct);
+
+			// Không bắt buộc reload: course hiện đã có đầy đủ nav (vì ta tự add vào graph).
+			// Nếu bạn muốn AsNoTracking + Include để chắc chắn, có thể thêm QueryRepository để load lại.
+			return MapDetail(course);
+		}
+
+		private static CourseDetailDto MapDetail(CourseEntity e)
+		{
+			var modules = e.Modules
+				.OrderBy(m => m.PositionIndex)
+				.Select(m => new ModuleDetailDto(
+					m.ModuleId,
+					m.ModuleName,
+					//m.Description,
+					m.PositionIndex,
+					m.IsActive,
+					m.Lessons
+						.OrderBy(l => l.PositionIndex)
+						.Select(l => new LessonDetailDto(
+							l.LessonId,
+							l.Title,
+							l.VideoUrl,
+							l.VideoDurationSec,
+							l.PositionIndex,
+							l.IsActive))
+						.ToList()
+				)).ToList();
+
+			return new CourseDetailDto(
+				e.CourseId,
+				e.TeacherId,
+				e.SubjectId,
+				e.Title,
+				e.Description,
+				e.DurationMinutes,
+				e.Level,
+				e.Price,
+				e.DealPrice,
+				e.IsActive,
+				e.CreatedAt,
+				e.UpdatedAt,
+				modules
+			);
+		}
+
 
 		private static CourseDto MapToDto(CourseEntity e) => new(
 			CourseId: e.CourseId,

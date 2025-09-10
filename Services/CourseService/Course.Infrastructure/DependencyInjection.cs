@@ -5,6 +5,8 @@ using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Interfaces;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Implements;
+using JasperFx;
+using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +26,14 @@ namespace Course.Infrastructure
 
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
 			services.AddScoped<ICourseService, CourseService>();
+			services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+			services.AddMarten(options =>
+			{
+				options.Connection(connectionString!);
+				options.AutoCreateSchemaObjects = AutoCreate.All;
+				options.DatabaseSchemaName = "AuthServiceDB_Marten";
+			});
 
 			// MediatR configuration
 			services.AddMediatR(cfg =>
