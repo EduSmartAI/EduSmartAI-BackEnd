@@ -44,57 +44,57 @@ public static class ClusterConfiguration
                 {
                     { "destination3", new DestinationConfig { Address = quizServiceUrl! } }
                 }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.TeacherServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    { "destination4", new DestinationConfig { Address = teacherServiceUrl! } }
-                }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.CourseServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    { "destination5", new DestinationConfig { Address = courseServiceUrl! } }
-                }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.PaymentServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    { "destination6", new DestinationConfig { Address = paymentServiceUrl! } }
-                }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.NotificationServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    { "destination7", new DestinationConfig { Address = notificationServiceUrl! } }
-                }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.AiServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    {
-                        "destination8", new DestinationConfig { Address = aiServiceUrl! } 
-                    }
-                }
-            },
-            new ClusterConfig
-            {
-                ClusterId = ConstReverseProxy.UtilityServiceClusterId,
-                Destinations = new Dictionary<string, DestinationConfig>
-                {
-                    { "destination9", new DestinationConfig { Address = utilityServiceUrl! } }
-                }
-            },
+            }
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.TeacherServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         { "destination4", new DestinationConfig { Address = teacherServiceUrl! } }
+            //     }
+            // },
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.CourseServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         { "destination5", new DestinationConfig { Address = courseServiceUrl! } }
+            //     }
+            // },
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.PaymentServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         { "destination6", new DestinationConfig { Address = paymentServiceUrl! } }
+            //     }
+            // },
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.NotificationServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         { "destination7", new DestinationConfig { Address = notificationServiceUrl! } }
+            //     }
+            // },
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.AiServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         {
+            //             "destination8", new DestinationConfig { Address = aiServiceUrl! } 
+            //         }
+            //     }
+            // },
+            // new ClusterConfig
+            // {
+            //     ClusterId = ConstReverseProxy.UtilityServiceClusterId,
+            //     Destinations = new Dictionary<string, DestinationConfig>
+            //     {
+            //         { "destination9", new DestinationConfig { Address = utilityServiceUrl! } }
+            //     }
+            // },
         };
     }
 }
