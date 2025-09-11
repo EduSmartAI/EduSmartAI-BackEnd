@@ -83,7 +83,10 @@ public class StudentTestService : IStudentTestService
         
         // Validate answerIds in answers
         var answerIds = request.Answers.Select(a => a.AnswerId).ToList();
-        var validAnswers = validQuestions.SelectMany(q => q.Answers).Where(a => answerIds.Contains(a.AnswerId)).ToList();
+        var validAnswers = validQuestions
+            .SelectMany(q => q.Answers)
+            .Where(a => answerIds.Contains(a.AnswerId))
+            .ToList();
         if (validAnswers.Count != answerIds.Count)
         {
             response.SetMessage(MessageId.E00000, "Có câu trả lời không hợp lệ trong danh sách trả lời");
@@ -104,6 +107,11 @@ public class StudentTestService : IStudentTestService
                 {
                     QuestionId = a.QuestionId,
                     AnswerId = a.AnswerId,
+                    CreatedAt = currentTime,
+                    CreatedBy = currentUser.Email,
+                    UpdatedAt = currentTime,
+                    UpdatedBy = currentUser.Email,
+                    IsActive = true
                 }).ToList()
             };
             
@@ -122,11 +130,21 @@ public class StudentTestService : IStudentTestService
                 StartedAt = studentTest.StartedAt,
                 FinishedAt = studentTest.FinishedAt,
                 IsActive = studentTest.IsActive,
+                CreatedAt = studentTest.CreatedAt,
+                CreatedBy = studentTest.CreatedBy,
+                UpdatedAt = studentTest.UpdatedAt,
+                UpdatedBy = studentTest.UpdatedBy,
                 StudentAnswers = studentTest.StudentAnswers.Select(sa => new StudentAnswerCollection
                 {
                     QuestionId = sa.QuestionId,
                     AnswerId = sa.AnswerId,
-                    Answer = answerDict[sa.AnswerId]
+                    Answer = answerDict[sa.AnswerId],
+                    Question = validQuestions.FirstOrDefault(q => q.QuestionId == sa.QuestionId),
+                    CreatedAt = sa.CreatedAt,
+                    CreatedBy = sa.CreatedBy,
+                    UpdatedAt = sa.UpdatedAt,
+                    UpdatedBy = sa.UpdatedBy,
+                    IsActive = sa.IsActive
                 }).ToList()
             };
             
@@ -179,7 +197,8 @@ public class StudentTestService : IStudentTestService
             {
                 QuestionId = st.QuestionId,
                 AnswerId = st.AnswerId,
-                IsCorrect = st.Answer!.IsCorrect
+                IsCorrect = st.Answer!.IsCorrect,
+                Explanation = st.Question!.Explanation
             }).ToList()
         };
         

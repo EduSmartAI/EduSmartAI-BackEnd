@@ -19,6 +19,8 @@ public sealed class StudentAnswerCollection
     public string UpdatedBy { get; set; } = null!;
     
     public AnswerCollection? Answer { get; set; }
+    
+    public QuestionCollection? Question { get; set; }
 
     public static StudentAnswerCollection FromWriteModel(StudentAnswer model)
     {
@@ -36,6 +38,10 @@ public sealed class StudentAnswerCollection
         if (model.Answer != null)
         {
             result.Answer = AnswerCollection.FromWriteModel(model.Answer);
+        }
+        if (model.Question != null)
+        {
+            result.Question = QuestionCollection.FromWriteModel(model.Question);
         }
         return result;
     }

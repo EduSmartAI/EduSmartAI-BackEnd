@@ -43,6 +43,5 @@ public class AnswerService : IAnswerService
             IsCorrect = isCorrect,
         };
         await _commandRepository.AddAsync(answer, email);
-        _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
     }
 }

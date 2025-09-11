@@ -23,4 +23,6 @@ public record StudentAnswerSelectResponseEntity
     public Guid? AnswerId { get; set; }
     
     public bool? IsCorrect { get; set; }
+    
+    public string? Explanation { get; set; }
 }

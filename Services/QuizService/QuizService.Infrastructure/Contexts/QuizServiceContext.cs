@@ -47,8 +47,7 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
-                .HasColumnName("updated_by");
-
+                .HasColumnName("updated_by"); 
             entity.HasOne(d => d.Question).WithMany(p => p.Answers)
                 .HasForeignKey(d => d.QuestionId)
                 .HasConstraintName("answers_question_id_fkey");
@@ -76,6 +75,9 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.Explanation)
+                .HasMaxLength(500)
+                .HasColumnName("explanation");
 
             entity.HasOne(d => d.Quiz).WithMany(p => p.Questions)
                 .HasForeignKey(d => d.QuizId)

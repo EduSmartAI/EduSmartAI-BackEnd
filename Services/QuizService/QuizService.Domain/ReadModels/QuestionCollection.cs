@@ -7,6 +7,8 @@ public sealed class QuestionCollection
     public Guid QuestionId { get; set; }
     public string QuestionText { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
+    
+    public string? Explanation { get; set; }
 
     public DateTime UpdatedAt { get; set; }
 
@@ -23,6 +25,7 @@ public sealed class QuestionCollection
         {
             QuestionId = model.QuestionId,
             QuestionText = model.QuestionText,
+            Explanation = model.Explanation,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

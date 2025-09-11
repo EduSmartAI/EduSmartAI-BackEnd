@@ -40,17 +40,17 @@ public class QuestionService : IQuestionService
     /// <param name="quizId"></param>
     /// <param name="text"></param>
     /// <returns></returns>
-    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, string email)
+    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email)
     {
         var question = new Question
         {
             QuestionId = Guid.NewGuid(),
             QuizId = quizId,
             QuestionText = text,
+            Explanation = explanation
         };
 
         await _commandRepository.AddAsync(question, email);
-        _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
         return question.QuestionId;
     }
 

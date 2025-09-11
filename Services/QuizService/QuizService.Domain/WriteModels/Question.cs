@@ -11,6 +11,8 @@ public partial class Question
 
     public string QuestionText { get; set; } = null!;
     
+    public string? Explanation { get; set; }
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

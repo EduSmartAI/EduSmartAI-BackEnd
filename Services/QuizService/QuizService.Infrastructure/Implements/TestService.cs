@@ -73,7 +73,7 @@ public class TestService : ITestService
                 foreach (var question in quiz.Questions)
                 {
                     // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, currentEmail);
+                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.Explanation, currentEmail);
                     foreach (var answer in question.Answers)
                     {
                         // Insert new answers
@@ -84,6 +84,20 @@ public class TestService : ITestService
         
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             _unitOfWork.Store(TestCollection.FromWriteModel(newTest));
+            foreach (var quiz in newTest.Quizzes)
+            {
+                foreach (var question in quiz.Questions)
+                {
+                    foreach (var answer in question.Answers)
+                    {
+                        _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
+                    }
+                    _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
+                }
+                _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
+            }
+            
+            
             await _unitOfWork.SessionSaveChangesAsync();
             
             // True

@@ -48,7 +48,6 @@ public class QuizService : IQuizService
         };
         
         await _commandRepository.AddAsync(quiz, userEmail);
-        _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
         return quiz.QuizId;
     }
 }
