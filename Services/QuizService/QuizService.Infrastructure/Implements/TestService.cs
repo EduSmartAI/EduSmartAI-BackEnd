@@ -73,7 +73,7 @@ public class TestService : ITestService
                 foreach (var question in quiz.Questions)
                 {
                     // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.QuestionType);
+                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText);
                     foreach (var answer in question.Answers)
                     {
                         // Insert new answers
@@ -133,10 +133,9 @@ public class TestService : ITestService
                     {
                         QuestionId = ques.QuestionId,
                         QuestionText = ques.QuestionText,
-                        QuestionType = ques.QuestionType,
                         Answers = ques.Answers.Select(a => new AnswerDetailResponse
                         {
-                            AnswerId = a.AnswerId,
+                            AnswerId = a.AnswerId ?? Guid.Empty,
                             AnswerText = a.AnswerText
                         }).ToList()
                     }).ToList()

@@ -71,7 +71,6 @@ public partial class QuizServiceContext : AppDbContext
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
             entity.Property(e => e.QuestionText).HasColumnName("question_text");
-            entity.Property(e => e.QuestionType).HasColumnName("question_type");
             entity.Property(e => e.QuizId).HasColumnName("quiz_id");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
@@ -125,7 +124,6 @@ public partial class QuizServiceContext : AppDbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("student_answer_id");
             entity.Property(e => e.AnswerId).HasColumnName("answer_id");
-            entity.Property(e => e.AnswerText).HasColumnName("answer_text");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
@@ -166,16 +164,11 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
-            entity.Property(e => e.FinishedAt)
-                .HasColumnType("timestamp without time zone")
-                .HasColumnName("finished_at");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.StartedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp without time zone")
-                .HasColumnName("started_at");
+            entity.Property(e => e.FinishedAt).HasColumnName("finished_at");
+            entity.Property(e => e.StartedAt).HasColumnName("started_at");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
             entity.Property(e => e.TestId).HasColumnName("test_id");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");

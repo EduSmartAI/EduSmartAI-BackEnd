@@ -34,7 +34,7 @@ public class LoggingUtil
 
         _logger = logger;
         _userName = userName;
-        _executeId = DateTime.Now.ToString("yyyyMMddHHmmss_") + Guid.NewGuid().ToString("N").Substring(0, 10);
+        _executeId = DateTime.UtcNow.ToString("yyyyMMddHHmmss_") + Guid.NewGuid().ToString("N").Substring(0, 10);
     }
 
     /// <summary>

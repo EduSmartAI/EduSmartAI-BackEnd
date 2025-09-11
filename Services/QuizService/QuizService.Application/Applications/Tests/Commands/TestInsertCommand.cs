@@ -25,8 +25,6 @@ public record Quizzes
 public record Questions
 {
     public string QuestionText { get; set; } = null!;
-
-    public short QuestionType { get; set; }
     
     public List<Answers> Answers { get; set; } = null!;
 }

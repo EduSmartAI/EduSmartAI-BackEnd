@@ -39,7 +39,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             .Select(e => e.Entity);
 
         // Get current time
-        var now = StringUtil.ConvertToVietNamTime();
+        var now = DateTime.UtcNow;
 
         // Set newEntities
         foreach (dynamic newEntity in newEntities)

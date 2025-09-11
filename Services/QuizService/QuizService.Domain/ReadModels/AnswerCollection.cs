@@ -4,7 +4,7 @@ namespace QuizService.Domain.ReadModels;
 
 public sealed class AnswerCollection
 {
-    public Guid AnswerId { get; set; }
+    public Guid? AnswerId { get; set; }
     public string AnswerText { get; set; } = null!;
     public bool? IsCorrect { get; set; }
     public bool IsActive { get; set; }

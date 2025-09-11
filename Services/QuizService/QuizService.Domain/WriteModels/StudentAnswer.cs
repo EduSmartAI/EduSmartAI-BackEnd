@@ -12,9 +12,7 @@ public partial class StudentAnswer
     public Guid QuestionId { get; set; }
 
     public Guid? AnswerId { get; set; }
-
-    public string? AnswerText { get; set; }
-
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

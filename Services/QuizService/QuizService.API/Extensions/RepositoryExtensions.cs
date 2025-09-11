@@ -4,6 +4,8 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
+using QuizService.Application.Applications.StudentTests.Commands;
+using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Applications.Tests.Commands;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
@@ -24,22 +26,27 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<Quiz>, CommandRepository<Quiz>>();
         services.AddScoped<ICommandRepository<Question>, CommandRepository<Question>>();
         services.AddScoped<ICommandRepository<Answer>, CommandRepository<Answer>>();
+        services.AddScoped<ICommandRepository<StudentTest>, CommandRepository<StudentTest>>();
         
         services.AddScoped<IQueryRepository<TestCollection>, QueryRepository<TestCollection>>();
         services.AddScoped<IQueryRepository<QuizCollection>, QueryRepository<QuizCollection>>();
         services.AddScoped<IQueryRepository<QuestionCollection>, QueryRepository<QuestionCollection>>();
         services.AddScoped<IQueryRepository<AnswerCollection>, QueryRepository<AnswerCollection>>();
+        services.AddScoped<IQueryRepository<StudentTestCollection>, QueryRepository<StudentTestCollection>>();
         
         // Services
         services.AddScoped<ITestService, TestService>();
         services.AddScoped<IQuizService, Infrastructure.Implements.QuizService>();
         services.AddScoped<IQuestionService, QuestionService>();
         services.AddScoped<IAnswerService, AnswerService>();
+        services.AddScoped<IStudentTestService, StudentTestService>();
         
         // MediatR configuration
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<TestInsertCommandHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<StudentTestInsertCommandHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<StudentTestSelectQueryHandler>();
         });        
         return services;
     }

@@ -6,7 +6,6 @@ public sealed class QuestionCollection
 {
     public Guid QuestionId { get; set; }
     public string QuestionText { get; set; } = null!;
-    public short QuestionType { get; set; }
     public bool IsActive { get; set; }
     public ICollection<AnswerCollection> Answers { get; set; } = new List<AnswerCollection>();
 
@@ -16,7 +15,6 @@ public sealed class QuestionCollection
         {
             QuestionId = model.QuestionId,
             QuestionText = model.QuestionText,
-            QuestionType = model.QuestionType,
             IsActive = model.IsActive
         };
 

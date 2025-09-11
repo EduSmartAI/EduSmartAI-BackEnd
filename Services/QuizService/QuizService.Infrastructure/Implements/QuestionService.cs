@@ -33,16 +33,14 @@ public class QuestionService : IQuestionService
     /// </summary>
     /// <param name="quizId"></param>
     /// <param name="text"></param>
-    /// <param name="questionType"></param>
     /// <returns></returns>
-    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, short questionType)
+    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text)
     {
         var question = new Question
         {
             QuestionId = Guid.NewGuid(),
             QuizId = quizId,
             QuestionText = text,
-            QuestionType = questionType,
         };
         
         await _commandRepository.AddAsync(question);

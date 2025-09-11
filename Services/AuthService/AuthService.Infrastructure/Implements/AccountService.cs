@@ -6,7 +6,6 @@ using AuthService.Domain.Snapshort;
 using AuthService.Domain.WriteModels;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using MassTransit;
@@ -76,7 +75,7 @@ public class AccountService : IAccountService
             if (!existingAccount.EmailConfirmed)
             {
                 // If the account was created more than 5 minutes ago
-                if (existingAccount.CreatedAt < StringUtil.ConvertToVietNamTime().AddMinutes(-5))
+                if (existingAccount.CreatedAt < DateTime.UtcNow.AddMinutes(-5))
                 {
                     await _unitOfWork.BeginTransactionAsync(async () =>
                     {
@@ -279,7 +278,7 @@ public class AccountService : IAccountService
         }
         
         // Check if the key is expired (5 minutes)
-        if (account.CreatedAt.AddMinutes(5) < StringUtil.ConvertToVietNamTime())
+        if (account.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
             response.SetMessage(MessageId.E00000, "Liên kết không hợp lệ hoặc đã hết hạn");
             return response;
