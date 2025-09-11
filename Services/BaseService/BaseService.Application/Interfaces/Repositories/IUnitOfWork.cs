@@ -38,4 +38,11 @@ public interface IUnitOfWork : IDisposable
     /// </summary>
     /// <returns></returns>
     Task SessionSaveChangesAsync();
+    
+    /// <summary>
+    /// Remove an entity from cache by key
+    /// </summary>
+    /// <param name="key"></param>
+    /// <returns></returns>
+    Task CacheRemoveAsync(string key);
 }

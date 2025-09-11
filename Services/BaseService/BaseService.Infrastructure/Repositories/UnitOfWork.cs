@@ -1,10 +1,11 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Contexts;
 using Marten;
+using StackExchange.Redis;
 
 namespace BaseService.Infrastructure.Repositories;
 
-public class UnitOfWork(AppDbContext context, IDocumentSession session) : IUnitOfWork
+public class UnitOfWork(AppDbContext context, IDocumentSession session, IDatabase cache) : IUnitOfWork
 {
  
     /// <summary>
@@ -91,5 +92,14 @@ public class UnitOfWork(AppDbContext context, IDocumentSession session) : IUnitO
     public async Task SessionSaveChangesAsync()
     {
         await session.SaveChangesAsync();
+    }
+    
+    /// <summary>
+    /// Remove a collection from cache
+    /// </summary>
+    /// <param name="key"></param>
+    public async Task CacheRemoveAsync(string key)
+    {
+        await cache.KeyDeleteAsync(key);
     }
 }

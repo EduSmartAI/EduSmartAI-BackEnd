@@ -34,7 +34,7 @@ public class AnswerService : IAnswerService
     /// <param name="questionId"></param>
     /// <param name="text"></param>
     /// <param name="isCorrect"></param>
-    public async Task InsertAnswerAsync(Guid questionId, string text, bool? isCorrect, string email)
+    public async Task InsertAnswerAsync(Guid questionId, string text, bool isCorrect, string email)
     {
         var answer = new Answer
         {

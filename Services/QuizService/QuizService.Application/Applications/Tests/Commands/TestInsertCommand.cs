@@ -47,5 +47,5 @@ public record Answers
     public string AnswerText { get; set; } = null!;
 
     [Required(ErrorMessage = "IsCorrect is required")]
-    public bool? IsCorrect { get; set; }
+    public bool IsCorrect { get; set; }
 }
