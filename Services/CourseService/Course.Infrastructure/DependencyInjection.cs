@@ -1,11 +1,10 @@
 ﻿using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Repositories;
-using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Interfaces;
 using Course.Infrastructure.Data;
+using Course.Infrastructure.Data.Repositories;
 using Course.Infrastructure.Implements;
-using JasperFx;
 using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -25,19 +24,14 @@ namespace Course.Infrastructure
 	opt.UseNpgsql(connectionString));
 
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
+			services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 			services.AddMarten(options =>
 			{
 				options.Connection(connectionString!);
-				options.AutoCreateSchemaObjects = AutoCreate.All;
-				options.DatabaseSchemaName = "AuthServiceDB_Marten";
 			});
-
-			// MediatR configuration
-			//services.AddMediatR(cfg =>
-			//	cfg.RegisterServicesFromAssemblyContaining<GetCoursesHandler>());
 
 			return services;
 		}

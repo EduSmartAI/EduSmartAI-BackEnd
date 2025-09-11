@@ -3,7 +3,6 @@ using BuildingBlocks.Pagination;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs;
 using MediatR;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 
