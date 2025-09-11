@@ -4,13 +4,12 @@ using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs;
 using Course.Application.Interfaces;
 using Course.Domain.Models;
-using Course.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
 namespace Course.Infrastructure.Implements
 {
-	public class CourseService(ICourseRepository _courseRepository, IUnitOfWork unitOfWork, CourseDbContext _db) : ICourseService
+	public class CourseService(ICourseRepository _courseRepository, IUnitOfWork unitOfWork) : ICourseService
 	{
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
@@ -189,6 +188,11 @@ namespace Course.Infrastructure.Implements
 			return MapDetail(course);
 		}
 
+		/// <summary>
+		/// Map CourseEntity -> CourseDetailDto
+		/// </summary>
+		/// <param name="e"></param>
+		/// <returns></returns>
 		private static CourseDetailDto MapDetail(CourseEntity e)
 		{
 			var modules = e.Modules
@@ -229,9 +233,11 @@ namespace Course.Infrastructure.Implements
 
 		}
 
-
-
-
+		/// <summary>
+		/// Map CourseEntity -> CourseDto
+		/// </summary>
+		/// <param name="e"></param>
+		/// <returns></returns>
 		private static CourseDto MapToDto(CourseEntity e) => new(
 			CourseId: e.CourseId,
 			TeacherId: e.TeacherId,
@@ -301,7 +307,20 @@ namespace Course.Infrastructure.Implements
 				foreach (var del in modulesToDelete)
 				{
 					// Cascade sẽ xoá luôn lessons nếu FK có ON DELETE CASCADE hoặc cấu hình relationship đúng
-					course.Modules.Remove(del);
+					//course.Modules.Remove(del);
+
+					// Option: nếu không xoá thật, mà chỉ soft-delete
+					del.IsActive = false;
+					del.UpdatedAt = now;
+					del.UpdatedBy = actor;
+
+					// Option: cũng soft-delete toàn bộ lessons thuộc module bị ẩn
+					foreach (var l in del.Lessons)
+					{
+						l.IsActive = false;
+						l.UpdatedAt = now;
+						l.UpdatedBy = actor;
+					}
 				}
 
 				// 4) Upsert Modules (add/update) + Upsert Lessons bên trong
@@ -312,7 +331,6 @@ namespace Course.Infrastructure.Implements
 						// 4.1) Thêm Module mới
 						var newModule = new Module
 						{
-							//ModuleId = Guid.NewGuid(),
 							CourseId = course.CourseId,
 							ModuleName = mDto.ModuleName,
 							//Description = mDto.Description,
@@ -330,7 +348,6 @@ namespace Course.Infrastructure.Implements
 						{
 							var newLesson = new Lesson
 							{
-								//LessonId = Guid.NewGuid(),
 								ModuleId = newModule.ModuleId,
 								Title = lDto.Title,
 								VideoUrl = lDto.VideoUrl,
@@ -375,7 +392,12 @@ namespace Course.Infrastructure.Implements
 							.ToList();
 						foreach (var del in lessonsToDelete)
 						{
-							module.Lessons.Remove(del);
+							//module.Lessons.Remove(del);
+
+							// Soft-delete
+							del.IsActive = false;
+							del.UpdatedAt = now;
+							del.UpdatedBy = actor;
 						}
 
 						// Thêm/Cập nhật lessons
