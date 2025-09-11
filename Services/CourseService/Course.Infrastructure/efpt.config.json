@@ -19,11 +19,19 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.course_objectives",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.course_ratings",
          "ObjectType": 0
       },
       {
          "Name": "public.course_recommendations",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_requirements",
          "ObjectType": 0
       },
       {
@@ -40,6 +48,10 @@
       },
       {
          "Name": "public.majors",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.module_objectives",
          "ObjectType": 0
       },
       {

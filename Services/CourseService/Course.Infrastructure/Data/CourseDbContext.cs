@@ -8,7 +8,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Course.Infrastructure.Data;
 
-
 public partial class CourseDbContext : AppDbContext
 {
     public CourseDbContext(DbContextOptions<CourseDbContext> options)
@@ -20,9 +19,13 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseComment> CourseComments { get; set; }
 
+    public virtual DbSet<CourseObjective> CourseObjectives { get; set; }
+
     public virtual DbSet<CourseRating> CourseRatings { get; set; }
 
     public virtual DbSet<CourseRecommendation> CourseRecommendations { get; set; }
+
+    public virtual DbSet<CourseRequirement> CourseRequirements { get; set; }
 
     public virtual DbSet<CourseTag> CourseTags { get; set; }
 
@@ -31,6 +34,8 @@ public partial class CourseDbContext : AppDbContext
     public virtual DbSet<Major> Majors { get; set; }
 
     public virtual DbSet<Module> Modules { get; set; }
+
+    public virtual DbSet<ModuleObjective> ModuleObjectives { get; set; }
 
     public virtual DbSet<Note> Notes { get; set; }
 
@@ -50,7 +55,9 @@ public partial class CourseDbContext : AppDbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasPostgresExtension("pgcrypto");
+        modelBuilder
+            .HasPostgresEnum("course_status", new[] { "draft", "published", "archived" })
+            .HasPostgresExtension("pgcrypto");
 
         modelBuilder.Entity<CourseEntity>(entity =>
         {
@@ -64,9 +71,12 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.TeacherId, "idx_courses_teacher");
 
+            entity.HasIndex(e => e.Slug, "uq_courses_slug").IsUnique();
+
             entity.Property(e => e.CourseId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("course_id");
+            entity.Property(e => e.CourseImageUrl).HasColumnName("course_image_url");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -77,14 +87,27 @@ public partial class CourseDbContext : AppDbContext
                 .HasPrecision(10, 2)
                 .HasColumnName("deal_price");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.DurationHours)
+                .HasPrecision(8, 2)
+                .HasComputedColumnSql("round(((COALESCE(duration_minutes, 0))::numeric / 60.0), 2)", true)
+                .HasColumnName("duration_hours");
             entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.LearnerCount)
+                .HasDefaultValue(0)
+                .HasColumnName("learner_count");
             entity.Property(e => e.Level).HasColumnName("level");
             entity.Property(e => e.Price)
                 .HasPrecision(10, 2)
                 .HasColumnName("price");
+            entity.Property(e => e.ShortDescription)
+                .HasMaxLength(300)
+                .HasColumnName("short_description");
+            entity.Property(e => e.Slug)
+                .HasMaxLength(160)
+                .HasColumnName("slug");
             entity.Property(e => e.SubjectId).HasColumnName("subject_id");
             entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
             entity.Property(e => e.Title)
@@ -143,6 +166,47 @@ public partial class CourseDbContext : AppDbContext
                 .HasForeignKey(d => d.ParentCommentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_comments_parent");
+        });
+
+        modelBuilder.Entity<CourseObjective>(entity =>
+        {
+            entity.HasKey(e => e.ObjectiveId).HasName("course_objectives_pkey");
+
+            entity.ToTable("course_objectives");
+
+            entity.HasIndex(e => e.CourseId, "idx_course_objectives_course");
+
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_objectives_course_pos").IsUnique();
+
+            entity.Property(e => e.ObjectiveId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("objective_id");
+            entity.Property(e => e.Content)
+                .IsRequired()
+                .HasColumnName("content");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.PositionIndex)
+                .HasDefaultValue(0)
+                .HasColumnName("position_index");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseObjectives)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("course_objectives_course_id_fkey");
         });
 
         modelBuilder.Entity<CourseRating>(entity =>
@@ -209,6 +273,47 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Course).WithMany(p => p.CourseRecommendations)
                 .HasForeignKey(d => d.CourseId)
                 .HasConstraintName("fk_reco_course");
+        });
+
+        modelBuilder.Entity<CourseRequirement>(entity =>
+        {
+            entity.HasKey(e => e.RequirementId).HasName("course_requirements_pkey");
+
+            entity.ToTable("course_requirements");
+
+            entity.HasIndex(e => e.CourseId, "idx_course_requirements_course");
+
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_requirements_course_pos").IsUnique();
+
+            entity.Property(e => e.RequirementId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("requirement_id");
+            entity.Property(e => e.Content)
+                .IsRequired()
+                .HasColumnName("content");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.PositionIndex)
+                .HasDefaultValue(0)
+                .HasColumnName("position_index");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseRequirements)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("course_requirements_course_id_fkey");
         });
 
         modelBuilder.Entity<CourseTag>(entity =>
@@ -318,6 +423,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.IsActive, "idx_modules_is_active");
 
+            entity.HasIndex(e => e.IsCore, "idx_modules_is_core");
+
             entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_modules_course_position").IsUnique();
 
             entity.Property(e => e.ModuleId)
@@ -330,9 +437,18 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
+            entity.Property(e => e.DurationHours)
+                .HasPrecision(8, 2)
+                .HasComputedColumnSql("round(((COALESCE(duration_minutes, 0))::numeric / 60.0), 2)", true)
+                .HasColumnName("duration_hours");
+            entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.IsCore)
+                .HasDefaultValue(true)
+                .HasColumnName("is_core");
+            entity.Property(e => e.Level).HasColumnName("level");
             entity.Property(e => e.ModuleName)
                 .IsRequired()
                 .HasMaxLength(150)
@@ -348,6 +464,47 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Course).WithMany(p => p.Modules)
                 .HasForeignKey(d => d.CourseId)
                 .HasConstraintName("fk_modules_course");
+        });
+
+        modelBuilder.Entity<ModuleObjective>(entity =>
+        {
+            entity.HasKey(e => e.ObjectiveId).HasName("module_objectives_pkey");
+
+            entity.ToTable("module_objectives");
+
+            entity.HasIndex(e => e.ModuleId, "idx_module_objectives_module");
+
+            entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_module_objectives_module_pos").IsUnique();
+
+            entity.Property(e => e.ObjectiveId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("objective_id");
+            entity.Property(e => e.Content)
+                .IsRequired()
+                .HasColumnName("content");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.PositionIndex)
+                .HasDefaultValue(0)
+                .HasColumnName("position_index");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Module).WithMany(p => p.ModuleObjectives)
+                .HasForeignKey(d => d.ModuleId)
+                .HasConstraintName("module_objectives_module_id_fkey");
         });
 
         modelBuilder.Entity<Note>(entity =>

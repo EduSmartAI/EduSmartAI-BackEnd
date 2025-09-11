@@ -25,7 +25,17 @@ public partial class Module
 
     public bool IsActive { get; set; }
 
+    public int? DurationMinutes { get; set; }
+
+    public decimal? DurationHours { get; set; }
+
+    public short? Level { get; set; }
+
+    public bool IsCore { get; set; }
+
     public virtual Course Course { get; set; }
 
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
+
+    public virtual ICollection<ModuleObjective> ModuleObjectives { get; set; } = new List<ModuleObjective>();
 }

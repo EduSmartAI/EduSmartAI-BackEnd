@@ -35,11 +35,25 @@ public partial class Course
 
     public bool IsActive { get; set; }
 
+    public string Slug { get; set; }
+
+    public string ShortDescription { get; set; }
+
+    public string CourseImageUrl { get; set; }
+
+    public int LearnerCount { get; set; }
+
+    public decimal? DurationHours { get; set; }
+
     public virtual ICollection<CourseComment> CourseComments { get; set; } = new List<CourseComment>();
+
+    public virtual ICollection<CourseObjective> CourseObjectives { get; set; } = new List<CourseObjective>();
 
     public virtual ICollection<CourseRating> CourseRatings { get; set; } = new List<CourseRating>();
 
     public virtual ICollection<CourseRecommendation> CourseRecommendations { get; set; } = new List<CourseRecommendation>();
+
+    public virtual ICollection<CourseRequirement> CourseRequirements { get; set; } = new List<CourseRequirement>();
 
     public virtual ICollection<CourseTag> CourseTags { get; set; } = new List<CourseTag>();
 
