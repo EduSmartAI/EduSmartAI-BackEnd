@@ -80,8 +80,8 @@ public class AccountService : IAccountService
                     await _unitOfWork.BeginTransactionAsync(async () =>
                     {
                         // Deactivate existing account
-                        _accountCommandRepository.Update(existingAccount);
-                        await _unitOfWork.SaveChangesAsync(existingAccount.Email, cancellationToken, true);
+                        _accountCommandRepository.Update(existingAccount, existingAccount.Email, true);
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                         var userCollectionExisting = await _accountQueryRepository.FirstOrDefaultAsync(x => x.Email == request.Email && x.IsActive);
                         if (userCollectionExisting != null)
@@ -225,7 +225,7 @@ public class AccountService : IAccountService
         if (account.AccessFailedCount >= 5)
             account.LockoutEnd = DateTimeOffset.Now + TimeSpan.FromMinutes(5);
 
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -236,7 +236,7 @@ public class AccountService : IAccountService
     {
         account.AccessFailedCount = 0;
         account.LockoutEnd = null;
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -303,8 +303,8 @@ public class AccountService : IAccountService
             accountCollection!.EmailConfirmed = true;
             accountCollection.Key = null;
         
-            _accountCommandRepository.Update(account);
-            await _unitOfWork.SaveChangesAsync(account.Email);
+            _accountCommandRepository.Update(account, account.Email);
+            await _unitOfWork.SaveChangesAsync();
 
             _unitOfWork.Store(accountCollection);
             await _unitOfWork.SessionSaveChangesAsync();
@@ -341,8 +341,8 @@ public class AccountService : IAccountService
             RoleId = roleId,
         };
 
-        await _accountCommandRepository.AddAsync(newAccount);
-        await _unitOfWork.SaveChangesAsync(newAccount.Email);
+        await _accountCommandRepository.AddAsync(newAccount, request.Email);
+        await _unitOfWork.SaveChangesAsync();
 
         return newAccount;
     }

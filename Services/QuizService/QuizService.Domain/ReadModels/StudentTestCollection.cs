@@ -9,6 +9,10 @@ public sealed class StudentTestCollection
     public Guid TestId { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string CreatedBy { get; set; } = null!;
+    public string UpdatedBy { get; set; } = null!;
     public bool IsActive { get; set; }
     public ICollection<StudentAnswerCollection> StudentAnswers { get; set; } = new List<StudentAnswerCollection>();
 
@@ -21,6 +25,10 @@ public sealed class StudentTestCollection
             TestId = model.TestId,
             StartedAt = model.StartedAt,
             FinishedAt = model.FinishedAt,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt,
+            CreatedBy = model.CreatedBy,
+            UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
 

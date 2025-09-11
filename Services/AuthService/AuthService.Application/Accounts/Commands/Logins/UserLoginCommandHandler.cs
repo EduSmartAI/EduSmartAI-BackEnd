@@ -75,7 +75,7 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
 
             // Reset attempts
             _accountService.ResetFailedAttempts(account);
-            await _unitOfWork.SaveChangesAsync(request.UserName!, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             var msg = userLoginMessageResponse.Message.Response;
             response.Response = new UserLoginEntity(

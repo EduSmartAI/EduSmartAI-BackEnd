@@ -48,13 +48,11 @@ public class UnitOfWork(AppDbContext context, IDocumentSession session) : IUnitO
     /// <summary>
     /// Save all changes to the database
     /// </summary>
-    /// <param name="userName"></param>
     /// <param name="cancellationToken"></param>
-    /// <param name="needLogicalDelete"></param>
     /// <returns></returns>
-    public async Task<int> SaveChangesAsync(string userName, CancellationToken cancellationToken = default, bool needLogicalDelete = false)
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        return await context.SaveChangesAsync(userName, cancellationToken, needLogicalDelete);
+        return await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
@@ -65,6 +63,16 @@ public class UnitOfWork(AppDbContext context, IDocumentSession session) : IUnitO
     public void Store<TCollection>(TCollection entity) where TCollection : class
     {
         session.Store(entity);
+    }
+
+    /// <summary>
+    /// Store a collection of entities in the Marten session.
+    /// </summary>
+    /// <param name="entities"></param>
+    /// <typeparam name="TCollection"></typeparam>
+    public void StoreRange<TCollection>(IEnumerable<TCollection> entities) where TCollection : class
+    {
+        session.Store(entities);
     }
 
     /// <summary>

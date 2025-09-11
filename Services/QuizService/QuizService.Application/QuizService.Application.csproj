@@ -15,7 +15,6 @@
     <ItemGroup>
       <Folder Include="Applications\Answers\Commands\" />
       <Folder Include="Applications\Answers\Queries\" />
-      <Folder Include="Applications\Questions\Commands\" />
       <Folder Include="Applications\Questions\Queries\" />
       <Folder Include="Applications\Quizzes\Commands\" />
       <Folder Include="Applications\Quizzes\Queries\" />

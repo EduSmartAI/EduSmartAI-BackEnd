@@ -8,6 +8,14 @@ public sealed class QuizCollection
     public string Title { get; set; } = null!;
     public string? Description { get; set; }
     public Guid SubjectCode { get; set; }
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public string CreatedBy { get; set; } = null!;
+
+    public string UpdatedBy { get; set; } = null!;
+
     public bool IsActive { get; set; }
     public ICollection<QuestionCollection> Questions { get; set; } = new List<QuestionCollection>();
 
@@ -19,6 +27,10 @@ public sealed class QuizCollection
             Title = model.Title,
             Description = model.Description,
             SubjectCode = model.SubjectCode,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt,
+            CreatedBy = model.CreatedBy,
+            UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
 

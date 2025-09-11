@@ -83,7 +83,7 @@ public class StudentTestService : IStudentTestService
         
         // Validate answerIds in answers
         var answerIds = request.Answers.Select(a => a.AnswerId).ToList();
-        var validAnswers = validQuestions.SelectMany(q => q.Answers).Where(a => answerIds.Contains(a.AnswerId ?? Guid.Empty)).ToList();
+        var validAnswers = validQuestions.SelectMany(q => q.Answers).Where(a => answerIds.Contains(a.AnswerId)).ToList();
         if (validAnswers.Count != answerIds.Count)
         {
             response.SetMessage(MessageId.E00000, "Có câu trả lời không hợp lệ trong danh sách trả lời");
@@ -108,12 +108,11 @@ public class StudentTestService : IStudentTestService
             };
             
             // Save to database
-            await _studentTestRepository.AddAsync(studentTest);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            await _studentTestRepository.AddAsync(studentTest, currentUser.Email);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             var answerDict = new Dictionary<Guid?, AnswerCollection>();
-            foreach (var answer in validAnswers)
-                answerDict.Add(answer.AnswerId, answer);
+            foreach (var answer in validAnswers) answerDict.Add(answer.AnswerId, answer);
 
             var studentTestCollection = new StudentTestCollection
             {

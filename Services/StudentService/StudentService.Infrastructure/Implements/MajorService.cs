@@ -63,8 +63,8 @@ public class MajorService : IMajorService
             };
             
             // Add to repository
-            await _majorCommandRepository.AddAsync(major);
-            await _unitOfWork.SaveChangesAsync(currentUserEmail, cancellationToken);
+            await _majorCommandRepository.AddAsync(major, currentUserEmail);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             _unitOfWork.Store(MajorCollection.FromWriteModel(major));
             await _unitOfWork.SessionSaveChangesAsync();

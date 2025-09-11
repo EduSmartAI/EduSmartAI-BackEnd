@@ -15,4 +15,14 @@ public class CommonMessages
     public const string LearningGoalExists = "Mục tiêu học tập đã tồn tại";
     
     public const string TestNotFound = "Không tìm thấy bài kiểm tra";
+    
+    public const string QuestionNotFound = "Không tìm thấy câu hỏi";
+    
+    public const string AnswerNotFound = "Không tìm thấy câu trả lời";
+    
+    public const string QuizNotFound = "Không tìm thấy bài quiz";
+    
+    public const string StudentTestNotFound = "Không tìm thấy bài kiểm tra của học sinh";
+    
+    public const string SubjectNotFound = "Không tìm thấy môn học";
 }

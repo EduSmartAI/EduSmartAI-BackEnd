@@ -44,24 +44,24 @@ public interface ICommandRepository<TEntity> where TEntity : class
     /// </summary>
     /// <param name="entity"></param>
     /// <returns></returns>
-    Task AddAsync(TEntity entity);
+    Task AddAsync(TEntity entity, string userEmail);
 
     /// <summary>
     /// Add a range of entities to the database asynchronously.
     /// </summary>
     /// <param name="entities"></param>
     /// <returns></returns>
-    Task AddRangeAsync(IEnumerable<TEntity> entities);
+    Task AddRangeAsync(IEnumerable<TEntity> entities, string userEmail);
 
     /// <summary>
     /// Update entity in the database.
     /// </summary>
     /// <param name="entity"></param>
-    void Update(TEntity entity);
+    void Update(TEntity entity, string userEmail, bool needLogicalDelete = false);
 
     /// <summary>
     /// Update a range of entities in the database.
     /// </summary>
     /// <param name="entities"></param>
-    void UpdateRange(IEnumerable<TEntity> entities);
+    void UpdateRange(IEnumerable<TEntity> entities, string userEmail, bool needLogicalDelete = false);
 }

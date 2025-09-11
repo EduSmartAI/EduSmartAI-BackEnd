@@ -13,11 +13,9 @@ public interface IUnitOfWork : IDisposable
     /// <summary>
     /// Save all changes.
     /// </summary>
-    /// <param name="userName"></param>
     /// <param name="cancellationToken"></param>
-    /// <param name="needLogicalDelete"></param>
     /// <returns></returns>
-    Task<int> SaveChangesAsync(string userName, CancellationToken cancellationToken = default, bool needLogicalDelete = false);
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
     /// Store a collection of entities in the marten.
@@ -25,6 +23,8 @@ public interface IUnitOfWork : IDisposable
     /// <param name="entity"></param>
     /// <typeparam name="TCollection"></typeparam>
     void Store<TCollection>(TCollection entity) where TCollection : class;
+    
+    void StoreRange<TCollection>(IEnumerable<TCollection> entities) where TCollection : class;
     
     /// <summary>
     /// Delete a collection of entities from the marten.
