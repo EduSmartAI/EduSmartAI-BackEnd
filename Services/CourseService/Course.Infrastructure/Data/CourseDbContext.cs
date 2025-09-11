@@ -437,6 +437,9 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
+            entity.Property(e => e.Description)
+                .HasMaxLength(500)
+                .HasColumnName("description");
             entity.Property(e => e.DurationHours)
                 .HasPrecision(8, 2)
                 .HasComputedColumnSql("round(((COALESCE(duration_minutes, 0))::numeric / 60.0), 2)", true)
