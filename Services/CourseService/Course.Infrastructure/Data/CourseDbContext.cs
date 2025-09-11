@@ -176,7 +176,9 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.CourseId, "idx_course_objectives_course");
 
-            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_objectives_course_pos").IsUnique();
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_objectives_course_pos")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
 
             entity.Property(e => e.ObjectiveId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -283,7 +285,9 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.CourseId, "idx_course_requirements_course");
 
-            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_requirements_course_pos").IsUnique();
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_requirements_course_pos")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
 
             entity.Property(e => e.RequirementId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -477,7 +481,9 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.ModuleId, "idx_module_objectives_module");
 
-            entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_module_objectives_module_pos").IsUnique();
+            entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_module_objectives_module_pos")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
 
             entity.Property(e => e.ObjectiveId)
                 .HasDefaultValueSql("gen_random_uuid()")
