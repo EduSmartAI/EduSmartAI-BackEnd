@@ -6,7 +6,16 @@ public sealed class QuestionCollection
 {
     public Guid QuestionId { get; set; }
     public string QuestionText { get; set; } = null!;
-    public short QuestionType { get; set; }
+    public DateTime CreatedAt { get; set; }
+    
+    public string? Explanation { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
+    public string CreatedBy { get; set; } = null!;
+
+    public string UpdatedBy { get; set; } = null!;
+
     public bool IsActive { get; set; }
     public ICollection<AnswerCollection> Answers { get; set; } = new List<AnswerCollection>();
 
@@ -16,7 +25,11 @@ public sealed class QuestionCollection
         {
             QuestionId = model.QuestionId,
             QuestionText = model.QuestionText,
-            QuestionType = model.QuestionType,
+            Explanation = model.Explanation,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt,
+            CreatedBy = model.CreatedBy,
+            UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
 

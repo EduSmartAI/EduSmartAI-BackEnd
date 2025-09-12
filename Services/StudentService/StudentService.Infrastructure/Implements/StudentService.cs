@@ -42,19 +42,17 @@ public class StudentService : IStudentService
                 LastName = request.LastName
             };
 
-            await _studentRepository.AddAsync(student);
+            await _studentRepository.AddAsync(student, request.Enail);
 
             // If OldUserId is not null, delete the old student record
             if (request.OldUserId.HasValue)
             {
                 // Check if the old student exists
-                var oldStudent =
-                    await _studentRepository.FirstOrDefaultAsync(
-                        x => x.StudentId == request.OldUserId && x.IsActive == true, cancellationToken);
+                var oldStudent = await _studentRepository
+                    .FirstOrDefaultAsync(x => x.StudentId == request.OldUserId && x.IsActive == true, cancellationToken);
                 if (oldStudent != null)
                 {
-                    _studentRepository.Update(oldStudent);
-                    await _unitOfWork.SaveChangesAsync(request.Enail, cancellationToken, true);
+                    _studentRepository.Update(oldStudent, request.Enail, true);
 
                     // Delete the associated StudentCollection if it exists
                     var oldStudentCollection =
@@ -67,8 +65,7 @@ public class StudentService : IStudentService
                     }
                 }
             }
-
-            await _unitOfWork.SaveChangesAsync(request.Enail, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // Insert into StudentCollection
             var studentCollection = new StudentCollection

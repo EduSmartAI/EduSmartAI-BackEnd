@@ -36,7 +36,7 @@ public class QuizService : IQuizService
     /// <param name="description"></param>
     /// <param name="subjectCode"></param>
     /// <returns></returns>
-    public async Task<Guid> InsertQuizAsync(Guid testId, string title, string? description, Guid subjectCode)
+    public async Task<Guid> InsertQuizAsync(Guid testId, string title, string? description, Guid subjectCode, string userEmail)
     {
         var quiz = new Quiz
         {
@@ -47,7 +47,7 @@ public class QuizService : IQuizService
             SubjectCode = subjectCode,
         };
         
-        await _commandRepository.AddAsync(quiz);
+        await _commandRepository.AddAsync(quiz, userEmail);
         return quiz.QuizId;
     }
 }

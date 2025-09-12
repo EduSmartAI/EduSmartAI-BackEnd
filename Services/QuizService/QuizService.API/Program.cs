@@ -26,11 +26,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 #endregion
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
-});
 #region Application build and middleware pipeline
+
 var app = builder.Build();
 await app.EnsureDatabaseCreatedAsync();
 

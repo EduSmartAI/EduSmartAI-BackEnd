@@ -9,7 +9,7 @@ namespace BaseService.Infrastructure.Repositories;
 public class CommandRepository<TEntity>(AppDbContext context) : ICommandRepository<TEntity> where TEntity : class
 {
     private DbSet<TEntity> DbSet => context.Set<TEntity>();
-    
+
     /// <summary>
     /// Get paged entities.
     /// </summary>
@@ -40,7 +40,7 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
         if (predicate != null) query = query.Where(predicate);
 
         // Apply sorting
-        if (orderBy != null)  query = orderByDescending ? query.OrderByDescending(orderBy) : query.OrderBy(orderBy);
+        if (orderBy != null) query = orderByDescending ? query.OrderByDescending(orderBy) : query.OrderBy(orderBy);
 
         // Count total
         var totalCount = await query.CountAsync(cancellationToken);
@@ -69,7 +69,8 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// <param name="cancellationToken"></param>
     /// <param name="includes"></param>
     /// <returns></returns>
-    public IQueryable<TEntity?> Find(Expression<Func<TEntity, bool>>? predicate = null, bool isTracking = false, CancellationToken cancellationToken = default,
+    public IQueryable<TEntity?> Find(Expression<Func<TEntity, bool>>? predicate = null, bool isTracking = false,
+        CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[] includes)
     {
         // Start with the DbSet
@@ -95,18 +96,19 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// <param name="cancellationToken"></param>
     /// <param name="includes"></param>
     /// <returns></returns>
-    public async Task<TEntity?> FirstOrDefaultAsync(Expression<Func<TEntity, bool>>? predicate = null, CancellationToken cancellationToken = default,
+    public async Task<TEntity?> FirstOrDefaultAsync(Expression<Func<TEntity, bool>>? predicate = null,
+        CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[] includes)
     {
         // Start with the DbSet
         var query = DbSet.AsQueryable();
-        
+
         // Apply the predicate if provided
         if (predicate != null) query = query.Where(predicate);
 
         // Apply includes
         query = includes.Aggregate(query, (current, inc) => current.Include(inc));
-        
+
         // Execute the query and return the first or default entity
         return await query.FirstOrDefaultAsync(cancellationToken: cancellationToken);
     }
@@ -115,8 +117,15 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// Add entity to the database
     /// </summary>
     /// <param name="entity"></param>
-    public async Task AddAsync(TEntity entity)
+    public async Task AddAsync(TEntity entity, string userEmail)
     {
+        var now = DateTime.UtcNow;
+        dynamic dyn = entity;
+        dyn.IsActive = true;
+        dyn.CreatedAt = now;
+        dyn.CreatedBy = userEmail;
+        dyn.UpdatedAt = now;
+        dyn.UpdatedBy = userEmail;
         await context.AddAsync(entity);
     }
 
@@ -124,8 +133,17 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// Add a range of entities to the database asynchronously
     /// </summary>
     /// <param name="entities"></param>
-    public async Task AddRangeAsync(IEnumerable<TEntity> entities)
+    public async Task AddRangeAsync(IEnumerable<TEntity> entities, string userEmail)
     {
+        var now = DateTime.UtcNow;
+        foreach (dynamic entity in entities)
+        {
+            entity.IsActive = true;
+            entity.CreatedAt = now;
+            entity.CreatedBy = userEmail;
+            entity.UpdatedAt = now;
+            entity.UpdatedBy = userEmail;
+        }
         await context.AddRangeAsync(entities);
     }
 
@@ -133,17 +151,44 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// Update entity in the database
     /// </summary>
     /// <param name="entity"></param>
-    public void Update(TEntity entity)
+    public void Update(TEntity entity, string userEmail, bool needLogicalDelete = false)
     {
-		DbSet.Update(entity);
+        var now = DateTime.UtcNow;
+        dynamic dyn = entity;
+        
+        dyn.UpdatedAt = now;
+        dyn.UpdatedBy = userEmail;
+        if (needLogicalDelete)
+        {
+            dyn.IsActive = false;
+        }
+        else
+        {
+            dyn.IsActive = true;
+        }
+        DbSet.Update(entity);
     }
 
     /// <summary>
     /// Update a range of entities in the database
     /// </summary>
     /// <param name="entities"></param>
-    public void UpdateRange(IEnumerable<TEntity> entities)
+    public void UpdateRange(IEnumerable<TEntity> entities, string userEmail, bool needLogicalDelete = false)
     {
+        var now = DateTime.UtcNow;
+        foreach (dynamic entity in entities)
+        {
+            entity.UpdatedAt = now;
+            entity.UpdatedBy = userEmail;
+            if (needLogicalDelete)
+            {
+                entity.IsActive = false;
+            }
+            else
+            {
+                entity.IsActive = true;
+            }
+        }
         DbSet.UpdateRange(entities);
     }
 }

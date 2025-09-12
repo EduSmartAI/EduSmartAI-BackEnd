@@ -67,25 +67,25 @@ public static class RouteConfiguration
                     { "Exceptions", "" }
                 }
             },
-            // new RouteConfig
-            // {
-            //     RouteId = "teacherServiceRoute",
-            //     ClusterId = ConstReverseProxy.TeacherServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/teacher/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", ConstRole.Lecturer },
-            //         { "Exceptions", "" },
-            //     }
-            // },
-            // new RouteConfig
+            new RouteConfig
+            {
+                RouteId = "teacherServiceRoute",
+                ClusterId = ConstReverseProxy.TeacherServiceClusterId,
+                Match = new RouteMatch
+                {
+                    Path = "/teacher/{**catch-all}",
+                },
+                Transforms =
+                [
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    { "AllowedRoles", ConstRole.Lecturer },
+                    { "Exceptions", "" },
+                }
+            },
+            //new RouteConfig
             // {
             //     RouteId = "courseServiceRoute",
             //     ClusterId = ConstReverseProxy.CourseServiceClusterId,
@@ -103,42 +103,42 @@ public static class RouteConfiguration
             //         { "Exceptions", "" }
             //     }
             // },
-            // new RouteConfig
-            // {
-            //     RouteId = "paymentServiceRoute",
-            //     ClusterId = ConstReverseProxy.PaymentServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/payment/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", ConstRole.Student + "," + ConstRole.Admin },
-            //         { "Exceptions", "" }
-            //     }
-            // },
-            // new RouteConfig
-            // {
-            //     RouteId = "notificationServiceRoute",
-            //     ClusterId = ConstReverseProxy.NotificationServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/notification/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", ConstRole.Student + "," + ConstRole.Lecturer + "," + ConstRole.Admin },
-            //         { "Exceptions", "" }
-            //     }
-            // },
+            new RouteConfig
+            {
+                RouteId = "paymentServiceRoute",
+                ClusterId = ConstReverseProxy.PaymentServiceClusterId,
+                Match = new RouteMatch
+                {
+                    Path = "/payment/{**catch-all}",
+                },
+                Transforms =
+                [
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    { "AllowedRoles", ConstRole.Student + "," + ConstRole.Admin },
+                    { "Exceptions", "" }
+                }
+            },
+            new RouteConfig
+            {
+                RouteId = "notificationServiceRoute",
+                ClusterId = ConstReverseProxy.NotificationServiceClusterId,
+                Match = new RouteMatch
+                {
+                    Path = "/notification/{**catch-all}",
+                },
+                Transforms =
+                [
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    { "AllowedRoles", ConstRole.Student + "," + ConstRole.Lecturer + "," + ConstRole.Admin },
+                    { "Exceptions", "" }
+                }
+            },
             // new RouteConfig
             // {
             //     RouteId = "aiServiceRoute",
@@ -157,24 +157,24 @@ public static class RouteConfiguration
             //         { "Exceptions", "" }
             //     }
             // },
-            // new RouteConfig
-            // {
-            //     RouteId = "utilityServiceRoute",
-            //     ClusterId = ConstReverseProxy.UtilityServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/utility/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "PathRemovePrefix", "/utility" } }
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", "Anonymous" },
-            //         { "Exceptions", "" }
-            //     }
-            // },
+            new RouteConfig
+            {
+                RouteId = "utilityServiceRoute",
+                ClusterId = ConstReverseProxy.UtilityServiceClusterId,
+                Match = new RouteMatch
+                {
+                    Path = "/utility/{**catch-all}",
+                },
+                Transforms =
+                [
+                    new Dictionary<string, string> { { "PathRemovePrefix", "/utility" } }
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    { "AllowedRoles", "Anonymous" },
+                    { "Exceptions", "" }
+                }
+            },
         };
     }
 }

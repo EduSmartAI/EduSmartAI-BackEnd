@@ -235,15 +235,27 @@ public static class StringUtil
     }
     
     /// <summary>
-    /// Convert to DD/MM/YYYY HH:mm from VietNam timezone
+    /// Convert to DD/MM/YYYY HH:mm
     /// </summary>
+    /// <param name="vietnamTime"></param>
     /// <returns></returns>
-    public static DateTime ConvertToVietNamTime()
+    public static DateTime ConvertToUtcTime(DateTime vietnamTime)
     {
         var timeZone = TimeZoneInfo.FindSystemTimeZoneById("SE Asia Standard Time");
-        var vietnamTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
-        return TimeZoneInfo.ConvertTimeToUtc(vietnamTime, timeZone);
-    }
+        if (vietnamTime.Kind == DateTimeKind.Unspecified)
+        {
+            return TimeZoneInfo.ConvertTimeToUtc(vietnamTime, timeZone);
+        }
+        if (vietnamTime.Kind == DateTimeKind.Local)
+        {
+            return vietnamTime.ToUniversalTime();
+        }
 
+        if (vietnamTime.Kind == DateTimeKind.Utc)
+        {
+            return vietnamTime;
+        }
+        return vietnamTime;
+    }
     #endregion
 }

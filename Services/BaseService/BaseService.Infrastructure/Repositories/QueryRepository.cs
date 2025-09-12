@@ -89,13 +89,4 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
         }
         return result;
     }
-
-    /// <summary>
-    /// Remove a collection from cache
-    /// </summary>
-    /// <param name="key"></param>
-    public async Task RemoveAsync(string key)
-    {
-        await cache.KeyDeleteAsync(key);
-    }
 }

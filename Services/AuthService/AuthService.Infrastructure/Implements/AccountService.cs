@@ -6,7 +6,6 @@ using AuthService.Domain.Snapshort;
 using AuthService.Domain.WriteModels;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using MassTransit;
@@ -76,13 +75,13 @@ public class AccountService : IAccountService
             if (!existingAccount.EmailConfirmed)
             {
                 // If the account was created more than 5 minutes ago
-                if (existingAccount.CreatedAt < StringUtil.ConvertToVietNamTime().AddMinutes(-5))
+                if (existingAccount.CreatedAt < DateTime.UtcNow.AddMinutes(-5))
                 {
                     await _unitOfWork.BeginTransactionAsync(async () =>
                     {
                         // Deactivate existing account
-                        _accountCommandRepository.Update(existingAccount);
-                        await _unitOfWork.SaveChangesAsync(existingAccount.Email, cancellationToken, true);
+                        _accountCommandRepository.Update(existingAccount, existingAccount.Email, true);
+                        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
                         var userCollectionExisting = await _accountQueryRepository.FirstOrDefaultAsync(x => x.Email == request.Email && x.IsActive);
                         if (userCollectionExisting != null)
@@ -166,7 +165,7 @@ public class AccountService : IAccountService
             };
 
             // Send key to email user
-            await _requestPublishEndpoint.Publish(new SendKeyEvent { Key = newAccount.Key! }, cancellationToken);
+            await _requestPublishEndpoint.Publish(new SendKeyEvent { Key = newAccount.Key!, Email = newAccount.Email}, cancellationToken);
 
             _unitOfWork.Store(AccountCollection.FromWriteModel(newAccount, userInformation));
             await _unitOfWork.SessionSaveChangesAsync();
@@ -226,7 +225,7 @@ public class AccountService : IAccountService
         if (account.AccessFailedCount >= 5)
             account.LockoutEnd = DateTimeOffset.Now + TimeSpan.FromMinutes(5);
 
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -237,7 +236,7 @@ public class AccountService : IAccountService
     {
         account.AccessFailedCount = 0;
         account.LockoutEnd = null;
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -279,7 +278,7 @@ public class AccountService : IAccountService
         }
         
         // Check if the key is expired (5 minutes)
-        if (account.CreatedAt.AddMinutes(5) < StringUtil.ConvertToVietNamTime())
+        if (account.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
             response.SetMessage(MessageId.E00000, "Liên kết không hợp lệ hoặc đã hết hạn");
             return response;
@@ -304,8 +303,8 @@ public class AccountService : IAccountService
             accountCollection!.EmailConfirmed = true;
             accountCollection.Key = null;
         
-            _accountCommandRepository.Update(account);
-            await _unitOfWork.SaveChangesAsync(account.Email);
+            _accountCommandRepository.Update(account, account.Email);
+            await _unitOfWork.SaveChangesAsync();
 
             _unitOfWork.Store(accountCollection);
             await _unitOfWork.SessionSaveChangesAsync();
@@ -342,8 +341,8 @@ public class AccountService : IAccountService
             RoleId = roleId,
         };
 
-        await _accountCommandRepository.AddAsync(newAccount);
-        await _unitOfWork.SaveChangesAsync(newAccount.Email);
+        await _accountCommandRepository.AddAsync(newAccount, request.Email);
+        await _unitOfWork.SaveChangesAsync();
 
         return newAccount;
     }

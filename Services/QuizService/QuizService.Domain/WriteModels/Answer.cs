@@ -11,8 +11,8 @@ public partial class Answer
 
     public string AnswerText { get; set; } = null!;
 
-    public bool? IsCorrect { get; set; }
-
+    public bool IsCorrect { get; set; }
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

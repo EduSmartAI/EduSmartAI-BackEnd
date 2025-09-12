@@ -64,27 +64,26 @@ public class TestService : ITestService
                 Description = request.Description,
             };
             
-            await _commandRepository.AddAsync(newTest);
+            await _commandRepository.AddAsync(newTest, currentEmail);
             
             foreach (var quiz in request.Quizzes)
             {
                 // Insert new quizzes
-                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description, quiz.SubjectCode);
+                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description, quiz.SubjectCode, currentEmail);
                 foreach (var question in quiz.Questions)
                 {
                     // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.QuestionType);
+                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.Explanation, currentEmail);
                     foreach (var answer in question.Answers)
                     {
                         // Insert new answers
-                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect);
+                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect, currentEmail);
                     }
                 }
             }
         
-            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken);
-            
-            // Store to marten
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            _unitOfWork.Store(TestCollection.FromWriteModel(newTest));
             foreach (var quiz in newTest.Quizzes)
             {
                 foreach (var question in quiz.Questions)
@@ -97,7 +96,8 @@ public class TestService : ITestService
                 }
                 _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
             }
-            _unitOfWork.Store(TestCollection.FromWriteModel(newTest));
+            
+            
             await _unitOfWork.SessionSaveChangesAsync();
             
             // True
@@ -117,31 +117,40 @@ public class TestService : ITestService
     {
         var response = new TestSelectResponse { Success = false };
 
-        var test = await _queryRepository.FirstOrDefaultAsync()
-            .Select(t => new TestSelectResponseEntity
+        string cacheKey = "test:id";
+        
+        // Get majors from cache or database
+        var test = await _queryRepository.GetOrSetAsync(
+            cacheKey,
+            async () =>
             {
-                TestId = t!.TestId,
-                TestName = t.TestName,
-                Description = t.Description,
-                Quizzes = t.Quizzes.Select(q => new QuizzDetailResponse
+                // If not in cache, get from database
+                return await _queryRepository.FirstOrDefaultAsync(x => x.IsActive);
+            },
+            TimeSpan.FromMinutes(10)
+        ).Select(t => new TestSelectResponseEntity
+        {
+            TestId = t!.TestId,
+            TestName = t.TestName,
+            Description = t.Description,
+            Quizzes = t.Quizzes.Select(q => new QuizzDetailResponse
+            {
+                QuizId = q.QuizId,
+                Title = q.Title,
+                Description = q.Description,
+                SubjectCode = q.SubjectCode,
+                Questions = q.Questions.Select(ques => new QuestionDetailResponse
                 {
-                    QuizId = q.QuizId,
-                    Title = q.Title,
-                    Description = q.Description,
-                    SubjectCode = q.SubjectCode,
-                    Questions = q.Questions.Select(ques => new QuestionDetailResponse
+                    QuestionId = ques.QuestionId,
+                    QuestionText = ques.QuestionText,
+                    Answers = ques.Answers.Select(a => new AnswerDetailResponse
                     {
-                        QuestionId = ques.QuestionId,
-                        QuestionText = ques.QuestionText,
-                        QuestionType = ques.QuestionType,
-                        Answers = ques.Answers.Select(a => new AnswerDetailResponse
-                        {
-                            AnswerId = a.AnswerId,
-                            AnswerText = a.AnswerText
-                        }).ToList()
+                        AnswerId = a.AnswerId,
+                        AnswerText = a.AnswerText
                     }).ToList()
                 }).ToList()
-            });
+            }).ToList()
+        });
         if (test == null)
         {
             response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);

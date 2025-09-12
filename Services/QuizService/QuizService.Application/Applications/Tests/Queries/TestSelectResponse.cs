@@ -14,9 +14,7 @@ public record TestSelectResponseEntity
     public string TestName { get; set; } = null!;
 
     public string? Description { get; set; }
-
-    public int DurationMinutes { get; set; }
-
+    
     public List<QuizzDetailResponse> Quizzes { get; set; } = null!;
 }
 
@@ -38,8 +36,6 @@ public record QuestionDetailResponse
     public Guid QuestionId { get; set; }
     
     public string QuestionText { get; set; } = null!;
-
-    public short QuestionType { get; set; }
     
     public List<AnswerDetailResponse> Answers { get; set; } = null!;
 }

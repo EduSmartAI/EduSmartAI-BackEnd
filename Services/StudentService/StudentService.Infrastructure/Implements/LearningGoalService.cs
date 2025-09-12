@@ -60,8 +60,8 @@ public class LearningGoalService : ILearningGoalService
                 GoalName = request.GoalName,
                 Description = request.Description,
             };
-            await _learningGoalCommandRepository.AddAsync(learningGoal);
-            await _unitOfWork.SaveChangesAsync(currentUserEmail, cancellationToken);
+            await _learningGoalCommandRepository.AddAsync(learningGoal, currentUserEmail);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
             
             _unitOfWork.Store(LearningGoalCollection.FromWriteModel(learningGoal));
             await _unitOfWork.SessionSaveChangesAsync();

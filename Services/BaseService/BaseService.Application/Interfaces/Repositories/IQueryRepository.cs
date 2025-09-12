@@ -46,11 +46,4 @@ public interface IQueryRepository<TEntity> where TEntity : class
     /// <param name="expiry"></param>
     /// <returns></returns>
     Task<List<TEntity>> GetOrSetListAsync(string key, Func<Task<List<TEntity>>> factory, TimeSpan? expiry = null);
-
-    /// <summary>
-    /// Remove an entity from cache by key
-    /// </summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
-    Task RemoveAsync(string key);
 }

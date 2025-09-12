@@ -49,7 +49,7 @@ public class LearningGoalController : ControllerBase
         Summary = "Tạo mục tiêu học tập mới",
         Description = "Cần cấp quyền Admin"
     )]
-    public async Task<IActionResult> InsertLearningGoal(LearningGoalInsertCommand request)
+    public async Task<LearningGoalInsertResponse> InsertLearningGoal(LearningGoalInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<LearningGoalInsertCommand, LearningGoalInsertResponse, string>(
             request,
@@ -74,7 +74,7 @@ public class LearningGoalController : ControllerBase
         Summary = "Lấy danh sách mục tiêu học tập",
         Description = "Trả về danh sách tất cả mục tiêu học tập. Cần xác thực"
     )]
-    public async Task<IActionResult> SelectLearningGoals([FromQuery] LearningGoalsSelectQuery request)
+    public async Task<LearningGoalsSelectResponse> SelectLearningGoals([FromQuery] LearningGoalsSelectQuery request)
     {
         return await ApiControllerHelper
             .HandleRequest<LearningGoalsSelectQuery, LearningGoalsSelectResponse, List<LearningGoalsSelectResponseEntity>>(

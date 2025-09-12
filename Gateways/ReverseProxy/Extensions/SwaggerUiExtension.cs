@@ -11,8 +11,8 @@ public static class SwaggerUiExtension
         app.UseSwaggerUI(c =>
         {
             c.RoutePrefix = "swagger";
-            c.SwaggerEndpoint("/student/swagger/v1/swagger.json", "Student Service Swagger");
             c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "Auth Service Swagger");
+            c.SwaggerEndpoint("/student/swagger/v1/swagger.json", "Student Service Swagger");
             c.SwaggerEndpoint("/teacher/swagger/v1/swagger.json", "Teacher Service Swagger");
             c.SwaggerEndpoint("/course/swagger/v1/swagger.json", "Course Service Swagger");
             c.SwaggerEndpoint("/quiz/swagger/v1/swagger.json", "Quiz Service Swagger");

@@ -32,7 +32,7 @@ public class AccountController : ControllerBase
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost("insert-student")]
-    public async Task<IActionResult> InsertStudent(StudentInsertCommand request)
+    public async Task<StudentInsertResponse> InsertStudent(StudentInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<StudentInsertCommand, StudentInsertResponse, string>(
             request,
@@ -50,7 +50,7 @@ public class AccountController : ControllerBase
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost("verify-account")]
-    public async Task<IActionResult> VerifyAccount([FromBody] AccountVerifyCommand request)
+    public async Task<AccountVerifyResponse> VerifyAccount([FromBody] AccountVerifyCommand request)
     {
         return await ApiControllerHelper.HandleRequest<AccountVerifyCommand, AccountVerifyResponse, string>(
             request,
