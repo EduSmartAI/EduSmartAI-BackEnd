@@ -21,13 +21,12 @@ namespace Course.Infrastructure
 
 			// DbContext (PostgreSQL)
 			services.AddDbContext<AppDbContext, CourseDbContext>(opt =>
-	opt.UseNpgsql(connectionString));
+	opt.UseNpgsql(connectionString).EnableDetailedErrors().EnableSensitiveDataLogging());
 
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
 			services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
-
 			services.AddMarten(options =>
 			{
 				options.Connection(connectionString!);

@@ -8,14 +8,7 @@ namespace Course.Application.Courses.Commands.CreateCourse
 	{
 		public async Task<CreateCourseResponse> Handle(CreateCourseCommand request, CancellationToken ct)
 		{
-			var created = await courseService.CreateAsync(request.Payload, ct);
-
-			return new CreateCourseResponse
-			{
-				Success = true,
-				Message = "Created",
-				Response = created
-			};
+			return await courseService.CreateAsync(request.Payload, ct);
 		}
 	}
 }

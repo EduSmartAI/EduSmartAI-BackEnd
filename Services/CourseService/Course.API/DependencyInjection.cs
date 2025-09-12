@@ -12,6 +12,7 @@ namespace Course.API
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
 			services.AddCorsServices();
+			//services.AddMapsterConfig();
 			//services.AddAuthentication();
 			//services.AddAuthorization();
 
@@ -23,9 +24,6 @@ namespace Course.API
 		public static WebApplication UseApiServices(this WebApplication app)
 		{
 			// Configure the HTTP request pipeline here, e.g., app.UseSwagger(), app.UseAuthorization(), etc.
-
-			// Base path trước
-			app.UsePathBase("/auth");
 
 			app.UseExceptionHandler();
 

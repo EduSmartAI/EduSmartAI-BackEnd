@@ -2,6 +2,7 @@
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
+using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs;
 using MediatR;
@@ -30,6 +31,20 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new GetCoursesResponse()
+			);
+		}
+
+		[HttpGet("{id:guid}")]
+		public async Task<IActionResult> ProcessRequestById(Guid id)
+		{
+			var query = new GetCourseByIdQuery(id);
+
+			return await ApiControllerHelper.HandleRequest<GetCourseByIdQuery, GetCourseByIdResponse, CourseDetailDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseByIdResponse()
 			);
 		}
 

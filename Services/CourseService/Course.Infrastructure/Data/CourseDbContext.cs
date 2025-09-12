@@ -353,7 +353,9 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.ModuleId, "idx_lessons_module");
 
-            entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_lessons_module_position").IsUnique();
+            entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_lessons_module_position_active")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
 
             entity.Property(e => e.LessonId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -429,7 +431,9 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.IsCore, "idx_modules_is_core");
 
-            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_modules_course_position").IsUnique();
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_modules_course_position_active")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
 
             entity.Property(e => e.ModuleId)
                 .HasDefaultValueSql("gen_random_uuid()")

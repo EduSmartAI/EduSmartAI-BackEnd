@@ -135,7 +135,6 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// <param name="entity"></param>
     public void Update(TEntity entity)
     {
-		context.ChangeTracker.Clear();
 		DbSet.Update(entity);
     }
 

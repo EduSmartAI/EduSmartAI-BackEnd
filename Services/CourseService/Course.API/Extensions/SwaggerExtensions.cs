@@ -12,7 +12,7 @@ namespace Course.API.Extensions
 			{
 				c.SwaggerDoc("v1", new OpenApiInfo
 				{
-					Title = "Auth Service",
+					Title = "Course Service",
 					Version = "v1"
 				});
 
