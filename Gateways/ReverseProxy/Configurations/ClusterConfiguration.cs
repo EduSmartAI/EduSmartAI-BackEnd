@@ -13,7 +13,7 @@ public static class ClusterConfiguration
         var studentServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.StudentServiceUrl);
         var quizServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.QuizServiceUrl);
         var teacherServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.TeacherServiceUrl);
-        //var courseServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.CourseServiceUrl);
+        var courseServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.CourseServiceUrl);
         var paymentServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.PaymentServiceUrl);
         var notificationServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.NotificationServiceUrl);
         //var aiServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.AiServiceUrl);
@@ -53,14 +53,14 @@ public static class ClusterConfiguration
                     { "destination4", new DestinationConfig { Address = teacherServiceUrl! } }
                 }
             },
-            // new ClusterConfig
-            // {
-            //     ClusterId = ConstReverseProxy.CourseServiceClusterId,
-            //     Destinations = new Dictionary<string, DestinationConfig>
-            //     {
-            //         { "destination5", new DestinationConfig { Address = courseServiceUrl! } }
-            //     }
-            // },
+            new ClusterConfig
+            {
+                ClusterId = ConstReverseProxy.CourseServiceClusterId,
+                Destinations = new Dictionary<string, DestinationConfig>
+                {
+                    { "destination5", new DestinationConfig { Address = courseServiceUrl! } }
+                }
+            },
             new ClusterConfig
             {
                 ClusterId = ConstReverseProxy.PaymentServiceClusterId,
