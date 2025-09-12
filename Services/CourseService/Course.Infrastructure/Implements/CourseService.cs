@@ -269,36 +269,21 @@ namespace Course.Infrastructure.Implements
 
 				course.Modules.Add(module);
 			}
-			try
-			{
-				await unitOfWork.BeginTransactionAsync(async () =>
-							{
-								await _courseRepository.AddAsync(course, actor);   // hoặc Insert/Add tùy interface bạn đang dùng
-								await unitOfWork.SaveChangesAsync(ct);         // EF: SaveChanges; Marten: cũng qua UoW
-																			   // Nếu có Outbox/Event:
-																			   // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
-																			   // await _uow.SessionSaveChangesAsync();
 
-								return true; // yêu cầu của BeginTransactionAsync: trả true để commit
-							}, ct);
-			}
-			catch (Exception ex)
-			{
-				// Log lỗi nếu cần
-				Console.WriteLine($"Error creating course: {ex.Message}");
-				throw; // Rethrow để lỗi được xử lý ở tầng trên (middleware, handler, v.v.)
-			}
+			await unitOfWork.BeginTransactionAsync(async () =>
+						{
+							await _courseRepository.AddAsync(course, actor);   // hoặc Insert/Add tùy interface bạn đang dùng
+							await unitOfWork.SaveChangesAsync(ct);         // EF: SaveChanges; Marten: cũng qua UoW
+																		   // Nếu có Outbox/Event:
+																		   // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
+																		   // await _uow.SessionSaveChangesAsync();
 
-			// Transaction qua UoW
-
-
-			// Không bắt buộc reload: course hiện đã có đầy đủ nav (vì ta tự add vào graph).
-			// Nếu bạn muốn AsNoTracking + Include để chắc chắn, có thể thêm QueryRepository để load lại.
+							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
+						}, ct);
 
 			return new CreateCourseResponse
 			{
 				Success = true,
-				Response = MapDetail(course),
 				Message = "Course created successfully"
 			};
 			//return MapDetail(course);

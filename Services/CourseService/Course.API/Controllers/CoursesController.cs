@@ -56,7 +56,7 @@ namespace Course.API.Controllers
 		[HttpPost]
 		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
-			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, CourseDetailDto>(
+			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, string>(
 				request,
 				_logger,
 				ModelState,
