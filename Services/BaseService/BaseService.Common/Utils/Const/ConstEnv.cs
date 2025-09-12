@@ -51,4 +51,10 @@ public static class ConstEnv
     public const string RabbitMqPassword = "RABBITMQ_PASSWORD";
     
     public const string RedisCacheConnection = "REDIS_CACHE_CONNECTION";
+    
+    public const string PaymentServiceDb = "PAYMENT_SERVICE_DB";
+    
+    public const string NotificationServiceDb = "NOTIFICATION_SERVICE_DB";
+    
+    
 }

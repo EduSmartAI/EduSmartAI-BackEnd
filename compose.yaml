@@ -69,7 +69,96 @@
       - CLIENT_SECRET=${CLIENT_SECRET}
     networks:
       - edusmartai-network
-
+  
+  teacherservice.api:
+    build:
+      context: .
+      dockerfile: Services/TeacherService/TeacherService.API/Dockerfile
+    ports:
+      - "7004:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - TEACHER_SERVICE_DB=${TEACHER_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+      
+  paymentservice.api:
+    build:
+      context: .
+      dockerfile: Services/PaymentService/PaymentService.API/Dockerfile
+    ports:
+      - "7007:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - PAYMENT_SERVICE_DB=${PAYMENT_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+        
+  notificationservice.api:
+    build:
+      context: .
+      dockerfile: Services/NotificationService/NotificationService.API/Dockerfile
+    ports:
+      - "7008:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - NOTIFICATION_SERVICE_DB=${NOTIFICATION_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+  
+  utilityservice.api:
+    build:
+      context: .
+      dockerfile: Services/UtilityService/UtilityService.API/Dockerfile
+    ports:
+      - "7010:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - UTILITY_SERVICE_DB=${UTILITY_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+    
+    
   # Gateway
   reverseproxy:
     build:
@@ -81,6 +170,10 @@
       - studentservice.api
       - authservice.api
       - quizservice.api
+      - teacherservice.api
+      - paymentservice.api
+      - notificationservice.api
+      - utilityservice.api
     networks:
       - edusmartai-network
     environment:
@@ -89,6 +182,10 @@
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
       - QUIZ_SERVICE_URL=${QUIZ_SERVICE_URL}
+      - TEACHER_SERVICE_URL=${TEACHER_SERVICE_URL}
+      - PAYMENT_SERVICE_URL=${PAYMENT_SERVICE_URL}
+      - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL}
+      - UTILITY_SERVICE_URL=${UTILITY_SERVICE_URL}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
       - JWT_AUDIENCE=${JWT_AUDIENCE}
