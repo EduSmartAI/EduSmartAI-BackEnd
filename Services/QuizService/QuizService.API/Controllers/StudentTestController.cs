@@ -50,7 +50,7 @@ public class StudentTestController : ControllerBase
         Summary = "Lưu câu trả lời của học sinh",
         Description = "Cần cấp quyền Student cho API"
     )]
-    public async Task<IActionResult> InsertStudentTest(StudentTestInsertCommand request)
+    public async Task<StudentTestInsertResponse> InsertStudentTest(StudentTestInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<StudentTestInsertCommand, StudentTestInsertResponse, Guid?>(
             request,
@@ -74,7 +74,7 @@ public class StudentTestController : ControllerBase
         Summary = "Lấy câu trả lời của học sinh trong bài test",
         Description = "Cần cấp quyền Student cho API"
     )]
-    public async Task<IActionResult> SelectStudentTest([FromQuery] Guid studentTestId)    {
+    public async Task<StudentTestSelectResponse> SelectStudentTest([FromQuery] Guid studentTestId)    {
         var query = new StudentTestSelectQuery { StudentTestId = studentTestId };
         return await ApiControllerHelper.HandleRequest<StudentTestSelectQuery, StudentTestSelectResponse, StudentTestSelectResponseEntity>(
             query,

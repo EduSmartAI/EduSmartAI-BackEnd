@@ -49,7 +49,7 @@ public class TestController : ControllerBase
         Summary = "Tạo bài kiểm tra mới",
         Description = "Cần cấp quyền Admin cho API"
     )]
-    public async Task<IActionResult> InsertTest(TestInsertCommand request)
+    public async Task<TestInsertResponse> InsertTest(TestInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<TestInsertCommand, TestInsertResponse, string>(
             request,
@@ -64,7 +64,7 @@ public class TestController : ControllerBase
     
     [HttpGet]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public async Task<IActionResult> GetTest([FromQuery] TestSelectQuery request)
+    public async Task<TestSelectResponse> GetTest([FromQuery] TestSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<TestSelectQuery, TestSelectResponse, TestSelectResponseEntity>(
             request,

@@ -26,16 +26,16 @@ public class ApiControllerHelper
     /// <typeparam name="TResponse"></typeparam>
     /// <typeparam name="TEntityResponse"></typeparam>
     /// <returns></returns>
-    public static async Task<IActionResult> HandleRequest<TRequest, TResponse, TEntityResponse>
-        (TRequest request, 
-            Logger logger, 
-            ModelStateDictionary modelState, 
-            Func<Task<TResponse>> exec,
-            IIdentityService identityService, 
-            IdentityEntity identityEntity,
-            IHttpContextAccessor httpContextAccessor,
-            TResponse returnValue
-            )
+    public static async Task<TResponse> HandleRequest<TRequest, TResponse, TEntityResponse>
+    (TRequest request,
+        Logger logger,
+        ModelStateDictionary modelState,
+        Func<Task<TResponse>> exec,
+        IIdentityService identityService,
+        IdentityEntity identityEntity,
+        IHttpContextAccessor httpContextAccessor,
+        TResponse returnValue
+    )
         where TResponse : AbstractApiResponse<TEntityResponse>
     {
         var user = httpContextAccessor.HttpContext?.User;
@@ -53,8 +53,9 @@ public class ApiControllerHelper
             returnValue.Success = false;
             returnValue.SetMessage(MessageId.E11006);
             loggingUtil.EndLog(returnValue);
-            return new UnauthorizedObjectResult(returnValue);
+            return returnValue;
         }
+
         try
         {
             // Validate ModelState
@@ -64,23 +65,24 @@ public class ApiControllerHelper
                 returnValue.Success = false;
                 returnValue.SetMessage(MessageId.E10000);
                 returnValue.DetailErrors = detailErrors;
-                return new BadRequestObjectResult(returnValue);
+                return returnValue;
             }
 
             returnValue = await exec();
-            return new OkObjectResult(returnValue);;
+            return returnValue;
+            ;
         }
         catch (Exception e)
         {
             loggingUtil.ErrorLog(e.Message);
-            return new ObjectResult(AbstractFunction<TResponse, TEntityResponse>.GetReturnValue(returnValue, loggingUtil, e));
+            return AbstractFunction<TResponse, TEntityResponse>.GetReturnValue(returnValue, loggingUtil, e);
         }
         finally
         {
             loggingUtil.EndLog(returnValue);
         }
     }
-    
+
     /// <summary>
     /// Template Method not authentication
     /// </summary>
@@ -93,18 +95,18 @@ public class ApiControllerHelper
     /// <typeparam name="TResponse"></typeparam>
     /// <typeparam name="TEntityResponse"></typeparam>
     /// <returns></returns>
-public static async Task<IActionResult> HandleRequest<TRequest, TResponse, TEntityResponse>
-        (TRequest request, 
-            Logger logger, 
-            ModelStateDictionary modelState, 
-            Func<Task<TResponse>> exec,
-            TResponse returnValue
-            )
+    public static async Task<TResponse> HandleRequest<TRequest, TResponse, TEntityResponse>
+    (TRequest request,
+        Logger logger,
+        ModelStateDictionary modelState,
+        Func<Task<TResponse>> exec,
+        TResponse returnValue
+    )
         where TResponse : AbstractApiResponse<TEntityResponse>
     {
         var loggingUtil = new LoggingUtil(logger, "User do not authenticated");
         loggingUtil.StartLog(request);
-        
+
         try
         {
             // Validate ModelState
@@ -114,16 +116,17 @@ public static async Task<IActionResult> HandleRequest<TRequest, TResponse, TEnti
                 returnValue.Success = false;
                 returnValue.SetMessage(MessageId.E10000);
                 returnValue.DetailErrors = detailErrors;
-                return new BadRequestObjectResult(returnValue);
+                return returnValue;
             }
 
             returnValue = await exec();
-            return new OkObjectResult(returnValue);;
+            return returnValue;
+            ;
         }
         catch (Exception e)
         {
             loggingUtil.ErrorLog(e.Message);
-            return new ObjectResult(AbstractFunction<TResponse, TEntityResponse>.GetReturnValue(returnValue, loggingUtil, e));
+            return AbstractFunction<TResponse, TEntityResponse>.GetReturnValue(returnValue, loggingUtil, e);
         }
         finally
         {

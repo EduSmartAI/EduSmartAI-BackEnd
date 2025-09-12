@@ -48,7 +48,7 @@ public class QuestionController : ControllerBase
         Summary = "Cập nhật câu hỏi và câu trả lời",
         Description = "Cần cấp quyền Admin cho API. Update question và tất cả answers của nó"
     )]
-    public async Task<IActionResult> UpdateQuestion(QuestionUpdateCommand request)
+    public async Task<QuestionUpdateResponse> UpdateQuestion(QuestionUpdateCommand request)
     {
         return await ApiControllerHelper.HandleRequest<QuestionUpdateCommand, QuestionUpdateResponse, string>(
             request,
@@ -72,7 +72,7 @@ public class QuestionController : ControllerBase
         Summary = "Xóa câu hỏi và tất cả câu trả lời",
         Description = "Cần cấp quyền Admin cho API. Delete question và tất cả answers của nó"
     )]
-    public async Task<IActionResult> DeleteQuestion(Guid questionId)
+    public async Task<QuestionDeleteResponse> DeleteQuestion(Guid questionId)
     {
         var request = new QuestionDeleteCommand { QuestionId = questionId };
         
@@ -98,7 +98,7 @@ public class QuestionController : ControllerBase
         Summary = "Thêm câu hỏi và câu trả lời vào quiz",
         Description = "Cần cấp quyền Admin cho API. Insert question và tất cả answers vào quiz"
     )]
-    public async Task<IActionResult> InsertQuestion(QuestionInsertCommand request)
+    public async Task<QuestionInsertResponse> InsertQuestion(QuestionInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<QuestionInsertCommand, QuestionInsertResponse, string>(
             request,

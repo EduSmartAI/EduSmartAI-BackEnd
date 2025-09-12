@@ -1,11 +1,22 @@
 ﻿namespace BuildingBlocks.Pagination
 {
-	public class PaginatedResult<TEntity>(int pageIndex, int pageSize, long totalCount, IEnumerable<TEntity> data) where TEntity : class
+	public class PaginatedResult<TEntity> where TEntity : class
 	{
-		public int PageIndex { get; } = pageIndex;
-		public int PageSize { get; } = pageSize;
-		public long Count { get; } = totalCount;
-		public IEnumerable<TEntity> Data { get; } = data;
-		public int TotalPages { get; } = (int)Math.Ceiling(totalCount / (double)pageSize);
+		public int PageIndex { get; }
+		public int PageSize { get; }
+		public long TotalCount { get; }
+		public IEnumerable<TEntity> Data { get; }
+		public int TotalPages { get; }
+		public bool HasPreviousPage => PageIndex > 0;
+		public bool HasNextPage => PageIndex + 1 < TotalPages;
+
+		public PaginatedResult(int pageIndex, int pageSize, long totalCount, IEnumerable<TEntity> data)
+		{
+			PageIndex = pageIndex;
+			PageSize = pageSize;
+			TotalCount = totalCount;
+			Data = data;
+			TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+		}
 	}
 }

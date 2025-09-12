@@ -46,7 +46,7 @@ public class MajorController : ControllerBase
         Summary = "Tạo chuyên ngành mới",
         Description = "Cần cấp quyền Admin"
     )]
-    public async Task<IActionResult> InsertMajor(MajorInsertCommand request)
+    public async Task<MajorInsertResponse> InsertMajor(MajorInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<MajorInsertCommand, MajorInsertResponse, string>(
             request,
@@ -70,7 +70,7 @@ public class MajorController : ControllerBase
         Summary = "Lấy danh sách chuyên ngành",
         Description = "Trả về danh sách tất cả chuyên ngành đang hoạt động. Ai cũng có thể xem"
     )]
-    public async Task<IActionResult> SelectMajors([FromQuery] MajorsSelectQuery request)
+    public async Task<MajorsSelectResponse> SelectMajors([FromQuery] MajorsSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<MajorsSelectQuery, MajorsSelectResponse, List<MajorsSelectResponseEntity>>(
             request,
