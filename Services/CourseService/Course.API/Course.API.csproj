@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
     <ProjectReference Include="..\Course.Application\Course.Application.csproj" />
     <ProjectReference Include="..\Course.Infrastructure\Course.Infrastructure.csproj" />
   </ItemGroup>

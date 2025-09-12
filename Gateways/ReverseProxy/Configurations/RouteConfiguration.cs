@@ -85,24 +85,24 @@ public static class RouteConfiguration
                     { "Exceptions", "" },
                 }
             },
-            //new RouteConfig
-            // {
-            //     RouteId = "courseServiceRoute",
-            //     ClusterId = ConstReverseProxy.CourseServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/course/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", $"{ConstRole.Lecturer},{ConstRole.Student}" },
-            //         { "Exceptions", "" }
-            //     }
-            // },
+            new RouteConfig
+             {
+                 RouteId = "courseServiceRoute",
+                 ClusterId = ConstReverseProxy.CourseServiceClusterId,
+                 Match = new RouteMatch
+                 {
+                     Path = "/course/{**catch-all}",
+                 },
+                 Transforms =
+                 [
+                     new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
+                 ],
+                 Metadata = new Dictionary<string, string>
+                 {
+                     { "AllowedRoles", $"{ConstRole.Lecturer},{ConstRole.Student}" },
+                     { "Exceptions", "" }
+                 }
+             },
             new RouteConfig
             {
                 RouteId = "paymentServiceRoute",
