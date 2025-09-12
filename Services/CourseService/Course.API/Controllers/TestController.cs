@@ -30,7 +30,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet]
-		public async Task<IActionResult> ProcessRequest([FromQuery] GetCoursesQuery request)
+		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
 				request,

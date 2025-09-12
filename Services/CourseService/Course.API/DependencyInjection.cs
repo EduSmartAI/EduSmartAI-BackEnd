@@ -24,6 +24,7 @@ namespace Course.API
 		public static WebApplication UseApiServices(this WebApplication app)
 		{
 			// Configure the HTTP request pipeline here, e.g., app.UseSwagger(), app.UseAuthorization(), etc.
+			app.UsePathBase("/course");
 
 			app.UseExceptionHandler();
 
@@ -41,7 +42,7 @@ namespace Course.API
 			app.UseSwaggerUI(settings =>
 			{
 				// Đặt endpoint có base path
-				settings.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "Auth Service v1");
+				settings.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Service v1");
 				settings.RoutePrefix = "swagger"; // => /auth/swagger
 			});
 

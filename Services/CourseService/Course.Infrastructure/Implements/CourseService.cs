@@ -9,7 +9,6 @@ using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
 using FluentValidation;
-using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -274,11 +273,11 @@ namespace Course.Infrastructure.Implements
 			{
 				await unitOfWork.BeginTransactionAsync(async () =>
 							{
-								await _courseRepository.AddAsync(course);   // hoặc Insert/Add tùy interface bạn đang dùng
-								await unitOfWork.SaveChangesAsync(actor, ct);         // EF: SaveChanges; Marten: cũng qua UoW
-																					  // Nếu có Outbox/Event:
-																					  // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
-																					  // await _uow.SessionSaveChangesAsync();
+								await _courseRepository.AddAsync(course, actor);   // hoặc Insert/Add tùy interface bạn đang dùng
+								await unitOfWork.SaveChangesAsync(ct);         // EF: SaveChanges; Marten: cũng qua UoW
+																			   // Nếu có Outbox/Event:
+																			   // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
+																			   // await _uow.SessionSaveChangesAsync();
 
 								return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 							}, ct);
@@ -870,7 +869,7 @@ namespace Course.Infrastructure.Implements
 					}
 
 					// FIX: Only save once at the end of transaction
-					await unitOfWork.SaveChangesAsync(actor, ct);
+					await unitOfWork.SaveChangesAsync(ct);
 
 					return true;
 				}, ct);

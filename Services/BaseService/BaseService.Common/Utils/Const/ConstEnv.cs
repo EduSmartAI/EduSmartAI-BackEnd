@@ -55,6 +55,8 @@ public static class ConstEnv
     public const string PaymentServiceDb = "PAYMENT_SERVICE_DB";
     
     public const string NotificationServiceDb = "NOTIFICATION_SERVICE_DB";
-    
-    
+
+    public const string CourseServiceDb = "COURSE_SERVICE_DB";
+
+
 }

@@ -23,7 +23,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet]
-		public async Task<IActionResult> ProcessRequest([FromQuery] GetCoursesQuery request)
+		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
 				request,
@@ -35,7 +35,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("{id:guid}")]
-		public async Task<IActionResult> ProcessRequestById(Guid id)
+		public async Task<GetCourseByIdResponse> ProcessRequestById(Guid id)
 		{
 			var query = new GetCourseByIdQuery(id);
 
@@ -54,7 +54,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPost]
-		public async Task<IActionResult> ProcessRequestPost([FromBody] CreateCourseCommand request)
+		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
 			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, CourseDetailDto>(
 				request,
@@ -66,7 +66,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpPut("{id:guid}")]
-		public async Task<IActionResult> ProcessRequestPut([FromRoute] Guid id, [FromBody] UpdateCourseDto payload)
+		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id, [FromBody] UpdateCourseDto payload)
 		{
 			var request = new UpdateCourseCommand(id, payload);
 			return await ApiControllerHelper.HandleRequest<UpdateCourseCommand, UpdateCourseResponse, CourseDetailDto>(
