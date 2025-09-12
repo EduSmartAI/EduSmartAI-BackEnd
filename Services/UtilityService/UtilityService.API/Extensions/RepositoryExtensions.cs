@@ -4,6 +4,8 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
+using UtilityService.Application.Interfaces;
+using UtilityService.Infrastructure.Implements;
 
 namespace UtilityService.API.Extensions;
 
@@ -16,14 +18,10 @@ public static class RepositoryExtensions
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         services.AddScoped<IIdentityService, IdentityService>();
-        
+        services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
         // Services
         
-        // MediatR configuration
-        // services.AddMediatR(cfg =>
-        // {
-        //     
-        // });        
+        
         return services;
     }
 }

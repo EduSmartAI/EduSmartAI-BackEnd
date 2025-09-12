@@ -165,7 +165,7 @@ public class AccountService : IAccountService
             };
 
             // Send key to email user
-            await _requestPublishEndpoint.Publish(new SendKeyEvent { Key = newAccount.Key! }, cancellationToken);
+            await _requestPublishEndpoint.Publish(new SendKeyEvent { Key = newAccount.Key!, Email = newAccount.Email}, cancellationToken);
 
             _unitOfWork.Store(AccountCollection.FromWriteModel(newAccount, userInformation));
             await _unitOfWork.SessionSaveChangesAsync();

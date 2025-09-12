@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
+using UtilityService.Application.Consumers.VerifyAccounts;
 
 namespace UtilityService.API.Extensions;
 
@@ -16,6 +17,7 @@ public static class MessagingExtensions
         
         services.AddMassTransit(x =>
         {
+            x.AddConsumer<SendKeyEventConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
