@@ -11,7 +11,8 @@
 		decimal? DurationHours,         // GENERATED
 		short? Level,                   // NEW
 		List<ModuleObjectiveDto> Objectives,
-		List<LessonDetailDto> Lessons
+		//List<LessonDetailDto> Lessons,
+		List<GuestLessonDetailDto> GuestLessons
 	);
 
 	public record ModuleObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);
