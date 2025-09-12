@@ -392,11 +392,11 @@ namespace Course.Infrastructure.Implements
 						)).ToList(),
 					m.Lessons
 						.OrderBy(l => l.PositionIndex)
-						.Select(l => new LessonDetailDto(
+						.Select(l => new GuestLessonDetailDto(
 							l.LessonId,
 							l.Title,
-							l.VideoUrl,
-							l.VideoDurationSec,
+							//l.VideoUrl,
+							//l.VideoDurationSec,
 							l.PositionIndex,
 							l.IsActive))
 						.ToList()
