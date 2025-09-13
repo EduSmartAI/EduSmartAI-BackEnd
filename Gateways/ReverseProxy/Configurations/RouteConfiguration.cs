@@ -100,8 +100,10 @@ public static class RouteConfiguration
                  Metadata = new Dictionary<string, string>
                  {
                      { "AllowedRoles", $"{ConstRole.Lecturer},{ConstRole.Student}" },
-                     { "Exceptions", "" }
-                 }
+                     { "Exceptions", "" },
+					 { nameof(RouteMeta.EndpointRules),
+					 "GET:/api/v1/Courses=Anonymous;GET:/api/v1/Courses/{id}=Anonymous;"}
+				 }
              },
             new RouteConfig
             {
