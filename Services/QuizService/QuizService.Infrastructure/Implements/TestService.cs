@@ -30,7 +30,9 @@ public class TestService : ITestService
     /// <param name="quizService"></param>
     /// <param name="questionService"></param>
     /// <param name="answerService"></param>
-    public TestService(ICommandRepository<Test> commandRepository, IQueryRepository<TestCollection> queryRepository, IIdentityService identityService, IUnitOfWork unitOfWork, IQuizService quizService, IQuestionService questionService, IAnswerService answerService)
+    public TestService(ICommandRepository<Test> commandRepository, IQueryRepository<TestCollection> queryRepository,
+        IIdentityService identityService, IUnitOfWork unitOfWork, IQuizService quizService,
+        IQuestionService questionService, IAnswerService answerService)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
@@ -47,12 +49,13 @@ public class TestService : ITestService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<TestInsertResponse> InsertTestAsync(TestInsertCommand request, CancellationToken cancellationToken)
+    public async Task<TestInsertResponse> InsertTestAsync(TestInsertCommand request,
+        CancellationToken cancellationToken)
     {
         var response = new TestInsertResponse { Success = false };
-        
+
         var currentEmail = _identityService.GetCurrentUser()!.Email;
-        
+
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
@@ -63,25 +66,28 @@ public class TestService : ITestService
                 TestName = request.TestName,
                 Description = request.Description,
             };
-            
+
             await _commandRepository.AddAsync(newTest, currentEmail);
-            
+
             foreach (var quiz in request.Quizzes)
             {
                 // Insert new quizzes
-                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description, quiz.SubjectCode, currentEmail);
+                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description,
+                    quiz.SubjectCode, currentEmail);
                 foreach (var question in quiz.Questions)
                 {
                     // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.Explanation, currentEmail);
+                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText,
+                        question.Explanation, currentEmail);
                     foreach (var answer in question.Answers)
                     {
                         // Insert new answers
-                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect, currentEmail);
+                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect,
+                            currentEmail);
                     }
                 }
             }
-        
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             _unitOfWork.Store(TestCollection.FromWriteModel(newTest));
             foreach (var quiz in newTest.Quizzes)
@@ -92,14 +98,16 @@ public class TestService : ITestService
                     {
                         _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
                     }
+
                     _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
                 }
+
                 _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
             }
-            
-            
+
+
             await _unitOfWork.SessionSaveChangesAsync();
-            
+
             // True
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm bài kiểm tra");
@@ -118,7 +126,7 @@ public class TestService : ITestService
         var response = new TestSelectResponse { Success = false };
 
         string cacheKey = "test:id";
-        
+
         // Get majors from cache or database
         var test = await _queryRepository.GetOrSetAsync(
             cacheKey,
@@ -133,30 +141,31 @@ public class TestService : ITestService
             TestId = t!.TestId,
             TestName = t.TestName,
             Description = t.Description,
-            Quizzes = t.Quizzes.Select(q => new QuizzDetailResponse
-            {
-                QuizId = q.QuizId,
-                Title = q.Title,
-                Description = q.Description,
-                SubjectCode = q.SubjectCode,
-                Questions = q.Questions.Select(ques => new QuestionDetailResponse
+            Quizzes = t.Quizzes.Where(x => request.QuizId.Contains(x.QuizId))
+                .Select(q => new QuizzDetailResponse
                 {
-                    QuestionId = ques.QuestionId,
-                    QuestionText = ques.QuestionText,
-                    Answers = ques.Answers.Select(a => new AnswerDetailResponse
+                    QuizId = q.QuizId,
+                    Title = q.Title,
+                    Description = q.Description,
+                    SubjectCode = q.SubjectCode,
+                    Questions = q.Questions.Select(ques => new QuestionDetailResponse
                     {
-                        AnswerId = a.AnswerId,
-                        AnswerText = a.AnswerText
+                        QuestionId = ques.QuestionId,
+                        QuestionText = ques.QuestionText,
+                        Answers = ques.Answers.Select(a => new AnswerDetailResponse
+                        {
+                            AnswerId = a.AnswerId,
+                            AnswerText = a.AnswerText
+                        }).ToList()
                     }).ToList()
                 }).ToList()
-            }).ToList()
         });
         if (test == null)
         {
             response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
             return response;
         }
-        
+
         // True
         response.Success = true;
         response.Response = test;
