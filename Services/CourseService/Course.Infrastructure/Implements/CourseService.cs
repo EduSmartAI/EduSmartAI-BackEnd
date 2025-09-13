@@ -933,10 +933,9 @@ namespace Course.Infrastructure.Implements
 
 		public async Task<GetCourseByIdResponse> GetByIdAsync(Guid id, CancellationToken ct = default)
 		{
-			// Find(...) trả IQueryable<TEntity?> nên cast về IQueryable<CourseEntity> để dùng Include/ThenInclude
 			var baseQuery = _courseRepository
 				.Find(x => x.CourseId == id, isTracking: false, ct)
-				.Cast<CourseEntity>()                              // quan trọng để dùng Include/ThenInclude
+				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives)
 				.Include(x => x.CourseRequirements)
@@ -949,8 +948,8 @@ namespace Course.Infrastructure.Implements
 				return new GetCourseByIdResponse { Success = false, Message = $"Course {id} not found" };
 
 			var detail = MapDetail(entity);
-			var modulesCount = entity.Modules.Count(m => m.IsActive);                       // hoặc .Count(m => m.IsActive)
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));   // hoặc .Sum(m => m.Lessons.Count(l => l.IsActive))
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
 			return new GetCourseByIdResponse
 			{
