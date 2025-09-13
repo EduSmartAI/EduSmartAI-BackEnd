@@ -10,9 +10,7 @@ public partial class Question
     public Guid QuizId { get; set; }
 
     public string QuestionText { get; set; } = null!;
-    
-    public string? Explanation { get; set; }
-    
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -23,9 +21,15 @@ public partial class Question
 
     public bool IsActive { get; set; }
 
+    public string? Explanation { get; set; }
+
+    public short QuestionType { get; set; }
+
     public virtual ICollection<Answer> Answers { get; set; } = new List<Answer>();
 
     public virtual Quiz Quiz { get; set; } = null!;
 
     public virtual ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();
+
+    public virtual ICollection<StudentSurveyAnswer> StudentSurveyAnswers { get; set; } = new List<StudentSurveyAnswer>();
 }

@@ -121,7 +121,6 @@ public class ApiControllerHelper
 
             returnValue = await exec();
             return returnValue;
-            ;
         }
         catch (Exception e)
         {

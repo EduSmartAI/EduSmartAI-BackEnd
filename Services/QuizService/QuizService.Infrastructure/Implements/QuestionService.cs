@@ -53,7 +53,8 @@ public class QuestionService : IQuestionService
             QuestionId = Guid.NewGuid(),
             QuizId = quizId,
             QuestionText = text,
-            Explanation = explanation
+            Explanation = explanation,
+            QuestionType = (byte) ConstantEnum.QuestionType.MultipleChoice
         };
 
         await _commandRepository.AddAsync(question, email);

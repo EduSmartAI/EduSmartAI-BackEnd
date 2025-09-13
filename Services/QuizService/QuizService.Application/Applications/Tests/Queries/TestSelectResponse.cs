@@ -26,7 +26,7 @@ public record QuizzDetailResponse
 
     public string? Description { get; set; }
     
-    public Guid SubjectCode { get; set; }
+    public Guid? SubjectCode { get; set; }
     
     public List<QuestionDetailResponse> Questions { get; set; } = null!;
 }
@@ -45,4 +45,6 @@ public record AnswerDetailResponse
     public Guid AnswerId { get; set; }
     
     public string AnswerText { get; set; } = null!;
+    
+    public bool IsCorrect { get; set; }
 }

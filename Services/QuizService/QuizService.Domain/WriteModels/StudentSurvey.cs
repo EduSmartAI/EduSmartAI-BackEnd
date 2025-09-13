@@ -3,15 +3,13 @@ using System.Collections.Generic;
 
 namespace QuizService.Domain.WriteModels;
 
-public partial class Answer
+public partial class StudentSurvey
 {
-    public Guid AnswerId { get; set; }
+    public Guid StudentSurveyId { get; set; }
 
-    public Guid QuestionId { get; set; }
+    public Guid StudentId { get; set; }
 
-    public string AnswerText { get; set; } = null!;
-
-    public bool IsCorrect { get; set; }
+    public Guid SurveyId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -23,9 +21,7 @@ public partial class Answer
 
     public bool IsActive { get; set; }
 
-    public virtual Question Question { get; set; } = null!;
-
-    public virtual ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();
-
     public virtual ICollection<StudentSurveyAnswer> StudentSurveyAnswers { get; set; } = new List<StudentSurveyAnswer>();
+
+    public virtual Quiz Survey { get; set; } = null!;
 }

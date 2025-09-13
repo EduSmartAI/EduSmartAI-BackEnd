@@ -5,9 +5,15 @@ namespace QuizService.Domain.ReadModels;
 public sealed class QuizCollection
 {
     public Guid QuizId { get; set; }
+    
     public string Title { get; set; } = null!;
+    
     public string? Description { get; set; }
-    public Guid SubjectCode { get; set; }
+    
+    public Guid? SubjectCode { get; set; }
+    
+    public short QuizType { get; set; }
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -27,6 +33,7 @@ public sealed class QuizCollection
             Title = model.Title,
             Description = model.Description,
             SubjectCode = model.SubjectCode,
+            QuizType = model.QuizType,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

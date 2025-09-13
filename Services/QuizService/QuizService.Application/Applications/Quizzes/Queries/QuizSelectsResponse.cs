@@ -15,5 +15,5 @@ public record QuizSelectsResponseEntity
 
     public string? Description { get; set; }
     
-    public Guid SubjectCode { get; set; }
+    public Guid? SubjectCode { get; set; }
 }
