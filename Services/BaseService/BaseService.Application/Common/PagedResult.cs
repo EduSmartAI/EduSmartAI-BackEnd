@@ -1,4 +1,4 @@
-namespace Shared.Application.Common;
+namespace BaseService.Application.Common;
 
 public class PagedResult<T> where T : class
 {

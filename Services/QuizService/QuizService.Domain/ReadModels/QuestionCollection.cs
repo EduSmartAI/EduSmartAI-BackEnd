@@ -5,7 +5,9 @@ namespace QuizService.Domain.ReadModels;
 public sealed class QuestionCollection
 {
     public Guid QuestionId { get; set; }
+    
     public string QuestionText { get; set; } = null!;
+    
     public DateTime CreatedAt { get; set; }
     
     public string? Explanation { get; set; }
@@ -15,6 +17,8 @@ public sealed class QuestionCollection
     public string CreatedBy { get; set; } = null!;
 
     public string UpdatedBy { get; set; } = null!;
+
+    public short QuestionType { get; set; }
 
     public bool IsActive { get; set; }
     public ICollection<AnswerCollection> Answers { get; set; } = new List<AnswerCollection>();
@@ -30,7 +34,8 @@ public sealed class QuestionCollection
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,
             UpdatedBy = model.UpdatedBy,
-            IsActive = model.IsActive
+            IsActive = model.IsActive,
+            QuestionType = model.QuestionType
         };
 
         if (model.Answers.Any())

@@ -7,7 +7,7 @@ public partial class Quiz
 {
     public Guid QuizId { get; set; }
 
-    public Guid TestId { get; set; }
+    public Guid? TestId { get; set; }
 
     public string Title { get; set; } = null!;
 
@@ -23,9 +23,13 @@ public partial class Quiz
 
     public bool IsActive { get; set; }
 
-    public Guid SubjectCode { get; set; }
+    public Guid? SubjectCode { get; set; }
+
+    public short QuizType { get; set; }
 
     public virtual ICollection<Question> Questions { get; set; } = new List<Question>();
+
+    public virtual ICollection<StudentSurvey> StudentSurveys { get; set; } = new List<StudentSurvey>();
 
     public virtual Test Test { get; set; } = null!;
 }

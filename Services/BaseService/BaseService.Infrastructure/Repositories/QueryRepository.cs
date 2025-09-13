@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.Json;
+using BaseService.Application.Common;
 using BaseService.Application.Interfaces.Repositories;
 using Marten;
 using StackExchange.Redis;
@@ -26,6 +27,69 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
     {
         var result = await documentSession.Query<TCollection>().Where(predicate).ToListAsync();
         return result.ToList();
+    }
+
+    public async Task<PagedResult<TCollection>> PagedAsync(int? pageNumber, int? pageSize, Expression<Func<TCollection, bool>> predicate)
+    {
+        var query =  documentSession.Query<TCollection>().Where(predicate);
+        
+        // Validate pageNumber, pageSize
+        int validPageNumber = pageNumber.GetValueOrDefault(1);
+        if (validPageNumber < 1) validPageNumber = 1;
+
+        int validPageSize = pageSize.GetValueOrDefault(10);
+        if (validPageSize <= 0) validPageSize = 10;
+        
+        // Count total
+        var totalCount = await query.CountAsync();
+        
+        // Apply paging
+        int skip = (validPageNumber - 1) * validPageSize;
+        var items = await query
+            .Skip(skip)
+            .Take(validPageSize)
+            .ToListAsync();
+
+        // Return paged result
+        return new PagedResult<TCollection>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = validPageNumber,
+            PageSize = validPageSize
+        };
+    }
+    
+    public async Task<PagedResult<TCollection>> PagedAsync(int? pageNumber, int? pageSize)
+    {
+        var query =  documentSession.Query<TCollection>();
+        
+        // Validate pageNumber, pageSize
+        int validPageNumber = pageNumber.GetValueOrDefault(1);
+        if (validPageNumber < 1) validPageNumber = 1;
+
+        int validPageSize = pageSize.GetValueOrDefault(10);
+        if (validPageSize <= 0) validPageSize = 10;
+        
+        // Count total
+        var totalCount = await query.CountAsync();
+        
+        // Apply paging
+        int skip = (validPageNumber - 1) * validPageSize;
+        var items = await query
+            .Skip(skip)
+            .Take(validPageSize)
+            .ToListAsync();
+
+        // Return paged result
+        return new PagedResult<TCollection>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = validPageNumber,
+            PageSize = validPageSize
+        };
+
     }
 
     /// <summary>
@@ -84,6 +148,26 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
 
         var result = await factory();
         if (result.Count > 0)
+        {
+            await cache.StringSetAsync(key, JsonSerializer.Serialize(result), expiry);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Get or set a paged collection in cache
+    /// </summary>
+    /// <param name="key"></param>
+    /// <param name="factory"></param>
+    /// <param name="expiry"></param>
+    /// <returns></returns>
+    public async Task<PagedResult<TCollection>> GetOrSetPagedAsync(string key, Func<Task<PagedResult<TCollection>>> factory, TimeSpan? expiry = null)
+    {
+        var cached = await cache.StringGetAsync(key);
+        if (cached.HasValue)
+            return JsonSerializer.Deserialize<PagedResult<TCollection>>(cached!) ?? new PagedResult<TCollection>();
+        var result = await factory();
+        if (result.Items.Any())
         {
             await cache.StringSetAsync(key, JsonSerializer.Serialize(result), expiry);
         }

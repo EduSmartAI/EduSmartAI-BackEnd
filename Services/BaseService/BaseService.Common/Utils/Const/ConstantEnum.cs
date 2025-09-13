@@ -9,6 +9,12 @@ public static class ConstantEnum
         Admin = 3,
     }
     
+    public enum TestType
+    {
+        Survey = 1,
+        Quiz = 2
+    }
+    
     public enum PaymentStatus
     {
         Pending = 1,
@@ -21,5 +27,12 @@ public static class ConstantEnum
         Cash = 1,
         Momo = 2,
         PayOs = 3,
+    }
+
+    public enum QuestionType
+    {
+        MultipleChoice = 1,
+        TrueFalse = 2,
+        ShortAnswer = 3,
     }
 }

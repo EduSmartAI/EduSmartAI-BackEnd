@@ -56,6 +56,11 @@ public class UnitOfWork(AppDbContext context, IDocumentSession session, IDatabas
         return await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<int> SaveChangesAsync( string email, CancellationToken cancellationToken, bool needLogicalDelete = false)
+    {
+        return await context.SaveChangesAsync(email, cancellationToken, needLogicalDelete);
+    }
+
     /// <summary>
     /// Store a collection of entities in the Marten session.
     /// </summary>

@@ -104,8 +104,7 @@ public class TestService : ITestService
 
                 _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
             }
-
-
+            
             await _unitOfWork.SessionSaveChangesAsync();
 
             // True
