@@ -36,16 +36,16 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("{id:guid}")]
-		public async Task<GetCourseByIdResponse> ProcessRequestById(Guid id)
+		public async Task<GetCourseByIdForGuestResponse> ProcessRequestById(Guid id)
 		{
-			var query = new GetCourseByIdQuery(id);
+			var query = new GetCourseByIdForGuestQuery(id);
 
-			return await ApiControllerHelper.HandleRequest<GetCourseByIdQuery, GetCourseByIdResponse, CourseDetailDto>(
+			return await ApiControllerHelper.HandleRequest<GetCourseByIdForGuestQuery, GetCourseByIdForGuestResponse, CourseDetailForGuestDto>(
 				query,
 				_logger,
 				ModelState,
 				async () => await sender.Send(query),
-				new GetCourseByIdResponse()
+				new GetCourseByIdForGuestResponse()
 			);
 		}
 

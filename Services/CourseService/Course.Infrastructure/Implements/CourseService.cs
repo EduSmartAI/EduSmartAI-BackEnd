@@ -371,7 +371,7 @@ namespace Course.Infrastructure.Implements
 		/// </summary>
 		/// <param name="e"></param>
 		/// <returns></returns>
-		private static CourseDetailDto MapDetail(CourseEntity e)
+		private static CourseDetailForGuestDto MapDetail(CourseEntity e)
 		{
 			var modules = e.Modules
 				.OrderBy(m => m.PositionIndex)
@@ -405,7 +405,7 @@ namespace Course.Infrastructure.Implements
 						.ToList()
 				)).ToList();
 
-			return new CourseDetailDto(
+			return new CourseDetailForGuestDto(
 				e.CourseId,
 				e.TeacherId,
 				e.SubjectId,
@@ -692,7 +692,7 @@ namespace Course.Infrastructure.Implements
 			}
 		}
 
-		public async Task<GetCourseByIdResponse> GetByIdAsync(Guid id, CancellationToken ct = default)
+		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid id, CancellationToken ct = default)
 		{
 			var baseQuery = _courseRepository
 				.Find(x => x.CourseId == id, isTracking: false, ct)
@@ -706,13 +706,13 @@ namespace Course.Infrastructure.Implements
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
 
 			if (entity is null)
-				return new GetCourseByIdResponse { Success = false, Message = $"Course {id} not found" };
+				return new GetCourseByIdForGuestResponse { Success = false, Message = $"Course {id} not found" };
 
 			var detail = MapDetail(entity);
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
-			return new GetCourseByIdResponse
+			return new GetCourseByIdForGuestResponse
 			{
 				Success = true,
 				Message = "OK",

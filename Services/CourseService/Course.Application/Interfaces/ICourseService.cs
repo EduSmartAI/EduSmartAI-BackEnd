@@ -15,6 +15,6 @@ namespace Course.Application.Interfaces
 
 		Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default);
 
-		Task<GetCourseByIdResponse> GetByIdAsync(Guid Id, CancellationToken ct = default);
+		Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default);
 	}
 }

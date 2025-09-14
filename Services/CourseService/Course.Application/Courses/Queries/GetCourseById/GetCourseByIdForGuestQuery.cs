@@ -4,11 +4,11 @@ using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Application.Courses.Queries.GetCourseById
 {
-	public record GetCourseByIdQuery(Guid Id) : IQuery<GetCourseByIdResponse>;
+	public record GetCourseByIdForGuestQuery(Guid Id) : IQuery<GetCourseByIdForGuestResponse>;
 
-	public record GetCourseByIdResponse : AbstractApiResponse<CourseDetailDto>
+	public record GetCourseByIdForGuestResponse : AbstractApiResponse<CourseDetailForGuestDto>
 	{
-		public override CourseDetailDto Response { get; set; } = default!;
+		public override CourseDetailForGuestDto Response { get; set; } = default!;
 		public int ModulesCount { get; set; }
 		public int LessonsCount { get; set; }
 	}
