@@ -2,6 +2,7 @@
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
+using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Commands.UpdateModule;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
@@ -9,6 +10,7 @@ using Course.Application.DTOs.CoursesDTO;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Course.API.Controllers
 {
@@ -24,6 +26,10 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet]
+		[SwaggerOperation(
+			Summary = "Get list of courses with pagination and optional filtering",
+			Description = "Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
+		)]
 		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
@@ -36,6 +42,10 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("{id:guid}")]
+		[SwaggerOperation(
+			Summary = "Get course details by ID for guest users",
+			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to guest users."
+		)]
 		public async Task<GetCourseByIdForGuestResponse> ProcessRequestById(Guid id)
 		{
 			var query = new GetCourseByIdForGuestQuery(id);
@@ -55,6 +65,10 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPost]
+		[SwaggerOperation(
+			Summary = "Create a new course",
+			Description = "Create a new course with its modules and lessons"
+		)]
 		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
 			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, string>(
@@ -73,6 +87,10 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut("{id:guid}")]
+		[SwaggerOperation(
+			Summary = "Update an existing course",
+			Description = "Update an existing course (only course details, not modules or lessons)"
+		)]
 		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id, [FromBody] UpdateCourseCommand request)
 		{
 			//var request = new UpdateCourseCommand(id, payload);
@@ -103,6 +121,10 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut("Module/{id:guid}")]
+		[SwaggerOperation(
+			Summary = "Update a module within a course",
+			Description = "Update a module within a course, including its objectives and lessons"
+		)]
 		public async Task<UpdateModuleResponse> ProcessRequestPutModule([FromRoute] Guid id, [FromBody] UpdateModuleCommand request)
 		{
 			var response = new UpdateModuleResponse();
@@ -120,6 +142,31 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new UpdateModuleResponse()
+			);
+		}
+
+		/// <summary>
+		/// Update multiple modules in a course (bulk update)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		[HttpPut("{courseId}/modules")]
+		[SwaggerOperation(
+			Summary = "Update multiple modules in a course",
+			Description = "Update multiple modules in a course with its Objectives and Lessons"
+		)]
+		public async Task<UpdateCourseModulesResponse> UpdateCourseModules(
+			[FromRoute] Guid courseId,
+			[FromBody] UpdateCourseModulesCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<UpdateCourseModulesCommand, UpdateCourseModulesResponse, string>(
+				request with { CourseId = courseId },
+				_logger,
+				ModelState,
+				async () => await sender.Send(request with { CourseId = courseId }),
+				new UpdateCourseModulesResponse()
 			);
 		}
 	}

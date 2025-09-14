@@ -16,6 +16,8 @@ namespace Course.API.Extensions
 					Version = "v1"
 				});
 
+				c.EnableAnnotations();
+
 				c.AddSecurityDefinition("JWT_Token", new OpenApiSecurityScheme
 				{
 					Description = "Copy this into the value field: Bearer {token}",
@@ -25,19 +27,19 @@ namespace Course.API.Extensions
 				});
 
 				c.AddSecurityRequirement(new OpenApiSecurityRequirement
-			{
 				{
-					new OpenApiSecurityScheme
 					{
-						Reference = new OpenApiReference
+						new OpenApiSecurityScheme
 						{
-							Type = ReferenceType.SecurityScheme,
-							Id = "JWT_Token"
-						}
-					},
-					[]
-				}
-			});
+							Reference = new OpenApiReference
+							{
+								Type = ReferenceType.SecurityScheme,
+								Id = "JWT_Token"
+							}
+						},
+						[]
+					}
+				});
 			});
 
 			return services;
