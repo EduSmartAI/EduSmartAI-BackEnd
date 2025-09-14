@@ -1,20 +1,17 @@
-﻿using Course.Application.DTOs.LessonsDTO;
-
-namespace Course.Application.DTOs.ModulesDTO
+﻿namespace Course.Application.DTOs.ModulesDTO
 {
-	public record ModuleDetailDto(
+	public record ModuleDetailDto<TLesson>(
 		Guid ModuleId,
 		string ModuleName,
 		string? Description,
 		int PositionIndex,
 		bool IsActive,
-		bool IsCore,                    // NEW
-		int? DurationMinutes,           // NEW
-		decimal? DurationHours,         // GENERATED
-		short? Level,                   // NEW
+		bool IsCore,
+		int? DurationMinutes,
+		decimal? DurationHours,
+		short? Level,
 		List<ModuleObjectiveDto> Objectives,
-		//List<LessonDetailDto> Lessons,
-		List<GuestLessonDetailDto> GuestLessons
+		List<TLesson> Lessons
 	);
 
 	public record ModuleObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);

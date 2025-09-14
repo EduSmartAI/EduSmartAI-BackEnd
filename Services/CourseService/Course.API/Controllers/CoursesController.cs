@@ -59,6 +59,23 @@ namespace Course.API.Controllers
 			);
 		}
 
+		[HttpGet("auth/{id:guid}")]
+		[SwaggerOperation(
+			Summary = "Get course details by ID for lectures",
+			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to lectures."
+		)]
+		public async Task<GetCourseByIdForLectureResponse> ProcessRequestByIdAuth(Guid id)
+		{
+			var query = new GetCourseByIdForLectureQuery(id);
+			return await ApiControllerHelper.HandleRequest<GetCourseByIdForLectureQuery, GetCourseByIdForLectureResponse, CourseDetailForLectureDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseByIdForLectureResponse()
+			);
+		}
+
 		/// <summary>
 		/// Create a new course
 		/// </summary>
