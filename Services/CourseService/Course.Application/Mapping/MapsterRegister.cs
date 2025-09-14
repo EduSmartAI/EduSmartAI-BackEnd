@@ -1,4 +1,4 @@
-﻿using Course.Application.DTOs;
+﻿using Course.Application.DTOs.CoursesDTO;
 using Mapster;
 
 namespace Course.Application.Mapping

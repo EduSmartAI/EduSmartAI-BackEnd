@@ -1,4 +1,5 @@
-﻿using Course.Application.DTOs;
+﻿using Course.Application.DTOs.LessonsDTO;
+using Course.Application.DTOs.ModulesDTO;
 using FluentValidation;
 
 namespace Course.Application.Courses.Commands.UpdateCourse
@@ -15,11 +16,6 @@ namespace Course.Application.Courses.Commands.UpdateCourse
 			RuleFor(x => x.Payload.DealPrice)
 				.Must((cmd, deal) => deal is null || deal <= cmd.Payload.Price)
 				.WithMessage("DealPrice must be <= Price.");
-
-			RuleForEach(x => x.Payload.Modules).SetValidator(new UpdateModuleValidator());
-			RuleFor(x => x.Payload.Modules.Select(m => m.PositionIndex))
-				.Must(list => list.Distinct().Count() == list.Count())
-				.WithMessage("Module PositionIndex must be unique within the course.");
 		}
 	}
 

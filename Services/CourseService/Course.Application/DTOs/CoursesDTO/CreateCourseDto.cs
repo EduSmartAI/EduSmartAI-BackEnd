@@ -1,4 +1,6 @@
-﻿namespace Course.Application.DTOs
+﻿using Course.Application.DTOs.ModulesDTO;
+
+namespace Course.Application.DTOs.CoursesDTO
 {
 	public record CreateCourseDto(
 		Guid TeacherId,

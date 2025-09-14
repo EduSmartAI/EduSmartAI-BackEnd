@@ -19,5 +19,13 @@ public partial class Major
 
     public bool IsActive { get; set; }
 
+    public Guid? ParentMajorId { get; set; }
+
+    public string Description { get; set; }
+
+    public virtual ICollection<Major> InverseParentMajor { get; set; } = new List<Major>();
+
+    public virtual Major ParentMajor { get; set; }
+
     public virtual ICollection<Syllabus> Syllabi { get; set; } = new List<Syllabus>();
 }

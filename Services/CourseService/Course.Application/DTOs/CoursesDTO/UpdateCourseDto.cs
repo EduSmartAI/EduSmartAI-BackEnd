@@ -1,4 +1,4 @@
-﻿namespace Course.Application.DTOs
+﻿namespace Course.Application.DTOs.CoursesDTO
 {
 	public record UpdateCourseDto(
 		Guid TeacherId,
@@ -15,8 +15,8 @@
 		decimal? DealPrice,
 		bool IsActive,
 		List<UpdateCourseObjectiveDto>? Objectives,
-		List<UpdateCourseRequirementDto>? Requirements,
-		List<UpdateModuleDto> Modules
+		List<UpdateCourseRequirementDto>? Requirements
+	//List<UpdateModuleDto> Modules
 	);
 
 	public record UpdateCourseObjectiveDto(Guid? ObjectiveId, string Content, int PositionIndex, bool IsActive);

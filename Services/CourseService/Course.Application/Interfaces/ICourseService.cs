@@ -3,7 +3,7 @@ using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
-using Course.Application.DTOs;
+using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Application.Interfaces
 {
@@ -15,6 +15,6 @@ namespace Course.Application.Interfaces
 
 		Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default);
 
-		Task<GetCourseByIdResponse> GetByIdAsync(Guid Id, CancellationToken ct = default);
+		Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default);
 	}
 }

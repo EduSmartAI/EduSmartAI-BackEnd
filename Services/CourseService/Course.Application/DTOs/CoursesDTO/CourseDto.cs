@@ -1,4 +1,4 @@
-﻿namespace Course.Application.DTOs
+﻿namespace Course.Application.DTOs.CoursesDTO
 {
 	public record CourseDto(
 		Guid CourseId,

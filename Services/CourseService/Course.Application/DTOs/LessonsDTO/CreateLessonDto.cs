@@ -1,7 +1,6 @@
-﻿namespace Course.Application.DTOs
+﻿namespace Course.Application.DTOs.LessonsDTO
 {
-	public record LessonDetailDto(
-		Guid LessonId,
+	public record CreateLessonDto(
 		string Title,
 		string VideoUrl,
 		int? VideoDurationSec,

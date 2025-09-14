@@ -395,6 +395,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.ToTable("majors");
 
+            entity.HasIndex(e => e.ParentMajorId, "idx_majors_parent");
+
             entity.HasIndex(e => e.MajorCode, "majors_major_code_key").IsUnique();
 
             entity.Property(e => e.MajorId)
@@ -403,6 +405,7 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
@@ -414,9 +417,15 @@ public partial class CourseDbContext : AppDbContext
                 .IsRequired()
                 .HasMaxLength(150)
                 .HasColumnName("major_name");
+            entity.Property(e => e.ParentMajorId).HasColumnName("parent_major_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.ParentMajor).WithMany(p => p.InverseParentMajor)
+                .HasForeignKey(d => d.ParentMajorId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_majors_parent");
         });
 
         modelBuilder.Entity<Module>(entity =>
