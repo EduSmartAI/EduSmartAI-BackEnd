@@ -1,5 +1,4 @@
 ﻿using Course.Application.DTOs.LessonsDTO;
-using Course.Application.DTOs.Modules;
 using FluentValidation;
 
 namespace Course.Application.Courses.Commands.UpdateModule

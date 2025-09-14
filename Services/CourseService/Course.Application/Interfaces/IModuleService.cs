@@ -1,5 +1,4 @@
 ﻿using Course.Application.Courses.Commands.UpdateModule;
-using Course.Application.DTOs.Modules;
 
 namespace Course.Application.Interfaces
 {

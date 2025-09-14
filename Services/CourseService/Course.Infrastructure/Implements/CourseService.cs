@@ -6,7 +6,7 @@ using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.LessonsDTO;
-using Course.Application.DTOs.Modules;
+using Course.Application.DTOs.ModulesDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
@@ -366,7 +366,6 @@ namespace Course.Infrastructure.Implements
 			}
 		}
 
-
 		/// <summary>
 		/// Map CourseEntity -> CourseDetailDto
 		/// </summary>
@@ -436,7 +435,6 @@ namespace Course.Infrastructure.Implements
 				modules
 			);
 		}
-
 
 		/// <summary>
 		/// Map CourseEntity -> CourseDto

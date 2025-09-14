@@ -1,6 +1,5 @@
 ﻿using BaseService.Common.ApiEntities;
 using BuildingBlocks.CQRS;
-using Course.Application.DTOs.Modules;
 
 namespace Course.Application.Courses.Commands.UpdateModule
 {

@@ -1,7 +1,6 @@
 ﻿using BaseService.Application.Interfaces.Repositories;
 using Course.Application.Courses.Commands.UpdateModule;
 using Course.Application.DTOs.LessonsDTO;
-using Course.Application.DTOs.Modules;
 using Course.Application.Interfaces;
 using Course.Domain.Models;
 using FluentValidation;

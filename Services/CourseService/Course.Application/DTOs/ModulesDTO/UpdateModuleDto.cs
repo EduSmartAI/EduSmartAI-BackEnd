@@ -1,6 +1,6 @@
 ﻿using Course.Application.DTOs.LessonsDTO;
 
-namespace Course.Application.DTOs.Modules
+namespace Course.Application.DTOs.ModulesDTO
 {
 	public record UpdateModuleDto(
 		Guid? ModuleId,

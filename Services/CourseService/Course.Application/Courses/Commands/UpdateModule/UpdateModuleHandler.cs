@@ -1,6 +1,5 @@
 ﻿using BuildingBlocks.CQRS;
 using Course.Application.Interfaces;
-using Course.Application.DTOs.Modules;
 
 namespace Course.Application.Courses.Commands.UpdateModule
 {
