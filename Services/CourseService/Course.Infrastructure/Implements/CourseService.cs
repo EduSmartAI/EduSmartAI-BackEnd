@@ -2,6 +2,7 @@
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
+using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs.CoursesDTO;
@@ -720,6 +721,370 @@ namespace Course.Infrastructure.Implements
 				ModulesCount = modulesCount,
 				LessonsCount = lessonsCount
 			};
+		}
+
+		/// <summary>
+		/// Update multiple modules in a course (bulk update)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="dto"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
+		{
+			// 1. Validate PositionIndex uniqueness across all modules
+			ValidateCourseModulesPositionIndexes(dto);
+
+			// 2. Get existing course with all modules and related data
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct,
+					x => x.Modules)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.ModuleObjectives)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.Lessons)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingCourse is null)
+				return new UpdateCourseModulesResponse
+				{
+					Success = false,
+					Message = $"Course {courseId} not found"
+				};
+
+			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+
+			// 3. Update modules based on payload
+			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, actor, ct);
+
+			// 4. Save changes in transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				_courseRepository.Update(existingCourse, actor);
+				await unitOfWork.SaveChangesAsync(ct);
+				return true;
+			}, ct);
+
+			return new UpdateCourseModulesResponse
+			{
+				Success = true,
+				Message = "Course modules updated successfully"
+			};
+		}
+
+		/// <summary>
+		/// Validate PositionIndex uniqueness across all modules in course
+		/// </summary>
+		private static void ValidateCourseModulesPositionIndexes(UpdateCourseModulesDto dto)
+		{
+			if (dto.Modules is null || dto.Modules.Count == 0)
+				return;
+
+			// Validate module PositionIndex uniqueness
+			var moduleIndexes = dto.Modules
+				.Where(m => m.IsActive)
+				.Select(m => m.PositionIndex)
+				.ToList();
+
+			if (moduleIndexes.Count != moduleIndexes.Distinct().Count())
+				throw new ValidationException("Module PositionIndex must be unique within the course.");
+
+			if (moduleIndexes.Any(i => i <= 0))
+				throw new ValidationException("Module PositionIndex must be > 0 for active modules.");
+
+			// Validate objectives and lessons within each module
+			foreach (var module in dto.Modules.Where(m => m.IsActive))
+			{
+				// Module Objectives
+				if (module.Objectives is { Count: > 0 })
+				{
+					var activeObjIdx = module.Objectives
+						.Where(o => o.IsActive)
+						.Select(o => o.PositionIndex)
+						.ToList();
+
+					if (activeObjIdx.Count != activeObjIdx.Distinct().Count())
+						throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be unique.");
+
+					if (activeObjIdx.Any(i => i <= 0))
+						throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be > 0 for active objectives.");
+				}
+
+				// Lessons
+				if (module.Lessons is { Count: > 0 })
+				{
+					var activeLessonIdx = module.Lessons
+						.Where(l => l.IsActive)
+						.Select(l => l.PositionIndex)
+						.ToList();
+
+					if (activeLessonIdx.Count != activeLessonIdx.Distinct().Count())
+						throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be unique.");
+
+					if (activeLessonIdx.Any(i => i <= 0))
+						throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be > 0 for active lessons.");
+				}
+			}
+		}
+
+		/// <summary>
+		/// Internal method to update course modules
+		/// </summary>
+		private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules, string actor, CancellationToken ct)
+		{
+			if (modules is null || modules.Count == 0)
+			{
+				// Mark all existing modules as inactive (soft delete)
+				foreach (var module in course.Modules.Where(m => m.IsActive))
+				{
+					module.IsActive = false;
+					module.UpdatedAt = DateTime.UtcNow;
+					module.UpdatedBy = actor;
+				}
+				return;
+			}
+
+			var now = DateTime.UtcNow;
+			var existingModules = course.Modules.ToDictionary(m => m.ModuleId, m => m);
+			var payloadModuleIds = modules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
+
+			// 1. Mark modules not in payload as inactive (soft delete)
+			foreach (var existing in existingModules.Values.Where(m => m.IsActive && !payloadModuleIds.Contains(m.ModuleId)))
+			{
+				existing.IsActive = false;
+				existing.UpdatedAt = now;
+				existing.UpdatedBy = actor;
+			}
+
+			// 2. Update existing modules or create new ones
+			foreach (var moduleDto in modules)
+			{
+				if (moduleDto.ModuleId.HasValue && existingModules.TryGetValue(moduleDto.ModuleId.Value, out var existingModule))
+				{
+					// Update existing module
+					await UpdateExistingModuleAsync(existingModule, moduleDto, actor, ct);
+				}
+				else
+				{
+					// Create new module
+					await CreateNewModuleAsync(course, moduleDto, actor, ct);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Update existing module with its objectives and lessons
+		/// </summary>
+		private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto, string actor, CancellationToken ct)
+		{
+			var now = DateTime.UtcNow;
+
+			// Update basic module properties
+			existingModule.ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty;
+			existingModule.Description = moduleDto.Description;
+			existingModule.PositionIndex = moduleDto.PositionIndex;
+			existingModule.IsActive = moduleDto.IsActive;
+			existingModule.IsCore = moduleDto.IsCore;
+			existingModule.DurationMinutes = moduleDto.DurationMinutes;
+			existingModule.Level = moduleDto.Level;
+			existingModule.UpdatedAt = now;
+			existingModule.UpdatedBy = actor;
+
+			// Update ModuleObjectives
+			await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives, actor, ct);
+
+			// Update Lessons
+			await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons, actor, ct);
+		}
+
+		/// <summary>
+		/// Create new module with its objectives and lessons
+		/// </summary>
+		private async Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor, CancellationToken ct)
+		{
+			var now = DateTime.UtcNow;
+
+			var newModule = new Module
+			{
+				CourseId = course.CourseId,
+				ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty,
+				Description = moduleDto.Description,
+				PositionIndex = moduleDto.PositionIndex,
+				IsActive = moduleDto.IsActive,
+				IsCore = moduleDto.IsCore,
+				DurationMinutes = moduleDto.DurationMinutes,
+				Level = moduleDto.Level,
+				CreatedAt = now,
+				UpdatedAt = now,
+				CreatedBy = actor,
+				UpdatedBy = actor
+			};
+
+			// Add ModuleObjectives
+			if (moduleDto.Objectives is { Count: > 0 })
+			{
+				foreach (var objDto in moduleDto.Objectives.OrderBy(o => o.PositionIndex))
+				{
+					newModule.ModuleObjectives.Add(new ModuleObjective
+					{
+						ModuleId = newModule.ModuleId,
+						Content = objDto.Content,
+						PositionIndex = objDto.PositionIndex,
+						IsActive = objDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					});
+				}
+			}
+
+			// Add Lessons
+			if (moduleDto.Lessons is { Count: > 0 })
+			{
+				foreach (var lessonDto in moduleDto.Lessons.OrderBy(l => l.PositionIndex))
+				{
+					newModule.Lessons.Add(new Lesson
+					{
+						ModuleId = newModule.ModuleId,
+						Title = lessonDto.Title,
+						VideoUrl = lessonDto.VideoUrl,
+						VideoDurationSec = lessonDto.VideoDurationSec,
+						PositionIndex = lessonDto.PositionIndex,
+						IsActive = lessonDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					});
+				}
+			}
+
+			course.Modules.Add(newModule);
+		}
+
+		/// <summary>
+		/// Update ModuleObjectives for existing module
+		/// </summary>
+		private async Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor, CancellationToken ct)
+		{
+			if (objectives is null || objectives.Count == 0)
+			{
+				// Mark all existing objectives as inactive (soft delete)
+				foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
+				{
+					obj.IsActive = false;
+					obj.UpdatedAt = DateTime.UtcNow;
+					obj.UpdatedBy = actor;
+				}
+				return;
+			}
+
+			var now = DateTime.UtcNow;
+			var existingObjectives = module.ModuleObjectives.ToDictionary(o => o.ObjectiveId, o => o);
+			var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
+
+			// 1. Mark objectives not in payload as inactive (soft delete)
+			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
+			{
+				existing.IsActive = false;
+				existing.UpdatedAt = now;
+				existing.UpdatedBy = actor;
+			}
+
+			// 2. Update existing objectives or create new ones
+			foreach (var objDto in objectives)
+			{
+				if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
+				{
+					// Update existing objective
+					existing.Content = objDto.Content;
+					existing.PositionIndex = objDto.PositionIndex;
+					existing.IsActive = objDto.IsActive;
+					existing.UpdatedAt = now;
+					existing.UpdatedBy = actor;
+				}
+				else
+				{
+					// Create new objective - let EF generate the ID
+					var newObjective = new ModuleObjective
+					{
+						ModuleId = module.ModuleId,
+						Content = objDto.Content,
+						PositionIndex = objDto.PositionIndex,
+						IsActive = objDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.ModuleObjectives.Add(newObjective);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Update Lessons for existing module
+		/// </summary>
+		private async Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor, CancellationToken ct)
+		{
+			if (lessons is null || lessons.Count == 0)
+			{
+				// Mark all existing lessons as inactive (soft delete)
+				foreach (var lesson in module.Lessons.Where(l => l.IsActive))
+				{
+					lesson.IsActive = false;
+					lesson.UpdatedAt = DateTime.UtcNow;
+					lesson.UpdatedBy = actor;
+				}
+				return;
+			}
+
+			var now = DateTime.UtcNow;
+			var existingLessons = module.Lessons.ToDictionary(l => l.LessonId, l => l);
+			var payloadLessonIds = lessons.Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
+
+			// 1. Mark lessons not in payload as inactive (soft delete)
+			foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
+			{
+				existing.IsActive = false;
+				existing.UpdatedAt = now;
+				existing.UpdatedBy = actor;
+			}
+
+			// 2. Update existing lessons or create new ones
+			foreach (var lessonDto in lessons)
+			{
+				if (lessonDto.LessonId.HasValue && existingLessons.TryGetValue(lessonDto.LessonId.Value, out var existing))
+				{
+					// Update existing lesson
+					existing.Title = lessonDto.Title;
+					existing.VideoUrl = lessonDto.VideoUrl;
+					existing.VideoDurationSec = lessonDto.VideoDurationSec;
+					existing.PositionIndex = lessonDto.PositionIndex;
+					existing.IsActive = lessonDto.IsActive;
+					existing.UpdatedAt = now;
+					existing.UpdatedBy = actor;
+				}
+				else
+				{
+					// Create new lesson - let EF generate the ID
+					var newLesson = new Lesson
+					{
+						ModuleId = module.ModuleId,
+						Title = lessonDto.Title,
+						VideoUrl = lessonDto.VideoUrl,
+						VideoDurationSec = lessonDto.VideoDurationSec,
+						PositionIndex = lessonDto.PositionIndex,
+						IsActive = lessonDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.Lessons.Add(newLesson);
+				}
+			}
 		}
 	}
 
