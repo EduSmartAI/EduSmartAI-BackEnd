@@ -372,11 +372,11 @@ namespace Course.Infrastructure.Implements
 		/// </summary>
 		/// <param name="e"></param>
 		/// <returns></returns>
-		private static CourseDetailForGuestDto MapDetail(CourseEntity e)
+		private static CourseDetailForGuestDto MapCourseDetailForGuest(CourseEntity e)
 		{
 			var modules = e.Modules
 				.OrderBy(m => m.PositionIndex)
-				.Select(m => new ModuleDetailDto(
+				.Select(m => new ModuleDetailDto<GuestLessonDetailDto>(
 					m.ModuleId,
 					m.ModuleName,
 					m.Description,
@@ -417,6 +417,82 @@ namespace Course.Infrastructure.Implements
 				e.Slug,
 				e.CourseImageUrl,
 				e.LearnerCount,
+				e.DurationMinutes,
+				e.DurationHours,
+				e.Level,
+				e.Price,
+				e.DealPrice,
+				e.IsActive,
+				e.CreatedAt,
+				e.UpdatedAt,
+				e.CourseObjectives
+					.OrderBy(o => o.PositionIndex)
+					.Select(o => new CourseObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
+					.ToList(),
+				e.CourseRequirements
+					.OrderBy(r => r.PositionIndex)
+					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
+					.ToList(),
+				modules
+			);
+		}
+
+		/// <summary>
+		/// Map CourseEntity -> CourseDetailDto
+		/// </summary>
+		/// <param name="e"></param>
+		/// <returns></returns>
+		private static CourseDetailForLectureDto MapCourseDetailForLecture(CourseEntity e)
+		{
+			var modules = e.Modules
+				.OrderBy(m => m.PositionIndex)
+				.Select(m => new ModuleDetailDto<LectureLessonDetailDto>(
+					m.ModuleId,
+					m.ModuleName,
+					m.Description,
+					m.PositionIndex,
+					m.IsActive,
+					m.IsCore,
+					m.DurationMinutes,
+					m.DurationHours,
+					m.Level,
+					m.ModuleObjectives
+						.OrderBy(o => o.PositionIndex)
+						.Select(o => new ModuleObjectiveDto(
+							o.ObjectiveId,
+							o.Content,
+							o.PositionIndex,
+							o.IsActive
+						)).ToList(),
+					m.Lessons
+						.OrderBy(l => l.PositionIndex)
+						.Select(l => new LectureLessonDetailDto(
+							l.LessonId,
+							l.Title,
+							l.VideoUrl,
+							l.VideoDurationSec,
+							l.PositionIndex,
+							l.IsActive))
+						.ToList()
+				)).ToList();
+
+			return new CourseDetailForLectureDto(
+				e.CourseId,
+				e.TeacherId,
+				e.SubjectId,
+				e.Subject?.SubjectCode ?? string.Empty,
+				e.Title ?? string.Empty,
+				e.ShortDescription,
+				e.Description,
+				e.Slug,
+				e.CourseImageUrl,
+				e.LearnerCount,
+				e.Modules.SelectMany(m => m.Lessons)
+					.OrderBy(l => l.PositionIndex)
+					.FirstOrDefault()?.VideoUrl ?? string.Empty,
+				e.Modules.SelectMany(m => m.Lessons)
+				.OrderBy(l => l.PositionIndex)
+					.FirstOrDefault()?.VideoDurationSec ?? 0,
 				e.DurationMinutes,
 				e.DurationHours,
 				e.Level,
@@ -693,6 +769,12 @@ namespace Course.Infrastructure.Implements
 			}
 		}
 
+		/// <summary>
+		/// Get course details by ID for guest users
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid id, CancellationToken ct = default)
 		{
 			var baseQuery = _courseRepository
@@ -709,11 +791,47 @@ namespace Course.Infrastructure.Implements
 			if (entity is null)
 				return new GetCourseByIdForGuestResponse { Success = false, Message = $"Course {id} not found" };
 
-			var detail = MapDetail(entity);
+			var detail = MapCourseDetailForGuest(entity);
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
 			return new GetCourseByIdForGuestResponse
+			{
+				Success = true,
+				Message = "OK",
+				Response = detail,
+				ModulesCount = modulesCount,
+				LessonsCount = lessonsCount
+			};
+		}
+
+		/// <summary>
+		/// Get course details by ID for lecturer (instructor) users
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid id, CancellationToken ct = default)
+		{
+			var baseQuery = _courseRepository
+				.Find(x => x.CourseId == id, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives)
+				.Include(x => x.CourseRequirements)
+				.Include(x => x.Modules).ThenInclude(m => m.ModuleObjectives)
+				.Include(x => x.Modules).ThenInclude(m => m.Lessons);
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+				return new GetCourseByIdForLectureResponse { Success = false, Message = $"Course {id} not found" };
+
+			var detail = MapCourseDetailForLecture(entity);
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			return new GetCourseByIdForLectureResponse
 			{
 				Success = true,
 				Message = "OK",

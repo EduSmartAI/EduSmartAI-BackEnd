@@ -3,7 +3,7 @@ using Course.Application.DTOs.ModulesDTO;
 
 namespace Course.Application.DTOs.CoursesDTO
 {
-	public record CourseDetailForGuestDto(
+	public record CourseDetailForLectureDto(
 		Guid CourseId,
 		Guid TeacherId,
 		Guid SubjectId,
@@ -15,6 +15,8 @@ namespace Course.Application.DTOs.CoursesDTO
 		string? CourseImageUrl,
 		//string Status,
 		int LearnerCount,
+		string VideoUrl,
+		int VideoDurationSec,
 		int? DurationMinutes,
 		decimal? DurationHours,
 		short? Level,
@@ -25,10 +27,6 @@ namespace Course.Application.DTOs.CoursesDTO
 		DateTime UpdatedAt,
 		List<CourseObjectiveDto> Objectives,
 		List<CourseRequirementDto> Requirements,
-		List<ModuleDetailDto<GuestLessonDetailDto>> Modules
+		List<ModuleDetailDto<LectureLessonDetailDto>> Modules
 	);
-
-	public record CourseObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);
-	public record CourseRequirementDto(Guid RequirementId, string Content, int PositionIndex, bool IsActive);
-
 }
