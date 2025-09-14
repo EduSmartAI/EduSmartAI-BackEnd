@@ -3,6 +3,7 @@ using BaseService.Common.Utils.Const;
 using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Repositories;
 using Course.Application.Interfaces;
+using Course.Domain.Models;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Data.Repositories;
 using Course.Infrastructure.Implements;
@@ -36,6 +37,12 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
             services.AddScoped<ICourseRepository, CourseRepository>();
             services.AddScoped<ICourseService, CourseService>();
+            
+            // Module services
+            services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
+            services.AddScoped<IModuleRepository, ModuleRepository>();
+            services.AddScoped<IModuleService, ModuleService>();
+            
             services.AddScoped<IUnitOfWork, UnitOfWork>();
             services.AddMarten(options => { options.Connection(connectionString!); });
 

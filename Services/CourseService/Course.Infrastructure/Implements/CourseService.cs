@@ -4,7 +4,9 @@ using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
-using Course.Application.DTOs;
+using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.LessonsDTO;
+using Course.Application.DTOs.Modules;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
@@ -136,6 +138,8 @@ namespace Course.Infrastructure.Implements
 		public async Task<CreateCourseResponse> CreateAsync(CreateCourseDto dto, CancellationToken ct = default)
 		{
 			var title = dto.Title?.Trim() ?? string.Empty;
+
+			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
 			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
 			var now = DateTime.UtcNow;
 			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
@@ -460,7 +464,6 @@ namespace Course.Infrastructure.Implements
 			UpdatedAt: e.UpdatedAt
 		);
 
-
 		/*
 		 | Thực thể | Điều kiện payload  |                  Tồn tại trong DB | Hành động    |
 		 | -------- | ------------------ | --------------------------------: | ------------ |
@@ -473,460 +476,220 @@ namespace Course.Infrastructure.Implements
 		 */
 		public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
 		{
-			const string actor = "system";
-			var now = DateTime.UtcNow;
-
-			// ========== LOAD GRAPH ==========
-			var course = await _courseRepository
-				.Find(c => c.CourseId == courseId, isTracking: true, ct,
-					c => c.Modules,
-					c => c.CourseObjectives,
-					c => c.CourseRequirements)
-				.Include(c => c.Modules).ThenInclude(m => m.Lessons)
-				.Include(c => c.Modules).ThenInclude(m => m.ModuleObjectives)
-				.FirstOrDefaultAsync(ct)
-				?? throw new KeyNotFoundException($"Course {courseId} not found");
-
-			// ========== VALIDATION ==========
+			// 1. Validate PositionIndex uniqueness
 			ValidatePositionIndexes(dto);
 
-			// ========== UPDATE ROOT ==========
-			var oldTitle = course.Title ?? string.Empty;
-			course.TeacherId = dto.TeacherId;
-			course.SubjectId = dto.SubjectId;
-			course.Title = dto.Title;
-			course.ShortDescription = dto.ShortDescription;
-			course.Description = dto.Description;
-			course.CourseImageUrl = dto.CourseImageUrl;
-			course.Price = dto.Price;
-			course.DealPrice = dto.DealPrice;
-			course.Level = dto.Level;
-			course.DurationMinutes = dto.DurationMinutes;
-			course.IsActive = dto.IsActive;
-			course.UpdatedAt = now;
-			course.UpdatedBy = actor;
+			// 2. Get existing course with all related data
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct,
+					x => x.CourseObjectives,
+					x => x.CourseRequirements)
+				.FirstOrDefaultAsync(ct);
 
-			// Slug unique
-			if (!string.IsNullOrWhiteSpace(dto.Slug))
-			{
-				var normalized = dto.Slug.Trim();
-				course.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, normalized, ct);
-			}
-			else if (!string.Equals(oldTitle, dto.Title, StringComparison.Ordinal))
-			{
-				course.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, ToSlug(dto.Title), ct, allowRandomSuffix: true);
-			}
-
-			// Chuẩn hoá input lists
-			var dtoObjectives = (dto.Objectives ?? new()).OrderBy(x => x.PositionIndex).ToList();
-			var dtoRequirements = (dto.Requirements ?? new()).OrderBy(x => x.PositionIndex).ToList();
-			var dtoModules = (dto.Modules ?? new()).OrderBy(x => x.PositionIndex).ToList();
-
-			try
-			{
-				// ========== TRANSACTION ==========
-				await unitOfWork.BeginTransactionAsync(async () =>
-				{
-					// ===================== PHASE A: DEACTIVATE (soft-delete) =====================
-
-					// A1) Course Objectives
-					var keepObjIds = dtoObjectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-					foreach (var o in course.CourseObjectives.Where(x => x.IsActive && !keepObjIds.Contains(x.ObjectiveId)))
-					{
-						o.IsActive = false;
-						o.UpdatedAt = now; o.UpdatedBy = actor;
-					}
-
-					// A2) Course Requirements
-					var keepReqIds = dtoRequirements.Where(r => r.RequirementId.HasValue).Select(r => r.RequirementId!.Value).ToHashSet();
-					foreach (var r in course.CourseRequirements.Where(x => x.IsActive && !keepReqIds.Contains(x.RequirementId)))
-					{
-						r.IsActive = false;
-						r.UpdatedAt = now; r.UpdatedBy = actor;
-					}
-
-					// A3) Modules (vắng trong payload) + con của chúng
-					var keepModuleIds = dtoModules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
-					foreach (var m in course.Modules.Where(x => x.IsActive && !keepModuleIds.Contains(x.ModuleId)))
-					{
-						m.IsActive = false;
-						m.UpdatedAt = now; m.UpdatedBy = actor;
-
-						foreach (var l in m.Lessons.Where(x => x.IsActive))
-						{
-							l.IsActive = false;
-							l.UpdatedAt = now; l.UpdatedBy = actor;
-						}
-						foreach (var mo in m.ModuleObjectives.Where(x => x.IsActive))
-						{
-							mo.IsActive = false;
-							mo.UpdatedAt = now; mo.UpdatedBy = actor;
-						}
-					}
-
-					// A4) Deactivate objectives/lessons bị remove bên trong các module còn giữ
-					foreach (var mDto in dtoModules.Where(x => x.ModuleId.HasValue))
-					{
-						var module = course.Modules.First(x => x.ModuleId == mDto.ModuleId.Value);
-
-						var keepMoIds = (mDto.Objectives ?? new()).Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-						foreach (var mo in module.ModuleObjectives.Where(x => x.IsActive && !keepMoIds.Contains(x.ObjectiveId)))
-						{
-							mo.IsActive = false;
-							mo.UpdatedAt = now; mo.UpdatedBy = actor;
-						}
-
-						var keepLessonIds = (mDto.Lessons ?? new()).Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
-						foreach (var l in module.Lessons.Where(x => x.IsActive && !keepLessonIds.Contains(x.LessonId)))
-						{
-							l.IsActive = false;
-							l.UpdatedAt = now; l.UpdatedBy = actor;
-						}
-					}
-
-					// ===================== PHASE B: UPSERT/ADD =====================
-
-					// B1) Course Objectives (upsert)
-					// FIX: Only consider objectives that will be kept (have ObjectiveId in DTO)
-					var keptObjIds = dtoObjectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-					var takenObjIdx = course.CourseObjectives
-						.Where(x => x.IsActive && keptObjIds.Contains(x.ObjectiveId))
-						.Select(x => x.PositionIndex)
-						.ToHashSet();
-					foreach (var oDto in dtoObjectives)
-					{
-						var pos = oDto.PositionIndex > 0 ? oDto.PositionIndex : NextIndex(takenObjIdx);
-						// FIX: Ensure unique position index
-						while (takenObjIdx.Contains(pos)) pos++;
-						takenObjIdx.Add(pos);
-
-						if (oDto.ObjectiveId is null)
-						{
-							course.CourseObjectives.Add(new CourseObjective
-							{
-								ObjectiveId = Guid.NewGuid(),
-								CourseId = course.CourseId,
-								Content = oDto.Content,
-								PositionIndex = pos,
-								IsActive = oDto.IsActive,
-								CreatedAt = now,
-								UpdatedAt = now,
-								CreatedBy = actor,
-								UpdatedBy = actor
-							});
-						}
-						else
-						{
-							var obj = course.CourseObjectives.First(x => x.ObjectiveId == oDto.ObjectiveId.Value);
-							obj.Content = oDto.Content;
-							obj.PositionIndex = pos;
-							obj.IsActive = oDto.IsActive;
-							obj.UpdatedAt = now; obj.UpdatedBy = actor;
-						}
-					}
-
-					// B2) Course Requirements (upsert)
-					// FIX: Only consider requirements that will be kept (have RequirementId in DTO)
-					var keptReqIds = dtoRequirements.Where(r => r.RequirementId.HasValue).Select(r => r.RequirementId!.Value).ToHashSet();
-					var takenReqIdx = course.CourseRequirements
-						.Where(x => x.IsActive && keptReqIds.Contains(x.RequirementId))
-						.Select(x => x.PositionIndex)
-						.ToHashSet();
-					foreach (var rDto in dtoRequirements)
-					{
-						var pos = rDto.PositionIndex > 0 ? rDto.PositionIndex : NextIndex(takenReqIdx);
-						// FIX: Ensure unique position index
-						while (takenReqIdx.Contains(pos)) pos++;
-						takenReqIdx.Add(pos);
-
-						if (rDto.RequirementId is null)
-						{
-							course.CourseRequirements.Add(new CourseRequirement
-							{
-								RequirementId = Guid.NewGuid(),
-								CourseId = course.CourseId,
-								Content = rDto.Content,
-								PositionIndex = pos,
-								IsActive = rDto.IsActive,
-								CreatedAt = now,
-								UpdatedAt = now,
-								CreatedBy = actor,
-								UpdatedBy = actor
-							});
-						}
-						else
-						{
-							var req = course.CourseRequirements.First(x => x.RequirementId == rDto.RequirementId.Value);
-							req.Content = rDto.Content;
-							req.PositionIndex = pos;
-							req.IsActive = rDto.IsActive;
-							req.UpdatedAt = now; req.UpdatedBy = actor;
-						}
-					}
-
-					// B3) Modules (upsert)
-					// FIX: Only consider modules that will be kept (have ModuleId in DTO)
-					var keptModuleIds = dtoModules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
-					var takenModuleIdx = course.Modules
-						.Where(x => x.IsActive && keptModuleIds.Contains(x.ModuleId))
-						.Select(x => x.PositionIndex)
-						.ToHashSet();
-					foreach (var mDto in dtoModules)
-					{
-						if (mDto.ModuleId is null)
-						{
-							var pos = mDto.PositionIndex > 0 ? mDto.PositionIndex : NextIndex(takenModuleIdx);
-							// FIX: Ensure unique position index
-							while (takenModuleIdx.Contains(pos)) pos++;
-							takenModuleIdx.Add(pos);
-
-							var newModule = new Module
-							{
-								ModuleId = Guid.NewGuid(),
-								CourseId = course.CourseId,
-								ModuleName = mDto.ModuleName,
-								Description = mDto.Description,
-								PositionIndex = pos,
-								IsActive = mDto.IsActive,
-								IsCore = mDto.IsCore,
-								DurationMinutes = mDto.DurationMinutes,
-								Level = mDto.Level,
-								CreatedAt = now,
-								UpdatedAt = now,
-								CreatedBy = actor,
-								UpdatedBy = actor
-							};
-
-							// Module Objectives
-							var takenMoIdx = new HashSet<int>(); // FIX: Start with empty set for new module
-							foreach (var moDto in (mDto.Objectives ?? new()).OrderBy(x => x.PositionIndex))
-							{
-								var mpos = moDto.PositionIndex > 0 ? moDto.PositionIndex : NextIndex(takenMoIdx);
-								// FIX: Ensure unique position index
-								while (takenMoIdx.Contains(mpos)) mpos++;
-								takenMoIdx.Add(mpos);
-
-								newModule.ModuleObjectives.Add(new ModuleObjective
-								{
-									ObjectiveId = Guid.NewGuid(),
-									ModuleId = newModule.ModuleId,
-									Content = moDto.Content,
-									PositionIndex = mpos,
-									IsActive = moDto.IsActive,
-									CreatedAt = now,
-									UpdatedAt = now,
-									CreatedBy = actor,
-									UpdatedBy = actor
-								});
-							}
-
-							// Lessons
-							var takenLessonIdx = new HashSet<int>(); // FIX: Start with empty set for new module
-							foreach (var lDto in (mDto.Lessons ?? new()).OrderBy(x => x.PositionIndex))
-							{
-								var lpos = lDto.PositionIndex > 0 ? lDto.PositionIndex : NextIndex(takenLessonIdx);
-								// FIX: Ensure unique position index
-								while (takenLessonIdx.Contains(lpos)) lpos++;
-								takenLessonIdx.Add(lpos);
-
-								newModule.Lessons.Add(new Lesson
-								{
-									LessonId = Guid.NewGuid(),
-									ModuleId = newModule.ModuleId,
-									Title = lDto.Title,
-									VideoUrl = lDto.VideoUrl,
-									VideoDurationSec = lDto.VideoDurationSec,
-									PositionIndex = lpos,
-									IsActive = lDto.IsActive,
-									CreatedAt = now,
-									UpdatedAt = now,
-									CreatedBy = actor,
-									UpdatedBy = actor
-								});
-							}
-
-							course.Modules.Add(newModule);
-						}
-						else
-						{
-							var module = course.Modules.First(x => x.ModuleId == mDto.ModuleId.Value);
-
-							var pos = mDto.PositionIndex > 0 ? mDto.PositionIndex : NextIndex(takenModuleIdx);
-							// FIX: Ensure unique position index
-							while (takenModuleIdx.Contains(pos)) pos++;
-							takenModuleIdx.Add(pos);
-
-							module.ModuleName = mDto.ModuleName;
-							module.Description = mDto.Description;
-							module.PositionIndex = pos;
-							module.IsActive = mDto.IsActive;
-							module.IsCore = mDto.IsCore;
-							module.DurationMinutes = mDto.DurationMinutes;
-							module.Level = mDto.Level;
-							module.UpdatedAt = now; module.UpdatedBy = actor;
-
-							// Module Objectives (upsert)
-							var dtoModObjs = (mDto.Objectives ?? new()).OrderBy(x => x.PositionIndex).ToList();
-							// FIX: Only consider objectives that will be kept (have ObjectiveId in DTO)
-							var keptMoIds = dtoModObjs.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-							var takenMoIdx = module.ModuleObjectives
-								.Where(x => x.IsActive && keptMoIds.Contains(x.ObjectiveId))
-								.Select(x => x.PositionIndex)
-								.ToHashSet();
-
-							foreach (var moDto in dtoModObjs)
-							{
-								var mpos = moDto.PositionIndex > 0 ? moDto.PositionIndex : NextIndex(takenMoIdx);
-								// FIX: Ensure unique position index
-								while (takenMoIdx.Contains(mpos)) mpos++;
-								takenMoIdx.Add(mpos);
-
-								if (moDto.ObjectiveId is null)
-								{
-									module.ModuleObjectives.Add(new ModuleObjective
-									{
-										ObjectiveId = Guid.NewGuid(),
-										ModuleId = module.ModuleId,
-										Content = moDto.Content,
-										PositionIndex = mpos,
-										IsActive = moDto.IsActive,
-										CreatedAt = now,
-										UpdatedAt = now,
-										CreatedBy = actor,
-										UpdatedBy = actor
-									});
-								}
-								else
-								{
-									var mo = module.ModuleObjectives.First(x => x.ObjectiveId == moDto.ObjectiveId.Value);
-									mo.Content = moDto.Content;
-									mo.PositionIndex = mpos;
-									mo.IsActive = moDto.IsActive;
-									mo.UpdatedAt = now; mo.UpdatedBy = actor;
-								}
-							}
-
-							// Lessons (upsert)
-							var dtoLessons = (mDto.Lessons ?? new()).OrderBy(x => x.PositionIndex).ToList();
-							// FIX: Only consider lessons that will be kept (have LessonId in DTO)
-							var keptLessonIds = dtoLessons.Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
-							var takenLessonIdx = module.Lessons
-								.Where(x => x.IsActive && keptLessonIds.Contains(x.LessonId))
-								.Select(x => x.PositionIndex)
-								.ToHashSet();
-
-							foreach (var lDto in dtoLessons)
-							{
-								var lpos = lDto.PositionIndex > 0 ? lDto.PositionIndex : NextIndex(takenLessonIdx);
-								// FIX: Ensure unique position index
-								while (takenLessonIdx.Contains(lpos)) lpos++;
-								takenLessonIdx.Add(lpos);
-
-								if (lDto.LessonId is null)
-								{
-									module.Lessons.Add(new Lesson
-									{
-										LessonId = Guid.NewGuid(),
-										ModuleId = module.ModuleId,
-										Title = lDto.Title,
-										VideoUrl = lDto.VideoUrl,
-										VideoDurationSec = lDto.VideoDurationSec,
-										PositionIndex = lpos,
-										IsActive = lDto.IsActive,
-										CreatedAt = now,
-										UpdatedAt = now,
-										CreatedBy = actor,
-										UpdatedBy = actor
-									});
-								}
-								else
-								{
-									var lesson = module.Lessons.First(x => x.LessonId == lDto.LessonId.Value);
-									lesson.Title = lDto.Title;
-									lesson.VideoUrl = lDto.VideoUrl;
-									lesson.VideoDurationSec = lDto.VideoDurationSec;
-									lesson.PositionIndex = lpos;
-									lesson.IsActive = lDto.IsActive;
-									lesson.UpdatedAt = now; lesson.UpdatedBy = actor;
-								}
-							}
-						}
-					}
-
-					// FIX: Only save once at the end of transaction
-					await unitOfWork.SaveChangesAsync(ct);
-
-					return true;
-				}, ct);
-
-				return new UpdateCourseResponse
-				{
-					Success = true,
-					Response = MapDetail(course),
-					Message = "Course updated successfully"
-				};
-			}
-			catch (Exception ex)
-			{
-				Console.WriteLine(ex.Message);
+			if (existingCourse is null)
 				return new UpdateCourseResponse
 				{
 					Success = false,
-					Response = null,
-					Message = $"Error updating course: {ex.Message}"
+					Message = $"Course {courseId} not found"
 				};
+
+			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+
+			// 3. Update basic course properties
+			existingCourse.TeacherId = dto.TeacherId;
+			existingCourse.SubjectId = dto.SubjectId;
+			existingCourse.Title = dto.Title?.Trim() ?? string.Empty;
+			existingCourse.ShortDescription = dto.ShortDescription;
+			existingCourse.Description = dto.Description;
+			existingCourse.CourseImageUrl = dto.CourseImageUrl;
+			existingCourse.DurationMinutes = dto.DurationMinutes;
+			existingCourse.Level = dto.Level;
+			existingCourse.Price = dto.Price;
+			existingCourse.DealPrice = dto.DealPrice;
+			existingCourse.IsActive = dto.IsActive;
+
+			// 4. Handle slug update with uniqueness check
+			if (!string.IsNullOrWhiteSpace(dto.Slug))
+			{
+				var newSlug = dto.Slug.Trim();
+				if (newSlug != existingCourse.Slug)
+				{
+					existingCourse.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
+				}
 			}
-		}
 
+			// 5. Update CourseObjectives
+			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, actor, ct);
 
-		private static int NextIndex(ISet<int> taken)
-		{
-			var next = (taken.Count == 0 ? 1 : taken.Max() + 1);
-			while (taken.Contains(next)) next++;
-			return next;
+			// 6. Update CourseRequirements
+			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, actor, ct);
+
+			// 7. Save changes in transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				_courseRepository.Update(existingCourse, actor);
+				await unitOfWork.SaveChangesAsync(ct);
+				return true;
+			}, ct);
+
+			// 8. Return updated course detail
+			//var updatedCourse = await GetByIdAsync(courseId, ct);
+			return new UpdateCourseResponse
+			{
+				Success = true,
+				Message = "Course updated successfully",
+			};
 		}
 
 		private static void ValidatePositionIndexes(UpdateCourseDto dto)
 		{
-			// Course Objectives
+			// Course Objectives (chỉ active)
 			if (dto.Objectives is { Count: > 0 })
 			{
-				var list = dto.Objectives.Select(o => o.PositionIndex).ToList();
-				if (list.Count != list.Distinct().Count())
-					throw new ValidationException("Objective PositionIndex must be unique within the course.");
+				var activeIdx = dto.Objectives
+					.Where(o => o.IsActive)
+					.Select(o => o.PositionIndex)
+					.ToList();
+
+				if (activeIdx.Count != activeIdx.Distinct().Count())
+					throw new ValidationException("Objective PositionIndex must be unique among active objectives.");
+
+				if (activeIdx.Any(i => i <= 0))
+					throw new ValidationException("Objective PositionIndex must be > 0 for active objectives.");
 			}
 
-			// Course Requirements
+			// Course Requirements (chỉ active)
 			if (dto.Requirements is { Count: > 0 })
 			{
-				var list = dto.Requirements.Select(r => r.PositionIndex).ToList();
-				if (list.Count != list.Distinct().Count())
-					throw new ValidationException("Requirement PositionIndex must be unique within the course.");
+				var activeIdx = dto.Requirements
+					.Where(r => r.IsActive)
+					.Select(r => r.PositionIndex)
+					.ToList();
+
+				if (activeIdx.Count != activeIdx.Distinct().Count())
+					throw new ValidationException("Requirement PositionIndex must be unique among active requirements.");
+
+				if (activeIdx.Any(i => i < 0))
+					throw new ValidationException("Requirement PositionIndex must be >= 0 for active requirements.");
+			}
+		}
+
+		/// <summary>
+		/// Update CourseObjectives based on payload
+		/// </summary>
+		private async Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor, CancellationToken ct)
+		{
+			if (objectives is null || objectives.Count == 0)
+			{
+				// Mark all existing objectives as inactive (soft delete)
+				foreach (var obj in course.CourseObjectives.Where(o => o.IsActive))
+				{
+					obj.IsActive = false;
+					obj.UpdatedAt = DateTime.UtcNow;
+					obj.UpdatedBy = actor;
+				}
+				return;
 			}
 
-			// Modules
-			if (dto.Modules is { Count: > 0 })
-			{
-				var mIdx = dto.Modules.Select(m => m.PositionIndex).ToList();
-				if (mIdx.Count != mIdx.Distinct().Count())
-					throw new ValidationException("Module PositionIndex must be unique within the course.");
+			var now = DateTime.UtcNow;
+			var existingObjectives = course.CourseObjectives.ToDictionary(o => o.ObjectiveId, o => o);
+			var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
 
-				foreach (var m in dto.Modules)
+			// 1. Mark objectives not in payload as inactive (soft delete)
+			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
+			{
+				existing.IsActive = false;
+				existing.UpdatedAt = now;
+				existing.UpdatedBy = actor;
+			}
+
+			// 2. Update existing objectives or create new ones
+			foreach (var objDto in objectives)
+			{
+				if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
 				{
-					// Module Objectives
-					if (m.Objectives is { Count: > 0 })
+					// Update existing objective
+					existing.Content = objDto.Content;
+					existing.PositionIndex = objDto.PositionIndex;
+					existing.IsActive = objDto.IsActive;
+					existing.UpdatedAt = now;
+					existing.UpdatedBy = actor;
+				}
+				else
+				{
+					// Create new objective - let EF generate the ID
+					var newObjective = new CourseObjective
 					{
-						var list = m.Objectives.Select(o => o.PositionIndex).ToList();
-						if (list.Count != list.Distinct().Count())
-							throw new ValidationException($"Module '{m.ModuleName}' objectives' PositionIndex must be unique.");
-					}
-					// Lessons (nếu bạn muốn đảm bảo không trùng)
-					if (m.Lessons is { Count: > 0 })
+						CourseId = course.CourseId,
+						Content = objDto.Content,
+						PositionIndex = objDto.PositionIndex,
+						IsActive = objDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					course.CourseObjectives.Add(newObjective);
+				}
+			}
+		}
+
+		/// <summary>
+		/// Update CourseRequirements based on payload
+		/// </summary>
+		private async Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor, CancellationToken ct)
+		{
+			if (requirements is null || requirements.Count == 0)
+			{
+				// Mark all existing requirements as inactive (soft delete)
+				foreach (var req in course.CourseRequirements.Where(r => r.IsActive))
+				{
+					req.IsActive = false;
+					req.UpdatedAt = DateTime.UtcNow;
+					req.UpdatedBy = actor;
+				}
+				return;
+			}
+
+			var now = DateTime.UtcNow;
+			var existingRequirements = course.CourseRequirements.ToDictionary(r => r.RequirementId, r => r);
+			var payloadRequirementIds = requirements.Where(r => r.RequirementId.HasValue).Select(r => r.RequirementId!.Value).ToHashSet();
+
+			// 1. Mark requirements not in payload as inactive (soft delete)
+			foreach (var existing in existingRequirements.Values.Where(r => r.IsActive && !payloadRequirementIds.Contains(r.RequirementId)))
+			{
+				existing.IsActive = false;
+				existing.UpdatedAt = now;
+				existing.UpdatedBy = actor;
+			}
+
+			// 2. Update existing requirements or create new ones
+			foreach (var reqDto in requirements)
+			{
+				if (reqDto.RequirementId.HasValue && existingRequirements.TryGetValue(reqDto.RequirementId.Value, out var existing))
+				{
+					// Update existing requirement
+					existing.Content = reqDto.Content;
+					existing.PositionIndex = reqDto.PositionIndex;
+					existing.IsActive = reqDto.IsActive;
+					existing.UpdatedAt = now;
+					existing.UpdatedBy = actor;
+				}
+				else
+				{
+					// Create new requirement - let EF generate the ID
+					var newRequirement = new CourseRequirement
 					{
-						var list = m.Lessons.Select(l => l.PositionIndex).ToList();
-						if (list.Count != list.Distinct().Count())
-							throw new ValidationException($"Module '{m.ModuleName}' lessons' PositionIndex must be unique.");
-					}
+						CourseId = course.CourseId,
+						Content = reqDto.Content,
+						PositionIndex = reqDto.PositionIndex,
+						IsActive = reqDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					course.CourseRequirements.Add(newRequirement);
 				}
 			}
 		}

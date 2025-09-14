@@ -1,14 +1,14 @@
 ﻿using BaseService.Common.ApiEntities;
 using BuildingBlocks.CQRS;
-using Course.Application.DTOs;
+using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Application.Courses.Commands.UpdateCourse
 {
 	public record UpdateCourseCommand(Guid CourseId, UpdateCourseDto Payload)
 	: ICommand<UpdateCourseResponse>;
 
-	public record UpdateCourseResponse : AbstractApiResponse<CourseDetailDto>
+	public record UpdateCourseResponse : AbstractApiResponse<string>
 	{
-		public override CourseDetailDto Response { get; set; } = default!;
+		public override string Response { get; set; } = default!;
 	}
 }

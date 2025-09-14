@@ -1,6 +1,6 @@
 ﻿using BaseService.Common.ApiEntities;
 using BuildingBlocks.CQRS;
-using Course.Application.DTOs;
+using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Application.Courses.Queries.GetCourseById
 {

@@ -1,4 +1,4 @@
-﻿namespace Course.Application.DTOs
+﻿namespace Course.Application.DTOs.LessonsDTO
 {
 	public record UpdateLessonDto(
 		Guid? LessonId,              // null => lesson mới

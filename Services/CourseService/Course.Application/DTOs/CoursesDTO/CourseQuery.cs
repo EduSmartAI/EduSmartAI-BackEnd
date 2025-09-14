@@ -1,6 +1,6 @@
 ﻿using Course.Domain.Enum;
 
-namespace Course.Application.DTOs
+namespace Course.Application.DTOs.CoursesDTO
 {
 	public record CourseQuery(
 		string? Search = null,         // search theo title/description/slug/shortDescription

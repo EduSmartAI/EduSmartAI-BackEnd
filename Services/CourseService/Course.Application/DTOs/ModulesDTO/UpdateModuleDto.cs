@@ -1,4 +1,6 @@
-﻿namespace Course.Application.DTOs
+﻿using Course.Application.DTOs.LessonsDTO;
+
+namespace Course.Application.DTOs.Modules
 {
 	public record UpdateModuleDto(
 		Guid? ModuleId,
