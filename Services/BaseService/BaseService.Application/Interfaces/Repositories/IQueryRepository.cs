@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using BaseService.Application.Common;
 
 namespace BaseService.Application.Interfaces.Repositories;
 
@@ -15,6 +16,19 @@ public interface IQueryRepository<TEntity> where TEntity : class
     /// <param name="predicate"></param>
     /// <returns></returns>
     Task<List<TEntity>> ToListAsync(Expression<Func<TEntity, bool>> predicate);
+    
+    /// <summary>
+    /// Get paged entities.
+    /// </summary>
+    Task<PagedResult<TEntity>> PagedAsync(int? pageNumber, int? pageSize, Expression<Func<TEntity, bool>> predicate);
+    
+    /// <summary>
+    /// Get paged entities.
+    /// </summary>
+    /// <param name="pageNumber"></param>
+    /// <param name="pageSize"></param>
+    /// <returns></returns>
+    Task<PagedResult<TEntity>> PagedAsync(int? pageNumber, int? pageSize);
 
     /// <summary>
     /// Find entities by predicate
@@ -46,4 +60,6 @@ public interface IQueryRepository<TEntity> where TEntity : class
     /// <param name="expiry"></param>
     /// <returns></returns>
     Task<List<TEntity>> GetOrSetListAsync(string key, Func<Task<List<TEntity>>> factory, TimeSpan? expiry = null);
+    
+    Task<PagedResult<TEntity>> GetOrSetPagedAsync(string key, Func<Task<PagedResult<TEntity>>> factory, TimeSpan? expiry = null);
 }

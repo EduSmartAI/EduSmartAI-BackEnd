@@ -64,6 +64,10 @@ public class TestController : ControllerBase
     
     [HttpGet]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy bài kiểm tra gồm các quiz mà student chọn",
+        Description = "Cần cấp quyền Student cho API"
+    )]
     public async Task<TestSelectResponse> GetTest([FromQuery] TestSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<TestSelectQuery, TestSelectResponse, TestSelectResponseEntity>(

@@ -17,7 +17,6 @@
       <Folder Include="Applications\Answers\Queries\" />
       <Folder Include="Applications\Questions\Queries\" />
       <Folder Include="Applications\Quizzes\Commands\" />
-      <Folder Include="Applications\Quizzes\Queries\" />
       <Folder Include="Applications\StudentAnswers\Commands\" />
       <Folder Include="Applications\StudentAnswers\Queries\" />
     </ItemGroup>

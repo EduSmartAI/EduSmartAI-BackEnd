@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using BaseService.Application.Common;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Contexts;
 using Microsoft.EntityFrameworkCore;
@@ -23,8 +24,8 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// <typeparam name="TKey"></typeparam>
     /// <returns></returns>
     public async Task<PagedResult<TEntity>> PagedAsync<TKey>(
-        int pageNumber,
-        int pageSize,
+        int? pageNumber,
+        int? pageSize,
         Expression<Func<TEntity, bool>>? predicate = null,
         Expression<Func<TEntity, TKey>>? orderBy = null,
         bool orderByDescending = false,
@@ -38,17 +39,25 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
 
         // Apply filter
         if (predicate != null) query = query.Where(predicate);
+        
+        // Validate pageNumber, pageSize
+        int validPageNumber = pageNumber.GetValueOrDefault(1);
+        if (validPageNumber < 1) validPageNumber = 1;
+
+        int validPageSize = pageSize.GetValueOrDefault(10);
+        if (validPageSize <= 0) validPageSize = 10;
 
         // Apply sorting
         if (orderBy != null) query = orderByDescending ? query.OrderByDescending(orderBy) : query.OrderBy(orderBy);
 
         // Count total
         var totalCount = await query.CountAsync(cancellationToken);
-
+        
         // Apply paging
+        int skip = (validPageNumber - 1) * validPageSize;
         var items = await query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
+            .Skip(skip)
+            .Take(validPageSize)
             .ToListAsync(cancellationToken);
 
         // Return paged result
@@ -56,9 +65,10 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
         {
             Items = items,
             TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
+            PageNumber = validPageNumber,
+            PageSize = validPageSize
         };
+
     }
 
     /// <summary>
@@ -90,7 +100,7 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     }
 
     /// <summary>
-    /// Get first entity matching the predicate.
+    /// Get the first entity matching the predicate.
     /// </summary>
     /// <param name="predicate"></param>
     /// <param name="cancellationToken"></param>
@@ -117,6 +127,7 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// Add entity to the database
     /// </summary>
     /// <param name="entity"></param>
+    /// <param name="userEmail"></param>
     public async Task AddAsync(TEntity entity, string userEmail)
     {
         var now = DateTime.UtcNow;
@@ -130,9 +141,19 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     }
 
     /// <summary>
+    /// Add entity to the database
+    /// </summary>
+    /// <param name="entity"></param>
+    public async Task AddAsync(TEntity entity)
+    {
+        await context.AddAsync(entity);
+    }
+
+    /// <summary>
     /// Add a range of entities to the database asynchronously
     /// </summary>
     /// <param name="entities"></param>
+    /// <param name="userEmail"></param>
     public async Task AddRangeAsync(IEnumerable<TEntity> entities, string userEmail)
     {
         var now = DateTime.UtcNow;
@@ -151,6 +172,8 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     /// Update entity in the database
     /// </summary>
     /// <param name="entity"></param>
+    /// <param name="userEmail"></param>
+    /// <param name="needLogicalDelete"></param>
     public void Update(TEntity entity, string userEmail, bool needLogicalDelete = false)
     {
         var now = DateTime.UtcNow;
@@ -170,9 +193,20 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     }
 
     /// <summary>
+    /// Update entity in the database
+    /// </summary>
+    /// <param name="entity"></param>
+    public void Update(TEntity entity)
+    {
+        context.Update(entity);
+    }
+
+    /// <summary>
     /// Update a range of entities in the database
     /// </summary>
     /// <param name="entities"></param>
+    /// <param name="userEmail"></param>
+    /// <param name="needLogicalDelete"></param>
     public void UpdateRange(IEnumerable<TEntity> entities, string userEmail, bool needLogicalDelete = false)
     {
         var now = DateTime.UtcNow;

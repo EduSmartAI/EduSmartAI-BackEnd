@@ -18,6 +18,13 @@ public interface IUnitOfWork : IDisposable
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Save all changes.
+    /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<int> SaveChangesAsync(string email, CancellationToken cancellationToken, bool needLogicalDelete = false);
+    
+    /// <summary>
     /// Store a collection of entities in the marten.
     /// </summary>
     /// <param name="entity"></param>
