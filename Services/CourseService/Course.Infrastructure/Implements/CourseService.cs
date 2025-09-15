@@ -1,4 +1,7 @@
-﻿using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Application.Interfaces.Repositories;
+using BaseService.Infrastructure.Identities;
+using BaseService.Infrastructure.Repositories;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
@@ -11,13 +14,21 @@ using Course.Application.DTOs.ModulesDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
+using Course.Infrastructure.Caching;
 using FluentValidation;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 using System.Linq.Expressions;
 
 namespace Course.Infrastructure.Implements
 {
-	public class CourseService(ICourseRepository _courseRepository, IUnitOfWork unitOfWork) : ICourseService
+	public class CourseService(
+		ICommandRepository<CourseEntity> _courseRepository,
+		IQueryRepository<CourseEntity> _courseQueryRepository,
+		IUnitOfWork unitOfWork,
+		IDatabase _cache,
+		IIdentityService _identityService) : ICourseService
 	{
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
@@ -143,7 +154,8 @@ namespace Course.Infrastructure.Implements
 			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
 			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
 			var now = DateTime.UtcNow;
-			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+			// Get current user id
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			var course = new CourseEntity
 			{
@@ -164,8 +176,8 @@ namespace Course.Infrastructure.Implements
 				IsActive = dto.IsActive,
 				CreatedAt = now,
 				UpdatedAt = now,
-				CreatedBy = actor,
-				UpdatedBy = actor
+				CreatedBy = currentUser.FullName,
+				UpdatedBy = currentUser.FullName
 			};
 
 			// 3) Mục tiêu học tập (CourseObjectives) – optional
@@ -184,8 +196,8 @@ namespace Course.Infrastructure.Implements
 						IsActive = obj.IsActive,
 						CreatedAt = now,
 						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
+						CreatedBy = currentUser.FullName,
+						UpdatedBy = currentUser.FullName
 					});
 				}
 			}
@@ -206,8 +218,8 @@ namespace Course.Infrastructure.Implements
 						IsActive = req.IsActive,
 						CreatedAt = now,
 						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
+						CreatedBy = currentUser.FullName,
+						UpdatedBy = currentUser.FullName
 					});
 				}
 			}
@@ -228,8 +240,8 @@ namespace Course.Infrastructure.Implements
 					Level = m.Level,
 					CreatedAt = now,
 					UpdatedAt = now,
-					CreatedBy = actor,
-					UpdatedBy = actor
+					CreatedBy = currentUser.FullName,
+					UpdatedBy = currentUser.FullName
 				};
 
 				// Module Objectives (optional)
@@ -248,8 +260,8 @@ namespace Course.Infrastructure.Implements
 							IsActive = mo.IsActive,
 							CreatedAt = now,
 							UpdatedAt = now,
-							CreatedBy = actor,
-							UpdatedBy = actor
+							CreatedBy = currentUser.FullName,
+							UpdatedBy = currentUser.FullName
 						});
 					}
 				}
@@ -267,8 +279,8 @@ namespace Course.Infrastructure.Implements
 						IsActive = l.IsActive,
 						CreatedAt = now,
 						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
+						CreatedBy = currentUser.FullName,
+						UpdatedBy = currentUser.FullName
 					});
 				}
 
@@ -277,7 +289,7 @@ namespace Course.Infrastructure.Implements
 
 			await unitOfWork.BeginTransactionAsync(async () =>
 						{
-							await _courseRepository.AddAsync(course, actor);   // hoặc Insert/Add tùy interface bạn đang dùng
+							await _courseRepository.AddAsync(course, currentUser.FullName);   // hoặc Insert/Add tùy interface bạn đang dùng
 							await unitOfWork.SaveChangesAsync(ct);         // EF: SaveChanges; Marten: cũng qua UoW
 																		   // Nếu có Outbox/Event:
 																		   // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
@@ -568,7 +580,8 @@ namespace Course.Infrastructure.Implements
 					Message = $"Course {courseId} not found"
 				};
 
-			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			// 3. Update basic course properties
 			existingCourse.TeacherId = dto.TeacherId;
@@ -594,15 +607,15 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// 5. Update CourseObjectives
-			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, actor, ct);
+			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.FullName, ct);
 
 			// 6. Update CourseRequirements
-			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, actor, ct);
+			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.FullName, ct);
 
 			// 7. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_courseRepository.Update(existingCourse, actor);
+				_courseRepository.Update(existingCourse, currentUser.FullName);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
@@ -777,6 +790,20 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid id, CancellationToken ct = default)
 		{
+			var cacheKey = $"CourseDetailForGuest:{id}";
+			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			if (cached is not null)
+			{
+				return new GetCourseByIdForGuestResponse
+				{
+					Success = true,
+					Message = "OK (from cache)",
+					Response = cached,
+					ModulesCount = cached.Modules.Count,
+					LessonsCount = cached.Modules.Sum(m => m.Lessons.Count)
+				};
+			}
+
 			var baseQuery = _courseRepository
 				.Find(x => x.CourseId == id, isTracking: false, ct)
 				.Cast<CourseEntity>()
@@ -792,6 +819,7 @@ namespace Course.Infrastructure.Implements
 				return new GetCourseByIdForGuestResponse { Success = false, Message = $"Course {id} not found" };
 
 			var detail = MapCourseDetailForGuest(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -813,6 +841,20 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid id, CancellationToken ct = default)
 		{
+			var cacheKey = $"CourseDetailForLecture:{id}";
+			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			if (cached is not null)
+			{
+				return new GetCourseByIdForLectureResponse
+				{
+					Success = true,
+					Message = "OK (from cache)",
+					Response = cached,
+					ModulesCount = cached.Modules.Count,
+					LessonsCount = cached.Modules.Sum(m => m.Lessons.Count)
+				};
+			}
+
 			var baseQuery = _courseRepository
 				.Find(x => x.CourseId == id, isTracking: false, ct)
 				.Cast<CourseEntity>()
@@ -828,6 +870,7 @@ namespace Course.Infrastructure.Implements
 				return new GetCourseByIdForLectureResponse { Success = false, Message = $"Course {id} not found" };
 
 			var detail = MapCourseDetailForLecture(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -870,15 +913,15 @@ namespace Course.Infrastructure.Implements
 					Message = $"Course {courseId} not found"
 				};
 
-			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			// 3. Update modules based on payload
-			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, actor, ct);
+			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.FullName, ct);
 
 			// 4. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_courseRepository.Update(existingCourse, actor);
+				_courseRepository.Update(existingCourse, currentUser.FullName);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);

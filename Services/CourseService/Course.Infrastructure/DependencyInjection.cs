@@ -1,6 +1,8 @@
-﻿using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BaseService.Infrastructure.Contexts;
+using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
 using Course.Application.Interfaces;
 using Course.Domain.Models;
@@ -34,14 +36,19 @@ namespace Course.Infrastructure
 			services.AddDbContext<AppDbContext, CourseDbContext>(opt =>
 				opt.UseNpgsql(connectionString).EnableDetailedErrors().EnableSensitiveDataLogging());
 
+
+			services.AddHttpContextAccessor();
+			services.AddScoped<IIdentityService, IdentityService>();
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
-			services.AddScoped<ICourseRepository, CourseRepository>();
+			//services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
 
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
 			services.AddScoped<IModuleRepository, ModuleRepository>();
 			services.AddScoped<IModuleService, ModuleService>();
+
+			services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
 
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
 			services.AddMarten(options => { options.Connection(connectionString!); });
