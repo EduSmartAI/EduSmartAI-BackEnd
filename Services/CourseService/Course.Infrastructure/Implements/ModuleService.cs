@@ -1,4 +1,5 @@
-﻿using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Application.Interfaces.Repositories;
 using Course.Application.Courses.Commands.UpdateModule;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
@@ -9,7 +10,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Course.Infrastructure.Implements
 {
-	public class ModuleService(IModuleRepository _moduleRepository, IUnitOfWork unitOfWork) : IModuleService
+	public class ModuleService(
+		IModuleRepository _moduleRepository,
+		IUnitOfWork unitOfWork,
+		IIdentityService _identityService) : IModuleService
 	{
 		/// <summary>
 		/// Update Module with its Objectives and Lessons
@@ -50,6 +54,17 @@ namespace Course.Infrastructure.Implements
 
 			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
 
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system"
+				};
+			}
+
 			// 3. Update basic module properties
 			existingModule.ModuleName = dto.ModuleName?.Trim() ?? string.Empty;
 			existingModule.Description = dto.Description;
@@ -60,15 +75,15 @@ namespace Course.Infrastructure.Implements
 			existingModule.Level = dto.Level;
 
 			// 4. Update ModuleObjectives
-			await UpdateModuleObjectivesAsync(existingModule, dto.Objectives, actor, ct);
+			await UpdateModuleObjectivesAsync(existingModule, dto.Objectives, currentUser.FullName, ct);
 
 			// 5. Update Lessons
-			await UpdateLessonsAsync(existingModule, dto.Lessons, actor, ct);
+			await UpdateLessonsAsync(existingModule, dto.Lessons, currentUser.FullName, ct);
 
 			// 6. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_moduleRepository.Update(existingModule, actor);
+				_moduleRepository.Update(existingModule, currentUser.FullName);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
@@ -80,7 +95,7 @@ namespace Course.Infrastructure.Implements
 			};
 		}
 
-		private async Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string actor, CancellationToken ct)
+		private async Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string currentUser, CancellationToken ct)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -89,7 +104,7 @@ namespace Course.Infrastructure.Implements
 				{
 					obj.IsActive = false;
 					obj.UpdatedAt = DateTime.UtcNow;
-					obj.UpdatedBy = actor;
+					obj.UpdatedBy = currentUser;
 				}
 				return;
 			}
@@ -103,7 +118,7 @@ namespace Course.Infrastructure.Implements
 			{
 				existing.IsActive = false;
 				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
+				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing objectives or create new ones
@@ -116,7 +131,7 @@ namespace Course.Infrastructure.Implements
 					existing.PositionIndex = objDto.PositionIndex;
 					existing.IsActive = objDto.IsActive;
 					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
+					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -129,8 +144,8 @@ namespace Course.Infrastructure.Implements
 						IsActive = objDto.IsActive,
 						CreatedAt = now,
 						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
+						CreatedBy = currentUser,
+						UpdatedBy = currentUser
 					};
 					module.ModuleObjectives.Add(newObjective);
 				}
@@ -140,7 +155,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update Lessons based on payload
 		/// </summary>
-		private async Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string actor, CancellationToken ct)
+		private async Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string currentUser, CancellationToken ct)
 		{
 			if (lessons is null || lessons.Count == 0)
 			{
@@ -149,7 +164,7 @@ namespace Course.Infrastructure.Implements
 				{
 					lesson.IsActive = false;
 					lesson.UpdatedAt = DateTime.UtcNow;
-					lesson.UpdatedBy = actor;
+					lesson.UpdatedBy = currentUser;
 				}
 				return;
 			}
@@ -163,7 +178,7 @@ namespace Course.Infrastructure.Implements
 			{
 				existing.IsActive = false;
 				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
+				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing lessons or create new ones
@@ -178,7 +193,7 @@ namespace Course.Infrastructure.Implements
 					existing.PositionIndex = lessonDto.PositionIndex;
 					existing.IsActive = lessonDto.IsActive;
 					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
+					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -193,8 +208,8 @@ namespace Course.Infrastructure.Implements
 						IsActive = lessonDto.IsActive,
 						CreatedAt = now,
 						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
+						CreatedBy = currentUser,
+						UpdatedBy = currentUser
 					};
 					module.Lessons.Add(newLesson);
 				}
