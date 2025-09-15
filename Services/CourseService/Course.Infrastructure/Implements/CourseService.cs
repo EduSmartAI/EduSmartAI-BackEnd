@@ -42,6 +42,21 @@ namespace Course.Infrastructure.Implements
 			CourseQuery? query = null,
 			CancellationToken ct = default)
 		{
+			var response = new GetCoursesResponse() { Success = false };
+
+			// Generate cache key based on pagination and query parameters
+			var cacheKey = GenerateCacheKeyForGetAll(pagination, query);
+			
+			// Try to get from cache first
+			var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.Message = "OK (from cache)";
+				response.Response = cached;
+				return response;
+			}
+
 			// Build predicate dynamic theo filter
 			Expression<Func<CourseEntity, bool>>? predicate = null;
 
@@ -133,12 +148,62 @@ namespace Course.Infrastructure.Implements
 				data: items
 			);
 
-			return new GetCoursesResponse
+			// Cache the result for future requests
+			await _cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
+
+			response.Success = true;
+			response.Response = result;
+			response.Message = "OK";
+
+			return response;
+		}
+
+		/// <summary>
+		/// Generate cache key for GetAllAsync method based on pagination and query parameters
+		/// </summary>
+		/// <param name="pagination"></param>
+		/// <param name="query"></param>
+		/// <returns></returns>
+		private static string GenerateCacheKeyForGetAll(PaginationRequest pagination, CourseQuery? query)
+		{
+			var keyParts = new List<string> { "Courses:GetAll" };
+			
+			// Add pagination parameters
+			keyParts.Add($"PageIndex:{pagination.PageIndex}");
+			keyParts.Add($"PageSize:{pagination.PageSize}");
+			
+			// Add query parameters if present
+			if (query is not null)
 			{
-				Success = true,
-				Response = result,
-				Message = "OK"
-			};
+				if (!string.IsNullOrWhiteSpace(query.Search))
+					keyParts.Add($"Search:{query.Search.Trim().ToLowerInvariant()}");
+				
+				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
+					keyParts.Add($"SubjectCode:{query.SubjectCode.Trim().ToLowerInvariant()}");
+				
+				if (query.IsActive.HasValue)
+					keyParts.Add($"IsActive:{query.IsActive.Value}");
+				
+				keyParts.Add($"SortBy:{query.SortBy}");
+			}
+			
+			return string.Join(":", keyParts);
+		}
+
+		/// <summary>
+		/// Clear cache for GetAllAsync method when course data changes
+		/// </summary>
+		/// <returns></returns>
+		private async Task ClearGetAllCacheAsync()
+		{
+			// Get all cache keys that start with "Courses:GetAll"
+			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().First());
+			var keys = server.Keys(pattern: "Courses:GetAll*");
+			
+			if (keys.Any())
+			{
+				await _cache.KeyDeleteAsync(keys.ToArray());
+			}
 		}
 
 		/// <summary>
@@ -149,11 +214,8 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<CreateCourseResponse> CreateAsync(CreateCourseDto dto, CancellationToken ct = default)
 		{
-			var title = dto.Title?.Trim() ?? string.Empty;
+			var response = new CreateCourseResponse() { Success = false };
 
-			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
-			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
-			var now = DateTime.UtcNow;
 			// Get current user id
 			var currentUser = _identityService.GetCurrentUser();
 
@@ -165,6 +227,12 @@ namespace Course.Infrastructure.Implements
 					FullName = "system"
 				};
 			}
+
+			var title = dto.Title?.Trim() ?? string.Empty;
+
+			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
+			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
+			var now = DateTime.UtcNow;
 
 			var course = new CourseEntity
 			{
@@ -307,12 +375,14 @@ namespace Course.Infrastructure.Implements
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 						}, ct);
 
-			return new CreateCourseResponse
-			{
-				Success = true,
-				Message = "Course created successfully"
-			};
-			//return MapDetail(course);
+			// Clear cache after successful creation
+			await ClearGetAllCacheAsync();
+
+			response.Response = course.CourseId.ToString();
+			response.Success = true;
+			response.Message = "Course created successfully";
+
+			return response;
 		}
 
 		/// <summary>
@@ -572,6 +642,7 @@ namespace Course.Infrastructure.Implements
 		 */
 		public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
 		{
+			var response = new UpdateCourseResponse() { Success = false };
 			// 1. Validate PositionIndex uniqueness
 			ValidatePositionIndexes(dto);
 
@@ -583,12 +654,10 @@ namespace Course.Infrastructure.Implements
 				.FirstOrDefaultAsync(ct);
 
 			if (existingCourse is null)
-				return new UpdateCourseResponse
-				{
-					Success = false,
-					Message = $"Course {courseId} not found"
-				};
-
+			{
+				response.Message = $"Course {courseId} not found";
+				return response;
+			}
 
 			var currentUser = _identityService.GetCurrentUser();
 
@@ -638,13 +707,14 @@ namespace Course.Infrastructure.Implements
 				return true;
 			}, ct);
 
-			// 8. Return updated course detail
+			// 8. Clear cache after successful update
+			await ClearGetAllCacheAsync();
+
+			// 9. Return updated course detail
 			//var updatedCourse = await GetByIdAsync(courseId, ct);
-			return new UpdateCourseResponse
-			{
-				Success = true,
-				Message = "Course updated successfully",
-			};
+			response.Success = true;
+			response.Message = "Course updated successfully";
+			return response;
 		}
 
 		private static void ValidatePositionIndexes(UpdateCourseDto dto)
@@ -808,18 +878,18 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid id, CancellationToken ct = default)
 		{
+			var response = new GetCourseByIdForGuestResponse() { Success = false };
+
 			var cacheKey = $"CourseDetailForGuest:{id}";
 			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
 			if (cached is not null)
 			{
-				return new GetCourseByIdForGuestResponse
-				{
-					Success = true,
-					Message = "OK (from cache)",
-					Response = cached,
-					ModulesCount = cached.Modules.Count,
-					LessonsCount = cached.Modules.Sum(m => m.Lessons.Count)
-				};
+				response.Success = true;
+				response.Message = "OK (from cache)";
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
 			}
 
 			var baseQuery = _courseRepository
@@ -834,21 +904,22 @@ namespace Course.Infrastructure.Implements
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
 
 			if (entity is null)
-				return new GetCourseByIdForGuestResponse { Success = false, Message = $"Course {id} not found" };
+			{
+				response.Message = $"Course {id} not found";
+				return response;
+			}
 
 			var detail = MapCourseDetailForGuest(entity);
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
-			return new GetCourseByIdForGuestResponse
-			{
-				Success = true,
-				Message = "OK",
-				Response = detail,
-				ModulesCount = modulesCount,
-				LessonsCount = lessonsCount
-			};
+			response.Success = true;
+			response.Message = "OK";
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
 		}
 
 		/// <summary>
@@ -859,18 +930,18 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid id, CancellationToken ct = default)
 		{
+			var response = new GetCourseByIdForLectureResponse() { Success = false };
+
 			var cacheKey = $"CourseDetailForLecture:{id}";
 			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
 			if (cached is not null)
 			{
-				return new GetCourseByIdForLectureResponse
-				{
-					Success = true,
-					Message = "OK (from cache)",
-					Response = cached,
-					ModulesCount = cached.Modules.Count,
-					LessonsCount = cached.Modules.Sum(m => m.Lessons.Count)
-				};
+				response.Success = true;
+				response.Message = "OK (from cache)";
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
 			}
 
 			var baseQuery = _courseRepository
@@ -885,21 +956,22 @@ namespace Course.Infrastructure.Implements
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
 
 			if (entity is null)
-				return new GetCourseByIdForLectureResponse { Success = false, Message = $"Course {id} not found" };
+			{
+				response.Message = $"Course {id} not found";
+				return response;
+			}
 
 			var detail = MapCourseDetailForLecture(entity);
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
-			return new GetCourseByIdForLectureResponse
-			{
-				Success = true,
-				Message = "OK",
-				Response = detail,
-				ModulesCount = modulesCount,
-				LessonsCount = lessonsCount
-			};
+			response.Success = true;
+			response.Message = "OK";
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
 		}
 
 		/// <summary>
@@ -911,6 +983,7 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
 		{
+			var response = new UpdateCourseModulesResponse() { Success = false };
 			// 1. Validate PositionIndex uniqueness across all modules
 			ValidateCourseModulesPositionIndexes(dto);
 
@@ -925,11 +998,10 @@ namespace Course.Infrastructure.Implements
 				.FirstOrDefaultAsync(ct);
 
 			if (existingCourse is null)
-				return new UpdateCourseModulesResponse
-				{
-					Success = false,
-					Message = $"Course {courseId} not found"
-				};
+			{
+				response.Message = $"Course {courseId} not found";
+				return response;
+			}
 
 			var currentUser = _identityService.GetCurrentUser();
 
@@ -953,11 +1025,14 @@ namespace Course.Infrastructure.Implements
 				return true;
 			}, ct);
 
-			return new UpdateCourseModulesResponse
-			{
-				Success = true,
-				Message = "Course modules updated successfully"
-			};
+			// 5. Clear cache after successful update
+			await ClearGetAllCacheAsync();
+
+			// 6. Return response
+			response.Success = true;
+			response.Message = "Course modules updated successfully";
+
+			return response;
 		}
 
 		/// <summary>
