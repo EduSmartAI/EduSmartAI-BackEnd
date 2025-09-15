@@ -155,7 +155,16 @@ namespace Course.Infrastructure.Implements
 			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
 			var now = DateTime.UtcNow;
 			// Get current user id
-			var currentUser = _identityService.GetCurrentUser()!;
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system"
+				};
+			}
 
 			var course = new CourseEntity
 			{
@@ -581,7 +590,16 @@ namespace Course.Infrastructure.Implements
 				};
 
 
-			var currentUser = _identityService.GetCurrentUser()!;
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system"
+				};
+			}
 
 			// 3. Update basic course properties
 			existingCourse.TeacherId = dto.TeacherId;
@@ -913,7 +931,16 @@ namespace Course.Infrastructure.Implements
 					Message = $"Course {courseId} not found"
 				};
 
-			var currentUser = _identityService.GetCurrentUser()!;
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system"
+				};
+			}
 
 			// 3. Update modules based on payload
 			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.FullName, ct);
