@@ -8,15 +8,15 @@ namespace Course.Application.DTOs.CoursesDTO
 		string Title,
 		string? ShortDescription,
 		string? Description,
-		string? Slug,                // optional
-		string? CourseImageUrl,      // optional
+		string? Slug,
+		string? CourseImageUrl,
 		int? DurationMinutes,
 		short? Level,
 		decimal Price,
 		decimal? DealPrice,
 		bool IsActive,
-		List<CreateCourseObjectiveDto>? Objectives,     // optional
-		List<CreateCourseRequirementDto>? Requirements, // optional
+		List<CreateCourseObjectiveDto>? Objectives,
+		List<CreateCourseRequirementDto>? Requirements,
 		List<CreateModuleDto> Modules
 	);
 

@@ -933,16 +933,16 @@ namespace Course.Infrastructure.Implements
 			}
 
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id, isTracking: false, ct)
+				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives)
-				.Include(x => x.CourseRequirements)
-				.Include(x => x.CourseComments)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules).ThenInclude(m => m.ModuleObjectives)
-				.Include(x => x.Modules).ThenInclude(m => m.Lessons);
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
 
@@ -988,16 +988,16 @@ namespace Course.Infrastructure.Implements
 			}
 
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id, isTracking: false, ct)
+				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives)
-				.Include(x => x.CourseRequirements)
-				.Include(x => x.CourseComments)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules).ThenInclude(m => m.ModuleObjectives)
-				.Include(x => x.Modules).ThenInclude(m => m.Lessons);
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
 
