@@ -25,7 +25,6 @@ namespace Course.Infrastructure.Implements
 {
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
-		IQueryRepository<CourseEntity> _courseQueryRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
 		IIdentityService _identityService) : ICourseService
@@ -46,7 +45,7 @@ namespace Course.Infrastructure.Implements
 
 			// Generate cache key based on pagination and query parameters
 			var cacheKey = GenerateCacheKeyForGetAll(pagination, query);
-			
+
 			// Try to get from cache first
 			var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
 			if (cached is not null)
@@ -86,7 +85,7 @@ namespace Course.Infrastructure.Implements
 				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
 				{
 					var code = query.SubjectCode.Trim();
-					// cần Include(x => x.Subject) ở query phía dưới
+
 					pred = Acc(pred, x => x.Subject != null &&
 										  EF.Functions.ILike(x.Subject.SubjectCode ?? "", $"%{code}%"));
 				}
@@ -117,8 +116,10 @@ namespace Course.Infrastructure.Implements
 					orderByDescending = true;
 					break;
 				case CourseSortBy.Latest:
-				default:
 					orderBy = x => x.UpdatedAt;
+					orderByDescending = true;
+					break;
+				default:
 					orderByDescending = true;
 					break;
 			}
@@ -167,26 +168,26 @@ namespace Course.Infrastructure.Implements
 		private static string GenerateCacheKeyForGetAll(PaginationRequest pagination, CourseQuery? query)
 		{
 			var keyParts = new List<string> { "Courses:GetAll" };
-			
+
 			// Add pagination parameters
 			keyParts.Add($"PageIndex:{pagination.PageIndex}");
 			keyParts.Add($"PageSize:{pagination.PageSize}");
-			
+
 			// Add query parameters if present
 			if (query is not null)
 			{
 				if (!string.IsNullOrWhiteSpace(query.Search))
 					keyParts.Add($"Search:{query.Search.Trim().ToLowerInvariant()}");
-				
+
 				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
 					keyParts.Add($"SubjectCode:{query.SubjectCode.Trim().ToLowerInvariant()}");
-				
+
 				if (query.IsActive.HasValue)
 					keyParts.Add($"IsActive:{query.IsActive.Value}");
-				
+
 				keyParts.Add($"SortBy:{query.SortBy}");
 			}
-			
+
 			return string.Join(":", keyParts);
 		}
 
@@ -197,9 +198,9 @@ namespace Course.Infrastructure.Implements
 		private async Task ClearGetAllCacheAsync()
 		{
 			// Get all cache keys that start with "Courses:GetAll"
-			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().First());
+			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
 			var keys = server.Keys(pattern: "Courses:GetAll*");
-			
+
 			if (keys.Any())
 			{
 				await _cache.KeyDeleteAsync(keys.ToArray());
@@ -224,15 +225,15 @@ namespace Course.Infrastructure.Implements
 				currentUser = new IdentityEntity
 				{
 					UserId = Guid.Empty,
-					FullName = "system"
+					FullName = "system",
+					Email = "system"
 				};
 			}
 
 			var title = dto.Title?.Trim() ?? string.Empty;
 
 			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
-			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title, ct);
-			var now = DateTime.UtcNow;
+			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title!, ct);
 
 			var course = new CourseEntity
 			{
@@ -249,12 +250,7 @@ namespace Course.Infrastructure.Implements
 				DurationMinutes = dto.DurationMinutes,
 				Level = dto.Level,
 				Price = dto.Price,
-				DealPrice = dto.DealPrice,
-				IsActive = dto.IsActive,
-				CreatedAt = now,
-				UpdatedAt = now,
-				CreatedBy = currentUser.FullName,
-				UpdatedBy = currentUser.FullName
+				DealPrice = dto.DealPrice
 			};
 
 			// 3) Mục tiêu học tập (CourseObjectives) – optional
@@ -269,12 +265,7 @@ namespace Course.Infrastructure.Implements
 						ObjectiveId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = obj.Content,
-						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx, // fallback trật tự
-						IsActive = obj.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = currentUser.FullName,
-						UpdatedBy = currentUser.FullName
+						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx
 					});
 				}
 			}
@@ -291,12 +282,7 @@ namespace Course.Infrastructure.Implements
 						RequirementId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = req.Content,
-						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
-						IsActive = req.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = currentUser.FullName,
-						UpdatedBy = currentUser.FullName
+						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx
 					});
 				}
 			}
@@ -311,14 +297,9 @@ namespace Course.Infrastructure.Implements
 					ModuleName = m.ModuleName,
 					Description = m.Description,
 					PositionIndex = m.PositionIndex,
-					IsActive = m.IsActive,
 					IsCore = m.IsCore,
 					DurationMinutes = m.DurationMinutes,
-					Level = m.Level,
-					CreatedAt = now,
-					UpdatedAt = now,
-					CreatedBy = currentUser.FullName,
-					UpdatedBy = currentUser.FullName
+					Level = m.Level
 				};
 
 				// Module Objectives (optional)
@@ -333,12 +314,7 @@ namespace Course.Infrastructure.Implements
 							ObjectiveId = Guid.NewGuid(),
 							ModuleId = module.ModuleId,
 							Content = mo.Content,
-							PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
-							IsActive = mo.IsActive,
-							CreatedAt = now,
-							UpdatedAt = now,
-							CreatedBy = currentUser.FullName,
-							UpdatedBy = currentUser.FullName
+							PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx
 						});
 					}
 				}
@@ -352,12 +328,7 @@ namespace Course.Infrastructure.Implements
 						Title = l.Title,
 						VideoUrl = l.VideoUrl,
 						VideoDurationSec = l.VideoDurationSec,
-						PositionIndex = l.PositionIndex,
-						IsActive = l.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = currentUser.FullName,
-						UpdatedBy = currentUser.FullName
+						PositionIndex = l.PositionIndex
 					});
 				}
 
@@ -366,11 +337,8 @@ namespace Course.Infrastructure.Implements
 
 			await unitOfWork.BeginTransactionAsync(async () =>
 						{
-							await _courseRepository.AddAsync(course, currentUser.FullName);   // hoặc Insert/Add tùy interface bạn đang dùng
-							await unitOfWork.SaveChangesAsync(ct);         // EF: SaveChanges; Marten: cũng qua UoW
-																		   // Nếu có Outbox/Event:
-																		   // _uow.Store(new CourseCreatedEvent { CourseId = course.CourseId, ... });
-																		   // await _uow.SessionSaveChangesAsync();
+							await _courseRepository.AddAsync(course, currentUser.Email);
+							await unitOfWork.SaveChangesAsync(ct);
 
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 						}, ct);
@@ -666,7 +634,8 @@ namespace Course.Infrastructure.Implements
 				currentUser = new IdentityEntity
 				{
 					UserId = Guid.Empty,
-					FullName = "system"
+					FullName = "system",
+					Email = "system"
 				};
 			}
 
@@ -694,15 +663,15 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// 5. Update CourseObjectives
-			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.FullName, ct);
+			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.Email);
 
 			// 6. Update CourseRequirements
-			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.FullName, ct);
+			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
 
 			// 7. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_courseRepository.Update(existingCourse, currentUser.FullName);
+				_courseRepository.Update(existingCourse, currentUser.Email);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
@@ -711,7 +680,6 @@ namespace Course.Infrastructure.Implements
 			await ClearGetAllCacheAsync();
 
 			// 9. Return updated course detail
-			//var updatedCourse = await GetByIdAsync(courseId, ct);
 			response.Success = true;
 			response.Message = "Course updated successfully";
 			return response;
@@ -753,7 +721,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update CourseObjectives based on payload
 		/// </summary>
-		private async Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor, CancellationToken ct)
+		private async Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -761,8 +729,6 @@ namespace Course.Infrastructure.Implements
 				foreach (var obj in course.CourseObjectives.Where(o => o.IsActive))
 				{
 					obj.IsActive = false;
-					obj.UpdatedAt = DateTime.UtcNow;
-					obj.UpdatedBy = actor;
 				}
 				return;
 			}
@@ -775,8 +741,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
 			}
 
 			// 2. Update existing objectives or create new ones
@@ -788,8 +752,6 @@ namespace Course.Infrastructure.Implements
 					existing.Content = objDto.Content;
 					existing.PositionIndex = objDto.PositionIndex;
 					existing.IsActive = objDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
 				}
 				else
 				{
@@ -813,7 +775,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update CourseRequirements based on payload
 		/// </summary>
-		private async Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor, CancellationToken ct)
+		private async Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor)
 		{
 			if (requirements is null || requirements.Count == 0)
 			{
@@ -821,8 +783,6 @@ namespace Course.Infrastructure.Implements
 				foreach (var req in course.CourseRequirements.Where(r => r.IsActive))
 				{
 					req.IsActive = false;
-					req.UpdatedAt = DateTime.UtcNow;
-					req.UpdatedBy = actor;
 				}
 				return;
 			}
@@ -835,8 +795,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingRequirements.Values.Where(r => r.IsActive && !payloadRequirementIds.Contains(r.RequirementId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
 			}
 
 			// 2. Update existing requirements or create new ones
@@ -848,8 +806,6 @@ namespace Course.Infrastructure.Implements
 					existing.Content = reqDto.Content;
 					existing.PositionIndex = reqDto.PositionIndex;
 					existing.IsActive = reqDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
 				}
 				else
 				{
@@ -876,11 +832,11 @@ namespace Course.Infrastructure.Implements
 		/// <param name="id"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid id, CancellationToken ct = default)
+		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default)
 		{
 			var response = new GetCourseByIdForGuestResponse() { Success = false };
 
-			var cacheKey = $"CourseDetailForGuest:{id}";
+			var cacheKey = $"CourseDetailForGuest:{Id}";
 			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
 			if (cached is not null)
 			{
@@ -893,7 +849,7 @@ namespace Course.Infrastructure.Implements
 			}
 
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == id, isTracking: false, ct)
+				.Find(x => x.CourseId == Id, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives)
@@ -905,7 +861,7 @@ namespace Course.Infrastructure.Implements
 
 			if (entity is null)
 			{
-				response.Message = $"Course {id} not found";
+				response.Message = $"Course {Id} not found";
 				return response;
 			}
 
@@ -928,11 +884,11 @@ namespace Course.Infrastructure.Implements
 		/// <param name="id"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid id, CancellationToken ct = default)
+		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default)
 		{
 			var response = new GetCourseByIdForLectureResponse() { Success = false };
 
-			var cacheKey = $"CourseDetailForLecture:{id}";
+			var cacheKey = $"CourseDetailForLecture:{Id}";
 			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
 			if (cached is not null)
 			{
@@ -945,7 +901,7 @@ namespace Course.Infrastructure.Implements
 			}
 
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == id, isTracking: false, ct)
+				.Find(x => x.CourseId == Id, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives)
@@ -957,7 +913,7 @@ namespace Course.Infrastructure.Implements
 
 			if (entity is null)
 			{
-				response.Message = $"Course {id} not found";
+				response.Message = $"Course {Id} not found";
 				return response;
 			}
 
@@ -1010,17 +966,18 @@ namespace Course.Infrastructure.Implements
 				currentUser = new IdentityEntity
 				{
 					UserId = Guid.Empty,
-					FullName = "system"
+					FullName = "system",
+					Email = "system"
 				};
 			}
 
 			// 3. Update modules based on payload
-			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.FullName, ct);
+			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.Email);
 
 			// 4. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_courseRepository.Update(existingCourse, currentUser.FullName);
+				_courseRepository.Update(existingCourse, currentUser.Email);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
@@ -1093,7 +1050,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Internal method to update course modules
 		/// </summary>
-		private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules, string actor, CancellationToken ct)
+		private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules, string actor)
 		{
 			if (modules is null || modules.Count == 0)
 			{
@@ -1101,13 +1058,10 @@ namespace Course.Infrastructure.Implements
 				foreach (var module in course.Modules.Where(m => m.IsActive))
 				{
 					module.IsActive = false;
-					module.UpdatedAt = DateTime.UtcNow;
-					module.UpdatedBy = actor;
 				}
 				return;
 			}
 
-			var now = DateTime.UtcNow;
 			var existingModules = course.Modules.ToDictionary(m => m.ModuleId, m => m);
 			var payloadModuleIds = modules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
 
@@ -1115,8 +1069,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingModules.Values.Where(m => m.IsActive && !payloadModuleIds.Contains(m.ModuleId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
 			}
 
 			// 2. Update existing modules or create new ones
@@ -1125,12 +1077,12 @@ namespace Course.Infrastructure.Implements
 				if (moduleDto.ModuleId.HasValue && existingModules.TryGetValue(moduleDto.ModuleId.Value, out var existingModule))
 				{
 					// Update existing module
-					await UpdateExistingModuleAsync(existingModule, moduleDto, actor, ct);
+					await UpdateExistingModuleAsync(existingModule, moduleDto, actor);
 				}
 				else
 				{
 					// Create new module
-					await CreateNewModuleAsync(course, moduleDto, actor, ct);
+					await CreateNewModuleAsync(course, moduleDto, actor);
 				}
 			}
 		}
@@ -1138,10 +1090,8 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update existing module with its objectives and lessons
 		/// </summary>
-		private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto, string actor, CancellationToken ct)
+		private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto, string actor)
 		{
-			var now = DateTime.UtcNow;
-
 			// Update basic module properties
 			existingModule.ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty;
 			existingModule.Description = moduleDto.Description;
@@ -1150,20 +1100,18 @@ namespace Course.Infrastructure.Implements
 			existingModule.IsCore = moduleDto.IsCore;
 			existingModule.DurationMinutes = moduleDto.DurationMinutes;
 			existingModule.Level = moduleDto.Level;
-			existingModule.UpdatedAt = now;
-			existingModule.UpdatedBy = actor;
 
 			// Update ModuleObjectives
-			await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives, actor, ct);
+			await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives, actor);
 
 			// Update Lessons
-			await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons, actor, ct);
+			await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons, actor);
 		}
 
 		/// <summary>
 		/// Create new module with its objectives and lessons
 		/// </summary>
-		private async Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor, CancellationToken ct)
+		private async Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor)
 		{
 			var now = DateTime.UtcNow;
 
@@ -1229,7 +1177,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update ModuleObjectives for existing module
 		/// </summary>
-		private async Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor, CancellationToken ct)
+		private async Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -1237,8 +1185,6 @@ namespace Course.Infrastructure.Implements
 				foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
 				{
 					obj.IsActive = false;
-					obj.UpdatedAt = DateTime.UtcNow;
-					obj.UpdatedBy = actor;
 				}
 				return;
 			}
@@ -1251,8 +1197,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
 			}
 
 			// 2. Update existing objectives or create new ones
@@ -1264,8 +1208,6 @@ namespace Course.Infrastructure.Implements
 					existing.Content = objDto.Content;
 					existing.PositionIndex = objDto.PositionIndex;
 					existing.IsActive = objDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
 				}
 				else
 				{
@@ -1289,7 +1231,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update Lessons for existing module
 		/// </summary>
-		private async Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor, CancellationToken ct)
+		private async Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor)
 		{
 			if (lessons is null || lessons.Count == 0)
 			{
@@ -1297,8 +1239,6 @@ namespace Course.Infrastructure.Implements
 				foreach (var lesson in module.Lessons.Where(l => l.IsActive))
 				{
 					lesson.IsActive = false;
-					lesson.UpdatedAt = DateTime.UtcNow;
-					lesson.UpdatedBy = actor;
 				}
 				return;
 			}
@@ -1311,8 +1251,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = actor;
 			}
 
 			// 2. Update existing lessons or create new ones
@@ -1326,8 +1264,6 @@ namespace Course.Infrastructure.Implements
 					existing.VideoDurationSec = lessonDto.VideoDurationSec;
 					existing.PositionIndex = lessonDto.PositionIndex;
 					existing.IsActive = lessonDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = actor;
 				}
 				else
 				{
