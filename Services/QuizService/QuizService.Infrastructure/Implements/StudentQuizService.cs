@@ -180,8 +180,8 @@ public class StudentQuizService : IStudentQuizService
 
         var studentSurveyResponse = studentSurvey.Select(x => new StudentSurveySelectResponseEntity
         {
-            StudentQuizId = x.StudentQuizId,
-            Quiz = new StudentSurveySelectQuizResponseEntity
+            StudentSurveyId = x.StudentQuizId,
+            Survey = new StudentSurveySelectQuizResponseEntity
             {
                 Title = x.Quiz.Title,
                 Description = x.Quiz.Description,

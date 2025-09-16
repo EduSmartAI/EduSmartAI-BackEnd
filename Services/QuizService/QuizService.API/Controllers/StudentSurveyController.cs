@@ -73,7 +73,7 @@ public class StudentSurveyController : ControllerBase
         Summary = "Hiển câu trả lời phần khảo sát của học sinh",
         Description = "Cần cấp quyền cho API"
     )]
-    public async Task<StudentSurveySelectResponse> InsertStudentSurveyAsync([FromQuery] StudentSurveySelectQuery request)
+    public async Task<StudentSurveySelectResponse> SelectStudentSurveyAsync([FromQuery] StudentSurveySelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<StudentSurveySelectQuery, StudentSurveySelectResponse, List<StudentSurveySelectResponseEntity>>(
             request,

@@ -9,9 +9,9 @@ public record StudentSurveySelectResponse : AbstractApiResponse<List<StudentSurv
 
 public record StudentSurveySelectResponseEntity
 {
-    public Guid StudentQuizId { get; set; }
+    public Guid StudentSurveyId { get; set; }
     
-    public StudentSurveySelectQuizResponseEntity Quiz { get; set; }
+    public StudentSurveySelectQuizResponseEntity Survey { get; set; }
 }
 
 public record StudentSurveySelectQuizResponseEntity
