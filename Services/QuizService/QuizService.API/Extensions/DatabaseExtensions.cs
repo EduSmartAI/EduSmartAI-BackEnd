@@ -63,6 +63,12 @@ public static class DatabaseExtensions
                 .Identity(x => x.StudentAnswerId)
                 .Duplicate(x => x.QuestionId)
                 .Duplicate(x => x.AnswerId);
+            
+            options.Schema.For<StudentQuizAnswerCollection>()
+                .Identity(x => x.StudentQuizAnswerId);
+            
+            options.Schema.For<StudentQuizCollection>()
+                .Identity(x => x.StudentQuizId);
         });
         
         return services;

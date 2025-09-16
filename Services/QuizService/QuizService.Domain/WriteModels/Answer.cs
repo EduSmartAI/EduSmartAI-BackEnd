@@ -27,5 +27,5 @@ public partial class Answer
 
     public virtual ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();
 
-    public virtual ICollection<StudentSurveyAnswer> StudentSurveyAnswers { get; set; } = new List<StudentSurveyAnswer>();
+    public virtual ICollection<StudentQuizAnswer> StudentQuizAnswers { get; set; } = new List<StudentQuizAnswer>();
 }

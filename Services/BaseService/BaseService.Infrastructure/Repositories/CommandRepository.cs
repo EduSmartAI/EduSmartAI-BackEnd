@@ -169,6 +169,15 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
     }
 
     /// <summary>
+    /// Add a range of entities to the database asynchronously
+    /// </summary>
+    /// <param name="entities"></param>
+    public async Task AddRangeAsync(IEnumerable<TEntity> entities)
+    {
+        await context.AddRangeAsync(entities);
+    }
+
+    /// <summary>
     /// Update entity in the database
     /// </summary>
     /// <param name="entity"></param>

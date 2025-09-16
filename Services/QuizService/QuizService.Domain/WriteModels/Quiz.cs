@@ -27,9 +27,11 @@ public partial class Quiz
 
     public short QuizType { get; set; }
 
+    public Guid? ExamId { get; set; }
+
     public virtual ICollection<Question> Questions { get; set; } = new List<Question>();
 
-    public virtual ICollection<StudentSurvey> StudentSurveys { get; set; } = new List<StudentSurvey>();
+    public virtual ICollection<StudentQuiz> StudentQuizzes { get; set; } = new List<StudentQuiz>();
 
-    public virtual Test Test { get; set; } = null!;
+    public virtual Test? Test { get; set; }
 }

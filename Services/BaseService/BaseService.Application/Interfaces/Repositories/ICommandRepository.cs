@@ -60,6 +60,9 @@ public interface ICommandRepository<TEntity> where TEntity : class
     /// <param name="entities"></param>
     /// <returns></returns>
     Task AddRangeAsync(IEnumerable<TEntity> entities, string userEmail);
+    
+    Task AddRangeAsync(IEnumerable<TEntity> entities);
+
 
     /// <summary>
     /// Update entity in the database.

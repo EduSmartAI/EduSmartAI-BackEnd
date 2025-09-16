@@ -23,6 +23,8 @@ public sealed class QuizCollection
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+    
+    public Guid? ExamId { get; set; }
     public ICollection<QuestionCollection> Questions { get; set; } = new List<QuestionCollection>();
 
     public static QuizCollection FromWriteModel(Quiz model)
@@ -34,6 +36,7 @@ public sealed class QuizCollection
             Description = model.Description,
             SubjectCode = model.SubjectCode,
             QuizType = model.QuizType,
+            ExamId = model.ExamId,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

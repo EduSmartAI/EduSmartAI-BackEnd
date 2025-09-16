@@ -19,13 +19,14 @@ public partial class QuizServiceContext : AppDbContext
 
     public virtual DbSet<StudentAnswer> StudentAnswers { get; set; }
 
-    public virtual DbSet<StudentSurvey> StudentSurveys { get; set; }
+    public virtual DbSet<StudentQuiz> StudentQuizzes { get; set; }
 
-    public virtual DbSet<StudentSurveyAnswer> StudentSurveyAnswers { get; set; }
+    public virtual DbSet<StudentQuizAnswer> StudentQuizAnswers { get; set; }
 
     public virtual DbSet<StudentTest> StudentTests { get; set; }
 
     public virtual DbSet<Test> Tests { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -97,6 +98,8 @@ public partial class QuizServiceContext : AppDbContext
 
             entity.ToTable("quizzes");
 
+            entity.HasIndex(e => e.ExamId, "quizzes_unique").IsUnique();
+
             entity.Property(e => e.QuizId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("quiz_id");
@@ -105,6 +108,7 @@ public partial class QuizServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ExamId).HasColumnName("exam_id");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
@@ -123,6 +127,7 @@ public partial class QuizServiceContext : AppDbContext
 
             entity.HasOne(d => d.Test).WithMany(p => p.Quizzes)
                 .HasForeignKey(d => d.TestId)
+                .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("quizzes_test_id_fkey");
         });
 
@@ -163,15 +168,15 @@ public partial class QuizServiceContext : AppDbContext
                 .HasConstraintName("student_answers_student_test_id_fkey");
         });
 
-        modelBuilder.Entity<StudentSurvey>(entity =>
+        modelBuilder.Entity<StudentQuiz>(entity =>
         {
-            entity.HasKey(e => e.StudentSurveyId).HasName("student_surveys_pkey");
+            entity.HasKey(e => e.StudentQuizId).HasName("student_quizzes_pkey");
 
-            entity.ToTable("student_surveys");
+            entity.ToTable("student_quizzes");
 
-            entity.Property(e => e.StudentSurveyId)
+            entity.Property(e => e.StudentQuizId)
                 .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("student_survey_id");
+                .HasColumnName("student_quiz_id");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
@@ -179,27 +184,27 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
-            entity.Property(e => e.SurveyId).HasColumnName("survey_id");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
 
-            entity.HasOne(d => d.Survey).WithMany(p => p.StudentSurveys)
-                .HasForeignKey(d => d.SurveyId)
-                .HasConstraintName("student_surveys_survey_id_fkey");
+            entity.HasOne(d => d.Quiz).WithMany(p => p.StudentQuizzes)
+                .HasForeignKey(d => d.QuizId)
+                .HasConstraintName("student_quizzes_quiz_id_fkey");
         });
 
-        modelBuilder.Entity<StudentSurveyAnswer>(entity =>
+        modelBuilder.Entity<StudentQuizAnswer>(entity =>
         {
-            entity.HasKey(e => e.StudentSurveyAnswerId).HasName("student_survey_answers_pkey");
+            entity.HasKey(e => e.StudentQuizAnswerId).HasName("student_quiz_answers_pkey");
 
-            entity.ToTable("student_survey_answers");
+            entity.ToTable("student_quiz_answers");
 
-            entity.Property(e => e.StudentSurveyAnswerId)
+            entity.Property(e => e.StudentQuizAnswerId)
                 .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("student_survey_answer_id");
+                .HasColumnName("student_quiz_answer_id");
             entity.Property(e => e.AnswerId).HasColumnName("answer_id");
             entity.Property(e => e.AnswerText)
                 .HasMaxLength(500)
@@ -212,23 +217,23 @@ public partial class QuizServiceContext : AppDbContext
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
             entity.Property(e => e.QuestionId).HasColumnName("question_id");
-            entity.Property(e => e.StudentSurveyId).HasColumnName("student_survey_id");
+            entity.Property(e => e.StudentQuizId).HasColumnName("student_quiz_id");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
 
-            entity.HasOne(d => d.Answer).WithMany(p => p.StudentSurveyAnswers)
+            entity.HasOne(d => d.Answer).WithMany(p => p.StudentQuizAnswers)
                 .HasForeignKey(d => d.AnswerId)
-                .HasConstraintName("student_survey_answers_answer_id_fkey");
+                .HasConstraintName("student_quiz_answers_answer_id_fkey");
 
-            entity.HasOne(d => d.Question).WithMany(p => p.StudentSurveyAnswers)
+            entity.HasOne(d => d.Question).WithMany(p => p.StudentQuizAnswers)
                 .HasForeignKey(d => d.QuestionId)
-                .HasConstraintName("student_survey_answers_question_id_fkey");
+                .HasConstraintName("student_quiz_answers_question_id_fkey");
 
-            entity.HasOne(d => d.StudentSurvey).WithMany(p => p.StudentSurveyAnswers)
-                .HasForeignKey(d => d.StudentSurveyId)
-                .HasConstraintName("student_survey_answers_student_survey_id_fkey");
+            entity.HasOne(d => d.StudentQuiz).WithMany(p => p.StudentQuizAnswers)
+                .HasForeignKey(d => d.StudentQuizId)
+                .HasConstraintName("student_quiz_answers_student_quiz_id_fkey");
         });
 
         modelBuilder.Entity<StudentTest>(entity =>

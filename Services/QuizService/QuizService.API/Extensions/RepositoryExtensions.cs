@@ -27,12 +27,16 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<Question>, CommandRepository<Question>>();
         services.AddScoped<ICommandRepository<Answer>, CommandRepository<Answer>>();
         services.AddScoped<ICommandRepository<StudentTest>, CommandRepository<StudentTest>>();
+        services.AddScoped<ICommandRepository<StudentQuiz>, CommandRepository<StudentQuiz>>();
+        services.AddScoped<ICommandRepository<StudentQuizAnswer>, CommandRepository<StudentQuizAnswer>>();
         
         services.AddScoped<IQueryRepository<TestCollection>, QueryRepository<TestCollection>>();
         services.AddScoped<IQueryRepository<QuizCollection>, QueryRepository<QuizCollection>>();
         services.AddScoped<IQueryRepository<QuestionCollection>, QueryRepository<QuestionCollection>>();
         services.AddScoped<IQueryRepository<AnswerCollection>, QueryRepository<AnswerCollection>>();
         services.AddScoped<IQueryRepository<StudentTestCollection>, QueryRepository<StudentTestCollection>>();
+        services.AddScoped<IQueryRepository<StudentQuizAnswerCollection>, QueryRepository<StudentQuizAnswerCollection>>();
+        services.AddScoped<IQueryRepository<StudentQuizCollection>, QueryRepository<StudentQuizCollection>>();
         
         // Services
         services.AddScoped<ITestService, TestService>();
@@ -40,6 +44,7 @@ public static class RepositoryExtensions
         services.AddScoped<IQuestionService, QuestionService>();
         services.AddScoped<IAnswerService, AnswerService>();
         services.AddScoped<IStudentTestService, StudentTestService>();
+        services.AddScoped<IStudentQuizService, StudentQuizService>();
         
         // MediatR configuration
         services.AddMediatR(cfg =>

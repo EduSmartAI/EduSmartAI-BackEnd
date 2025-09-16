@@ -12,7 +12,8 @@ public static class ConstantEnum
     public enum TestType
     {
         Survey = 1,
-        Quiz = 2
+        Quiz = 2,
+        Exam = 3,
     }
     
     public enum PaymentStatus

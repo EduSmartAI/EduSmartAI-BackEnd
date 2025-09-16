@@ -3,11 +3,11 @@ using System.Collections.Generic;
 
 namespace QuizService.Domain.WriteModels;
 
-public partial class StudentSurveyAnswer
+public partial class StudentQuizAnswer
 {
-    public Guid StudentSurveyAnswerId { get; set; }
+    public Guid StudentQuizAnswerId { get; set; }
 
-    public Guid StudentSurveyId { get; set; }
+    public Guid StudentQuizId { get; set; }
 
     public Guid QuestionId { get; set; }
 
@@ -29,5 +29,5 @@ public partial class StudentSurveyAnswer
 
     public virtual Question Question { get; set; } = null!;
 
-    public virtual StudentSurvey StudentSurvey { get; set; } = null!;
+    public virtual StudentQuiz StudentQuiz { get; set; } = null!;
 }
