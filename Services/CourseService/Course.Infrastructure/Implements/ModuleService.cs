@@ -95,7 +95,7 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
-		private async Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string currentUser)
+		private Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string currentUser)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -103,10 +103,8 @@ namespace Course.Infrastructure.Implements
 				foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
 				{
 					obj.IsActive = false;
-					obj.UpdatedAt = DateTime.UtcNow;
-					obj.UpdatedBy = currentUser;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -117,8 +115,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing objectives or create new ones
@@ -130,8 +126,6 @@ namespace Course.Infrastructure.Implements
 					existing.Content = objDto.Content;
 					existing.PositionIndex = objDto.PositionIndex;
 					existing.IsActive = objDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -150,12 +144,14 @@ namespace Course.Infrastructure.Implements
 					module.ModuleObjectives.Add(newObjective);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Update Lessons based on payload
 		/// </summary>
-		private async Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string currentUser)
+		private Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string currentUser)
 		{
 			if (lessons is null || lessons.Count == 0)
 			{
@@ -163,10 +159,8 @@ namespace Course.Infrastructure.Implements
 				foreach (var lesson in module.Lessons.Where(l => l.IsActive))
 				{
 					lesson.IsActive = false;
-					lesson.UpdatedAt = DateTime.UtcNow;
-					lesson.UpdatedBy = currentUser;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -177,8 +171,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing lessons or create new ones
@@ -192,8 +184,6 @@ namespace Course.Infrastructure.Implements
 					existing.VideoDurationSec = lessonDto.VideoDurationSec;
 					existing.PositionIndex = lessonDto.PositionIndex;
 					existing.IsActive = lessonDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -214,6 +204,8 @@ namespace Course.Infrastructure.Implements
 					module.Lessons.Add(newLesson);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>

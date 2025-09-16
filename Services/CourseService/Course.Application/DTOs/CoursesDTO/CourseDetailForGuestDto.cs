@@ -25,7 +25,12 @@ namespace Course.Application.DTOs.CoursesDTO
 		DateTime UpdatedAt,
 		List<CourseObjectiveDto> Objectives,
 		List<CourseRequirementDto> Requirements,
-		List<ModuleDetailDto<GuestLessonDetailDto>> Modules
+		List<ModuleDetailDto<GuestLessonDetailDto>> Modules,
+		List<CourseCommentDto> Comments,
+		List<CourseTagDto> Tags,
+		List<CourseRatingDto> Ratings,
+		int RatingsCount,
+		double RatingsAverage
 	);
 
 	public record CourseObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);

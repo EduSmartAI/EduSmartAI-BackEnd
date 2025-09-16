@@ -246,7 +246,7 @@ namespace Course.Infrastructure.Implements
 				Slug = slug,
 				CourseImageUrl = dto.CourseImageUrl,
 				//Status = dto.Status,          // nếu enum: dto.Status; nếu string: giữ nguyên
-				LearnerCount = 0,                   // mặc định
+				LearnerCount = 0,
 				DurationMinutes = dto.DurationMinutes,
 				Level = dto.Level,
 				Price = dto.Price,
@@ -465,6 +465,40 @@ namespace Course.Infrastructure.Implements
 						.ToList()
 				)).ToList();
 
+			// Comments
+			var comments = e.CourseComments
+							.OrderBy(c => c.CreatedAt)
+							.Select(c => new CourseCommentDto(
+								c.CommentId,
+								c.UserId,
+								c.Content,
+								c.ParentCommentId,
+								c.CreatedAt,
+								c.IsActive
+							)).ToList();
+
+			// Tags
+			var tags = e.CourseTags
+				.Select(t => new CourseTagDto(
+					t.TagId,
+					t.Tag?.TagName ?? string.Empty
+				)).ToList();
+
+			// Ratings + thống kê
+			var ratings = e.CourseRatings
+				.OrderByDescending(r => r.CreatedAt)
+				.Select(r => new CourseRatingDto(
+					r.RatingId,
+					r.UserId,
+					r.Rating,
+					r.CreatedAt
+				)).ToList();
+
+			var ratingsCount = ratings.Count;
+			var ratingsAverage = ratingsCount > 0
+				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
+				: 0.0;
+
 			return new CourseDetailForGuestDto(
 				e.CourseId,
 				e.TeacherId,
@@ -492,7 +526,13 @@ namespace Course.Infrastructure.Implements
 					.OrderBy(r => r.PositionIndex)
 					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
 					.ToList(),
-				modules
+				modules,
+				comments,
+				tags,
+				ratings,
+				ratingsCount,
+				//ratingsAverage
+				5.0
 			);
 		}
 
@@ -535,6 +575,40 @@ namespace Course.Infrastructure.Implements
 						.ToList()
 				)).ToList();
 
+			// Comments
+			var comments = e.CourseComments
+							.OrderBy(c => c.CreatedAt)
+							.Select(c => new CourseCommentDto(
+								c.CommentId,
+								c.UserId,
+								c.Content,
+								c.ParentCommentId,
+								c.CreatedAt,
+								c.IsActive
+							)).ToList();
+
+			// Tags
+			var tags = e.CourseTags
+				.Select(t => new CourseTagDto(
+					t.TagId,
+					t.Tag?.TagName ?? string.Empty
+				)).ToList();
+
+			// Ratings + thống kê
+			var ratings = e.CourseRatings
+				.OrderByDescending(r => r.CreatedAt)
+				.Select(r => new CourseRatingDto(
+					r.RatingId,
+					r.UserId,
+					r.Rating,
+					r.CreatedAt
+				)).ToList();
+
+			var ratingsCount = ratings.Count;
+			var ratingsAverage = ratingsCount > 0
+				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
+				: 0.0;
+
 			return new CourseDetailForLectureDto(
 				e.CourseId,
 				e.TeacherId,
@@ -568,7 +642,13 @@ namespace Course.Infrastructure.Implements
 					.OrderBy(r => r.PositionIndex)
 					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
 					.ToList(),
-				modules
+				modules,
+				comments,
+				tags,
+				ratings,
+				ratingsCount,
+				//ratingsAverage
+				5.0
 			);
 		}
 
@@ -721,7 +801,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Update CourseObjectives based on payload
 		/// </summary>
-		private async Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor)
+		private Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -730,7 +810,7 @@ namespace Course.Infrastructure.Implements
 				{
 					obj.IsActive = false;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -770,12 +850,14 @@ namespace Course.Infrastructure.Implements
 					course.CourseObjectives.Add(newObjective);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Update CourseRequirements based on payload
 		/// </summary>
-		private async Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor)
+		private Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor)
 		{
 			if (requirements is null || requirements.Count == 0)
 			{
@@ -784,7 +866,7 @@ namespace Course.Infrastructure.Implements
 				{
 					req.IsActive = false;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -824,6 +906,8 @@ namespace Course.Infrastructure.Implements
 					course.CourseRequirements.Add(newRequirement);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
@@ -854,6 +938,9 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives)
 				.Include(x => x.CourseRequirements)
+				.Include(x => x.CourseComments)
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
 				.Include(x => x.Modules).ThenInclude(m => m.ModuleObjectives)
 				.Include(x => x.Modules).ThenInclude(m => m.Lessons);
 
@@ -906,6 +993,9 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives)
 				.Include(x => x.CourseRequirements)
+				.Include(x => x.CourseComments)
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
 				.Include(x => x.Modules).ThenInclude(m => m.ModuleObjectives)
 				.Include(x => x.Modules).ThenInclude(m => m.Lessons);
 
@@ -1111,7 +1201,7 @@ namespace Course.Infrastructure.Implements
 		/// <summary>
 		/// Create new module with its objectives and lessons
 		/// </summary>
-		private async Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor)
+		private Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor)
 		{
 			var now = DateTime.UtcNow;
 
@@ -1172,12 +1262,14 @@ namespace Course.Infrastructure.Implements
 			}
 
 			course.Modules.Add(newModule);
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Update ModuleObjectives for existing module
 		/// </summary>
-		private async Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor)
+		private Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -1186,7 +1278,7 @@ namespace Course.Infrastructure.Implements
 				{
 					obj.IsActive = false;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -1226,12 +1318,14 @@ namespace Course.Infrastructure.Implements
 					module.ModuleObjectives.Add(newObjective);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Update Lessons for existing module
 		/// </summary>
-		private async Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor)
+		private Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor)
 		{
 			if (lessons is null || lessons.Count == 0)
 			{
@@ -1240,7 +1334,7 @@ namespace Course.Infrastructure.Implements
 				{
 					lesson.IsActive = false;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -1284,6 +1378,7 @@ namespace Course.Infrastructure.Implements
 					module.Lessons.Add(newLesson);
 				}
 			}
+			return Task.CompletedTask;
 		}
 	}
 
