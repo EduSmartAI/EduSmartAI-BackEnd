@@ -23,7 +23,6 @@ namespace Course.Infrastructure
 			IConfiguration configuration)
 		{
 			// Add infrastructure services here, e.g., database context, repositories, etc.
-			//var connectionString = configuration.GetConnectionString("Database");
 			var connectionString = Environment.GetEnvironmentVariable(ConstEnv.CourseServiceDb);
 
 			var redisConnectionString = Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!;
@@ -48,7 +47,7 @@ namespace Course.Infrastructure
 			services.AddScoped<IModuleRepository, ModuleRepository>();
 			services.AddScoped<IModuleService, ModuleService>();
 
-			services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
+			//services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
 
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
 			services.AddMarten(options => { options.Connection(connectionString!); });

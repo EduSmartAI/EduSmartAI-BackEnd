@@ -35,6 +35,20 @@ namespace Course.Infrastructure.Implements
 		 */
 		public async Task<UpdateModuleResponse> UpdateModuleAsync(Guid moduleId, UpdateModuleDto dto, CancellationToken ct = default)
 		{
+			var response = new UpdateModuleResponse { Success = false };
+
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system",
+					Email = "system",
+				};
+			}
+
 			// 1. Validate PositionIndex uniqueness
 			ValidateModulePositionIndexes(dto);
 
@@ -46,23 +60,9 @@ namespace Course.Infrastructure.Implements
 				.FirstOrDefaultAsync(ct);
 
 			if (existingModule is null)
-				return new UpdateModuleResponse
-				{
-					Success = false,
-					Message = $"Module {moduleId} not found"
-				};
-
-			const string actor = "system"; // TODO: inject IUserContext để lấy username thực
-
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
 			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system"
-				};
+				response.Message = $"Module {moduleId} not found";
+				return response;
 			}
 
 			// 3. Update basic module properties
@@ -75,27 +75,27 @@ namespace Course.Infrastructure.Implements
 			existingModule.Level = dto.Level;
 
 			// 4. Update ModuleObjectives
-			await UpdateModuleObjectivesAsync(existingModule, dto.Objectives, currentUser.FullName, ct);
+			await UpdateModuleObjectivesAsync(existingModule, dto.Objectives, currentUser.Email);
 
 			// 5. Update Lessons
-			await UpdateLessonsAsync(existingModule, dto.Lessons, currentUser.FullName, ct);
+			await UpdateLessonsAsync(existingModule, dto.Lessons, currentUser.Email);
 
 			// 6. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_moduleRepository.Update(existingModule, currentUser.FullName);
+				_moduleRepository.Update(existingModule, currentUser.Email);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
 
-			return new UpdateModuleResponse
-			{
-				Success = true,
-				Message = "Module updated successfully"
-			};
+			// 7. Return success response
+			response.Success = true;
+			response.Message = "Module updated successfully";
+
+			return response;
 		}
 
-		private async Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string currentUser, CancellationToken ct)
+		private Task UpdateModuleObjectivesAsync(Module module, List<UpdateModuleObjectiveDto>? objectives, string currentUser)
 		{
 			if (objectives is null || objectives.Count == 0)
 			{
@@ -103,10 +103,8 @@ namespace Course.Infrastructure.Implements
 				foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
 				{
 					obj.IsActive = false;
-					obj.UpdatedAt = DateTime.UtcNow;
-					obj.UpdatedBy = currentUser;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -117,8 +115,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing objectives or create new ones
@@ -130,8 +126,6 @@ namespace Course.Infrastructure.Implements
 					existing.Content = objDto.Content;
 					existing.PositionIndex = objDto.PositionIndex;
 					existing.IsActive = objDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -150,12 +144,14 @@ namespace Course.Infrastructure.Implements
 					module.ModuleObjectives.Add(newObjective);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
 		/// Update Lessons based on payload
 		/// </summary>
-		private async Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string currentUser, CancellationToken ct)
+		private Task UpdateLessonsAsync(Module module, List<UpdateLessonDto> lessons, string currentUser)
 		{
 			if (lessons is null || lessons.Count == 0)
 			{
@@ -163,10 +159,8 @@ namespace Course.Infrastructure.Implements
 				foreach (var lesson in module.Lessons.Where(l => l.IsActive))
 				{
 					lesson.IsActive = false;
-					lesson.UpdatedAt = DateTime.UtcNow;
-					lesson.UpdatedBy = currentUser;
 				}
-				return;
+				return Task.CompletedTask;
 			}
 
 			var now = DateTime.UtcNow;
@@ -177,8 +171,6 @@ namespace Course.Infrastructure.Implements
 			foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
 			{
 				existing.IsActive = false;
-				existing.UpdatedAt = now;
-				existing.UpdatedBy = currentUser;
 			}
 
 			// 2. Update existing lessons or create new ones
@@ -192,8 +184,6 @@ namespace Course.Infrastructure.Implements
 					existing.VideoDurationSec = lessonDto.VideoDurationSec;
 					existing.PositionIndex = lessonDto.PositionIndex;
 					existing.IsActive = lessonDto.IsActive;
-					existing.UpdatedAt = now;
-					existing.UpdatedBy = currentUser;
 				}
 				else
 				{
@@ -214,6 +204,8 @@ namespace Course.Infrastructure.Implements
 					module.Lessons.Add(newLesson);
 				}
 			}
+
+			return Task.CompletedTask;
 		}
 
 		/// <summary>
