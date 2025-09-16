@@ -106,6 +106,8 @@ public class TestService : ITestService
             }
             
             await _unitOfWork.SessionSaveChangesAsync();
+            await _unitOfWork.CacheRemoveAsync("test:id");
+            await _unitOfWork.CacheRemoveAsync("quiz:list");
 
             // True
             response.Success = true;
