@@ -1,7 +1,5 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Infrastructure.Identities;
-using BaseService.Infrastructure.Repositories;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
@@ -15,8 +13,8 @@ using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
 using Course.Infrastructure.Caching;
+using Course.Infrastructure.Extensions;
 using FluentValidation;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using System.Linq.Expressions;
@@ -163,54 +161,113 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Generate cache key for GetAllAsync method based on pagination and query parameters
+		/// Get course details by ID for guest users
 		/// </summary>
-		/// <param name="pagination"></param>
-		/// <param name="query"></param>
+		/// <param name="Id"></param>
+		/// <param name="ct"></param>
 		/// <returns></returns>
-		private static string GenerateCacheKeyForGetAll(PaginationRequest pagination, CourseQuery? query)
+		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default)
 		{
-			var keyParts = new List<string> { "Courses:GetAll" };
+			var response = new GetCourseByIdForGuestResponse() { Success = false };
 
-			// Add pagination parameters
-			keyParts.Add($"PageIndex:{pagination.PageIndex}");
-			keyParts.Add($"PageSize:{pagination.PageSize}");
-
-			// Add query parameters if present
-			if (query is not null)
+			var cacheKey = $"CourseDetailForGuest:{Id}";
+			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			if (cached is not null)
 			{
-				if (!string.IsNullOrWhiteSpace(query.Search))
-					keyParts.Add($"Search:{query.Search.Trim().ToLowerInvariant()}");
-
-				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
-					keyParts.Add($"SubjectCode:{query.SubjectCode.Trim().ToLowerInvariant()}");
-
-				if (query.IsActive.HasValue)
-					keyParts.Add($"IsActive:{query.IsActive.Value}");
-
-				if (query.LectureId.HasValue)
-					keyParts.Add($"TeacherId:{query.LectureId.Value}");
-
-				keyParts.Add($"SortBy:{query.SortBy}");
+				response.Success = true;
+				response.Message = "OK (from cache)";
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
 			}
 
-			return string.Join(":", keyParts);
+			var baseQuery = _courseRepository
+				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.Message = $"Course {Id} not found";
+				return response;
+			}
+
+			var detail = MapCourseDetailForGuest(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.Message = "OK";
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
 		}
 
 		/// <summary>
-		/// Clear cache for GetAllAsync method when course data changes
+		/// Get course details by ID for lecturer (instructor) users
 		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="ct"></param>
 		/// <returns></returns>
-		private async Task ClearGetAllCacheAsync()
+		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default)
 		{
-			// Get all cache keys that start with "Courses:GetAll"
-			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
-			var keys = server.Keys(pattern: "Courses:GetAll*");
+			var response = new GetCourseByIdForLectureResponse() { Success = false };
 
-			if (keys.Any())
+			var cacheKey = $"CourseDetailForLecture:{Id}";
+			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			if (cached is not null)
 			{
-				await _cache.KeyDeleteAsync(keys.ToArray());
+				response.Success = true;
+				response.Message = "OK (from cache)";
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
 			}
+
+			var baseQuery = _courseRepository
+				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.Message = $"Course {Id} not found";
+				return response;
+			}
+
+			var detail = MapCourseDetailForLecture(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.Message = "OK";
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
 		}
 
 		/// <summary>
@@ -357,6 +414,207 @@ namespace Course.Infrastructure.Implements
 			response.Message = "Course created successfully";
 
 			return response;
+		}
+
+		/// <summary>
+		/// Update course and its related data (objectives, requirements)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="dto"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
+		{
+			var response = new UpdateCourseResponse() { Success = false };
+			// 1. Validate PositionIndex uniqueness
+			ValidatePositionIndexes(dto);
+
+			// 2. Get existing course with all related data
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct,
+					x => x.CourseObjectives,
+					x => x.CourseRequirements)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingCourse is null)
+			{
+				response.Message = $"Course {courseId} not found";
+				return response;
+			}
+
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system",
+					Email = "system"
+				};
+			}
+
+			// 3. Update basic course properties
+			existingCourse.TeacherId = dto.TeacherId;
+			existingCourse.SubjectId = dto.SubjectId;
+			existingCourse.Title = dto.Title?.Trim() ?? string.Empty;
+			existingCourse.ShortDescription = dto.ShortDescription;
+			existingCourse.Description = dto.Description;
+			existingCourse.CourseImageUrl = dto.CourseImageUrl;
+			existingCourse.DurationMinutes = dto.DurationMinutes;
+			existingCourse.Level = dto.Level;
+			existingCourse.Price = dto.Price;
+			existingCourse.DealPrice = dto.DealPrice;
+			existingCourse.IsActive = dto.IsActive;
+
+			// 4. Handle slug update with uniqueness check
+			if (!string.IsNullOrWhiteSpace(dto.Slug))
+			{
+				var newSlug = dto.Slug.Trim();
+				if (newSlug != existingCourse.Slug)
+				{
+					existingCourse.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
+				}
+			}
+
+			// 5. Update CourseObjectives
+			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.Email);
+
+			// 6. Update CourseRequirements
+			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
+
+			// 7. Save changes in transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				_courseRepository.Update(existingCourse, currentUser.Email);
+				await unitOfWork.SaveChangesAsync(ct);
+				return true;
+			}, ct);
+
+			// 8. Clear cache after successful update
+			await ClearGetAllCacheAsync();
+
+			// 9. Return updated course detail
+			response.Success = true;
+			response.Message = "Course updated successfully";
+			return response;
+		}
+
+		/// <summary>
+		/// Update multiple modules in a course (bulk update)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="dto"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
+		{
+			var response = new UpdateCourseModulesResponse() { Success = false };
+			// 1. Validate PositionIndex uniqueness across all modules
+			ValidateCourseModulesPositionIndexes(dto);
+
+			// 2. Get existing course with all modules and related data
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct,
+					x => x.Modules)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.ModuleObjectives)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.Lessons)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingCourse is null)
+			{
+				response.Message = $"Course {courseId} not found";
+				return response;
+			}
+
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				currentUser = new IdentityEntity
+				{
+					UserId = Guid.Empty,
+					FullName = "system",
+					Email = "system"
+				};
+			}
+
+			// 3. Update modules based on payload
+			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.Email);
+
+			// 4. Save changes in transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				_courseRepository.Update(existingCourse, currentUser.Email);
+				await unitOfWork.SaveChangesAsync(ct);
+				return true;
+			}, ct);
+
+			// 5. Clear cache after successful update
+			await ClearGetAllCacheAsync();
+
+			// 6. Return response
+			response.Success = true;
+			response.Message = "Course modules updated successfully";
+
+			return response;
+		}
+
+
+
+		#region Private Helper Methods
+
+		/// <summary>
+		/// Generate cache key for GetAllAsync method based on pagination and query parameters
+		/// </summary>
+		/// <param name="pagination"></param>
+		/// <param name="query"></param>
+		/// <returns></returns>
+		private static string GenerateCacheKeyForGetAll(PaginationRequest pagination, CourseQuery? query)
+		{
+			var keyParts = new List<string> { "Courses:GetAll" };
+
+			// Add pagination parameters
+			keyParts.Add($"PageIndex:{pagination.PageIndex}");
+			keyParts.Add($"PageSize:{pagination.PageSize}");
+
+			// Add query parameters if present
+			if (query is not null)
+			{
+				if (!string.IsNullOrWhiteSpace(query.Search))
+					keyParts.Add($"Search:{query.Search.Trim().ToLowerInvariant()}");
+
+				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
+					keyParts.Add($"SubjectCode:{query.SubjectCode.Trim().ToLowerInvariant()}");
+
+				if (query.IsActive.HasValue)
+					keyParts.Add($"IsActive:{query.IsActive.Value}");
+
+				if (query.LectureId.HasValue)
+					keyParts.Add($"TeacherId:{query.LectureId.Value}");
+
+				keyParts.Add($"SortBy:{query.SortBy}");
+			}
+
+			return string.Join(":", keyParts);
+		}
+
+		/// <summary>
+		/// Clear cache for GetAllAsync method when course data changes
+		/// </summary>
+		/// <returns></returns>
+		private async Task ClearGetAllCacheAsync()
+		{
+			// Get all cache keys that start with "Courses:GetAll"
+			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
+			var keys = server.Keys(pattern: "Courses:GetAll*");
+
+			if (keys.Any())
+			{
+				await _cache.KeyDeleteAsync(keys.ToArray());
+			}
 		}
 
 		/// <summary>
@@ -684,93 +942,11 @@ namespace Course.Infrastructure.Implements
 			UpdatedAt: e.UpdatedAt
 		);
 
-		/*
-		 | Thực thể | Điều kiện payload  |                  Tồn tại trong DB | Hành động    |
-		 | -------- | ------------------ | --------------------------------: | ------------ |
-		 | Module   | `moduleId == null` |                                 — | **Thêm mới** |
-		 | Module   | `moduleId != null` |                   Có trong course | **Cập nhật** |
-		 | Module   | (Bất kỳ)           | Không còn xuất hiện trong payload | **Xóa**      |
-		 | Lesson   | `lessonId == null` |                                 — | **Thêm mới** |
-		 | Lesson   | `lessonId != null` |                   Có trong module | **Cập nhật** |
-		 | Lesson   | (Bất kỳ)           | Không còn xuất hiện trong payload | **Xóa**      |
-		 */
-		public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
-		{
-			var response = new UpdateCourseResponse() { Success = false };
-			// 1. Validate PositionIndex uniqueness
-			ValidatePositionIndexes(dto);
-
-			// 2. Get existing course with all related data
-			var existingCourse = await _courseRepository
-				.Find(x => x.CourseId == courseId, isTracking: true, ct,
-					x => x.CourseObjectives,
-					x => x.CourseRequirements)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingCourse is null)
-			{
-				response.Message = $"Course {courseId} not found";
-				return response;
-			}
-
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system"
-				};
-			}
-
-			// 3. Update basic course properties
-			existingCourse.TeacherId = dto.TeacherId;
-			existingCourse.SubjectId = dto.SubjectId;
-			existingCourse.Title = dto.Title?.Trim() ?? string.Empty;
-			existingCourse.ShortDescription = dto.ShortDescription;
-			existingCourse.Description = dto.Description;
-			existingCourse.CourseImageUrl = dto.CourseImageUrl;
-			existingCourse.DurationMinutes = dto.DurationMinutes;
-			existingCourse.Level = dto.Level;
-			existingCourse.Price = dto.Price;
-			existingCourse.DealPrice = dto.DealPrice;
-			existingCourse.IsActive = dto.IsActive;
-
-			// 4. Handle slug update with uniqueness check
-			if (!string.IsNullOrWhiteSpace(dto.Slug))
-			{
-				var newSlug = dto.Slug.Trim();
-				if (newSlug != existingCourse.Slug)
-				{
-					existingCourse.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
-				}
-			}
-
-			// 5. Update CourseObjectives
-			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.Email);
-
-			// 6. Update CourseRequirements
-			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
-
-			// 7. Save changes in transaction
-			await unitOfWork.BeginTransactionAsync(async () =>
-			{
-				_courseRepository.Update(existingCourse, currentUser.Email);
-				await unitOfWork.SaveChangesAsync(ct);
-				return true;
-			}, ct);
-
-			// 8. Clear cache after successful update
-			await ClearGetAllCacheAsync();
-
-			// 9. Return updated course detail
-			response.Success = true;
-			response.Message = "Course updated successfully";
-			return response;
-		}
-
+		/// <summary>
+		/// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
+		/// </summary>
+		/// <param name="dto"></param>
+		/// <exception cref="ValidationException"></exception>
 		private static void ValidatePositionIndexes(UpdateCourseDto dto)
 		{
 			// Course Objectives (chỉ active)
@@ -914,178 +1090,6 @@ namespace Course.Infrastructure.Implements
 			}
 
 			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Get course details by ID for guest users
-		/// </summary>
-		/// <param name="id"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default)
-		{
-			var response = new GetCourseByIdForGuestResponse() { Success = false };
-
-			var cacheKey = $"CourseDetailForGuest:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.Message = "OK (from cache)";
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.Message = $"Course {Id} not found";
-				return response;
-			}
-
-			var detail = MapCourseDetailForGuest(entity);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.Message = "OK";
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Get course details by ID for lecturer (instructor) users
-		/// </summary>
-		/// <param name="id"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default)
-		{
-			var response = new GetCourseByIdForLectureResponse() { Success = false };
-
-			var cacheKey = $"CourseDetailForLecture:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.Message = "OK (from cache)";
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.Message = $"Course {Id} not found";
-				return response;
-			}
-
-			var detail = MapCourseDetailForLecture(entity);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.Message = "OK";
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Update multiple modules in a course (bulk update)
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="dto"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
-		{
-			var response = new UpdateCourseModulesResponse() { Success = false };
-			// 1. Validate PositionIndex uniqueness across all modules
-			ValidateCourseModulesPositionIndexes(dto);
-
-			// 2. Get existing course with all modules and related data
-			var existingCourse = await _courseRepository
-				.Find(x => x.CourseId == courseId, isTracking: true, ct,
-					x => x.Modules)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.ModuleObjectives)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.Lessons)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingCourse is null)
-			{
-				response.Message = $"Course {courseId} not found";
-				return response;
-			}
-
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system"
-				};
-			}
-
-			// 3. Update modules based on payload
-			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.Email);
-
-			// 4. Save changes in transaction
-			await unitOfWork.BeginTransactionAsync(async () =>
-			{
-				_courseRepository.Update(existingCourse, currentUser.Email);
-				await unitOfWork.SaveChangesAsync(ct);
-				return true;
-			}, ct);
-
-			// 5. Clear cache after successful update
-			await ClearGetAllCacheAsync();
-
-			// 6. Return response
-			response.Success = true;
-			response.Message = "Course modules updated successfully";
-
-			return response;
 		}
 
 		/// <summary>
@@ -1386,37 +1390,7 @@ namespace Course.Infrastructure.Implements
 			}
 			return Task.CompletedTask;
 		}
-	}
 
-	// Expression helper để AND các biểu thức
-	internal static class ExpressionExtensions
-	{
-		public static Expression<Func<T, bool>> AndAlso<T>(
-			this Expression<Func<T, bool>> expr1,
-			Expression<Func<T, bool>> expr2)
-		{
-			var parameter = Expression.Parameter(typeof(T));
-
-			var leftVisitor = new ReplaceExpressionVisitor(expr1.Parameters[0], parameter);
-			var left = leftVisitor.Visit(expr1.Body)!;
-
-			var rightVisitor = new ReplaceExpressionVisitor(expr2.Parameters[0], parameter);
-			var right = rightVisitor.Visit(expr2.Body)!;
-
-			return Expression.Lambda<Func<T, bool>>(
-				Expression.AndAlso(left, right), parameter);
-		}
-
-		private sealed class ReplaceExpressionVisitor : ExpressionVisitor
-		{
-			private readonly Expression _oldValue;
-			private readonly Expression _newValue;
-
-			public ReplaceExpressionVisitor(Expression oldValue, Expression newValue)
-				=> (_oldValue, _newValue) = (oldValue, newValue);
-
-			public override Expression? Visit(Expression? node)
-				=> node == _oldValue ? _newValue : base.Visit(node);
-		}
+		#endregion
 	}
 }
