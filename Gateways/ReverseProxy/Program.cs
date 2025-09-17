@@ -23,6 +23,12 @@ builder.Services.AddReverseProxy()
         handler.AllowAutoRedirect = false;
     });
 
+builder.WebHost.ConfigureKestrel(o =>
+{
+    o.Limits.MaxRequestBodySize = 2L * 1024 * 1024 * 1024;
+    o.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(10);
+});
+
 // Add Role Authorization service
 builder.Services.AddSingleton<IRoleAuthorizationService, RoleAuthorizationService>();
 
