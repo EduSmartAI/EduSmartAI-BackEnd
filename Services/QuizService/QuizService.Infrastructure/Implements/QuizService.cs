@@ -146,6 +146,9 @@ public class QuizService : IQuizService
             
             _unitOfWork.Store(QuizCollection.FromWriteModel(survey));
             await _unitOfWork.SessionSaveChangesAsync();
+
+            // Remove cache
+            await _unitOfWork.CacheRemoveAsync("survey:list");
             
             // True
             response.Success = true;
