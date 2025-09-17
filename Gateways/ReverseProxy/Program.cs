@@ -9,6 +9,9 @@ builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
 builder.Services.AddOpenApi();
 
+// Thêm HttpClient cho SwaggerController
+builder.Services.AddHttpClient();
+
 // Add Authentication with OpenIdConnect/JWT
 builder.Services.AddReverseProxyAuthentication(builder.Configuration);
 
