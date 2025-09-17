@@ -1,8 +1,8 @@
-using System.Text.RegularExpressions;
 using BaseService.Application.Interfaces.Repositories;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Http;
+using System.Text.RegularExpressions;
 using UtilityService.Application.Interfaces;
 using UtilityService.Domain.Models;
 
@@ -14,7 +14,7 @@ public class CloudinaryService : ICloudinaryService
     private readonly IUnitOfWork _unitOfWork;
 
     public CloudinaryService(ICommandRepository<CloudinaryConfig> cloudinaryConfigRepository, IUnitOfWork unitOfWork)
-    { 
+    {
         _cloudinaryConfigRepository = cloudinaryConfigRepository;
         _unitOfWork = unitOfWork;
     }
@@ -82,7 +82,7 @@ public class CloudinaryService : ICloudinaryService
             throw;
         }
     }
-    
+
     /// <summary>
     /// Deletes an image from Cloudinary using its URL.
     /// </summary>
@@ -99,7 +99,7 @@ public class CloudinaryService : ICloudinaryService
         // return result.Result == "ok"; 
         return true;
     }
-    
+
     /// <summary>
     /// Extracts the public ID from the Cloudinary image URL.
     /// </summary>
@@ -111,7 +111,7 @@ public class CloudinaryService : ICloudinaryService
         var match = Regex.Match(imageUrl, @"/upload/v\d+/(.*)\..+$");
         return match.Success ? match.Groups[1].Value : null;
     }
-    
+
     private async Task<string> RetryWithNewKey(IFormFile file, CloudinaryConfig config)
     {
         var account = new Account(
@@ -138,5 +138,64 @@ public class CloudinaryService : ICloudinaryService
         }
 
         return uploadResult.SecureUrl?.ToString() ?? throw new Exception("Retry upload failed");
+    }
+
+    public async Task<string> UploadVideoAsync(string filePath, string publicId, CancellationToken ct)
+    {
+
+        var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+        if (cloudinaryKey == null)
+        {
+            throw new Exception("Cloudinary configuration not found");
+        }
+
+        var account = new Account(
+            cloudinaryKey.CloudApiName,
+            cloudinaryKey.CloudApiKey,
+            cloudinaryKey.CloudApiSecret
+        );
+        var cloudinary = new Cloudinary(account);
+
+        publicId = SlugifyPublicId(publicId);
+
+        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var uploadParams = new VideoUploadParams
+        {
+            File = new FileDescription(Path.GetFileName(filePath), fs),
+            PublicId = publicId,
+            Overwrite = true,
+            EagerTransforms = new List<Transformation> {
+            new Transformation().StreamingProfile("auto:maxres_2160p")
+            },
+            EagerAsync = true,
+            NotificationUrl = "https://794d5fd13b7f.ngrok-free.app/api/cloudinary/webhook"
+        };
+
+        var result = await cloudinary.UploadLargeAsync<VideoUploadResult>(
+            uploadParams,
+            bufferSize: 8 * 1024 * 1024,
+            cancellationToken: ct
+        );
+
+        if (result.Error != null)
+            throw new Exception(result.Error.Message);
+
+        // Không cần ResourceType("video") vì UrlVideoUp đã là video
+        var hlsUrl = cloudinary.Api.UrlVideoUp
+            .Transform(new Transformation().StreamingProfile("auto:maxres_2160p"))
+            .Format("m3u8")
+            .Version(result.Version?.ToString())
+            .BuildUrl(result.PublicId);
+        Console.WriteLine(hlsUrl);
+        return hlsUrl;
+    }
+    public static string SlugifyPublicId(string raw)
+    {
+        raw = raw.Replace('\\', '/');                    // tránh %5C
+        raw = Regex.Replace(raw, @"\s+", "-");          // space -> dash
+        raw = Regex.Replace(raw, @"[^a-zA-Z0-9/_-]", ""); // bỏ ký tự lạ
+        raw = raw.Trim('/');
+        return string.IsNullOrWhiteSpace(raw) ? Guid.NewGuid().ToString("N") : raw;
     }
 }
