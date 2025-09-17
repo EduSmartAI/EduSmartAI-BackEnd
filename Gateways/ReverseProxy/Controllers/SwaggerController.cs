@@ -47,15 +47,14 @@ public class SwaggerController : ControllerBase
             var allTags = new List<object>();
             var allServers = new List<object>();
 
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var baseUrl = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain);
             _logger.LogInformation($"Gateway Base URL: {baseUrl}");
 
             // Determine the public domain for Swagger UI
-            var publicDomain = DeterminePublicDomain(baseUrl);
-            _logger.LogInformation($"Using public domain for Swagger: {publicDomain}");
+            _logger.LogInformation($"Using public domain for Swagger: {baseUrl}");
             
             // Add public domain server first
-            allServers.Add(new { url = publicDomain, description = "EduSmart API Server" });
+            allServers.Add(new { url = baseUrl, description = "EduSmart API Server" });
 
             // Get specs from each service and aggregate them
             foreach (var service in serviceEndpoints)
@@ -241,25 +240,6 @@ public class SwaggerController : ControllerBase
                 timestamp = DateTime.UtcNow
             });
         }
-    }
-
-    /// <summary>
-    /// Determine the public domain based on environment and configuration
-    /// </summary>
-    private string DeterminePublicDomain(string baseUrl)
-    {
-        // 1. Highest priority: Environment variable for public domain
-        var publicDomain = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain);
-
-        // 4. Check if it's production/VPS environment (not localhost)
-        if (!baseUrl.Contains("localhost") && !baseUrl.Contains("127.0.0.1"))
-        {
-            return publicDomain!;
-        }
-
-        // 5. Development environment fallback
-        _logger.LogInformation("Using development environment baseUrl");
-        return baseUrl;
     }
 
     private object ModifyPathWithServiceTag(JsonElement pathValue, string serviceTag)
