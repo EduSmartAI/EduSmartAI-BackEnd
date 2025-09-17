@@ -35,6 +35,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.course_student_enrollments",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.course_tags",
          "ObjectType": 0
       },

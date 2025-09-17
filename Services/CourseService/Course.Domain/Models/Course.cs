@@ -55,6 +55,8 @@ public partial class Course
 
     public virtual ICollection<CourseRequirement> CourseRequirements { get; set; } = new List<CourseRequirement>();
 
+    public virtual ICollection<CourseStudentEnrollment> CourseStudentEnrollments { get; set; } = new List<CourseStudentEnrollment>();
+
     public virtual ICollection<CourseTag> CourseTags { get; set; } = new List<CourseTag>();
 
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
