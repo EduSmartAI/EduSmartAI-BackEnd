@@ -41,9 +41,8 @@ namespace Course.API
 			app.UseSwagger();
 			app.UseSwaggerUI(settings =>
 			{
-				// Đặt endpoint có base path
 				settings.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Service v1");
-				settings.RoutePrefix = "swagger"; // => /auth/swagger
+				settings.RoutePrefix = "swagger";
 			});
 
 			app.MapControllers();

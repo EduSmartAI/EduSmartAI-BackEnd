@@ -63,6 +63,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("auth/{id:guid}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for lectures",
 			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to lectures."
@@ -85,6 +86,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPost]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Create a new course",
 			Description = "Create a new course with its modules and lessons"
@@ -107,6 +109,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut("{id:guid}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Update an existing course",
 			Description = "Update an existing course (only course details, not modules or lessons)"
@@ -140,6 +143,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut("Module/{id:guid}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Update a module within a course",
 			Description = "Update a module within a course, including its objectives and lessons"
@@ -172,6 +176,7 @@ namespace Course.API.Controllers
 		/// <param name="ct"></param>
 		/// <returns></returns>
 		[HttpPut("{courseId}/modules")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Update multiple modules in a course",
 			Description = "Update multiple modules in a course with its Objectives and Lessons"
