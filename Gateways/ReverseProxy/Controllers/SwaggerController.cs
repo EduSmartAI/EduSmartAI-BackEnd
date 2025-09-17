@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using BaseService.Common.Settings;
+using BaseService.Common.Utils.Const;
 
 namespace ReverseProxy.Controllers;
 
@@ -22,6 +24,7 @@ public class SwaggerController : ControllerBase
     [HttpGet("aggregated")]
     public async Task<IActionResult> GetAggregatedSwagger()
     {
+        EnvLoader.Load();
         try
         {
             _logger.LogInformation("Starting to create aggregated Swagger spec...");
@@ -45,7 +48,14 @@ public class SwaggerController : ControllerBase
             var allServers = new List<object>();
 
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            _logger.LogInformation($"Base URL: {baseUrl}");
+            _logger.LogInformation($"Gateway Base URL: {baseUrl}");
+
+            // Determine the public domain for Swagger UI
+            var publicDomain = DeterminePublicDomain(baseUrl);
+            _logger.LogInformation($"Using public domain for Swagger: {publicDomain}");
+            
+            // Add public domain server first
+            allServers.Add(new { url = publicDomain, description = "EduSmart API Server" });
 
             // Get specs from each service and aggregate them
             foreach (var service in serviceEndpoints)
@@ -68,45 +78,51 @@ public class SwaggerController : ControllerBase
                             description = $"API endpoints from {service.Key}"
                         });
 
-                        // Collect servers from each service to preserve original URLs
-                        if (serviceSpec.TryGetProperty("servers", out var servers))
+                        // Handle both Swagger 2.0 and OpenAPI 3.0 specs
+                        if (serviceSpec.TryGetProperty("paths", out var pathsElement))
                         {
-                            foreach (var server in servers.EnumerateArray())
+                            // Check if it's Swagger 2.0 format
+                            if (serviceSpec.TryGetProperty("swagger", out var swaggerVersion) && 
+                                swaggerVersion.GetString() == "2.0")
                             {
-                                if (server.TryGetProperty("url", out var serverUrl))
+                                // Swagger 2.0 format - get basePath
+                                var basePath = "";
+                                if (serviceSpec.TryGetProperty("basePath", out var basePathElement))
                                 {
-                                    var serverUrlString = serverUrl.GetString();
-                                    // Check if this server URL is not already added
-                                    if (!allServers.Any(s => s.ToString()!.Contains(serverUrlString!)))
+                                    basePath = basePathElement.GetString() ?? "";
+                                }
+
+                                foreach (var path in pathsElement.EnumerateObject())
+                                {
+                                    // Combine basePath with path for full URL
+                                    var fullPath = basePath + path.Name;
+                                    var pathValue = path.Value;
+
+                                    if (pathValue.ValueKind == JsonValueKind.Object)
                                     {
-                                        var serverObj = JsonSerializer.Deserialize<object>(server.GetRawText());
-                                        if (serverObj != null)
-                                        {
-                                            allServers.Add(serverObj);
-                                        }
+                                        var modifiedPath = ModifyPathWithServiceTag(pathValue, service.Key);
+                                        allPaths[fullPath] = modifiedPath;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // OpenAPI 3.0 format
+                                foreach (var path in pathsElement.EnumerateObject())
+                                {
+                                    var pathKey = path.Name;
+                                    var pathValue = path.Value;
+
+                                    if (pathValue.ValueKind == JsonValueKind.Object)
+                                    {
+                                        var modifiedPath = ModifyPathWithServiceTag(pathValue, service.Key);
+                                        allPaths[pathKey] = modifiedPath;
                                     }
                                 }
                             }
                         }
 
-                        // Aggregate paths
-                        if (serviceSpec.TryGetProperty("paths", out var paths))
-                        {
-                            foreach (var path in paths.EnumerateObject())
-                            {
-                                var pathKey = path.Name;
-                                var pathValue = path.Value;
-
-                                // Add tag for each endpoint
-                                if (pathValue.ValueKind == JsonValueKind.Object)
-                                {
-                                    var modifiedPath = ModifyPathWithServiceTag(pathValue, service.Key);
-                                    allPaths[pathKey] = modifiedPath;
-                                }
-                            }
-                        }
-
-                        // Aggregate schemas
+                        // Aggregate schemas from components (OpenAPI 3.0) or definitions (Swagger 2.0)
                         if (serviceSpec.TryGetProperty("components", out var components))
                         {
                             if (components.TryGetProperty("schemas", out var schemas))
@@ -127,6 +143,15 @@ public class SwaggerController : ControllerBase
                                 }
                             }
                         }
+                        else if (serviceSpec.TryGetProperty("definitions", out var definitions))
+                        {
+                            // Swagger 2.0 definitions
+                            foreach (var definition in definitions.EnumerateObject())
+                            {
+                                var schemaKey = $"{service.Key.Replace(" ", "")}_{definition.Name}";
+                                allSchemas[schemaKey] = definition.Value;
+                            }
+                        }
                         
                         _logger.LogInformation($"Successfully retrieved spec from {service.Key}");
                     }
@@ -139,12 +164,6 @@ public class SwaggerController : ControllerBase
                 {
                     _logger.LogError($"Error retrieving Swagger spec from {service.Key}: {ex.Message}");
                 }
-            }
-
-            // If no servers found from services, add Gateway as fallback
-            if (!allServers.Any())
-            {
-                allServers.Add(new { url = baseUrl, description = "Gateway Server (Fallback)" });
             }
 
             // If no paths found, create a default response
@@ -200,7 +219,7 @@ public class SwaggerController : ControllerBase
                     version = "v1",
                     description = $"API Gateway aggregating all services in EduSmart system. Total {allPaths.Count} endpoints from {allTags.Count} services."
                 },
-                servers = allServers, // Use collected servers from individual services
+                servers = allServers,
                 paths = allPaths,
                 components = new
                 {
@@ -210,7 +229,7 @@ public class SwaggerController : ControllerBase
                 tags = allTags
             };
 
-            _logger.LogInformation($"Completed creating aggregated Swagger spec: {allPaths.Count} endpoints, {allTags.Count} services, {allServers.Count} servers");
+            _logger.LogInformation($"Completed creating aggregated Swagger spec: {allPaths.Count} endpoints, {allTags.Count} services");
             return Ok(finalSpec);
         }
         catch (Exception ex)
@@ -222,6 +241,25 @@ public class SwaggerController : ControllerBase
                 timestamp = DateTime.UtcNow
             });
         }
+    }
+
+    /// <summary>
+    /// Determine the public domain based on environment and configuration
+    /// </summary>
+    private string DeterminePublicDomain(string baseUrl)
+    {
+        // 1. Highest priority: Environment variable for public domain
+        var publicDomain = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain);
+
+        // 4. Check if it's production/VPS environment (not localhost)
+        if (!baseUrl.Contains("localhost") && !baseUrl.Contains("127.0.0.1"))
+        {
+            return publicDomain!;
+        }
+
+        // 5. Development environment fallback
+        _logger.LogInformation("Using development environment baseUrl");
+        return baseUrl;
     }
 
     private object ModifyPathWithServiceTag(JsonElement pathValue, string serviceTag)
