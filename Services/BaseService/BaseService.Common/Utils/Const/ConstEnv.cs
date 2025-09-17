@@ -58,5 +58,5 @@ public static class ConstEnv
 
     public const string CourseServiceDb = "COURSE_SERVICE_DB";
 
-
+    public const string ReverseProxyUrl = "REVERSE_PROXY_URL";
 }

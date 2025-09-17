@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using BaseService.Common.Settings;
+using BaseService.Common.Utils.Const;
 
 namespace ReverseProxy.Controllers;
 
@@ -22,6 +24,7 @@ public class SwaggerController : ControllerBase
     [HttpGet("aggregated")]
     public async Task<IActionResult> GetAggregatedSwagger()
     {
+        EnvLoader.Load();
         try
         {
             _logger.LogInformation("Starting to create aggregated Swagger spec...");
@@ -43,7 +46,7 @@ public class SwaggerController : ControllerBase
             var allSecuritySchemes = new Dictionary<string, object>();
             var allTags = new List<object>();
 
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var baseUrl = $"{Environment.GetEnvironmentVariable(ConstEnv.ReverseProxyUrl)}";
             _logger.LogInformation($"Base URL: {baseUrl}");
 
             // Get specs from each service and aggregate them
