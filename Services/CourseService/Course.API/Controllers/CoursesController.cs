@@ -44,23 +44,6 @@ namespace Course.API.Controllers
 			);
 		}
 
-		[HttpGet("test")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Test api with authen, author",
-			Description = "Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
-		)]
-		public async Task<GetCoursesResponse> TestProcessRequest([FromQuery] GetCoursesQuery request)
-		{
-			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new GetCoursesResponse()
-			);
-		}
-
 		[HttpGet("{id:guid}")]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for guest users",
