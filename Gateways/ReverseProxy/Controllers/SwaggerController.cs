@@ -47,7 +47,7 @@ public class SwaggerController : ControllerBase
             var allTags = new List<object>();
             var allServers = new List<object>();
 
-            var baseUrl = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain);
+            var baseUrl = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain) ?? Environment.GetEnvironmentVariable(ConstEnv.ReverseProxyUrl);
             _logger.LogInformation($"Gateway Base URL: {baseUrl}");
 
             // Determine the public domain for Swagger UI
