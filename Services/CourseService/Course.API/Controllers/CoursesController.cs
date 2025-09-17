@@ -4,6 +4,7 @@ using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
+using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByTeacherId;
@@ -183,6 +184,30 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request with { CourseId = courseId }),
 				new UpdateCourseModulesResponse()
+			);
+		}
+
+		/// <summary>
+		/// Check if current user is enrolled in a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
+		[HttpGet("{courseId}/enrollment")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Check if current user is enrolled in a course",
+			Description = "Check if the authenticated user is enrolled in the specified course"
+		)]
+		public async Task<CheckEnrollmentResponse> CheckEnrollment([FromRoute] Guid courseId)
+		{
+			var query = new CheckEnrollmentQuery(courseId);
+
+			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, CheckEnrollmentDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new CheckEnrollmentResponse()
 			);
 		}
 	}

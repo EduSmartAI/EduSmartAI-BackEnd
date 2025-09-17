@@ -39,6 +39,7 @@ namespace Course.Infrastructure
 			services.AddHttpContextAccessor();
 			services.AddScoped<IIdentityService, IdentityService>();
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
+			services.AddScoped<ICommandRepository<CourseStudentEnrollment>, CommandRepository<CourseStudentEnrollment>>();
 			//services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
 

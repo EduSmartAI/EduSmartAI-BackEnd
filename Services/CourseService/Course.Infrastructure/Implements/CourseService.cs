@@ -4,6 +4,7 @@ using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
+using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs.CoursesDTO;
@@ -23,6 +24,7 @@ namespace Course.Infrastructure.Implements
 {
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
+		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
 		IIdentityService _identityService) : ICourseService
@@ -267,6 +269,56 @@ namespace Course.Infrastructure.Implements
 			response.Response = detail;
 			response.ModulesCount = modulesCount;
 			response.LessonsCount = lessonsCount;
+			return response;
+		}
+
+		/// <summary>
+		/// Check if current user is enrolled in a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CheckEnrollmentResponse> CheckEnrollmentAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new CheckEnrollmentResponse() { Success = false };
+
+			// Get current user id from token
+			var currentUser = _identityService.GetCurrentUser();
+			if (currentUser is null)
+			{
+				response.Message = "User not authenticated";
+				return response;
+			}
+
+			// Check if user is enrolled in the course
+			var enrollment = await _enrollmentRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (enrollment is null)
+			{
+				response.Success = true;
+				response.Message = "User is not enrolled in this course";
+				response.Response = new CheckEnrollmentDto(
+					CourseId: courseId,
+					IsEnrolled: false,
+					EnrolledAt: null,
+					ExpiresAt: null,
+					IsActive: false
+				);
+				return response;
+			}
+
+			response.Success = true;
+			response.Message = "User is enrolled in this course";
+			response.Response = new CheckEnrollmentDto(
+				CourseId: courseId,
+				IsEnrolled: true,
+				EnrolledAt: enrollment.StartedAt,
+				ExpiresAt: enrollment.ExpiresAt,
+				IsActive: enrollment.IsActive
+			);
+
 			return response;
 		}
 

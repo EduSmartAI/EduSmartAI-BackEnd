@@ -27,6 +27,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseRequirement> CourseRequirements { get; set; }
 
+    public virtual DbSet<CourseStudentEnrollment> CourseStudentEnrollments { get; set; }
+
     public virtual DbSet<CourseTag> CourseTags { get; set; }
 
     public virtual DbSet<Lesson> Lessons { get; set; }
@@ -318,6 +320,50 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Course).WithMany(p => p.CourseRequirements)
                 .HasForeignKey(d => d.CourseId)
                 .HasConstraintName("course_requirements_course_id_fkey");
+        });
+
+        modelBuilder.Entity<CourseStudentEnrollment>(entity =>
+        {
+            entity.HasKey(e => e.EnrollmentId).HasName("course_student_enrollments_pkey");
+
+            entity.ToTable("course_student_enrollments");
+
+            entity.HasIndex(e => e.CourseId, "idx_cse_course");
+
+            entity.HasIndex(e => e.UserId, "idx_cse_user");
+
+            entity.HasIndex(e => new { e.UserId, e.CourseId }, "uq_cse_user_course_active")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
+
+            entity.Property(e => e.EnrollmentId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("enrollment_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.ExpiresAt).HasColumnName("expires_at");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.StartedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("started_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseStudentEnrollments)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("fk_cse_course");
         });
 
         modelBuilder.Entity<CourseTag>(entity =>
