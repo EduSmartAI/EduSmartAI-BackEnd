@@ -1,7 +1,5 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Infrastructure.Identities;
-using BaseService.Infrastructure.Repositories;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
@@ -17,7 +15,6 @@ using Course.Domain.Models;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using FluentValidation;
-using MediatR;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using System.Linq.Expressions;
