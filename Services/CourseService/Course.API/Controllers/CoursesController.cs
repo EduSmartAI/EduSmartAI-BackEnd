@@ -51,7 +51,7 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet("lecture")]
-		//[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get list of courses by teacher ID",
 			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
