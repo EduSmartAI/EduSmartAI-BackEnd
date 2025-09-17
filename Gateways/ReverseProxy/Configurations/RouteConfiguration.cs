@@ -169,7 +169,7 @@ public static class RouteConfiguration
                 },
                 Transforms =
                 [
-                    new Dictionary<string, string> { { "PathRemovePrefix", "/utility" } }
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
                 ],
                 Metadata = new Dictionary<string, string>
                 {
