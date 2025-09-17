@@ -12,10 +12,8 @@ public static class SwaggerUiExtension
         {
             c.RoutePrefix = "swagger";
             
-            // Thêm endpoint tổng hợp tất cả API - hiển thị đầu tiên
             c.SwaggerEndpoint("/api/swagger/aggregated", "🔥 TẤT CẢ API - TỔNG HỢP");
             
-            // Các service riêng biệt với icon để dễ phân biệt
             c.SwaggerEndpoint("/auth/swagger/v1/swagger.json", "🔐 Auth Service");
             c.SwaggerEndpoint("/student/swagger/v1/swagger.json", "🎓 Student Service");
             c.SwaggerEndpoint("/teacher/swagger/v1/swagger.json", "👨🏫 Teacher Service");

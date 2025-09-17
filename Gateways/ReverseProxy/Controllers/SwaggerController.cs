@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
-using BaseService.Common.Settings;
-using BaseService.Common.Utils.Const;
 
 namespace ReverseProxy.Controllers;
 
@@ -24,7 +22,6 @@ public class SwaggerController : ControllerBase
     [HttpGet("aggregated")]
     public async Task<IActionResult> GetAggregatedSwagger()
     {
-        EnvLoader.Load();
         try
         {
             _logger.LogInformation("Starting to create aggregated Swagger spec...");
@@ -45,8 +42,9 @@ public class SwaggerController : ControllerBase
             var allSchemas = new Dictionary<string, object>();
             var allSecuritySchemes = new Dictionary<string, object>();
             var allTags = new List<object>();
+            var allServers = new List<object>();
 
-            var baseUrl = $"{Environment.GetEnvironmentVariable(ConstEnv.ReverseProxyUrl)}";
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
             _logger.LogInformation($"Base URL: {baseUrl}");
 
             // Get specs from each service and aggregate them
@@ -69,6 +67,27 @@ public class SwaggerController : ControllerBase
                             name = service.Key,
                             description = $"API endpoints from {service.Key}"
                         });
+
+                        // Collect servers from each service to preserve original URLs
+                        if (serviceSpec.TryGetProperty("servers", out var servers))
+                        {
+                            foreach (var server in servers.EnumerateArray())
+                            {
+                                if (server.TryGetProperty("url", out var serverUrl))
+                                {
+                                    var serverUrlString = serverUrl.GetString();
+                                    // Check if this server URL is not already added
+                                    if (!allServers.Any(s => s.ToString()!.Contains(serverUrlString!)))
+                                    {
+                                        var serverObj = JsonSerializer.Deserialize<object>(server.GetRawText());
+                                        if (serverObj != null)
+                                        {
+                                            allServers.Add(serverObj);
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         // Aggregate paths
                         if (serviceSpec.TryGetProperty("paths", out var paths))
@@ -120,6 +139,12 @@ public class SwaggerController : ControllerBase
                 {
                     _logger.LogError($"Error retrieving Swagger spec from {service.Key}: {ex.Message}");
                 }
+            }
+
+            // If no servers found from services, add Gateway as fallback
+            if (!allServers.Any())
+            {
+                allServers.Add(new { url = baseUrl, description = "Gateway Server (Fallback)" });
             }
 
             // If no paths found, create a default response
@@ -175,10 +200,7 @@ public class SwaggerController : ControllerBase
                     version = "v1",
                     description = $"API Gateway aggregating all services in EduSmart system. Total {allPaths.Count} endpoints from {allTags.Count} services."
                 },
-                servers = new[]
-                {
-                    new { url = baseUrl, description = "Gateway Server" }
-                },
+                servers = allServers, // Use collected servers from individual services
                 paths = allPaths,
                 components = new
                 {
@@ -188,7 +210,7 @@ public class SwaggerController : ControllerBase
                 tags = allTags
             };
 
-            _logger.LogInformation($"Completed creating aggregated Swagger spec: {allPaths.Count} endpoints, {allTags.Count} services");
+            _logger.LogInformation($"Completed creating aggregated Swagger spec: {allPaths.Count} endpoints, {allTags.Count} services, {allServers.Count} servers");
             return Ok(finalSpec);
         }
         catch (Exception ex)
