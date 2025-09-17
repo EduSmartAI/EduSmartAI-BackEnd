@@ -172,6 +172,7 @@ public class CloudinaryService : ICloudinaryService
             NotificationUrl = "https://794d5fd13b7f.ngrok-free.app/api/cloudinary/webhook"
         };
 
+        Console.WriteLine("Done");
         var result = await cloudinary.UploadLargeAsync<VideoUploadResult>(
             uploadParams,
             bufferSize: 8 * 1024 * 1024,
