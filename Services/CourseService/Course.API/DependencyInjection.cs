@@ -12,9 +12,9 @@ namespace Course.API
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
 			services.AddCorsServices();
-			//services.AddMapsterConfig();
-			//services.AddAuthentication();
-			//services.AddAuthorization();
+			services.AddMessagingServices();
+			services.AddAuthenticationServices();
+			services.AddAuthorization();
 
 			services.AddExceptionHandler<CustomExceptionHandler>();
 			services.AddProblemDetails();
@@ -34,9 +34,9 @@ namespace Course.API
 
 			app.UseCors();
 
-			//app.UseAuthentication();
+			app.UseAuthentication();
 			app.UseStatusCodePages();
-			//app.UseAuthorization();
+			app.UseAuthorization();
 
 			app.UseSwagger();
 			app.UseSwaggerUI(settings =>

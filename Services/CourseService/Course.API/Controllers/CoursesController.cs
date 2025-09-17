@@ -1,4 +1,5 @@
 ﻿using BaseService.API.BaseControllers;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
@@ -8,8 +9,10 @@ using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.DTOs.CoursesDTO;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using OpenIddict.Validation.AspNetCore;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Course.API.Controllers
@@ -31,6 +34,23 @@ namespace Course.API.Controllers
 			Description = "Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
 		)]
 		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
+		{
+			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetCoursesResponse()
+			);
+		}
+
+		[HttpGet("test")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Test api with authen, author",
+			Description = "Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
+		)]
+		public async Task<GetCoursesResponse> TestProcessRequest([FromQuery] GetCoursesQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
 				request,
@@ -110,7 +130,6 @@ namespace Course.API.Controllers
 		)]
 		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id, [FromBody] UpdateCourseCommand request)
 		{
-			//var request = new UpdateCourseCommand(id, payload);
 			var response = new UpdateCourseResponse();
 
 			if (request.CourseId == Guid.Empty)
