@@ -93,6 +93,9 @@ namespace Course.Infrastructure.Implements
 				if (query.IsActive is bool isActive)
 					pred = Acc(pred, x => x.IsActive == isActive);
 
+				if (query.LectureId.HasValue)
+					pred = Acc(pred, x => x.TeacherId == query.LectureId.Value);
+
 				predicate = pred;
 			}
 
@@ -184,6 +187,9 @@ namespace Course.Infrastructure.Implements
 
 				if (query.IsActive.HasValue)
 					keyParts.Add($"IsActive:{query.IsActive.Value}");
+
+				if (query.LectureId.HasValue)
+					keyParts.Add($"TeacherId:{query.LectureId.Value}");
 
 				keyParts.Add($"SortBy:{query.SortBy}");
 			}

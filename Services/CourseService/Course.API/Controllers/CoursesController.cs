@@ -7,6 +7,7 @@ using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Commands.UpdateModule;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.Courses.Queries.GetCoursesByTeacherId;
 using Course.Application.DTOs.CoursesDTO;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -41,6 +42,30 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new GetCoursesResponse()
+			);
+		}
+
+		/// <summary>
+		/// Get list of courses by teacher ID with pagination and optional filtering
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpGet("lecture")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get list of courses by teacher ID",
+			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
+		)]
+		public async Task<GetCoursesByTeacherIdResponse> GetCoursesByTeacherId(
+			//[FromRoute] Guid teacherId,
+			[FromQuery] GetCoursesByLectureQuery request)
+		{
+			return await ApiControllerHelper.HandleRequest<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse, PaginatedResult<CourseDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetCoursesByTeacherIdResponse()
 			);
 		}
 
