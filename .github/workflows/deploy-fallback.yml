@@ -1,0 +1,123 @@
+name: Deploy EduSmartAI Microservices to VPS (Fallback)
+
+on:
+  push:
+    branches:
+      - deploy
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source code
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      # 2. Setup SSH with action
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      # 3. Add VPS to known hosts
+      - name: Add VPS to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # 4. Create .env file
+      - name: Write .env file from ENV_FILE_CONTENT
+        run: |
+          echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+          echo "✅ .env file created successfully"
+
+      # 5. Deploy to VPS using SSH action
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
+          script: |
+            echo "🚀 Starting deployment..."
+            
+            # Create directory and sync files
+            mkdir -p ~/apps/EduSmart-BackEnd
+            cd ~/apps/EduSmart-BackEnd
+            
+            # Cleanup old files (except .env if exists)
+            find . -maxdepth 1 ! -name '.env' ! -name '.' -exec rm -rf {} \; 2>/dev/null || true
+            
+      # 6. Copy files using SCP (more reliable than rsync in some cases)
+      - name: Copy source code to VPS
+        run: |
+          echo "📦 Copying source code..."
+          scp -r -o StrictHostKeyChecking=no \
+            -i ~/.ssh/id_rsa \
+            ./* root@${{ secrets.VPS_HOST }}:~/apps/EduSmart-BackEnd/ || \
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='bin' \
+            --exclude='obj' \
+            --exclude='*.log' \
+            --exclude='.vs' \
+            --exclude='.vscode' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ root@${{ secrets.VPS_HOST }}:~/apps/EduSmart-BackEnd/
+
+      # 7. Final deployment
+      - name: Build and Start Services
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
+          script: |
+            cd ~/apps/EduSmart-BackEnd
+            
+            echo "🔧 Setting up Docker Buildkit"
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
+
+            echo "🧹 Smart cleanup"
+            docker compose down --remove-orphans || true
+            docker image prune -f --filter "dangling=true" || true
+
+            echo "🐳 Building and starting services"
+            docker compose build --parallel --progress=plain
+            docker compose up -d --wait --wait-timeout 300
+
+            echo "🔍 Health check"
+            sleep 45
+            
+            services=("studentservice.api" "authservice.api" "quizservice.api" "teacherservice.api" "paymentservice.api" "notificationservice.api" "utilityservice.api" "courseservice.api" "aiservice.api" "reverseproxy")
+            
+            failed_services=()
+            for service in "${services[@]}"; do
+              if docker compose ps $service | grep -q "healthy\|Up"; then
+                echo "✅ $service is running"
+              else
+                echo "❌ $service failed to start"
+                failed_services+=("$service")
+                docker compose logs $service --tail=30 || true
+              fi
+            done
+
+            echo "📊 Final status:"
+            docker compose ps
+            
+            if [ ${#failed_services[@]} -eq 0 ]; then
+              echo "✅ All services deployed successfully!"
+            else
+              echo "❌ Failed services: ${failed_services[*]}"
+              exit 1
+            fi

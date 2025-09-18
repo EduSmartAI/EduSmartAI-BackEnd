@@ -25,29 +25,43 @@ jobs:
           driver-opts: |
             network=host
 
-      # 3. Setup SSH key từ secret
+      # 3. Setup SSH key từ secret (Fixed)
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
+          echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
+          # Test SSH connection
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no root@$VPS_HOST "echo 'SSH connection successful'"
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
 
       # 4. Tạo file .env từ secret trong GitHub
       - name: Write .env file from ENV_FILE_CONTENT
-        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
+        run: |
+          echo "$ENV_FILE_CONTENT" > .env
+          echo "✅ .env file created successfully"
+        env:
+          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
 
       # 5. Copy source code và .env lên VPS (với rsync để tối ưu tốc độ)
       - name: Copy source code and .env to VPS
         run: |
+          echo "📦 Starting file synchronization..."
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='bin' \
             --exclude='obj' \
             --exclude='*.log' \
-            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            --exclude='.vs' \
+            --exclude='.vscode' \
+            --progress \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o ConnectTimeout=30" \
             ./ root@${{ secrets.VPS_HOST }}:~/apps/EduSmart-BackEnd/
+          echo "✅ File synchronization completed"
 
       # 6. SSH vào VPS và deploy Docker Compose với tối ưu
       - name: SSH into VPS and deploy Docker Compose (Optimized)
@@ -56,6 +70,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
           script: |
             echo "🚀 Deploying EduSmartAI Microservices (Optimized)..."
             cd ~/apps/EduSmart-BackEnd
@@ -75,21 +91,25 @@ jobs:
             docker compose build --parallel --progress=plain
 
             echo "🚀 Starting containers"
-            docker compose up -d --wait --wait-timeout 180
+            docker compose up -d --wait --wait-timeout 300
 
             echo "🔍 Health check - waiting for services to be ready"
-            sleep 30
+            sleep 45
             
             # Kiểm tra health của từng service
             services=("studentservice.api" "authservice.api" "quizservice.api" "teacherservice.api" "paymentservice.api" "notificationservice.api" "utilityservice.api" "courseservice.api" "aiservice.api" "reverseproxy")
             
+            failed_services=()
             for service in "${services[@]}"; do
               echo "Checking $service..."
               if docker compose ps $service | grep -q "healthy\|Up"; then
                 echo "✅ $service is running"
               else
                 echo "❌ $service failed to start"
-                docker compose logs $service --tail=50
+                failed_services+=("$service")
+                echo "--- Logs for $service ---"
+                docker compose logs $service --tail=50 || true
+                echo ""
               fi
             done
 
@@ -99,4 +119,11 @@ jobs:
             echo "💾 Disk usage after deployment:"
             df -h /var/lib/docker
 
-            echo "✅ Deployment completed successfully!"
+            if [ ${#failed_services[@]} -eq 0 ]; then
+              echo "✅ All services deployed successfully!"
+              exit 0
+            else
+              echo "❌ Some services failed to start: ${failed_services[*]}"
+              echo "Please check the logs above for details"
+              exit 1
+            fi
