@@ -9,4 +9,5 @@ public interface ICloudinaryService
     Task<bool> DeleteImage(string url);
 
     Task<string> UploadVideoAsync(string filePath, string publicId, CancellationToken ct);
+    Task<string> UploadZipAsync(IFormFile file, CancellationToken ct = default);
 }

@@ -142,61 +142,107 @@ public class CloudinaryService : ICloudinaryService
 
     public async Task<string> UploadVideoAsync(string filePath, string publicId, CancellationToken ct)
     {
-
-        var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
-        if (cloudinaryKey == null)
+        try
         {
-            throw new Exception("Cloudinary configuration not found");
-        }
+            var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+            if (cloudinaryKey == null)
+            {
+                throw new Exception("Cloudinary configuration not found");
+            }
 
-        var account = new Account(
-            cloudinaryKey.CloudApiName,
-            cloudinaryKey.CloudApiKey,
-            cloudinaryKey.CloudApiSecret
-        );
-        var cloudinary = new Cloudinary(account);
+            var account = new Account(
+                cloudinaryKey.CloudApiName,
+                cloudinaryKey.CloudApiKey,
+                cloudinaryKey.CloudApiSecret
+            );
+            var cloudinary = new Cloudinary(account);
 
-        publicId = SlugifyPublicId(publicId);
+            await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
-        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-        var uploadParams = new VideoUploadParams
-        {
-            File = new FileDescription(Path.GetFileName(filePath), fs),
-            PublicId = publicId,
-            Overwrite = true,
-            EagerTransforms = new List<Transformation> {
+            var uploadParams = new VideoUploadParams
+            {
+                File = new FileDescription(Path.GetFileName(filePath), fs),
+                PublicId = publicId,
+                Overwrite = true,
+                EagerTransforms = new List<Transformation> {
             new Transformation().StreamingProfile("auto:maxres_2160p")
             },
-            EagerAsync = true,
-            NotificationUrl = "https://794d5fd13b7f.ngrok-free.app/api/cloudinary/webhook"
-        };
+                EagerAsync = true,
+                NotificationUrl = "https://794d5fd13b7f.ngrok-free.app/api/cloudinary/webhook"
+            };
 
-        Console.WriteLine("Done");
-        var result = await cloudinary.UploadLargeAsync<VideoUploadResult>(
-            uploadParams,
-            bufferSize: 8 * 1024 * 1024,
-            cancellationToken: ct
-        );
+            var result = await cloudinary.UploadLargeAsync<VideoUploadResult>(
+                uploadParams,
+                bufferSize: 8 * 1024 * 1024,
+                cancellationToken: ct
+            );
 
-        if (result.Error != null)
-            throw new Exception(result.Error.Message);
+            if (result.Error != null)
+                throw new Exception(result.Error.Message);
 
-        // Không cần ResourceType("video") vì UrlVideoUp đã là video
-        var hlsUrl = cloudinary.Api.UrlVideoUp
-            .Transform(new Transformation().StreamingProfile("auto:maxres_2160p"))
-            .Format("m3u8")
-            .Version(result.Version?.ToString())
-            .BuildUrl(result.PublicId);
-        Console.WriteLine(hlsUrl);
-        return hlsUrl;
+            var hlsUrl = cloudinary.Api.UrlVideoUp
+                .Transform(new Transformation().StreamingProfile("auto:maxres_2160p"))
+                .Format("m3u8")
+                .Version(result.Version?.ToString())
+                .BuildUrl(result.PublicId);
+            Console.WriteLine(hlsUrl);
+            return hlsUrl;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            throw;
+        }
     }
-    public static string SlugifyPublicId(string raw)
+
+    public async Task<string> UploadZipAsync(IFormFile file, CancellationToken ct = default)
     {
-        raw = raw.Replace('\\', '/');                    // tránh %5C
-        raw = Regex.Replace(raw, @"\s+", "-");          // space -> dash
-        raw = Regex.Replace(raw, @"[^a-zA-Z0-9/_-]", ""); // bỏ ký tự lạ
-        raw = raw.Trim('/');
-        return string.IsNullOrWhiteSpace(raw) ? Guid.NewGuid().ToString("N") : raw;
+        try
+        {
+            // Get Key
+            var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+            if (cloudinaryKey == null)
+            {
+                throw new Exception("Cloudinary configuration not found");
+            }
+
+            var account = new Account(
+                cloudinaryKey.CloudApiName,
+                cloudinaryKey.CloudApiKey,
+                cloudinaryKey.CloudApiSecret
+            );
+            var cloudinary = new Cloudinary(account);
+
+
+            var publicId = $"{Guid.NewGuid():N}.zip";
+
+            await using var stream = file.OpenReadStream();
+
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = "zips",
+                PublicId = publicId,
+                UseFilename = false,
+                UniqueFilename = false,
+                Overwrite = false,
+            };
+
+            RawUploadResult result = await cloudinary.UploadLargeAsync<RawUploadResult>(
+                uploadParams,
+                bufferSize: 6 * 1024 * 1024,
+                cancellationToken: ct
+            );
+
+            if (result.Error != null)
+                throw new Exception($"Cloudinary upload failed: {result.Error.Message}");
+
+            return result.SecureUrl?.ToString() ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            throw;
+        }
     }
 }
