@@ -45,7 +45,13 @@ public partial class Course
 
     public decimal? DurationHours { get; set; }
 
+    public string CourseIntroVideoUrl { get; set; }
+
     public virtual ICollection<CourseComment> CourseComments { get; set; } = new List<CourseComment>();
+
+    public virtual ICollection<CourseDiscussion> CourseDiscussions { get; set; } = new List<CourseDiscussion>();
+
+    public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
 
     public virtual ICollection<CourseObjective> CourseObjectives { get; set; } = new List<CourseObjective>();
 
