@@ -12,7 +12,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\BaseService\BaseService.API\BaseService.API.csproj" />
-      <ProjectReference Include="..\..\QuizService\QuizService.Application\QuizService.Application.csproj" />
       <ProjectReference Include="..\AiService.Application\AiService.Application.csproj" />
       <ProjectReference Include="..\AiService.Infrastructure\AiService.Infrastructure.csproj" />
     </ItemGroup>

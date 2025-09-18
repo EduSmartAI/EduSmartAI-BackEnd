@@ -4,7 +4,6 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
-using QuizService.Application.Interfaces;
 
 namespace AiService.API.Extensions;
 
@@ -19,13 +18,6 @@ public static class RepositoryExtensions
         
         // Services
 
-        
-        // MediatR configuration
-        // services.AddMediatR(cfg =>
-        // {
-        //    // cfg.RegisterServicesFromAssemblyContaining<>();
-        //     
-        // });        
         return services;
     }
 }
