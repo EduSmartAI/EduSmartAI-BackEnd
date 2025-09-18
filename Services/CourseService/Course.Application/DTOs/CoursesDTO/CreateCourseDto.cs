@@ -17,9 +17,11 @@ namespace Course.Application.DTOs.CoursesDTO
 		bool IsActive,
 		List<CreateCourseObjectiveDto>? Objectives,
 		List<CreateCourseRequirementDto>? Requirements,
+		List<CreateCourseTagDto>? CourseTags,
 		List<CreateModuleDto> Modules
 	);
 
 	public record CreateCourseObjectiveDto(string Content, int PositionIndex = 0, bool IsActive = true);
 	public record CreateCourseRequirementDto(string Content, int PositionIndex = 0, bool IsActive = true);
+	public record CreateCourseTagDto(long TagId);
 }

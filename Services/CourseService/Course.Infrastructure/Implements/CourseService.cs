@@ -401,7 +401,21 @@ namespace Course.Infrastructure.Implements
 				}
 			}
 
-			// Map Modules + Lessons (giữ thứ tự PositionIndex)
+			// 5) Course Tags – optional
+			if (dto.CourseTags is { Count: > 0 })
+			{
+				foreach (var courseTag in dto.CourseTags)
+				{
+					course.CourseTags.Add(new CourseTag
+					{
+						CourseId = course.CourseId,
+						TagId = courseTag.TagId,
+						//CreatedAt = DateTime.UtcNow
+					});
+				}
+			}
+
+			// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
 			foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
 			{
 				var module = new Module
@@ -616,6 +630,11 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Get all course tags
+		/// </summary>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default)
 		{
 			var response = new GetCourseTagsResponse() { Success = false };

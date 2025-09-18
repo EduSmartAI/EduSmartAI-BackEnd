@@ -116,7 +116,7 @@ namespace Course.API.Controllers
 		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Create a new course",
-			Description = "Create a new course with its modules and lessons"
+			Description = "Create a new course with its modules, lessons, and tags. Course tags are optional and can be used to categorize courses."
 		)]
 		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
