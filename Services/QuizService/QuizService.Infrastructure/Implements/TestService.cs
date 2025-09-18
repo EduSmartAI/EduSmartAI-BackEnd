@@ -128,7 +128,7 @@ public class TestService : ITestService
 
         string cacheKey = "test:id";
 
-        // Get majors from cache or database
+        // Get test from cache or database
         var test = await _queryRepository.GetOrSetAsync(
             cacheKey,
             async () =>
@@ -137,40 +137,50 @@ public class TestService : ITestService
                 return await _queryRepository.FirstOrDefaultAsync(x => x.IsActive);
             },
             TimeSpan.FromMinutes(10)
-        ).Select(t => new TestSelectResponseEntity
-        {
-            TestId = t!.TestId,
-            TestName = t.TestName,
-            Description = t.Description,
-            Quizzes = t.Quizzes.Where(x => request.QuizId.Contains(x.QuizId))
-                .Select(q => new QuizzDetailResponse
-                {
-                    QuizId = q.QuizId,
-                    Title = q.Title,
-                    Description = q.Description,
-                    SubjectCode = q.SubjectCode,
-                    Questions = q.Questions.Select(ques => new QuestionDetailResponse
-                    {
-                        QuestionId = ques.QuestionId,
-                        QuestionText = ques.QuestionText,
-                        Answers = ques.Answers.Select(a => new AnswerDetailResponse
-                        {
-                            AnswerId = a.AnswerId,
-                            AnswerText = a.AnswerText
-                        }).ToList()
-                    }).ToList()
-                }).ToList()
-        });
+        );
         if (test == null)
         {
             response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
             return response;
         }
 
+        // Build quizzes with full details
+        var quizzes = test.Quizzes
+            .Where(x => request.QuizId == null || !request.QuizId.Any() || request.QuizId.Contains(x.QuizId))
+            .Select(q => new QuizzDetailResponse
+            {
+                QuizId = q.QuizId,
+                Title = q.Title,
+                Description = q.Description,
+                SubjectCode = q.SubjectCode,
+                SubjectCodeName = string.Empty,
+                TotalQuestions = q.Questions.Count,
+                DifficultyLevel = 0,
+                Questions = q.Questions.Select(ques => new QuestionDetailResponse
+                {
+                    QuestionId = ques.QuestionId,
+                    QuestionText = ques.QuestionText,
+                    QuestionType = ques.QuestionType,
+                    Answers = ques.Answers.Select(a => new AnswerDetailResponse
+                    {
+                        AnswerId = a.AnswerId,
+                        AnswerText = a.AnswerText
+                    }).ToList()
+                }).ToList()
+            }).ToList();
+
+        var responseEntity = new TestSelectResponseEntity
+        {
+            TestId = test.TestId,
+            TestName = test.TestName,
+            Description = test.Description,
+            Quizzes = quizzes
+        };
+
         // True
         response.Success = true;
-        response.Response = test;
-        response.SetMessage(MessageId.I00001, "Lấy thông tin bài test");
+        response.Response = responseEntity;
+        response.SetMessage(MessageId.I00001, "L��y thông tin bài test");
         return response;
     }
 }
