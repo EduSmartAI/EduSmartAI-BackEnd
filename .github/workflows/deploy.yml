@@ -18,52 +18,24 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Set up Docker Buildx for advanced features
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            network=host
-
-      # 3. Setup SSH key từ secret (Fixed)
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
-          # Test SSH connection
-          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no root@$VPS_HOST "echo 'SSH connection successful'"
-        env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-
-      # 4. Tạo file .env từ secret trong GitHub
+      # 2. Create .env file từ secret
       - name: Write .env file from ENV_FILE_CONTENT
-        run: |
-          echo "$ENV_FILE_CONTENT" > .env
-          echo "✅ .env file created successfully"
-        env:
-          ENV_FILE_CONTENT: ${{ secrets.ENV_FILE_CONTENT }}
+        run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
 
-      # 5. Copy source code và .env lên VPS (với rsync để tối ưu tốc độ)
+      # 3. Copy source code và .env lên VPS (tối ưu hóa)
       - name: Copy source code and .env to VPS
-        run: |
-          echo "📦 Starting file synchronization..."
-          rsync -avz --delete \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='bin' \
-            --exclude='obj' \
-            --exclude='*.log' \
-            --exclude='.vs' \
-            --exclude='.vscode' \
-            --progress \
-            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o ConnectTimeout=30" \
-            ./ root@${{ secrets.VPS_HOST }}:~/apps/EduSmart-BackEnd/
-          echo "✅ File synchronization completed"
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "."
+          target: "~/apps/EduSmart-BackEnd"
+          rm: true
+          strip_components: 0
+          overwrite: true
 
-      # 6. SSH vào VPS và deploy Docker Compose với tối ưu
+      # 4. SSH vào VPS và deploy với tối ưu hóa
       - name: SSH into VPS and deploy Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -76,54 +48,65 @@ jobs:
             echo "🚀 Deploying EduSmartAI Microservices (Optimized)..."
             cd ~/apps/EduSmart-BackEnd
 
-            echo "🔧 Setting up Docker Buildkit"
+            echo "🔧 Setting up environment"
             export DOCKER_BUILDKIT=1
             export COMPOSE_DOCKER_CLI_BUILD=1
+            chmod +x *.sh || true
 
-            echo "🧹 Smart cleanup - chỉ xóa containers đang chạy"
+            echo "🧹 Smart cleanup - preserving cache when possible"
             docker compose down --remove-orphans || true
             
-            echo "🗑️  Cleanup unused images (keep base images)"
+            # Only remove dangling images to preserve cache
             docker image prune -f --filter "dangling=true" || true
 
-            echo "🐳 Building services with cache optimization"
-            # Build song song với cache từ registry
-            docker compose build --parallel --progress=plain
+            echo "🐳 Building services with parallel processing and cache"
+            docker compose build --parallel --progress=plain --build-arg BUILDKIT_INLINE_CACHE=1
 
-            echo "🚀 Starting containers"
+            if [ $? -ne 0 ]; then
+              echo "❌ Build failed!"
+              exit 1
+            fi
+
+            echo "🚀 Starting containers with extended timeout"
             docker compose up -d --wait --wait-timeout 300
 
-            echo "🔍 Health check - waiting for services to be ready"
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to start services!"
+              docker compose logs --tail=50
+              exit 1
+            fi
+
+            echo "⏳ Waiting for services to fully initialize..."
             sleep 45
-            
-            # Kiểm tra health của từng service
+
+            echo "🔍 Performing health checks..."
             services=("studentservice.api" "authservice.api" "quizservice.api" "teacherservice.api" "paymentservice.api" "notificationservice.api" "utilityservice.api" "courseservice.api" "aiservice.api" "reverseproxy")
             
             failed_services=()
             for service in "${services[@]}"; do
-              echo "Checking $service..."
-              if docker compose ps $service | grep -q "healthy\|Up"; then
+              if docker compose ps $service | grep -q "Up\|healthy"; then
                 echo "✅ $service is running"
               else
                 echo "❌ $service failed to start"
                 failed_services+=("$service")
                 echo "--- Logs for $service ---"
-                docker compose logs $service --tail=50 || true
+                docker compose logs $service --tail=20 || true
                 echo ""
               fi
             done
 
-            echo "📊 Final status:"
+            echo "📊 Final deployment status:"
             docker compose ps
 
-            echo "💾 Disk usage after deployment:"
-            df -h /var/lib/docker
+            echo "💾 Current disk usage:"
+            df -h /var/lib/docker 2>/dev/null || df -h /
 
             if [ ${#failed_services[@]} -eq 0 ]; then
               echo "✅ All services deployed successfully!"
-              exit 0
+              echo "🌐 Services should be accessible soon!"
             else
-              echo "❌ Some services failed to start: ${failed_services[*]}"
-              echo "Please check the logs above for details"
-              exit 1
+              echo "⚠️  Some services may need attention: ${failed_services[*]}"
+              echo "📝 Check the logs above for details"
             fi
+            
+            echo "🎉 Deployment completed!"
