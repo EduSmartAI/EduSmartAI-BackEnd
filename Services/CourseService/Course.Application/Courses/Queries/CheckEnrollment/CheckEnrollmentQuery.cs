@@ -10,5 +10,3 @@ public record CheckEnrollmentResponse : AbstractApiResponse<CheckEnrollmentDto>
 {
 	public override CheckEnrollmentDto Response { get; set; } = default!;
 }
-
-
