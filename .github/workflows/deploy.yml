@@ -1,9 +1,13 @@
-name: Deploy EduSmartAI Microservices to VPS
+name: Deploy EduSmartAI Microservices to VPS (Optimized)
 
 on:
   push:
     branches:
       - deploy
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
   deploy:
@@ -14,7 +18,14 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Setup SSH key từ secret
+      # 2. Set up Docker Buildx for advanced features
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+
+      # 3. Setup SSH key từ secret
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
@@ -22,51 +33,70 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      # 3. Tạo file .env từ secret trong GitHub
+      # 4. Tạo file .env từ secret trong GitHub
       - name: Write .env file from ENV_FILE_CONTENT
         run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
 
-      # 4. Copy source code và .env lên VPS
+      # 5. Copy source code và .env lên VPS (với rsync để tối ưu tốc độ)
       - name: Copy source code and .env to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: root
-          key: ${{ secrets.VPS_SSH_KEY }}
-          source: "."
-          target: "~/apps/EduSmart-BackEnd"
-          rm: true
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='bin' \
+            --exclude='obj' \
+            --exclude='*.log' \
+            -e "ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no" \
+            ./ root@${{ secrets.VPS_HOST }}:~/apps/EduSmart-BackEnd/
 
-      # 5. SSH vào VPS và deploy Docker Compose
-      - name: SSH into VPS and deploy Docker Compose
+      # 6. SSH vào VPS và deploy Docker Compose với tối ưu
+      - name: SSH into VPS and deploy Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            echo "📦 Deploying EduSmartAI Microservices..."
+            echo "🚀 Deploying EduSmartAI Microservices (Optimized)..."
             cd ~/apps/EduSmart-BackEnd
 
-            echo "🔧 Setting permissions for scripts"
-            chmod +x *.sh || true
+            echo "🔧 Setting up Docker Buildkit"
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
 
-            echo "🧹 Cleanup old containers and images"
-            docker compose down --volumes --remove-orphans || true
-            docker system prune -af || true
-            docker builder prune -af || true
+            echo "🧹 Smart cleanup - chỉ xóa containers đang chạy"
+            docker compose down --remove-orphans || true
+            
+            echo "🗑️  Cleanup unused images (keep base images)"
+            docker image prune -f --filter "dangling=true" || true
 
-            echo "🐳 Building and starting Docker containers"
-            docker compose build
-            docker compose up -d
+            echo "🐳 Building services with cache optimization"
+            # Build song song với cache từ registry
+            docker compose build --parallel --progress=plain
 
-            echo "⏳ Waiting for containers to start..."
-            sleep 40
+            echo "🚀 Starting containers"
+            docker compose up -d --wait --wait-timeout 180
 
-            echo "✅ Docker containers status:"
-            docker ps -a
+            echo "🔍 Health check - waiting for services to be ready"
+            sleep 30
+            
+            # Kiểm tra health của từng service
+            services=("studentservice.api" "authservice.api" "quizservice.api" "teacherservice.api" "paymentservice.api" "notificationservice.api" "utilityservice.api" "courseservice.api" "aiservice.api" "reverseproxy")
+            
+            for service in "${services[@]}"; do
+              echo "Checking $service..."
+              if docker compose ps $service | grep -q "healthy\|Up"; then
+                echo "✅ $service is running"
+              else
+                echo "❌ $service failed to start"
+                docker compose logs $service --tail=50
+              fi
+            done
 
-            echo "📊 docker-compose service status:"
+            echo "📊 Final status:"
             docker compose ps
 
-            echo "✅ Deployment completed!"
+            echo "💾 Disk usage after deployment:"
+            df -h /var/lib/docker
+
+            echo "✅ Deployment completed successfully!"

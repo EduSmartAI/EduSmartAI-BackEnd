@@ -4,6 +4,11 @@
     build:
       context: .
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
+      cache_from:
+        - studentservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: studentservice.api:latest
     ports:
       - "7002:80"
     environment:
@@ -27,6 +32,11 @@
     build:
       context: .
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
+      cache_from:
+        - authservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: authservice.api:latest
     ports:
       - "7001:80"
     environment:
@@ -51,6 +61,11 @@
     build:
       context: .
       dockerfile: Services/QuizService/QuizService.API/Dockerfile
+      cache_from:
+        - quizservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: quizservice.api:latest
     ports:
       - "7003:80"
     environment:
@@ -74,6 +89,11 @@
     build:
       context: .
       dockerfile: Services/TeacherService/TeacherService.API/Dockerfile
+      cache_from:
+        - teacherservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: teacherservice.api:latest
     ports:
       - "7004:80"
     environment:
@@ -96,6 +116,11 @@
     build:
       context: .
       dockerfile: Services/PaymentService/PaymentService.API/Dockerfile
+      cache_from:
+        - paymentservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: paymentservice.api:latest
     ports:
       - "7007:80"
     environment:
@@ -118,6 +143,11 @@
     build:
       context: .
       dockerfile: Services/NotificationService/NotificationService.API/Dockerfile
+      cache_from:
+        - notificationservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: notificationservice.api:latest
     ports:
       - "7008:80"
     environment:
@@ -140,6 +170,11 @@
     build:
       context: .
       dockerfile: Services/UtilityService/UtilityService.API/Dockerfile
+      cache_from:
+        - utilityservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: utilityservice.api:latest
     ports:
       - "7010:80"
     environment:
@@ -162,6 +197,11 @@
     build:
       context: .
       dockerfile: Services/CourseService/Course.API/Dockerfile
+      cache_from:
+        - courseservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: courseservice.api:latest
     ports:
       - "7005:80"
     environment:
@@ -184,6 +224,11 @@
     build:
       context: .
       dockerfile: Services/AiService/AiService.API/Dockerfile
+      cache_from:
+        - aiservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: aiservice.api:latest
     ports:
       - "7006:80"
     environment:
@@ -208,6 +253,11 @@
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
+      cache_from:
+        - reverseproxy:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: reverseproxy:latest
     ports:
       - "8080:80"
     depends_on:
@@ -251,3 +301,4 @@ volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+
