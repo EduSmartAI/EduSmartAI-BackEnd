@@ -18,7 +18,7 @@ public record TestSelectResponseEntity
     public List<QuizzDetailResponse> Quizzes { get; set; } = null!;
 }
 
-public record QuizzDetailResponse
+public record QuizzDetailResponse 
 {
     public Guid QuizId { get; set; }
     
@@ -28,6 +28,12 @@ public record QuizzDetailResponse
     
     public Guid? SubjectCode { get; set; }
     
+    public string SubjectCodeName { get; set; }
+    
+    public int TotalQuestions { get; set; }
+    
+    public short DifficultyLevel { get; set; }
+    
     public List<QuestionDetailResponse> Questions { get; set; } = null!;
 }
 
@@ -36,6 +42,8 @@ public record QuestionDetailResponse
     public Guid QuestionId { get; set; }
     
     public string QuestionText { get; set; } = null!;
+    
+    public short QuestionType { get; set; }
     
     public List<AnswerDetailResponse> Answers { get; set; } = null!;
 }

@@ -6,6 +6,7 @@ using MassTransit.Initializers;
 using QuizService.Application.Applications.Quizzes.Queries;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Surveys.Queries;
+using QuizService.Application.Applications.Tests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
@@ -71,7 +72,6 @@ public class QuizService : IQuizService
     public async Task<QuizSelectsResponse> SelectQuizzesAsync(QuizSelectsQuery request)
     {
         var response = new QuizSelectsResponse { Success = false };
-
         string cacheKey = "quiz:list";
 
         // Get quizzes from cache or database
@@ -91,6 +91,9 @@ public class QuizService : IQuizService
                 Title = q.Title,
                 Description = q.Description,
                 SubjectCode = q.SubjectCode,
+                SubjectCodeName = string.Empty, // Set if available
+                TotalQuestions = q.Questions.Count,
+                DifficultyLevel = 0 // Set if available
             }).ToList();
         if (quizzes == null || !quizzes.Any())
         {
