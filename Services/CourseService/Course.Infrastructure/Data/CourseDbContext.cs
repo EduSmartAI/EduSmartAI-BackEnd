@@ -625,6 +625,8 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.SemesterNumber)
+                .HasColumnName("semester_number");
             entity.Property(e => e.SemesterCode)
                 .IsRequired()
                 .HasMaxLength(10)

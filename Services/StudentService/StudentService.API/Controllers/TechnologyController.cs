@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
-using StudentService.Application.Applications.LearningGoals.Commands;
-using StudentService.Application.Applications.LearningGoals.Queris;
 using StudentService.Application.Applications.Technologies.Commands;
 using Swashbuckle.AspNetCore.Annotations;
 

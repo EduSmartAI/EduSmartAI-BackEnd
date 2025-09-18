@@ -12,6 +12,8 @@ public partial class Semester
     public string SemesterCode { get; set; }
 
     public string SemesterName { get; set; }
+    
+    public short SemesterNumber { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

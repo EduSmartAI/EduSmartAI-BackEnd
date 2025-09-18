@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningGoals.Commands;
-using StudentService.Application.Applications.LearningGoals.Queris;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;
@@ -61,31 +60,5 @@ public class LearningGoalController : ControllerBase
             _httpContextAccessor,
             new LearningGoalInsertResponse()
         );
-    }
-
-    /// <summary>
-    /// Incoming Get
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpGet]
-    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Lấy danh sách mục tiêu học tập",
-        Description = "Trả về danh sách tất cả mục tiêu học tập. Cần xác thực"
-    )]
-    public async Task<LearningGoalsSelectResponse> SelectLearningGoals([FromQuery] LearningGoalsSelectQuery request)
-    {
-        return await ApiControllerHelper
-            .HandleRequest<LearningGoalsSelectQuery, LearningGoalsSelectResponse, List<LearningGoalsSelectResponseEntity>>(
-                request,
-                _logger,
-                ModelState,
-                async () => await _mediator.Send(request),
-                _identityService,
-                _identityEntity,
-                _httpContextAccessor,
-                new LearningGoalsSelectResponse()
-            );
     }
 }

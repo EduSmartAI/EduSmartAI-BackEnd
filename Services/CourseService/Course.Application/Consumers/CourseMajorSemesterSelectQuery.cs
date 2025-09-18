@@ -1,5 +1,5 @@
 using BuildingBlocks.CQRS;
-using BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
 
 namespace Course.Application.Consumers;
 

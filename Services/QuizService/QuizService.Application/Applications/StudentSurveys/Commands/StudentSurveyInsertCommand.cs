@@ -8,8 +8,7 @@ public record StudentSurveyInsertCommand : ICommand<StudentSurveyInsertResponse>
     [Required(ErrorMessage = "StudentInformation is required")]
     public StudentInformation StudentInformation { get; set; }
     
-    [Required(ErrorMessage = "StudentSurveys is required")]
-    public List<StudentSurveyInsertRequest> StudentSurveys { get; set; }
+    public List<StudentSurveyInsertRequest>? StudentSurveys { get; set; }
 }
 
 public class StudentInformation

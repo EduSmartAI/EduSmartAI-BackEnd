@@ -5,6 +5,8 @@ using Course.API;
 using Course.Application;
 using Course.Application.Consumers;
 using Course.Application.Interfaces;
+using Course.Application.Majors.Queries;
+using Course.Application.Semesters.Queries;
 using Course.Domain.Models;
 using Course.Infrastructure;
 using Course.Infrastructure.Implements;
@@ -21,6 +23,8 @@ builder.Services.AddScoped<ICommandRepository<Semester>, CommandRepository<Semes
 builder.Services.AddMediatR(x =>
 {
 	x.RegisterServicesFromAssemblyContaining<CourseMajorSemesterSelectQueryHandler>();
+	x.RegisterServicesFromAssemblyContaining<SemesterSelectsQueryHandler>();
+	x.RegisterServicesFromAssemblyContaining<MajorSelectsQueryHandler>();
 });
 
 builder.Services

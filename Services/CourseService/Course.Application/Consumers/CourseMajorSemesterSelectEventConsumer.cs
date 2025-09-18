@@ -1,4 +1,4 @@
-using BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
 using MassTransit;
 using MediatR;
 

@@ -5,7 +5,7 @@ using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
 using StudentService.Application.Applications.LearningGoals.Commands;
-using StudentService.Application.Applications.LearningGoals.Queris;
+using StudentService.Application.Applications.LearningGoals.Queries;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Technologies.Commands;
 using StudentService.Application.Interfaces;
@@ -44,9 +44,10 @@ public static class RepositoryExtensions
         {
             cfg.RegisterServicesFromAssemblyContaining<StudentInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<LearningGoalInsertCommandHandler>();
-            cfg.RegisterServicesFromAssemblyContaining<LearningGoalsSelectQueryHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<LearningGoalSelectsQueryHandler>();
             cfg.RegisterServicesFromAssemblyContaining<TechnologyInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<StudentMajorSemesterInsertCommandHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<TechnologySelectsQueryHandler>();
         });        
         return services;
     }

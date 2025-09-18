@@ -3,6 +3,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
+using StudentService.Application.Applications.ExternalConsumers;
 using StudentService.Application.Applications.Students.Consumers;
 
 namespace StudentService.API.Extensions;
@@ -22,6 +23,8 @@ public static class MessagingExtensions
             x.AddConsumer<UserInsertEventConsumer>();
             x.AddConsumer<UserLoginEventConsumer>();
             x.AddConsumer<StudentInformationInsertConsumer>();
+            x.AddConsumer<ExternalTechnologySelectsConsumer>();
+            x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {

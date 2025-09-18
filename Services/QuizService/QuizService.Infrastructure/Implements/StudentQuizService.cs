@@ -1,7 +1,7 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
 using BuildingBlocks.Messaging.Events.StudentInformationInsertEvents;
 using MassTransit;
 using QuizService.Application.Applications.StudentSurveys.Commands;
@@ -33,11 +33,11 @@ public class StudentQuizService : IStudentQuizService
     /// <param name="requestStudentMajorSemesterClient"></param>
     /// <param name="requestCourseMajorSemesterClient"></param>
     public StudentQuizService(ICommandRepository<StudentQuiz> studentQuizCommandRepository,
-        IQueryRepository<StudentQuizCollection> studentQuizQueryRepository, 
+        IQueryRepository<StudentQuizCollection> studentQuizQueryRepository,
         IIdentityService identityService,
         IUnitOfWork unitOfWork,
-        IQueryRepository<QuizCollection> quizQueryRepository, 
-        IRequestClient<StudentMajorSemesterInformationEvent> requestStudentMajorSemesterClient, 
+        IQueryRepository<QuizCollection> quizQueryRepository,
+        IRequestClient<StudentMajorSemesterInformationEvent> requestStudentMajorSemesterClient,
         IRequestClient<CourseMajorSemesterSelectEvent> requestCourseMajorSemesterClient)
     {
         _studentQuizCommandRepository = studentQuizCommandRepository;
@@ -48,68 +48,72 @@ public class StudentQuizService : IStudentQuizService
         _requestStudentMajorSemesterClient = requestStudentMajorSemesterClient;
         _requestCourseMajorSemesterClient = requestCourseMajorSemesterClient;
     }
-    
+
     #region Management Student Survey
+
     /// <summary>
     /// Insert student survey
     /// </summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request, CancellationToken cancellationToken)
+    public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request,
+        CancellationToken cancellationToken)
     {
         var response = new StudentSurveyInsertResponse { Success = false };
-        
+
         // Check if the quiz has already been taken
         var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
-        var surveyExist = await _quizQueryRepository.ToListAsync(x => surveyIdsRequest.Contains(x.QuizId) && x.QuizType == (byte) ConstantEnum.TestType.Survey && x.IsActive);
+        var surveyExist = await _quizQueryRepository.ToListAsync(x =>
+            surveyIdsRequest.Contains(x.QuizId) && x.QuizType == (byte)ConstantEnum.TestType.Survey && x.IsActive);
         if (!surveyExist.Any())
         {
             response.SetMessage(MessageId.E00000, "Khảo sát không tồn tại");
             return response;
         }
-        
+
         // Get current user
         var currentUser = _identityService.GetCurrentUser();
-        
+
         // Check student has already taken the survey
         var studentQuizExist = await _studentQuizCommandRepository.FirstOrDefaultAsync(
-            x => surveyIdsRequest.Contains(x.QuizId) && x.StudentId == currentUser!.UserId && x.IsActive, 
+            x => surveyIdsRequest.Contains(x.QuizId) && x.StudentId == currentUser!.UserId && x.IsActive,
             cancellationToken);
         if (studentQuizExist != null)
         {
             response.SetMessage(MessageId.E00000, "Khảo sát đã được điền");
             return response;
         }
-        
+
         // Check questions and answers exist
         var requestedQuestionIds = request.StudentSurveys
             .SelectMany(s => s.Answers.Select(a => a.QuestionId))
             .Distinct()
             .ToList();
-        
+
         var requestedAnswerIds = request.StudentSurveys
             .SelectMany(s => s.Answers.Select(a => a.AnswerId))
             .Distinct()
             .ToList();
-        
+
         var validQuestionIds = surveyExist
             .SelectMany(q => q.Questions)
             .Select(q => q.QuestionId)
             .ToHashSet();
-        
+
         var validAnswerIds = surveyExist
             .SelectMany(q => q.Questions)
             .SelectMany(q => q.Answers)
             .Select(a => a.AnswerId)
             .ToHashSet();
-        
-        if (requestedQuestionIds.Any(id => !validQuestionIds.Contains(id)) || requestedAnswerIds.Any(id => id.HasValue && !validAnswerIds.Contains(id.Value)))
+
+        if (requestedQuestionIds.Any(id => !validQuestionIds.Contains(id)) ||
+            requestedAnswerIds.Any(id => id.HasValue && !validAnswerIds.Contains(id.Value)))
         {
             response.SetMessage(MessageId.E00000, "Câu hỏi hoặc đáp án không tồn tại trong khảo sát");
             return response;
         }
-        
+
         // Build a dictionary of valid answers for each question
         var questionAnswerMap = surveyExist
             .SelectMany(q => q.Questions)
@@ -117,7 +121,7 @@ public class StudentQuizService : IStudentQuizService
                 q => q.QuestionId,
                 q => q.Answers.Select(a => a.AnswerId).ToHashSet()
             );
-        
+
         // Check if each requested AnswerId belongs to its QuestionId
         foreach (var studentSurvey in request.StudentSurveys)
         {
@@ -142,101 +146,108 @@ public class StudentQuizService : IStudentQuizService
         var studentQuizzes = new List<StudentQuiz>();
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            foreach (var studentSurvey in request.StudentSurveys)
+            #region Xử lý Insert Student Survey
+
+            if (request.StudentSurveys != null && request.StudentSurveys.Any())
             {
-                var newStudentQuiz = new StudentQuiz
+                foreach (var studentSurvey in request.StudentSurveys)
                 {
-                    QuizId = studentSurvey.SurveyId,
-                    StudentId = currentUser!.UserId,
-                    StudentQuizAnswers = studentSurvey.Answers.Select(ans =>
+                    var newStudentQuiz = new StudentQuiz
                     {
-                        // Find the question to get its type
-                        var question = surveyExist
-                            .SelectMany(q => q.Questions)
-                            .FirstOrDefault(q => q.QuestionId == ans.QuestionId);
-                        if (question!.QuestionType == (short) ConstantEnum.QuestionType.TrueFalse)
+                        QuizId = studentSurvey.SurveyId,
+                        StudentId = currentUser!.UserId,
+                        StudentQuizAnswers = studentSurvey.Answers.Select(ans =>
                         {
-                            return new StudentQuizAnswer
+                            // Find the question to get its type
+                            var question = surveyExist
+                                .SelectMany(q => q.Questions)
+                                .FirstOrDefault(q => q.QuestionId == ans.QuestionId);
+                            if (question!.QuestionType == (short)ConstantEnum.QuestionType.TrueFalse)
                             {
-                                QuestionId = ans.QuestionId,
-                                AnswerId = ans.AnswerId,
-                                AnswerText = null
-                            };
-                        }
-                        else if (question.QuestionType == (short) ConstantEnum.QuestionType.ShortAnswer)
-                        {
-                            return new StudentQuizAnswer
+                                return new StudentQuizAnswer
+                                {
+                                    QuestionId = ans.QuestionId,
+                                    AnswerId = ans.AnswerId,
+                                    AnswerText = null
+                                };
+                            }
+                            else if (question.QuestionType == (short)ConstantEnum.QuestionType.ShortAnswer)
                             {
-                                QuestionId = ans.QuestionId,
-                                AnswerId = null,
-                                AnswerText = ans.AnswerText
-                            };
-                        }
-                        else
-                        {
-                            return new StudentQuizAnswer
+                                return new StudentQuizAnswer
+                                {
+                                    QuestionId = ans.QuestionId,
+                                    AnswerId = null,
+                                    AnswerText = ans.AnswerText
+                                };
+                            }
+                            else
                             {
-                                QuestionId = ans.QuestionId,
-                                AnswerId = ans.AnswerId,
-                                AnswerText = null
-                            };
-                        }
-                    }).ToList()
-                };
-                studentQuizzes.Add(newStudentQuiz);
-            }
-            
-            // Insert into database
-            await _studentQuizCommandRepository.AddRangeAsync(studentQuizzes);
-            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
-            
-            // Insert denormalized data into Marten document store for optimized reading
-            foreach (var studentQuiz in studentQuizzes)
-            {
-                // Get related quiz
-                var quizCollection = surveyExist.First(q => q.QuizId == studentQuiz.QuizId);
-                
-                // Map to StudentQuizCollection
-                var studentQuizCollection = new StudentQuizCollection
+                                return new StudentQuizAnswer
+                                {
+                                    QuestionId = ans.QuestionId,
+                                    AnswerId = ans.AnswerId,
+                                    AnswerText = null
+                                };
+                            }
+                        }).ToList()
+                    };
+                    studentQuizzes.Add(newStudentQuiz);
+                }
+
+                // Insert into database
+                await _studentQuizCommandRepository.AddRangeAsync(studentQuizzes);
+                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+
+                // Insert denormalized data into Marten document store for optimized reading
+                foreach (var studentQuiz in studentQuizzes)
                 {
-                    StudentQuizId = studentQuiz.StudentQuizId,
-                    StudentId = studentQuiz.StudentId,
-                    QuizId = studentQuiz.QuizId,
-                    IsActive = studentQuiz.IsActive,
-                    CreatedAt = studentQuiz.CreatedAt,
-                    UpdatedAt = studentQuiz.UpdatedAt,
-                    CreatedBy = studentQuiz.CreatedBy,
-                    UpdatedBy = studentQuiz.UpdatedBy,
-                    Quiz = quizCollection,
-                    StudentQuizAnswers = studentQuiz.StudentQuizAnswers.Select(x =>
+                    // Get related quiz
+                    var quizCollection = surveyExist.First(q => q.QuizId == studentQuiz.QuizId);
+
+                    // Map to StudentQuizCollection
+                    var studentQuizCollection = new StudentQuizCollection
                     {
-                        var questionCollection = allQuestions.FirstOrDefault(q => q.QuestionId == x.QuestionId);
-                        var answerCollection = allAnswers.FirstOrDefault(a => a.AnswerId == x.AnswerId);
-            
-                        return new StudentQuizAnswerCollection
+                        StudentQuizId = studentQuiz.StudentQuizId,
+                        StudentId = studentQuiz.StudentId,
+                        QuizId = studentQuiz.QuizId,
+                        IsActive = studentQuiz.IsActive,
+                        CreatedAt = studentQuiz.CreatedAt,
+                        UpdatedAt = studentQuiz.UpdatedAt,
+                        CreatedBy = studentQuiz.CreatedBy,
+                        UpdatedBy = studentQuiz.UpdatedBy,
+                        Quiz = quizCollection,
+                        StudentQuizAnswers = studentQuiz.StudentQuizAnswers.Select(x =>
                         {
-                            StudentQuizAnswerId = x.StudentQuizAnswerId,
-                            StudentQuizId = x.StudentQuizId,
-                            QuestionId = x.QuestionId,
-                            AnswerId = x.AnswerId,
-                            AnswerText = x.AnswerText,
-                            IsActive = x.IsActive,
-                            CreatedAt = x.CreatedAt,
-                            UpdatedAt = x.UpdatedAt,
-                            CreatedBy = x.CreatedBy,
-                            UpdatedBy = x.UpdatedBy,
-                            Question = questionCollection,
-                            Answer = answerCollection
-                        };
-                    }).ToList()
-                };
-            
-                // Store to Marten
-                _unitOfWork.Store(studentQuizCollection);
+                            var questionCollection = allQuestions.FirstOrDefault(q => q.QuestionId == x.QuestionId);
+                            var answerCollection = allAnswers.FirstOrDefault(a => a.AnswerId == x.AnswerId);
+
+                            return new StudentQuizAnswerCollection
+                            {
+                                StudentQuizAnswerId = x.StudentQuizAnswerId,
+                                StudentQuizId = x.StudentQuizId,
+                                QuestionId = x.QuestionId,
+                                AnswerId = x.AnswerId,
+                                AnswerText = x.AnswerText,
+                                IsActive = x.IsActive,
+                                CreatedAt = x.CreatedAt,
+                                UpdatedAt = x.UpdatedAt,
+                                CreatedBy = x.CreatedBy,
+                                UpdatedBy = x.UpdatedBy,
+                                Question = questionCollection,
+                                Answer = answerCollection
+                            };
+                        }).ToList()
+                    };
+
+                    // Store to Marten
+                    _unitOfWork.Store(studentQuizCollection);
+                }
+
+                await _unitOfWork.SessionSaveChangesAsync();
             }
-            
-            await _unitOfWork.SessionSaveChangesAsync();
-            
+
+            #endregion
+
             // Send message to CourseService to get Major and Semester name
             var majorSemesterSelect = new CourseMajorSemesterSelectEvent
             {
@@ -252,11 +263,17 @@ public class StudentQuizService : IStudentQuizService
                 response.Message = messageSelectResponse.Message.Message;
                 return false;
             }
-            
+
+            if (messageSelectResponse.Message.Response.SemesterNumber < 4 && (request.StudentSurveys == null || !request.StudentSurveys.Any()))
+            {
+                response.SetMessage(MessageId.E00000, "Sinh viên dưới kỳ 4 phải hoàn thành khảo sát");
+                return false;
+            }
+
             // Send message to StudentService to update student information
             var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
             {
-                StudentId = currentUser.UserId,
+                StudentId = currentUser!.UserId,
                 MajorId = request.StudentInformation.MajorId,
                 SemesterId = request.StudentInformation.SemesterId,
                 MajorName = messageSelectResponse.Message.Response.MajorName,
@@ -279,7 +296,7 @@ public class StudentQuizService : IStudentQuizService
             response.SetMessage(MessageId.I00001, "Ghi nhận câu trả lời của sinh viên");
             return true;
         }, cancellationToken);
-        
+
         return response;
     }
 
@@ -334,6 +351,6 @@ public class StudentQuizService : IStudentQuizService
         response.SetMessage(MessageId.I00001, "Lấy khảo sát của sinh viên");
         return response;
     }
-    
+
     #endregion
 }

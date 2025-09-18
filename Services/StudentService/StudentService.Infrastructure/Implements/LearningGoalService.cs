@@ -1,8 +1,9 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.QuizService.LearningGoalSelectsEvents;
 using StudentService.Application.Applications.LearningGoals.Commands;
-using StudentService.Application.Applications.LearningGoals.Queris;
+using StudentService.Application.Applications.LearningGoals.Queries;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
@@ -79,9 +80,9 @@ public class LearningGoalService : ILearningGoalService
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    public async Task<LearningGoalsSelectResponse> SelectLearningGoalsAsync(LearningGoalsSelectQuery request)
+    public async Task<LearningGoalSelectsEventResponse> SelectLearningGoalsAsync(LearningGoalSelectsQuery request)
     {
-        var response = new LearningGoalsSelectResponse { Success = false};
+        var response = new LearningGoalSelectsEventResponse { Success = false};
         
         string cacheKey = "learning_goals:all";
         
@@ -101,11 +102,10 @@ public class LearningGoalService : ILearningGoalService
             return response;
         }
         
-        var responseEntity = majors.Select(x => new LearningGoalsSelectResponseEntity
+        var responseEntity = majors.Select(x => new LearningGoalSelectsEventResponseEntity
         {
-            GoalId = x.GoalId,
-            GoalName = x.GoalName,
-            Description = x.Description
+            LearningGoalId = x.GoalId,
+            LearningGoalName = x.GoalName,
         }).ToList();
         
         // True

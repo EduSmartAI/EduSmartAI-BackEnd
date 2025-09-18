@@ -1,5 +1,6 @@
+using BuildingBlocks.Messaging.Events.QuizService.LearningGoalSelectsEvents;
 using StudentService.Application.Applications.LearningGoals.Commands;
-using StudentService.Application.Applications.LearningGoals.Queris;
+using StudentService.Application.Applications.LearningGoals.Queries;
 
 namespace StudentService.Application.Interfaces;
 
@@ -7,5 +8,5 @@ public interface ILearningGoalService
 {
     Task<LearningGoalInsertResponse> InsertLearningGoalAsync(LearningGoalInsertCommand request, CancellationToken cancellationToken);
     
-    Task<LearningGoalsSelectResponse> SelectLearningGoalsAsync(LearningGoalsSelectQuery request);
+    Task<LearningGoalSelectsEventResponse> SelectLearningGoalsAsync(LearningGoalSelectsQuery request);
 }

@@ -1,4 +1,4 @@
-namespace BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
 
 public class CourseMajorSemesterSelectEvent
 {

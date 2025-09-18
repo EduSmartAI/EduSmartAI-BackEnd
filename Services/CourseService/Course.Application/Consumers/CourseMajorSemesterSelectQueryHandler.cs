@@ -1,7 +1,7 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
-using BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
 using Course.Application.Interfaces;
 
 namespace Course.Application.Consumers;
