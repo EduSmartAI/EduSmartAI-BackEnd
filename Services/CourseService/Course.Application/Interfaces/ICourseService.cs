@@ -5,6 +5,7 @@ using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Application.Interfaces
@@ -23,5 +24,6 @@ namespace Course.Application.Interfaces
 		Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default);
 		
 		Task<CheckEnrollmentResponse> CheckEnrollmentAsync(Guid courseId, CancellationToken ct = default);
+		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
 	}
 }

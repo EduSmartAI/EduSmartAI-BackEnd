@@ -7,3 +7,4 @@ public record CheckEnrollmentDto(
     DateTime? ExpiresAt,
     bool IsActive
 );
+

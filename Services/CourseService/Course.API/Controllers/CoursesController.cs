@@ -8,7 +8,9 @@ using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByTeacherId;
+using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CourseTagsDTO;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -114,7 +116,7 @@ namespace Course.API.Controllers
 		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Create a new course",
-			Description = "Create a new course with its modules and lessons"
+			Description = "Create a new course with its modules, lessons, and tags. Course tags are optional and can be used to categorize courses."
 		)]
 		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
@@ -208,6 +210,29 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new CheckEnrollmentResponse()
+			);
+		}
+
+		/// <summary>
+		/// Get all course tags
+		/// </summary>
+		/// <returns></returns>
+		[HttpGet("tags")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get all course tags",
+			Description = "Retrieve all available course tags"
+		)]
+		public async Task<GetCourseTagsResponse> GetCourseTags()
+		{
+			var query = new GetCourseTagsQuery();
+
+			return await ApiControllerHelper.HandleRequest<GetCourseTagsQuery, GetCourseTagsResponse, List<CourseTagDetailsDto>>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseTagsResponse()
 			);
 		}
 	}

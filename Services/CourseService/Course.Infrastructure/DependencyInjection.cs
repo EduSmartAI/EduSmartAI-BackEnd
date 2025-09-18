@@ -40,6 +40,7 @@ namespace Course.Infrastructure
 			services.AddScoped<IIdentityService, IdentityService>();
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
 			services.AddScoped<ICommandRepository<CourseStudentEnrollment>, CommandRepository<CourseStudentEnrollment>>();
+			services.AddScoped<ICommandRepository<Tag>, CommandRepository<Tag>>();
 			//services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
 

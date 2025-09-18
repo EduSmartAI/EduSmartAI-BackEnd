@@ -1,5 +1,6 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
@@ -7,7 +8,9 @@ using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.Interfaces;
@@ -25,6 +28,7 @@ namespace Course.Infrastructure.Implements
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
 		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
+		ICommandRepository<Tag> _tagRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
 		IIdentityService _identityService) : ICourseService
@@ -157,7 +161,7 @@ namespace Course.Infrastructure.Implements
 
 			response.Success = true;
 			response.Response = result;
-			response.Message = "OK";
+			response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học");
 
 			return response;
 		}
@@ -177,7 +181,7 @@ namespace Course.Infrastructure.Implements
 			if (cached is not null)
 			{
 				response.Success = true;
-				response.Message = "OK (from cache)";
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
 				response.Response = cached;
 				response.ModulesCount = cached.Modules.Count;
 				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
@@ -200,7 +204,7 @@ namespace Course.Infrastructure.Implements
 
 			if (entity is null)
 			{
-				response.Message = $"Course {Id} not found";
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
 				return response;
 			}
 
@@ -210,7 +214,7 @@ namespace Course.Infrastructure.Implements
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
 			response.Success = true;
-			response.Message = "OK";
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
 			response.Response = detail;
 			response.ModulesCount = modulesCount;
 			response.LessonsCount = lessonsCount;
@@ -232,7 +236,7 @@ namespace Course.Infrastructure.Implements
 			if (cached is not null)
 			{
 				response.Success = true;
-				response.Message = "OK (from cache)";
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
 				response.Response = cached;
 				response.ModulesCount = cached.Modules.Count;
 				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
@@ -255,7 +259,7 @@ namespace Course.Infrastructure.Implements
 
 			if (entity is null)
 			{
-				response.Message = $"Course {Id} not found";
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
 				return response;
 			}
 
@@ -265,7 +269,7 @@ namespace Course.Infrastructure.Implements
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
 			response.Success = true;
-			response.Message = "OK";
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
 			response.Response = detail;
 			response.ModulesCount = modulesCount;
 			response.LessonsCount = lessonsCount;
@@ -283,12 +287,7 @@ namespace Course.Infrastructure.Implements
 			var response = new CheckEnrollmentResponse() { Success = false };
 
 			// Get current user id from token
-			var currentUser = _identityService.GetCurrentUser();
-			if (currentUser is null)
-			{
-				response.Message = "User not authenticated";
-				return response;
-			}
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			// Check if user is enrolled in the course
 			var enrollment = await _enrollmentRepository
@@ -298,7 +297,7 @@ namespace Course.Infrastructure.Implements
 			if (enrollment is null)
 			{
 				response.Success = true;
-				response.Message = "User is not enrolled in this course";
+				response.SetMessage(MessageId.I00000, "Người dùng chưa tham gia khóa học");
 				response.Response = new CheckEnrollmentDto(
 					CourseId: courseId,
 					IsEnrolled: false,
@@ -310,7 +309,7 @@ namespace Course.Infrastructure.Implements
 			}
 
 			response.Success = true;
-			response.Message = "User is enrolled in this course";
+			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học");
 			response.Response = new CheckEnrollmentDto(
 				CourseId: courseId,
 				IsEnrolled: true,
@@ -402,7 +401,21 @@ namespace Course.Infrastructure.Implements
 				}
 			}
 
-			// Map Modules + Lessons (giữ thứ tự PositionIndex)
+			// 5) Course Tags – optional
+			if (dto.CourseTags is { Count: > 0 })
+			{
+				foreach (var courseTag in dto.CourseTags)
+				{
+					course.CourseTags.Add(new CourseTag
+					{
+						CourseId = course.CourseId,
+						TagId = courseTag.TagId,
+						//CreatedAt = DateTime.UtcNow
+					});
+				}
+			}
+
+			// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
 			foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
 			{
 				var module = new Module
@@ -460,10 +473,11 @@ namespace Course.Infrastructure.Implements
 
 			// Clear cache after successful creation
 			await ClearGetAllCacheAsync();
+			await ClearCourseTagsCacheAsync();
 
 			response.Response = course.CourseId.ToString();
 			response.Success = true;
-			response.Message = "Course created successfully";
+			response.SetMessage(MessageId.I00000, "Tạo khóa học thành công");
 
 			return response;
 		}
@@ -545,10 +559,11 @@ namespace Course.Infrastructure.Implements
 
 			// 8. Clear cache after successful update
 			await ClearGetAllCacheAsync();
+			await ClearCourseTagsCacheAsync();
 
 			// 9. Return updated course detail
 			response.Success = true;
-			response.Message = "Course updated successfully";
+			response.SetMessage(MessageId.I00001, "Cập nhật khóa học thành công");
 			return response;
 		}
 
@@ -606,10 +621,52 @@ namespace Course.Infrastructure.Implements
 
 			// 5. Clear cache after successful update
 			await ClearGetAllCacheAsync();
+			await ClearCourseTagsCacheAsync();
 
 			// 6. Return response
 			response.Success = true;
-			response.Message = "Course modules updated successfully";
+			response.SetMessage(MessageId.I00001, "Cập nhật các module của khóa học");
+
+			return response;
+		}
+
+		/// <summary>
+		/// Get all course tags
+		/// </summary>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default)
+		{
+			var response = new GetCourseTagsResponse() { Success = false };
+
+			// generate cache key for course tags
+			var cacheKey = "CourseTags:GetAll";
+
+			// get from cache first
+			var cached = await _cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
+				response.Response = cached;
+				return response;
+			}
+
+			// get from database
+			var tags = await _tagRepository
+				.Find(predicate: null, isTracking: false, cancellationToken: ct)
+				.Select(t => new CourseTagDetailsDto(
+					t.TagId,
+					t.TagName
+				))
+				.ToListAsync(ct);
+
+			// Cache the result for future requests
+			await _cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
+			response.Response = tags;
 
 			return response;
 		}
@@ -662,6 +719,22 @@ namespace Course.Infrastructure.Implements
 			// Get all cache keys that start with "Courses:GetAll"
 			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
 			var keys = server.Keys(pattern: "Courses:GetAll*");
+
+			if (keys.Any())
+			{
+				await _cache.KeyDeleteAsync(keys.ToArray());
+			}
+		}
+
+		/// <summary>
+		/// Clear cache for GetCourseTagsAsync method when tag data changes
+		/// </summary>
+		/// <returns></returns>
+		private async Task ClearCourseTagsCacheAsync()
+		{
+			// Get all cache keys that start with "CourseTags:"
+			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
+			var keys = server.Keys(pattern: "CourseTags:*");
 
 			if (keys.Any())
 			{
@@ -1442,7 +1515,6 @@ namespace Course.Infrastructure.Implements
 			}
 			return Task.CompletedTask;
 		}
-
 		#endregion
 	}
 }
