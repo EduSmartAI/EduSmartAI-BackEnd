@@ -61,7 +61,7 @@ jobs:
             docker compose up -d
 
             echo "⏳ Waiting for containers to start..."
-            sleep 30
+            sleep 40
 
             echo "✅ Docker containers status:"
             docker ps -a
