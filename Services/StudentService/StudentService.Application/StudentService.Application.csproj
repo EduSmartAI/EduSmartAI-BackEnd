@@ -15,6 +15,7 @@
 
     <ItemGroup>
       <Folder Include="Applications\Semesters\" />
+      <Folder Include="Applications\Technologies\Queries\" />
     </ItemGroup>
 
 </Project>

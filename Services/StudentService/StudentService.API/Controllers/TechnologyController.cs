@@ -6,15 +6,19 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
-using StudentService.Application.Applications.Majors.Commands;
-using StudentService.Application.Applications.Majors.Queries;
+using StudentService.Application.Applications.LearningGoals.Commands;
+using StudentService.Application.Applications.LearningGoals.Queris;
+using StudentService.Application.Applications.Technologies.Commands;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers;
 
+/// <summary>
+/// LearningGoalController - Manage learning goals
+/// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-public class MajorController : ControllerBase
+public class TechnologyController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IIdentityService _identityService;
@@ -28,27 +32,28 @@ public class MajorController : ControllerBase
     /// <param name="mediator"></param>
     /// <param name="identityService"></param>
     /// <param name="httpContextAccessor"></param>
-    public MajorController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
+    public TechnologyController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
     {
         _mediator = mediator;
         _identityService = identityService;
         _httpContextAccessor = httpContextAccessor;
     }
-    
+
     /// <summary>
     /// Incoming Post
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost]
-    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [HttpPost("InsertTechnology")]
+    [Authorize(Roles = ConstRole.Admin,
+        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
-        Summary = "Tạo chuyên ngành mới",
+        Summary = "Thêm ngôn ngữ/ framework/ tool/ platform mới",
         Description = "Cần cấp quyền Admin"
     )]
-    public async Task<MajorInsertResponse> InsertMajor(MajorInsertCommand request)
+    public async Task<TechnologyInsertResponse> InsertTechnology([FromBody] TechnologyInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<MajorInsertCommand, MajorInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<TechnologyInsertCommand, TechnologyInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -56,28 +61,7 @@ public class MajorController : ControllerBase
             _identityService,
             _identityEntity,
             _httpContextAccessor,
-            new MajorInsertResponse()
-        );
-    }
-    
-    /// <summary>
-    /// Incoming Get
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpGet]
-    [SwaggerOperation(
-        Summary = "Lấy danh sách chuyên ngành",
-        Description = "Trả về danh sách tất cả chuyên ngành đang hoạt động. Ai cũng có thể xem"
-    )]
-    public async Task<MajorsSelectResponse> SelectMajors([FromQuery] MajorsSelectQuery request)
-    {
-        return await ApiControllerHelper.HandleRequest<MajorsSelectQuery, MajorsSelectResponse, List<MajorsSelectResponseEntity>>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            new MajorsSelectResponse()
+            new TechnologyInsertResponse()
         );
     }
 }

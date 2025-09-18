@@ -1,4 +1,5 @@
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
+using BuildingBlocks.Messaging.Events.StudentInformationInsertEvents;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Domain.WriteModels;
 
@@ -8,5 +9,5 @@ public interface IStudentService
 {
     Task<UserInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default);
     
-    Task<StudentInsertProfileResponse> InsertStudentProfileAsync(StudentInsertProfileCommand request, CancellationToken cancellationToken);
+    Task<StudentInformationMajorSemesterEventResponse> InsertStudentMajorSemesterInformationAsync(StudentMajorSemesterInsertCommand request, CancellationToken cancellationToken);
 }

@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <Folder Include="Courses\Consumers\" />
+    <Folder Include="Majors\" />
+    <Folder Include="Semesters\" />
   </ItemGroup>
 
 </Project>

@@ -1,5 +1,7 @@
 ﻿using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseMajorSemesterSelectEvents;
+using Course.Application.Consumers;
 using MassTransit;
 
 namespace Course.API.Extensions
@@ -16,6 +18,7 @@ namespace Course.API.Extensions
 
 			services.AddMassTransit(x =>
 			{
+				x.AddConsumer<CourseMajorSemesterSelectEventConsumer>();
 
 				x.UsingRabbitMq((context, cfg) =>
 				{

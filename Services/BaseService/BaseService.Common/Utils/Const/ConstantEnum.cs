@@ -35,5 +35,16 @@ public static class ConstantEnum
         MultipleChoice = 1,
         TrueFalse = 2,
         ShortAnswer = 3,
+        SingleChoice = 4,
+    }
+    
+    public enum TechnologyType
+    {
+        ProgrammingLanguage = 1,
+        Framework = 2,
+        Tool = 3,
+        Platform = 4,
+        Database = 5,
+        Other = 6,
     }
 }

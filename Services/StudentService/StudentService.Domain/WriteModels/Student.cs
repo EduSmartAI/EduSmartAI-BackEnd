@@ -23,7 +23,7 @@ public partial class Student
 
     public Guid? MajorId { get; set; }
 
-    public int? SemesterId { get; set; }
+    public Guid? SemesterId { get; set; }
 
     public string? Bio { get; set; }
 
@@ -37,9 +37,7 @@ public partial class Student
 
     public bool IsActive { get; set; }
 
-    public virtual Major? Major { get; set; }
-
-    public virtual Semester? Semester { get; set; }
-
     public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
+
+    public virtual ICollection<StudentTechnology> StudentTechnologies { get; set; } = new List<StudentTechnology>();
 }

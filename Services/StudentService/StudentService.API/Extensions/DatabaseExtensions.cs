@@ -5,6 +5,7 @@ using Marten;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using StudentService.Domain.ReadModels;
+using StudentService.Domain.WriteModels;
 using StudentService.Infrastructure.Contexts;
 
 namespace StudentService.API.Extensions;
@@ -36,12 +37,11 @@ public static class DatabaseExtensions
             
             options.Schema.For<StudentCollection>().Identity(x => x.StudentId);
             options.Schema.For<LearningGoalCollection>().Identity(x => x.GoalId);
-            options.Schema.For<MajorCollection>().Identity(x => x.MajorId);
-            options.Schema.For<SemesterCollection>().Identity(x => x.SemesterId);
             options.Schema.For<TechnologyCollection>().Identity(x => x.TechnologyId);
-            options.Schema.For<TypeCollection>().Identity(x => x.TypeId);
             options.Schema.For<CourseLearningPathCollection>().Identity(x => x.CourseId);
             options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
+            options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);
+            options.Schema.For<StudentLearningGoalCollection>().Identity(x => x.Id);
         });
         
         return services;

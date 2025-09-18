@@ -234,4 +234,9 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
         }
         DbSet.UpdateRange(entities);
     }
+
+    public void UpdateRange(IEnumerable<TEntity> entities)
+    {
+        context.UpdateRange(entities);
+    }
 }

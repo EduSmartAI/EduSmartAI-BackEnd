@@ -21,5 +21,7 @@ public partial class Technology
 
     public bool IsActive { get; set; }
 
-    public virtual ICollection<TechnologyType> TechnologyTypes { get; set; } = new List<TechnologyType>();
+    public short TechnologyType { get; set; }
+
+    public virtual ICollection<StudentTechnology> StudentTechnologies { get; set; } = new List<StudentTechnology>();
 }

@@ -81,4 +81,6 @@ public interface ICommandRepository<TEntity> where TEntity : class
     /// </summary>
     /// <param name="entities"></param>
     void UpdateRange(IEnumerable<TEntity> entities, string userEmail, bool needLogicalDelete = false);
+    
+    void UpdateRange(IEnumerable<TEntity> entities);
 }

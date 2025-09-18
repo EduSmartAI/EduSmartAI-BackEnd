@@ -13,20 +13,19 @@ public sealed class StudentCollection
     public string? AvatarUrl { get; set; }
     public string? Address { get; set; }
     public Guid? MajorId { get; set; }
-    public int? SemesterId { get; set; }
+    public string? MajorName { get; set; }
+    public Guid? SemesterId { get; set; }
+    public string? SemesterName { get; set; }
     public string? Bio { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
     public bool IsActive { get; set; }
-
-    public MajorCollection? Major { get; set; }
-    public SemesterCollection? Semester { get; set; }
     
     public ICollection<LearningGoalCollection> LearningGoals { get; set; } = new List<LearningGoalCollection>();
 
-    public static StudentCollection FromWriteModel(Student model, bool included = false)
+    public static StudentCollection FromWriteModel(Student model, string? semesterName, string? majorName, bool included = false)
     {
         var studentCollection = new StudentCollection
         {
@@ -41,6 +40,8 @@ public sealed class StudentCollection
             MajorId = model.MajorId,
             SemesterId = model.SemesterId,
             Bio = model.Bio,
+            SemesterName = semesterName,
+            MajorName = majorName,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,
@@ -50,15 +51,6 @@ public sealed class StudentCollection
 
         if (included)
         {
-            if (model.Major != null)
-            {
-                studentCollection.Major = MajorCollection.FromWriteModel(model.Major);
-            }
-
-            if (model.Semester != null)
-            {
-                studentCollection.Semester = SemesterCollection.FromWriteModel(model.Semester);
-            }
             
             if (model.StudentLearningGoals.Any())
             {

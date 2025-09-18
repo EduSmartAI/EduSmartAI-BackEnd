@@ -5,6 +5,8 @@ namespace StudentService.Domain.WriteModels;
 
 public partial class CourseLearningPath
 {
+    public Guid CourseLearningPathId { get; set; }
+
     public Guid CourseId { get; set; }
 
     public Guid PathId { get; set; }
@@ -20,6 +22,6 @@ public partial class CourseLearningPath
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
-    
+
     public virtual LearningPath Path { get; set; } = null!;
 }
