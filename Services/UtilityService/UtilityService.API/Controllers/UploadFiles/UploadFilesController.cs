@@ -7,13 +7,13 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using Swashbuckle.AspNetCore.Annotations;
-using UtilityService.Application.Feature.UploadVideo;
+using UtilityService.Application.Feature.UploadZip;
 
-namespace UtilityService.API.Controllers.UploadVideos
+namespace UtilityService.API.Controllers.UploadFiles
 {
+    [Route("api/[controller]")]
     [ApiController]
-    [Route("api/v1/[controller]")]
-    public class UploadVideosController : ControllerBase
+    public class UploadFilesController : ControllerBase
     {
         private readonly IMediator _mediator;
         private readonly IIdentityService _identityService;
@@ -26,7 +26,7 @@ namespace UtilityService.API.Controllers.UploadVideos
         /// <param name="mediator"></param>
         /// <param name="identityService"></param>
         /// <param name="httpContextAccessor"></param>
-        public UploadVideosController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
+        public UploadFilesController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor)
         {
             _mediator = mediator;
             _identityService = identityService;
@@ -43,10 +43,10 @@ namespace UtilityService.API.Controllers.UploadVideos
         [Consumes("multipart/form-data")]
         [DisableRequestSizeLimit]
         [RequestFormLimits(MultipartBodyLengthLimit = 2L * 1024 * 1024 * 1024)] // 2GB
-        [SwaggerOperation(Summary = "Upload video")]
-        public async Task<VideoUploadResponse> UploadVideo(VideoUploadRequest request)
+        [SwaggerOperation(Summary = "Upload File Zip")]
+        public async Task<UploadZipResponse> UploadZipFile(UploadZipRequest request)
         {
-            return await ApiControllerHelper.HandleRequest<VideoUploadRequest, VideoUploadResponse, string>(
+            return await ApiControllerHelper.HandleRequest<UploadZipRequest, UploadZipResponse, string>(
                 request,
                 _logger,
                 ModelState,
@@ -54,7 +54,7 @@ namespace UtilityService.API.Controllers.UploadVideos
                 _identityService,
                 _identityEntity,
                 _httpContextAccessor,
-                new VideoUploadResponse());
+                new UploadZipResponse());
         }
     }
 }
