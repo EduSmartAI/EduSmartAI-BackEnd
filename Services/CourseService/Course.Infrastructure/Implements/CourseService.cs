@@ -620,20 +620,20 @@ namespace Course.Infrastructure.Implements
 		{
 			var response = new GetCourseTagsResponse() { Success = false };
 
-			// Generate cache key for course tags
+			// generate cache key for course tags
 			var cacheKey = "CourseTags:GetAll";
 
-			// Try to get from cache first
+			// get from cache first
 			var cached = await _cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học (từ cache)");
+				response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
 				response.Response = cached;
 				return response;
 			}
 
-			// If not in cache, get from database
+			// get from database
 			var tags = await _tagRepository
 				.Find(predicate: null, isTracking: false, cancellationToken: ct)
 				.Select(t => new CourseTagDetailsDto(
@@ -642,7 +642,7 @@ namespace Course.Infrastructure.Implements
 				))
 				.ToListAsync(ct);
 
-			// Cache the result for future requests (cache for 10 minutes)
+			// Cache the result for future requests
 			await _cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
 
 			response.Success = true;
