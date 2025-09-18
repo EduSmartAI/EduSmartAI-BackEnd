@@ -21,11 +21,11 @@ public static class RepositoryExtensions
 
         
         // MediatR configuration
-        services.AddMediatR(cfg =>
-        {
-           // cfg.RegisterServicesFromAssemblyContaining<>();
-            
-        });        
+        // services.AddMediatR(cfg =>
+        // {
+        //    // cfg.RegisterServicesFromAssemblyContaining<>();
+        //     
+        // });        
         return services;
     }
 }
