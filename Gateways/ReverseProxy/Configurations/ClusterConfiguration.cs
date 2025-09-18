@@ -16,7 +16,7 @@ public static class ClusterConfiguration
         var courseServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.CourseServiceUrl);
         var paymentServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.PaymentServiceUrl);
         var notificationServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.NotificationServiceUrl);
-        //var aiServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.AiServiceUrl);
+        var aiServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.AiServiceUrl);
         var utilityServiceUrl = Environment.GetEnvironmentVariable(ConstEnv.UtilityServiceUrl);
 
         return new List<ClusterConfig>
@@ -77,16 +77,16 @@ public static class ClusterConfiguration
                     { "destination7", new DestinationConfig { Address = notificationServiceUrl! } }
                 }
             },
-            // new ClusterConfig
-            // {
-            //     ClusterId = ConstReverseProxy.AiServiceClusterId,
-            //     Destinations = new Dictionary<string, DestinationConfig>
-            //     {
-            //         {
-            //             "destination8", new DestinationConfig { Address = aiServiceUrl! } 
-            //         }
-            //     }
-            // },
+            new ClusterConfig
+            {
+                ClusterId = ConstReverseProxy.AiServiceClusterId,
+                Destinations = new Dictionary<string, DestinationConfig>
+                {
+                    {
+                        "destination8", new DestinationConfig { Address = aiServiceUrl! } 
+                    }
+                }
+            },
             new ClusterConfig
             {
                 ClusterId = ConstReverseProxy.UtilityServiceClusterId,

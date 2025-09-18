@@ -179,6 +179,28 @@
       - CLIENT_SECRET=${CLIENT_SECRET}
     networks:
       - edusmartai-network
+        
+  aiservice.api:
+    build:
+      context: .
+      dockerfile: Services/AiService/AiService.API/Dockerfile
+    ports:
+      - "7006:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - AI_SERVICE_DB=${COURSE_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
     
     
   # Gateway
@@ -197,6 +219,7 @@
       - notificationservice.api
       - utilityservice.api
       - courseservice.api
+      - aiservice.api
     networks:
       - edusmartai-network
     environment:
@@ -210,6 +233,7 @@
       - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL}
       - UTILITY_SERVICE_URL=${UTILITY_SERVICE_URL}
       - COURSE_SERVICE_URL=${COURSE_SERVICE_URL}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
       - WEBSITE_DOMAIN=${WEBSITE_DOMAIN}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
