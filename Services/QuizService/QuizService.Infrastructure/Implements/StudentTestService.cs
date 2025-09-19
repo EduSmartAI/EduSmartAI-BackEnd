@@ -227,9 +227,14 @@ public class StudentTestService : IStudentTestService
                 Title = quiz.Title,
                 Description = quiz.Description,
                 SubjectCode = quiz.SubjectCode,
-                SubjectCodeName = string.Empty,
+                SubjectCodeName = quiz.SubjectCodeName,
                 TotalQuestions = quiz.Questions.Count,
-                DifficultyLevel = 0,
+                TotalCorrectAnswers = quiz.Questions.Count(q =>
+                    studentTest.StudentAnswers.Any(sa =>
+                        sa.QuestionId == q.QuestionId &&
+                        q.Answers.Any(a => a.AnswerId == sa.AnswerId && a.IsCorrect)
+                    )
+                ),
                 QuestionResults = questionResults
             });
         }

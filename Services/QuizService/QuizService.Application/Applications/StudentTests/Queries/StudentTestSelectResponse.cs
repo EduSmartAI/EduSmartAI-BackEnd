@@ -36,7 +36,7 @@ public class QuizResultSelectResponseEntity
     
     public int TotalQuestions { get; set; }
     
-    public short DifficultyLevel { get; set; }
+    public int TotalCorrectAnswers { get; set; }
     
     public List<QuestionsResultSelectResponseEntity> QuestionResults { get; set; }
 }
