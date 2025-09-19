@@ -193,11 +193,24 @@ public class StudentTestService : IStudentTestService
             return response;
         }
 
-        // Build QuizResults
+        // Get quiz IDs that student has answered
+        var answeredQuizIds = new HashSet<Guid>();
+        foreach (var studentAnswer in studentTest.StudentAnswers)
+        {
+            // Find which quiz contains this question
+            var quiz = test.Quizzes.FirstOrDefault(q => q.Questions.Any(ques => ques.QuestionId == studentAnswer.QuestionId));
+            if (quiz != null)
+            {
+                answeredQuizIds.Add(quiz.QuizId);
+            }
+        }
+
+        // Build QuizResults - chỉ lấy những quiz mà sinh viên đã trả lời
         var quizResults = new List<QuizResultSelectResponseEntity>();
-        foreach (var quiz in test.Quizzes)
+        foreach (var quiz in test.Quizzes.Where(q => answeredQuizIds.Contains(q.QuizId)))
         {
             var questionResults = new List<QuestionsResultSelectResponseEntity>();
+            
             foreach (var question in quiz.Questions)
             {
                 var answerResults = new List<StudentAnswerDetailResponse>();
@@ -221,15 +234,29 @@ public class StudentTestService : IStudentTestService
                     Answers = answerResults
                 });
             }
+            
+            var answeredQuestionIds = studentTest.StudentAnswers
+                .Where(sa => quiz.Questions.Any(q => q.QuestionId == sa.QuestionId))
+                .Select(sa => sa.QuestionId)
+                .Distinct()
+                .ToHashSet();
+                
+            var totalCorrectAnswers = quiz.Questions
+                .Where(q => answeredQuestionIds.Contains(q.QuestionId))
+                .Count(q => studentTest.StudentAnswers.Any(sa =>
+                    sa.QuestionId == q.QuestionId &&
+                    q.Answers.Any(a => a.AnswerId == sa.AnswerId && a.IsCorrect)
+                ));
+            
             quizResults.Add(new QuizResultSelectResponseEntity
             {
                 QuizId = quiz.QuizId,
                 Title = quiz.Title,
                 Description = quiz.Description,
                 SubjectCode = quiz.SubjectCode,
-                SubjectCodeName = string.Empty,
+                SubjectCodeName = quiz.SubjectCodeName,
                 TotalQuestions = quiz.Questions.Count,
-                DifficultyLevel = 0,
+                TotalCorrectAnswers = totalCorrectAnswers,
                 QuestionResults = questionResults
             });
         }
