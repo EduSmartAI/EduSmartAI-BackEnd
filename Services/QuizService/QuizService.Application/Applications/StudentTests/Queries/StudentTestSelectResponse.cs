@@ -51,6 +51,8 @@ public class QuestionsResultSelectResponseEntity
     
     public short? DifficultyLevel { get; set; }
     
+    public string? Explanation { get; set; }
+    
     public List<StudentAnswerDetailResponse> Answers { get; set; } = null!;
 }
 
@@ -62,5 +64,5 @@ public record StudentAnswerDetailResponse
     
     public bool SelectedByStudent { get; set; }
     
-    public string? Explanation { get; set; }
+    public string? AnswerText { get; set; }
 }

@@ -209,7 +209,7 @@ public class StudentTestService : IStudentTestService
                         AnswerId = answer.AnswerId,
                         IsCorrectAnswer = answer.IsCorrect,
                         SelectedByStudent = selectedByStudent,
-                        Explanation = answer.AnswerText
+                        AnswerText = answer.AnswerText
                     });
                 }
                 questionResults.Add(new QuestionsResultSelectResponseEntity
@@ -218,6 +218,7 @@ public class StudentTestService : IStudentTestService
                     QuestionText = question.QuestionText,
                     QuestionType = question.QuestionType,
                     DifficultyLevel = question.DifficultyLevel,
+                    Explanation = question.Explanation,
                     Answers = answerResults
                 });
             }
