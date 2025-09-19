@@ -57,8 +57,7 @@ public class StudentQuizService : IStudentQuizService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request,
-        CancellationToken cancellationToken)
+    public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request, CancellationToken cancellationToken)
     {
         var response = new StudentSurveyInsertResponse { Success = false };
 
@@ -156,6 +155,7 @@ public class StudentQuizService : IStudentQuizService
                     {
                         QuizId = studentSurvey.SurveyId,
                         StudentId = currentUser!.UserId,
+                        QuizType = (short) ConstantEnum.TestType.Survey,
                         StudentQuizAnswers = studentSurvey.Answers.Select(ans =>
                         {
                             // Find the question to get its type

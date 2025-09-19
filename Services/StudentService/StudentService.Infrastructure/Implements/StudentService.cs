@@ -90,12 +90,18 @@ public class StudentService : IStudentService
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+            var now = DateTime.UtcNow;
             // Insert into StudentCollection
             var studentCollection = new StudentCollection
             {
                 StudentId = request.UserId,
                 FirstName = request.FirstName,
-                LastName = request.LastName
+                LastName = request.LastName,
+                CreatedAt = now,
+                CreatedBy = request.Enail,
+                UpdatedAt = now,
+                UpdatedBy = request.Enail,
+                IsActive = true
             };
             _unitOfWork.Store(studentCollection);
             await _unitOfWork.SessionSaveChangesAsync();

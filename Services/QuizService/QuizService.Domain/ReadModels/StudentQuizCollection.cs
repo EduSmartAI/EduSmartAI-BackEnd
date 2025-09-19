@@ -9,6 +9,8 @@ public class StudentQuizCollection
     public Guid StudentId { get; set; }
 
     public Guid QuizId { get; set; }
+    
+    public short QuizType { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -31,6 +33,7 @@ public class StudentQuizCollection
             StudentQuizId = studentQuiz.StudentQuizId,
             StudentId = studentQuiz.StudentId,
             QuizId = studentQuiz.QuizId,
+            QuizType = studentQuiz.QuizType,
             IsActive = studentQuiz.IsActive,
             CreatedAt = studentQuiz.CreatedAt,
             UpdatedAt = studentQuiz.UpdatedAt,

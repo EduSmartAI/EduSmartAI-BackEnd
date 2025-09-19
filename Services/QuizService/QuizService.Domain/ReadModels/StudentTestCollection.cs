@@ -15,6 +15,8 @@ public sealed class StudentTestCollection
     public string UpdatedBy { get; set; } = null!;
     public bool IsActive { get; set; }
     
+    public ICollection<StudentQuizCollection> StudentQuizzes { get; set; } = new List<StudentQuizCollection>();
+    
     public ICollection<StudentAnswerCollection> StudentAnswers { get; set; } = new List<StudentAnswerCollection>();
 
     public static StudentTestCollection FromWriteModel(StudentTest model)

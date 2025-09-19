@@ -176,6 +176,7 @@ public partial class QuizServiceContext : AppDbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("student_quiz_id");
             entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.QuizType).HasColumnName("quiz_type");
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");

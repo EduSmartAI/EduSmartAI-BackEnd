@@ -13,6 +13,7 @@ namespace QuizService.Infrastructure.Implements;
 public class StudentTestService : IStudentTestService
 {
     private readonly ICommandRepository<StudentTest> _studentTestRepository;
+    private readonly ICommandRepository<StudentQuiz> _studentQuizRepository;
     private readonly IQueryRepository<StudentTestCollection> _studentTestQueryRepository;
     private readonly IQueryRepository<TestCollection> _testQueryRepository;
     private readonly IQueryRepository<QuestionCollection> _questionQueryRepository;
@@ -28,9 +29,10 @@ public class StudentTestService : IStudentTestService
     /// <param name="unitOfWork"></param>
     /// <param name="testQueryRepository"></param>
     /// <param name="questionQueryRepository"></param>
+    /// <param name="studentQuizRepository"></param>
     public StudentTestService(ICommandRepository<StudentTest> studentTestRepository, IQueryRepository<StudentTestCollection> studentTestQueryRepository,
         IIdentityService identityService, IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository, 
-        IQueryRepository<QuestionCollection> questionQueryRepository)
+        IQueryRepository<QuestionCollection> questionQueryRepository, ICommandRepository<StudentQuiz> studentQuizRepository)
     {
         _studentTestRepository = studentTestRepository;
         _studentTestQueryRepository = studentTestQueryRepository;
@@ -38,6 +40,7 @@ public class StudentTestService : IStudentTestService
         _unitOfWork = unitOfWork;
         _testQueryRepository = testQueryRepository;
         _questionQueryRepository = questionQueryRepository;
+        _studentQuizRepository = studentQuizRepository;
     }
 
     /// <summary>
@@ -72,8 +75,17 @@ public class StudentTestService : IStudentTestService
             return response;
         }
         
+        // Validate quizIds
+        var quizIds = request.QuizIds;
+        var validQuizIds = testExist.Quizzes.Where(q => quizIds.Contains(q.QuizId)).Select(q => q.QuizId).ToList();
+        if (validQuizIds.Count != quizIds.Count)
+        {
+            response.SetMessage(MessageId.E00000, "Có bài quiz không hợp lệ trong danh sách bài quiz");
+            return response;
+        }
+        
         // Validate questionIds in answers
-        var questionIds = request.Answers.Select(a => a.QuestionId).ToList();
+        var questionIds = request.Answers.Select(a => a.QuestionId).Distinct().ToList();
         var validQuestions = await _questionQueryRepository.ToListAsync(x => questionIds.Contains(x.QuestionId));
         if (validQuestions.Count != questionIds.Count)
         {
@@ -115,9 +127,29 @@ public class StudentTestService : IStudentTestService
                 }).ToList()
             };
             
+            // Insert into StudentQuiz
+            var studentQuizzes = request.QuizIds.Select(x => new StudentQuiz
+            {
+                StudentId = currentUser.UserId,
+                QuizId = x,
+                QuizType = (short) ConstantEnum.TestType.Quiz,
+            }).ToList();
+            await _studentQuizRepository.AddRangeAsync(studentQuizzes, currentUser.Email);
+            
             // Save to database
             await _studentTestRepository.AddAsync(studentTest, currentUser.Email);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            
+            var studentQuizCollections = new List<StudentQuizCollection>();
+            
+            // Map to StudentTestCollection
+            foreach (var studentQuiz in studentQuizzes)
+            {
+                var quiz = testExist.Quizzes.FirstOrDefault(qu => qu.QuizId == studentQuiz.QuizId);
+                var studentQuizCollection = StudentQuizCollection.FromWriteModel(studentQuiz, quiz);
+                _unitOfWork.Store(studentQuizCollection);
+                studentQuizCollections.Add(studentQuizCollection);
+            }
 
             var answerDict = new Dictionary<Guid?, AnswerCollection>();
             foreach (var answer in validAnswers) answerDict.Add(answer.AnswerId, answer);
@@ -145,7 +177,8 @@ public class StudentTestService : IStudentTestService
                     UpdatedAt = sa.UpdatedAt,
                     UpdatedBy = sa.UpdatedBy,
                     IsActive = sa.IsActive
-                }).ToList()
+                }).ToList(),
+                StudentQuizzes = studentQuizCollections,
             };
             
             _unitOfWork.Store(studentTestCollection);
@@ -169,6 +202,15 @@ public class StudentTestService : IStudentTestService
     {
         var response = new StudentTestSelectResponse {Success = false};
         string cacheKey = $"studentTest:{request.StudentTestId}";
+        
+        var studentId = _identityService.GetCurrentUser()!.UserId;
+        // Validate student test ownership
+        var ownershipCheck = await _studentTestQueryRepository.FirstOrDefaultAsync(x => x.StudentId == studentId);
+        if (ownershipCheck == null)
+        {
+            response.SetMessage(MessageId.E00000, "Bài kiểm tra không thuộc về sinh viên hiện tại");
+            return response;
+        }
 
         // Get student test from cache or database
         var studentTest = await _studentTestQueryRepository.GetOrSetAsync(
@@ -193,24 +235,19 @@ public class StudentTestService : IStudentTestService
             return response;
         }
 
-        // Get quiz IDs that student has answered
-        var answeredQuizIds = new HashSet<Guid>();
-        foreach (var studentAnswer in studentTest.StudentAnswers)
-        {
-            // Find which quiz contains this question
-            var quiz = test.Quizzes.FirstOrDefault(q => q.Questions.Any(ques => ques.QuestionId == studentAnswer.QuestionId));
-            if (quiz != null)
-            {
-                answeredQuizIds.Add(quiz.QuizId);
-            }
-        }
-
-        // Build QuizResults - chỉ lấy những quiz mà sinh viên đã trả lời
+        // QuizResults - get all quiz from StudentQuizzes
         var quizResults = new List<QuizResultSelectResponseEntity>();
-        foreach (var quiz in test.Quizzes.Where(q => answeredQuizIds.Contains(q.QuizId)))
+        foreach (var studentQuiz in studentTest.StudentQuizzes.Where(sq => sq.QuizType == (short)ConstantEnum.TestType.Quiz))
         {
+            // Find quiz details from test.Quizzes
+            var quiz = test.Quizzes.FirstOrDefault(q => q.QuizId == studentQuiz.QuizId);
+            
+            // Skip if quiz not found
+            if (quiz == null) continue; 
+            
             var questionResults = new List<QuestionsResultSelectResponseEntity>();
             
+            // Get question results for this quiz - including answers and whether student selected them
             foreach (var question in quiz.Questions)
             {
                 var answerResults = new List<StudentAnswerDetailResponse>();
@@ -235,12 +272,14 @@ public class StudentTestService : IStudentTestService
                 });
             }
             
+            // Caculate total correct answers
             var answeredQuestionIds = studentTest.StudentAnswers
                 .Where(sa => quiz.Questions.Any(q => q.QuestionId == sa.QuestionId))
                 .Select(sa => sa.QuestionId)
                 .Distinct()
                 .ToHashSet();
                 
+            // Count correct answers
             var totalCorrectAnswers = quiz.Questions
                 .Where(q => answeredQuestionIds.Contains(q.QuestionId))
                 .Count(q => studentTest.StudentAnswers.Any(sa =>
