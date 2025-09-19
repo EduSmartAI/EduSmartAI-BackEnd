@@ -38,7 +38,8 @@ public class SwaggerController : ControllerBase
                 { "Quiz Service", "/quiz/swagger/v1/swagger.json" },
                 { "Utility Service", "/utility/swagger/v1/swagger.json" },
                 { "Payment Service", "/payment/swagger/v1/swagger.json" },
-                { "Notification Service", "/notification/swagger/v1/swagger.json" }
+                { "Notification Service", "/notification/swagger/v1/swagger.json" },
+                { "AI Service", "/ai/swagger/v1/swagger.json" },
             };
 
             var allPaths = new Dictionary<string, object>();

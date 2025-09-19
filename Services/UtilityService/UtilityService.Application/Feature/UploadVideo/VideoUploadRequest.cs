@@ -1,9 +1,8 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
-using UtilityService.Application.Response;
 
-namespace UtilityService.Application.Request
+namespace UtilityService.Application.Feature.UploadVideo
 {
     public record VideoUploadRequest : IRequest<VideoUploadResponse>
     {

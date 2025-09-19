@@ -43,7 +43,7 @@ public class TestController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost]
+    [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Tạo bài kiểm tra mới",
@@ -62,13 +62,13 @@ public class TestController : ControllerBase
             new TestInsertResponse());
     }
     
-    [HttpGet]
+    [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lấy bài kiểm tra gồm các quiz mà student chọn",
         Description = "Cần cấp quyền Student cho API"
     )]
-    public async Task<TestSelectResponse> GetTest([FromQuery] TestSelectQuery request)
+    public async Task<TestSelectResponse> SelectTest([FromQuery] TestSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<TestSelectQuery, TestSelectResponse, TestSelectResponseEntity>(
             request,

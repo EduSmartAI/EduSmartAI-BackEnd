@@ -44,7 +44,7 @@ public class StudentTestController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost]
+    [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lưu câu trả lời của học sinh",
@@ -68,7 +68,7 @@ public class StudentTestController : ControllerBase
     /// </summary>
     /// <param name="studentTestId"></param>
     /// <returns></returns>
-    [HttpGet()]
+    [HttpGet("[action]")]
     [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lấy câu trả lời của học sinh trong bài test",

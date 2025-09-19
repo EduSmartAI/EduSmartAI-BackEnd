@@ -37,11 +37,10 @@ public class QuizController : ControllerBase
     }
     
     /// <summary>
-    /// Update question and its answers
+    /// Select all quizzes for a specific test
     /// </summary>
-    /// <param name="request"></param>
     /// <returns></returns>
-    [HttpGet]
+    [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lấy danh sách quiz của một bài kiểm tra",

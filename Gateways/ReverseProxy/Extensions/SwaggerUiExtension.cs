@@ -22,6 +22,7 @@ public static class SwaggerUiExtension
             c.SwaggerEndpoint("/utility/swagger/v1/swagger.json", "Utility Service");
             c.SwaggerEndpoint("/payment/swagger/v1/swagger.json", "Payment Service");
             c.SwaggerEndpoint("/notification/swagger/v1/swagger.json", "Notification Service");
+            c.SwaggerEndpoint("/ai/swagger/v1/swagger.json", "AI Service");
             
             c.DocumentTitle = "EduSmart API Gateway - Swagger UI";
             c.DefaultModelsExpandDepth(-1);

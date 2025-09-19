@@ -16,4 +16,10 @@ public record QuizSelectsResponseEntity
     public string? Description { get; set; }
     
     public Guid? SubjectCode { get; set; }
+    
+    public string SubjectCodeName { get; set; }
+    
+    public int TotalQuestions { get; set; }
+    
+    public short DifficultyLevel { get; set; }
 }

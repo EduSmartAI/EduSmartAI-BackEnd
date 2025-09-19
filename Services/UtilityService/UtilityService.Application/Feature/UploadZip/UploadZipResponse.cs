@@ -1,8 +1,8 @@
 ﻿using BaseService.Common.ApiEntities;
 
-namespace UtilityService.Application.Response
+namespace UtilityService.Application.Feature.UploadZip
 {
-    public record VideoUploadResponse : AbstractApiResponse<string>
+    public record UploadZipResponse : AbstractApiResponse<string>
     {
         public override string Response { get; set; } = null!;
     }

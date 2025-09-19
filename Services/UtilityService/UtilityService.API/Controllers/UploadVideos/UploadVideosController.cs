@@ -7,8 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using Swashbuckle.AspNetCore.Annotations;
-using UtilityService.Application.Request;
-using UtilityService.Application.Response;
+using UtilityService.Application.Feature.UploadVideo;
 
 namespace UtilityService.API.Controllers.UploadVideos
 {
@@ -42,7 +41,7 @@ namespace UtilityService.API.Controllers.UploadVideos
         [HttpPost]
         [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         [Consumes("multipart/form-data")]
-        [DisableRequestSizeLimit]                                  // bỏ Kestrel 30MB
+        [DisableRequestSizeLimit]
         [RequestFormLimits(MultipartBodyLengthLimit = 2L * 1024 * 1024 * 1024)] // 2GB
         [SwaggerOperation(Summary = "Upload video")]
         public async Task<VideoUploadResponse> UploadVideo(VideoUploadRequest request)

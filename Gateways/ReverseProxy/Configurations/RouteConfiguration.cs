@@ -141,24 +141,24 @@ public static class RouteConfiguration
                     { "Exceptions", "" }
                 }
             },
-            // new RouteConfig
-            // {
-            //     RouteId = "aiServiceRoute",
-            //     ClusterId = ConstReverseProxy.AiServiceClusterId,
-            //     Match = new RouteMatch
-            //     {
-            //         Path = "/ai/{**catch-all}",
-            //     },
-            //     Transforms =
-            //     [
-            //         new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
-            //     ],
-            //     Metadata = new Dictionary<string, string>
-            //     {
-            //         { "AllowedRoles", ConstRole.Student + "," + ConstRole.Lecturer },
-            //         { "Exceptions", "" }
-            //     }
-            // },
+            new RouteConfig
+            {
+                RouteId = "aiServiceRoute",
+                ClusterId = ConstReverseProxy.AiServiceClusterId,
+                Match = new RouteMatch
+                {
+                    Path = "/ai/{**catch-all}",
+                },
+                Transforms =
+                [
+                    new Dictionary<string, string> { { "RequestHeaderOriginalHost", "true" } },
+                ],
+                Metadata = new Dictionary<string, string>
+                {
+                    { "AllowedRoles", "Anonymous" },
+                    { "Exceptions", "" }
+                }
+            },
             new RouteConfig
             {
                 RouteId = "utilityServiceRoute",

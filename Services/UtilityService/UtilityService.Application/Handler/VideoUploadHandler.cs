@@ -2,9 +2,7 @@
 using MassTransit;
 using MediatR;
 using UtilityService.Application.Contracts;
-using UtilityService.Application.Logics;
-using UtilityService.Application.Request;
-using UtilityService.Application.Response;
+using UtilityService.Application.Feature.UploadVideo;
 using UtilityService.Domain.Models;
 
 namespace UtilityService.Application.Handler
@@ -28,7 +26,7 @@ namespace UtilityService.Application.Handler
                 throw new Exception("Cloudinary configuration not found");
             }
             var fileName = request.formFile.FileName;
-            var publicId = CloudinaryLogic.SlugifyPublicId(Path.GetFileNameWithoutExtension(fileName));
+            var publicId = $"{Guid.NewGuid():N}";
             var cloudName = cloudinaryKey.CloudApiName;
             var hlsUrl = $"https://res.cloudinary.com/{cloudName}/video/upload/sp_auto:maxres_2160p/{publicId}.m3u8";
 

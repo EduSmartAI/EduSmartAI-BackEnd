@@ -77,7 +77,7 @@ public class StudentTestService : IStudentTestService
         var validQuestions = await _questionQueryRepository.ToListAsync(x => questionIds.Contains(x.QuestionId));
         if (validQuestions.Count != questionIds.Count)
         {
-            response.SetMessage(MessageId.E00000, "Có câu hỏi không hợp lệ trong danh sách trả lời");
+            response.SetMessage(MessageId.E00000, "Có câu hỏi kh��ng hợp lệ trong danh sách trả lời");
             return response;
         }
         
@@ -168,15 +168,13 @@ public class StudentTestService : IStudentTestService
     public async Task<StudentTestSelectResponse> SelectStudentTestAsync(StudentTestSelectQuery request)
     {
         var response = new StudentTestSelectResponse {Success = false};
-        
-        string cacheKey = "studentTest:id";
-        
-        // Get majors from cache or database
+        string cacheKey = $"studentTest:{request.StudentTestId}";
+
+        // Get student test from cache or database
         var studentTest = await _studentTestQueryRepository.GetOrSetAsync(
             cacheKey,
             async () =>
             {
-                // If not in cache, get from database
                 return await _studentTestQueryRepository.FirstOrDefaultAsync(x => x.StudentTestId == request.StudentTestId && x.IsActive);
             },
             TimeSpan.FromMinutes(10)
@@ -186,23 +184,66 @@ public class StudentTestService : IStudentTestService
             response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra của học sinh");
             return response;
         }
-        
+
+        // Get test info
+        var test = await _testQueryRepository.FirstOrDefaultAsync(x => x.TestId == studentTest.TestId);
+        if (test == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin bài kiểm tra");
+            return response;
+        }
+
+        // Build QuizResults
+        var quizResults = new List<QuizResultSelectResponseEntity>();
+        foreach (var quiz in test.Quizzes)
+        {
+            var questionResults = new List<QuestionsResultSelectResponseEntity>();
+            foreach (var question in quiz.Questions)
+            {
+                var answerResults = new List<StudentAnswerDetailResponse>();
+                foreach (var answer in question.Answers)
+                {
+                    var selectedByStudent = studentTest.StudentAnswers.Any(sa => sa.QuestionId == question.QuestionId && sa.AnswerId == answer.AnswerId);
+                    answerResults.Add(new StudentAnswerDetailResponse
+                    {
+                        AnswerId = answer.AnswerId,
+                        IsCorrectAnswer = answer.IsCorrect,
+                        SelectedByStudent = selectedByStudent,
+                        Explanation = answer.AnswerText
+                    });
+                }
+                questionResults.Add(new QuestionsResultSelectResponseEntity
+                {
+                    QuestionId = question.QuestionId,
+                    QuestionText = question.QuestionText,
+                    QuestionType = question.QuestionType,
+                    Answers = answerResults
+                });
+            }
+            quizResults.Add(new QuizResultSelectResponseEntity
+            {
+                QuizId = quiz.QuizId,
+                Title = quiz.Title,
+                Description = quiz.Description,
+                SubjectCode = quiz.SubjectCode,
+                SubjectCodeName = string.Empty,
+                TotalQuestions = quiz.Questions.Count,
+                DifficultyLevel = 0,
+                QuestionResults = questionResults
+            });
+        }
+
         var responseEntity = new StudentTestSelectResponseEntity
         {
             StudentTestId = studentTest.StudentTestId,
             TestId = studentTest.TestId,
+            TestName = test.TestName,
+            TestDescription = test.Description,
             StartedAt = studentTest.StartedAt,
             FinishedAt = studentTest.FinishedAt,
-            Answers = studentTest.StudentAnswers.Select(st => new StudentAnswerSelectResponseEntity
-            {
-                QuestionId = st.QuestionId,
-                AnswerId = st.AnswerId,
-                IsCorrect = st.Answer!.IsCorrect,
-                Explanation = st.Question!.Explanation
-            }).ToList()
+            QuizResults = quizResults
         };
-        
-        // True
+
         response.Success = true;
         response.Response = responseEntity;
         response.SetMessage(MessageId.I00001, "Lấy thông tin bài kiểm tra của học sinh");
