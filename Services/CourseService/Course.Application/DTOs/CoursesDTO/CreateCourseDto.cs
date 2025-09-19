@@ -14,6 +14,7 @@ namespace Course.Application.DTOs.CoursesDTO
 		short? Level,
 		decimal Price,
 		decimal? DealPrice,
+		string? CourseIntroVideoUrl,
 		bool IsActive,
 		List<CreateCourseObjectiveDto>? Objectives,
 		List<CreateCourseRequirementDto>? Requirements,

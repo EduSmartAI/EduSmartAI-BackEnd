@@ -364,7 +364,8 @@ namespace Course.Infrastructure.Implements
 				DurationMinutes = dto.DurationMinutes,
 				Level = dto.Level,
 				Price = dto.Price,
-				DealPrice = dto.DealPrice
+				DealPrice = dto.DealPrice,
+				CourseIntroVideoUrl = dto.CourseIntroVideoUrl,
 			};
 
 			// 3) Mục tiêu học tập (CourseObjectives) – optional
