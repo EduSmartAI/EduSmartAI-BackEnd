@@ -19,6 +19,10 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseComment> CourseComments { get; set; }
 
+    public virtual DbSet<CourseDiscussion> CourseDiscussions { get; set; }
+
+    public virtual DbSet<CourseMaterial> CourseMaterials { get; set; }
+
     public virtual DbSet<CourseObjective> CourseObjectives { get; set; }
 
     public virtual DbSet<CourseRating> CourseRatings { get; set; }
@@ -79,6 +83,7 @@ public partial class CourseDbContext : AppDbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("course_id");
             entity.Property(e => e.CourseImageUrl).HasColumnName("course_image_url");
+            entity.Property(e => e.CourseIntroVideoUrl).HasColumnName("course_intro_video_url");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -168,6 +173,90 @@ public partial class CourseDbContext : AppDbContext
                 .HasForeignKey(d => d.ParentCommentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_comments_parent");
+        });
+
+        modelBuilder.Entity<CourseDiscussion>(entity =>
+        {
+            entity.HasKey(e => e.DiscussionId).HasName("course_discussions_pkey");
+
+            entity.ToTable("course_discussions");
+
+            entity.HasIndex(e => e.CourseId, "idx_course_discussions_course");
+
+            entity.HasIndex(e => e.IsActive, "idx_course_discussions_is_active");
+
+            entity.Property(e => e.DiscussionId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("discussion_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.DiscussionQuestion)
+                .IsRequired()
+                .HasColumnName("discussion_question");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseDiscussions)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("fk_discussions_course");
+        });
+
+        modelBuilder.Entity<CourseMaterial>(entity =>
+        {
+            entity.HasKey(e => e.MaterialId).HasName("course_materials_pkey");
+
+            entity.ToTable("course_materials");
+
+            entity.HasIndex(e => e.CourseId, "idx_course_materials_course");
+
+            entity.HasIndex(e => e.IsActive, "idx_course_materials_is_active");
+
+            entity.Property(e => e.MaterialId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("material_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.FileUrl).HasColumnName("file_url");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseMaterials)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("fk_materials_course");
         });
 
         modelBuilder.Entity<CourseObjective>(entity =>

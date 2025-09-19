@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Course.Infrastructure.Implements
 {
 	public class ModuleService(
-		IModuleRepository _moduleRepository,
+		ICommandRepository<Module> _moduleRepository,
 		IUnitOfWork unitOfWork,
 		IIdentityService _identityService) : IModuleService
 	{
