@@ -42,12 +42,15 @@ namespace Course.Infrastructure
 			services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
 			services.AddScoped<ICommandRepository<CourseStudentEnrollment>, CommandRepository<CourseStudentEnrollment>>();
 			services.AddScoped<ICommandRepository<Tag>, CommandRepository<Tag>>();
+			services.AddScoped<ICommandRepository<Subject>, CommandRepository<Subject>>();
+			//services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
-
+		
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
 			//services.AddScoped<IModuleRepository, ModuleRepository>();
 			services.AddScoped<IModuleService, ModuleService>();
+			services.AddScoped<ISubjectService, SubjectService>();
 
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
 			services.AddMarten(options => { options.Connection(connectionString!); });

@@ -36,7 +36,7 @@ public class QuizResultSelectResponseEntity
     
     public int TotalQuestions { get; set; }
     
-    public short DifficultyLevel { get; set; }
+    public int TotalCorrectAnswers { get; set; }
     
     public List<QuestionsResultSelectResponseEntity> QuestionResults { get; set; }
 }
@@ -49,6 +49,10 @@ public class QuestionsResultSelectResponseEntity
     
     public short QuestionType { get; set; }
     
+    public short? DifficultyLevel { get; set; }
+    
+    public string? Explanation { get; set; }
+    
     public List<StudentAnswerDetailResponse> Answers { get; set; } = null!;
 }
 
@@ -60,5 +64,5 @@ public record StudentAnswerDetailResponse
     
     public bool SelectedByStudent { get; set; }
     
-    public string? Explanation { get; set; }
+    public string? AnswerText { get; set; }
 }

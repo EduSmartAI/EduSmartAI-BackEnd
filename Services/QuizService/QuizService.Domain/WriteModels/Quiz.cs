@@ -24,11 +24,9 @@ public partial class Quiz
     public bool IsActive { get; set; }
 
     public Guid? SubjectCode { get; set; }
-
+    
     public short QuizType { get; set; }
-
-    public Guid? ExamId { get; set; }
-
+    
     public virtual ICollection<Question> Questions { get; set; } = new List<Question>();
 
     public virtual ICollection<StudentQuiz> StudentQuizzes { get; set; } = new List<StudentQuiz>();

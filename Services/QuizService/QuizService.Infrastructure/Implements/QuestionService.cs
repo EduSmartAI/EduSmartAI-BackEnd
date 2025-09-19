@@ -46,7 +46,7 @@ public class QuestionService : IQuestionService
     /// <param name="quizId"></param>
     /// <param name="text"></param>
     /// <returns></returns>
-    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email)
+    public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email, short difficultyLevel, short questionType)
     {
         var question = new Question
         {
@@ -54,7 +54,8 @@ public class QuestionService : IQuestionService
             QuizId = quizId,
             QuestionText = text,
             Explanation = explanation,
-            QuestionType = (byte) ConstantEnum.QuestionType.MultipleChoice
+            DifficultyLevel = difficultyLevel,
+            QuestionType = questionType,
         };
 
         await _commandRepository.AddAsync(question, email);

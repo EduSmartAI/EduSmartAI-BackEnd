@@ -24,6 +24,8 @@ public partial class Question
     public string? Explanation { get; set; }
 
     public short QuestionType { get; set; }
+    
+    public short? DifficultyLevel { get; set; }
 
     public virtual ICollection<Answer> Answers { get; set; } = new List<Answer>();
 

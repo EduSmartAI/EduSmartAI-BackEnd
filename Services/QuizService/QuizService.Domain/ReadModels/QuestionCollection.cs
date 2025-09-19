@@ -11,6 +11,8 @@ public sealed class QuestionCollection
     public DateTime CreatedAt { get; set; }
     
     public string? Explanation { get; set; }
+    
+    public short? DifficultyLevel { get; set; }
 
     public DateTime UpdatedAt { get; set; }
 
@@ -19,7 +21,7 @@ public sealed class QuestionCollection
     public string UpdatedBy { get; set; } = null!;
 
     public short QuestionType { get; set; }
-
+    
     public bool IsActive { get; set; }
     public ICollection<AnswerCollection> Answers { get; set; } = new List<AnswerCollection>();
 
@@ -30,6 +32,7 @@ public sealed class QuestionCollection
             QuestionId = model.QuestionId,
             QuestionText = model.QuestionText,
             Explanation = model.Explanation,
+            DifficultyLevel = model.DifficultyLevel,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

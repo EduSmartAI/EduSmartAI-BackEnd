@@ -1,7 +1,8 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using MassTransit.Initializers;
+using BuildingBlocks.Messaging.Events.QuizService.SubjectSelectEvents;
+using MassTransit;
 using QuizService.Application.Applications.Tests.Commands;
 using QuizService.Application.Applications.Tests.Queries;
 using QuizService.Application.Interfaces;
@@ -19,6 +20,7 @@ public class TestService : ITestService
     private readonly IQuizService _quizService;
     private readonly IQuestionService _questionService;
     private readonly IAnswerService _answerService;
+    private readonly IRequestClient<SubjectSelectsEvent> _requestSubjectSelectClient;
 
     /// <summary>
     /// Constructor
@@ -30,9 +32,11 @@ public class TestService : ITestService
     /// <param name="quizService"></param>
     /// <param name="questionService"></param>
     /// <param name="answerService"></param>
+    /// <param name="requestSubjectSelectClient"></param>
     public TestService(ICommandRepository<Test> commandRepository, IQueryRepository<TestCollection> queryRepository,
         IIdentityService identityService, IUnitOfWork unitOfWork, IQuizService quizService,
-        IQuestionService questionService, IAnswerService answerService)
+        IQuestionService questionService, IAnswerService answerService,
+        IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
@@ -41,6 +45,7 @@ public class TestService : ITestService
         _quizService = quizService;
         _questionService = questionService;
         _answerService = answerService;
+        _requestSubjectSelectClient = requestSubjectSelectClient;
     }
 
     /// <summary>
@@ -68,28 +73,45 @@ public class TestService : ITestService
             };
 
             await _commandRepository.AddAsync(newTest, currentEmail);
+            
+            var subjectIds = request.Quizzes.Select(q => q.SubjectCode).Distinct().ToList();
+            
+            var subjectSelectEvent = new SubjectSelectsEvent
+            {
+                SubjectIds = subjectIds,
+            };
+
+            var messageResponse = await _requestSubjectSelectClient.GetResponse<SubjectSelectsEventResponse>(subjectSelectEvent, cancellationToken);
+            if (!messageResponse.Message.Success)
+            {
+                response.MessageId = messageResponse.Message.MessageId;
+                response.Message = messageResponse.Message.Message;
+                return false;
+            }
+
+            // Create subject mapping dictionary
+            var subjectMapping = messageResponse.Message.Response
+                .ToDictionary(s => s.SubjectId, s => s.SubjectName);
 
             foreach (var quiz in request.Quizzes)
             {
                 // Insert new quizzes
-                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description,
-                    quiz.SubjectCode, currentEmail);
+                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description, quiz.SubjectCode, currentEmail);
                 foreach (var question in quiz.Questions)
                 {
                     // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText,
-                        question.Explanation, currentEmail);
+                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.Explanation, currentEmail, question.DifficultyLevel, question.QuestionType);
                     foreach (var answer in question.Answers)
                     {
                         // Insert new answers
-                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect,
-                            currentEmail);
+                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect, currentEmail);
                     }
                 }
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            _unitOfWork.Store(TestCollection.FromWriteModel(newTest));
+            _unitOfWork.Store(TestCollection.FromWriteModel(newTest, subjectMapping));
+            
             foreach (var quiz in newTest.Quizzes)
             {
                 foreach (var question in quiz.Questions)
@@ -102,7 +124,12 @@ public class TestService : ITestService
                     _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
                 }
 
-                _unitOfWork.Store(QuizCollection.FromWriteModel(quiz));
+                // Get subject name from mapping, fallback to empty string if not found
+                var subjectName = quiz.SubjectCode.HasValue && subjectMapping.ContainsKey(quiz.SubjectCode.Value) 
+                    ? subjectMapping[quiz.SubjectCode.Value] 
+                    : string.Empty;
+
+                _unitOfWork.Store(QuizCollection.FromWriteModel(quiz, subjectName));
             }
             
             await _unitOfWork.SessionSaveChangesAsync();
@@ -153,14 +180,14 @@ public class TestService : ITestService
                 Title = q.Title,
                 Description = q.Description,
                 SubjectCode = q.SubjectCode,
-                SubjectCodeName = string.Empty,
+                SubjectCodeName = q.SubjectCodeName,
                 TotalQuestions = q.Questions.Count,
-                DifficultyLevel = 0,
                 Questions = q.Questions.Select(ques => new QuestionDetailResponse
                 {
                     QuestionId = ques.QuestionId,
                     QuestionText = ques.QuestionText,
                     QuestionType = ques.QuestionType,
+                    DifficultyLevel = ques.DifficultyLevel,
                     Answers = ques.Answers.Select(a => new AnswerDetailResponse
                     {
                         AnswerId = a.AnswerId,
@@ -180,7 +207,7 @@ public class TestService : ITestService
         // True
         response.Success = true;
         response.Response = responseEntity;
-        response.SetMessage(MessageId.I00001, "L��y thông tin bài test");
+        response.SetMessage(MessageId.I00001, "Lấy thông tin bài test");
         return response;
     }
 }
