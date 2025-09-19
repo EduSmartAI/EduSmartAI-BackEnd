@@ -10,6 +10,8 @@ public partial class StudentQuiz
     public Guid StudentId { get; set; }
 
     public Guid QuizId { get; set; }
+    
+    public short QuizType { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
