@@ -34,6 +34,11 @@ public record Questions
 {
     [Required(ErrorMessage = "QuestionText is required")]
     public string QuestionText { get; set; } = null!;
+        
+    [Required(ErrorMessage = "DifficultyLevel is required")]
+    public short DifficultyLevel { get; set; }
+    
+    public short QuestionType { get; set; }
     
     public string? Explanation { get; set; }
     

@@ -81,6 +81,8 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.QuestionType)
                 .HasDefaultValue((short)1)
                 .HasColumnName("question_type");
+            entity.Property(e => e.DifficultyLevel)
+                .HasColumnName("difficulty_level");
             entity.Property(e => e.QuizId).HasColumnName("quiz_id");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
@@ -97,9 +99,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.QuizId).HasName("quizzes_pkey");
 
             entity.ToTable("quizzes");
-
-            entity.HasIndex(e => e.ExamId, "quizzes_unique").IsUnique();
-
             entity.Property(e => e.QuizId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("quiz_id");
@@ -108,7 +107,6 @@ public partial class QuizServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
             entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.ExamId).HasColumnName("exam_id");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");

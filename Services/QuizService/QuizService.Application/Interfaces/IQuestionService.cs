@@ -4,7 +4,7 @@ namespace QuizService.Application.Interfaces;
 
 public interface IQuestionService
 {
-    Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email);
+    Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email, short difficultyLevel, short questionType);
 
     /// <summary>
     /// Insert question with answers

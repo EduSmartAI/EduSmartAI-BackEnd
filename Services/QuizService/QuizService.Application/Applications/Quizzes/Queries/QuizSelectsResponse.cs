@@ -20,6 +20,4 @@ public record QuizSelectsResponseEntity
     public string SubjectCodeName { get; set; }
     
     public int TotalQuestions { get; set; }
-    
-    public short DifficultyLevel { get; set; }
 }

@@ -49,6 +49,8 @@ public class QuestionsResultSelectResponseEntity
     
     public short QuestionType { get; set; }
     
+    public short? DifficultyLevel { get; set; }
+    
     public List<StudentAnswerDetailResponse> Answers { get; set; } = null!;
 }
 

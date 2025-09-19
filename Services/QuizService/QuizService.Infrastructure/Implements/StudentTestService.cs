@@ -77,7 +77,7 @@ public class StudentTestService : IStudentTestService
         var validQuestions = await _questionQueryRepository.ToListAsync(x => questionIds.Contains(x.QuestionId));
         if (validQuestions.Count != questionIds.Count)
         {
-            response.SetMessage(MessageId.E00000, "Có câu hỏi kh��ng hợp lệ trong danh sách trả lời");
+            response.SetMessage(MessageId.E00000, "Có câu hỏi không hợp lệ trong danh sách trả lời");
             return response;
         }
         
@@ -217,6 +217,7 @@ public class StudentTestService : IStudentTestService
                     QuestionId = question.QuestionId,
                     QuestionText = question.QuestionText,
                     QuestionType = question.QuestionType,
+                    DifficultyLevel = question.DifficultyLevel,
                     Answers = answerResults
                 });
             }

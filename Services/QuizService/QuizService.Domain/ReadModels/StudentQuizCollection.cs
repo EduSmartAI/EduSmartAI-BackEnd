@@ -24,27 +24,6 @@ public class StudentQuizCollection
 
     public virtual ICollection<StudentQuizAnswerCollection> StudentQuizAnswers { get; set; } = new List<StudentQuizAnswerCollection>();
     
-    public static StudentQuizCollection FromWriteModel(StudentQuiz model)
-    {
-        var result = new StudentQuizCollection
-        {
-            StudentQuizId = model.StudentQuizId,
-            StudentId = model.StudentId,
-            QuizId = model.QuizId,
-            IsActive = model.IsActive,
-            CreatedAt = model.CreatedAt,
-            UpdatedAt = model.UpdatedAt,
-            CreatedBy = model.CreatedBy,
-            UpdatedBy = model.UpdatedBy,
-        };
-        result.Quiz = QuizCollection.FromWriteModel(model.Quiz);
-        foreach (var answer in model.StudentQuizAnswers)
-        {
-            result.StudentQuizAnswers.Add(StudentQuizAnswerCollection.FromWriteModel(answer));
-        }
-        return result;
-    }
-    
     public static StudentQuizCollection FromWriteModel(StudentQuiz studentQuiz, QuizCollection quiz)
     {
         var result = new StudentQuizCollection

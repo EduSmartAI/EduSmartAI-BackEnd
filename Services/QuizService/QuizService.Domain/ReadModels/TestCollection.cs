@@ -15,7 +15,7 @@ public sealed class TestCollection
 
     public ICollection<QuizCollection> Quizzes { get; set; } = new List<QuizCollection>();
 
-    public static TestCollection FromWriteModel(Test model)
+    public static TestCollection FromWriteModel(Test model, Dictionary<Guid, string> subjectMapping)
     {
         var test = new TestCollection
         {
@@ -28,12 +28,18 @@ public sealed class TestCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
-
+    
         if (model.Quizzes.Any())
         {
-            test.Quizzes = model.Quizzes.Select(QuizCollection.FromWriteModel).ToList();
+            test.Quizzes = model.Quizzes.Select(quiz =>
+            {
+                var subjectName = quiz.SubjectCode.HasValue && subjectMapping.ContainsKey(quiz.SubjectCode.Value)
+                    ? subjectMapping[quiz.SubjectCode.Value]
+                    : string.Empty;
+                return QuizCollection.FromWriteModel(quiz, subjectName);
+            }).ToList();
         }
-
+    
         return test;
     }
 }

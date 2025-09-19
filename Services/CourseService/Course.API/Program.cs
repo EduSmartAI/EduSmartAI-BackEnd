@@ -7,6 +7,7 @@ using Course.Application.Consumers;
 using Course.Application.Interfaces;
 using Course.Application.Majors.Queries;
 using Course.Application.Semesters.Queries;
+using Course.Application.Subjects.Queries;
 using Course.Domain.Models;
 using Course.Infrastructure;
 using Course.Infrastructure.Implements;
@@ -25,6 +26,7 @@ builder.Services.AddMediatR(x =>
 	x.RegisterServicesFromAssemblyContaining<CourseMajorSemesterSelectQueryHandler>();
 	x.RegisterServicesFromAssemblyContaining<SemesterSelectsQueryHandler>();
 	x.RegisterServicesFromAssemblyContaining<MajorSelectsQueryHandler>();
+	x.RegisterServicesFromAssemblyContaining<SubjectSelectsQueryHandler>();
 });
 
 builder.Services

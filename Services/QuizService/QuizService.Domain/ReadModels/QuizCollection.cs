@@ -12,6 +12,8 @@ public sealed class QuizCollection
     
     public Guid? SubjectCode { get; set; }
     
+    public string SubjectCodeName { get; set; }
+    
     public short QuizType { get; set; }
     
     public DateTime CreatedAt { get; set; }
@@ -24,10 +26,9 @@ public sealed class QuizCollection
 
     public bool IsActive { get; set; }
     
-    public Guid? ExamId { get; set; }
     public ICollection<QuestionCollection> Questions { get; set; } = new List<QuestionCollection>();
 
-    public static QuizCollection FromWriteModel(Quiz model)
+    public static QuizCollection FromWriteModel(Quiz model, string subjectName)
     {
         var quiz = new QuizCollection
         {
@@ -35,8 +36,8 @@ public sealed class QuizCollection
             Title = model.Title,
             Description = model.Description,
             SubjectCode = model.SubjectCode,
+            SubjectCodeName = subjectName,
             QuizType = model.QuizType,
-            ExamId = model.ExamId,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

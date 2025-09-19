@@ -32,8 +32,6 @@ public record QuizzDetailResponse
     
     public int TotalQuestions { get; set; }
     
-    public short DifficultyLevel { get; set; }
-    
     public List<QuestionDetailResponse> Questions { get; set; } = null!;
 }
 
@@ -44,6 +42,8 @@ public record QuestionDetailResponse
     public string QuestionText { get; set; } = null!;
     
     public short QuestionType { get; set; }
+    
+    public short? DifficultyLevel { get; set; }
     
     public List<AnswerDetailResponse> Answers { get; set; } = null!;
 }

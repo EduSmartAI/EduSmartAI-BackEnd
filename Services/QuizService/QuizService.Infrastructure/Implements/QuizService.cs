@@ -2,11 +2,9 @@ using BaseService.Application.Common;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using MassTransit.Initializers;
 using QuizService.Application.Applications.Quizzes.Queries;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Surveys.Queries;
-using QuizService.Application.Applications.Tests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
@@ -91,9 +89,8 @@ public class QuizService : IQuizService
                 Title = q.Title,
                 Description = q.Description,
                 SubjectCode = q.SubjectCode,
-                SubjectCodeName = string.Empty, // Set if available
+                SubjectCodeName = q.SubjectCodeName, // Set if available
                 TotalQuestions = q.Questions.Count,
-                DifficultyLevel = 0 // Set if available
             }).ToList();
         if (quizzes == null || !quizzes.Any())
         {
@@ -147,7 +144,7 @@ public class QuizService : IQuizService
             await _commandRepository.AddAsync(survey);
             await _unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
             
-            _unitOfWork.Store(QuizCollection.FromWriteModel(survey));
+            _unitOfWork.Store(QuizCollection.FromWriteModel(survey, string.Empty));
             await _unitOfWork.SessionSaveChangesAsync();
 
             // Remove cache
