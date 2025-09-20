@@ -11,7 +11,9 @@ namespace Course.Application.DTOs.ModulesDTO
 		int? DurationMinutes,             // new
 		short? Level,                     // new
 		List<CreateModuleObjectiveDto>? Objectives,  // optional
-		List<CreateLessonDto> Lessons
+		List<CreateLessonDto> Lessons,
+		List<CreateModuleDiscussionDto>? Discussions,
+		List<CreateModuleMaterialDto>? Materials
 	);
 
 	public record CreateModuleObjectiveDto(string Content, int PositionIndex = 0, bool IsActive = true);

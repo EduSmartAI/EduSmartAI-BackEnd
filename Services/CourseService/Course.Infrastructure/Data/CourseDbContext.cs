@@ -41,6 +41,10 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<Module> Modules { get; set; }
 
+    public virtual DbSet<ModuleDiscussion> ModuleDiscussions { get; set; }
+
+    public virtual DbSet<ModuleMaterial> ModuleMaterials { get; set; }
+
     public virtual DbSet<ModuleObjective> ModuleObjectives { get; set; }
 
     public virtual DbSet<Note> Notes { get; set; }
@@ -63,7 +67,8 @@ public partial class CourseDbContext : AppDbContext
     {
         modelBuilder
             .HasPostgresEnum("course_status", new[] { "draft", "published", "archived" })
-            .HasPostgresExtension("pgcrypto");
+            .HasPostgresExtension("pgcrypto")
+            .HasPostgresExtension("vector");
 
         modelBuilder.Entity<CourseEntity>(entity =>
         {
@@ -619,6 +624,90 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Course).WithMany(p => p.Modules)
                 .HasForeignKey(d => d.CourseId)
                 .HasConstraintName("fk_modules_course");
+        });
+
+        modelBuilder.Entity<ModuleDiscussion>(entity =>
+        {
+            entity.HasKey(e => e.DiscussionId).HasName("module_discussions_pkey");
+
+            entity.ToTable("module_discussions");
+
+            entity.HasIndex(e => e.IsActive, "idx_module_discussions_is_active");
+
+            entity.HasIndex(e => e.ModuleId, "idx_module_discussions_module");
+
+            entity.Property(e => e.DiscussionId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("discussion_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.DiscussionQuestion)
+                .IsRequired()
+                .HasColumnName("discussion_question");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Module).WithMany(p => p.ModuleDiscussions)
+                .HasForeignKey(d => d.ModuleId)
+                .HasConstraintName("fk_module_discussions_module");
+        });
+
+        modelBuilder.Entity<ModuleMaterial>(entity =>
+        {
+            entity.HasKey(e => e.MaterialId).HasName("module_materials_pkey");
+
+            entity.ToTable("module_materials");
+
+            entity.HasIndex(e => e.IsActive, "idx_module_materials_is_active");
+
+            entity.HasIndex(e => e.ModuleId, "idx_module_materials_module");
+
+            entity.Property(e => e.MaterialId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("material_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.FileUrl).HasColumnName("file_url");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200)
+                .HasColumnName("title");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Module).WithMany(p => p.ModuleMaterials)
+                .HasForeignKey(d => d.ModuleId)
+                .HasConstraintName("fk_module_materials_module");
         });
 
         modelBuilder.Entity<ModuleObjective>(entity =>
