@@ -77,6 +77,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
             entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.LearningGoalType).HasColumnName("learning_goal_type");
             entity.Property(e => e.GoalName)
                 .HasMaxLength(200)
                 .HasColumnName("goal_name");

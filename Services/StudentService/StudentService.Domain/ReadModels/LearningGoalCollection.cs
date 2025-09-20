@@ -7,6 +7,8 @@ public sealed class LearningGoalCollection
     public string GoalName { get; set; } = null!;
 
     public string? Description { get; set; }
+    
+    public short LearningGoalType { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -25,6 +27,7 @@ public sealed class LearningGoalCollection
             GoalId = model.GoalId,
             GoalName = model.GoalName,
             Description = model.Description,
+            LearningGoalType = model.LearningGoalType,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

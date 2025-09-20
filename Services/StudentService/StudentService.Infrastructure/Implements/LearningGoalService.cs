@@ -60,12 +60,14 @@ public class LearningGoalService : ILearningGoalService
             {
                 GoalName = request.GoalName,
                 Description = request.Description,
+                LearningGoalType = request.LearningGoalType,
             };
             await _learningGoalCommandRepository.AddAsync(learningGoal, currentUserEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             
             _unitOfWork.Store(LearningGoalCollection.FromWriteModel(learningGoal));
             await _unitOfWork.SessionSaveChangesAsync();
+            await _unitOfWork.CacheRemoveAsync("learning_goals:all");
             
             // True
             response.Success = true;
@@ -106,6 +108,7 @@ public class LearningGoalService : ILearningGoalService
         {
             LearningGoalId = x.GoalId,
             LearningGoalName = x.GoalName,
+            LearningGoalType = x.LearningGoalType
         }).ToList();
         
         // True
