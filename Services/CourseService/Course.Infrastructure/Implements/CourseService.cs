@@ -13,6 +13,8 @@ using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
@@ -253,6 +255,8 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
 			var entity = await baseQuery.FirstOrDefaultAsync(ct);
@@ -890,8 +894,6 @@ namespace Course.Infrastructure.Implements
 						.Select(l => new GuestLessonDetailDto(
 							l.LessonId,
 							l.Title,
-							//l.VideoUrl,
-							//l.VideoDurationSec,
 							l.PositionIndex,
 							l.IsActive))
 						.ToList()
@@ -976,8 +978,9 @@ namespace Course.Infrastructure.Implements
 		private static CourseDetailForLectureDto MapCourseDetailForLecture(CourseEntity e)
 		{
 			var modules = e.Modules
+				.Where(m => m.IsActive)
 				.OrderBy(m => m.PositionIndex)
-				.Select(m => new ModuleDetailDto<LectureLessonDetailDto>(
+				.Select(m => new ModuleDetailForLectureDto(
 					m.ModuleId,
 					m.ModuleName,
 					m.Description,
@@ -988,6 +991,7 @@ namespace Course.Infrastructure.Implements
 					m.DurationHours,
 					m.Level,
 					m.ModuleObjectives
+						.Where(o => o.IsActive)
 						.OrderBy(o => o.PositionIndex)
 						.Select(o => new ModuleObjectiveDto(
 							o.ObjectiveId,
@@ -995,7 +999,28 @@ namespace Course.Infrastructure.Implements
 							o.PositionIndex,
 							o.IsActive
 						)).ToList(),
+					m.ModuleDiscussions
+						.Where(d => d.IsActive)
+						.Select(d => new ModuleDiscussionDetailDto(
+						d.DiscussionId,
+						d.Title,
+						d.Description,
+						d.DiscussionQuestion,
+						d.CreatedAt,
+						d.UpdatedAt
+					)).ToList(),
+					m.ModuleMaterials
+						.Where(mat => mat.IsActive)
+						.Select(mat => new ModuleMaterialDetailDto(
+						mat.MaterialId,
+						mat.Title,
+						mat.Description,
+						mat.FileUrl,
+						mat.CreatedAt,
+						mat.UpdatedAt
+					)).ToList(),
 					m.Lessons
+						.Where(l => l.IsActive)
 						.OrderBy(l => l.PositionIndex)
 						.Select(l => new LectureLessonDetailDto(
 							l.LessonId,

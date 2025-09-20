@@ -13,7 +13,4 @@
 		List<ModuleObjectiveDto> Objectives,
 		List<TLesson> Lessons
 	);
-
-	public record ModuleObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);
-
 }

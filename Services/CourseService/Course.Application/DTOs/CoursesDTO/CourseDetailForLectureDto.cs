@@ -27,7 +27,7 @@ namespace Course.Application.DTOs.CoursesDTO
 		DateTime UpdatedAt,
 		List<CourseObjectiveDto> Objectives,
 		List<CourseRequirementDto> Requirements,
-		List<ModuleDetailDto<LectureLessonDetailDto>> Modules,
+		List<ModuleDetailForLectureDto> Modules,
 		List<CourseCommentDto> Comments,
 		List<CourseTagDto> Tags,
 		List<CourseRatingDto> Ratings,
