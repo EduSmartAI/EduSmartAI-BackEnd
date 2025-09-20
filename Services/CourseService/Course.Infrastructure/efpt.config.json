@@ -63,6 +63,14 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.module_discussions",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.module_materials",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.module_objectives",
          "ObjectType": 0
       },

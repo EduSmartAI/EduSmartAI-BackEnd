@@ -411,57 +411,99 @@ namespace Course.Infrastructure.Implements
 					{
 						CourseId = course.CourseId,
 						TagId = courseTag.TagId,
-						//CreatedAt = DateTime.UtcNow
 					});
 				}
 			}
-
-			// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
-			foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
+			if (dto.Modules is { Count: > 0 })
 			{
-				var module = new Module
+				// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
+				foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
 				{
-					ModuleId = Guid.NewGuid(),
-					CourseId = course.CourseId,
-					ModuleName = m.ModuleName,
-					Description = m.Description,
-					PositionIndex = m.PositionIndex,
-					IsCore = m.IsCore,
-					DurationMinutes = m.DurationMinutes,
-					Level = m.Level
-				};
-
-				// Module Objectives (optional)
-				if (m.Objectives is { Count: > 0 })
-				{
-					foreach (var (mo, idx) in m.Objectives
-								 .OrderBy(o => o.PositionIndex)
-								 .Select((o, i) => (o, i)))
+					var module = new Module
 					{
-						module.ModuleObjectives.Add(new ModuleObjective
+						ModuleId = Guid.NewGuid(),
+						CourseId = course.CourseId,
+						ModuleName = m.ModuleName,
+						Description = m.Description,
+						PositionIndex = m.PositionIndex,
+						IsCore = m.IsCore,
+						DurationMinutes = m.DurationMinutes,
+						Level = m.Level,
+						IsActive = true
+					};
+
+					// Module Objectives (optional)
+					if (m.Objectives is { Count: > 0 })
+					{
+						foreach (var (mo, idx) in m.Objectives
+									 .OrderBy(o => o.PositionIndex)
+									 .Select((o, i) => (o, i)))
 						{
-							ObjectiveId = Guid.NewGuid(),
-							ModuleId = module.ModuleId,
-							Content = mo.Content,
-							PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx
-						});
+							module.ModuleObjectives.Add(new ModuleObjective
+							{
+								ObjectiveId = Guid.NewGuid(),
+								ModuleId = module.ModuleId,
+								Content = mo.Content,
+								PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
+								IsActive = true
+							});
+						}
 					}
-				}
 
-				foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
-				{
-					module.Lessons.Add(new Lesson
+					// Lessons (required, at least 1)
+					if (m.Lessons is { Count: > 0 })
 					{
-						LessonId = Guid.NewGuid(),
-						ModuleId = module.ModuleId,
-						Title = l.Title,
-						VideoUrl = l.VideoUrl,
-						VideoDurationSec = l.VideoDurationSec,
-						PositionIndex = l.PositionIndex
-					});
-				}
+						foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
+						{
+							module.Lessons.Add(new Lesson
+							{
+								LessonId = Guid.NewGuid(),
+								ModuleId = module.ModuleId,
+								Title = l.Title,
+								VideoUrl = l.VideoUrl,
+								VideoDurationSec = l.VideoDurationSec,
+								PositionIndex = l.PositionIndex,
+								IsActive = true
+							});
+						}
+					}
 
-				course.Modules.Add(module);
+					// Discussions (optional)
+					if (m.Discussions is { Count: > 0 })
+					{
+						foreach (var d in m.Discussions)
+						{
+							module.ModuleDiscussions.Add(new ModuleDiscussion
+							{
+								DiscussionId = Guid.NewGuid(),
+								ModuleId = module.ModuleId,
+								Title = d.Title?.Trim(),
+								Description = d.Description,
+								DiscussionQuestion = d.DiscussionQuestion,
+								IsActive = true
+							});
+						}
+					}
+
+					// Materials (optional)
+					if (m.Materials is { Count: > 0 })
+					{
+						foreach (var mat in m.Materials)
+						{
+							module.ModuleMaterials.Add(new ModuleMaterial
+							{
+								MaterialId = Guid.NewGuid(),
+								ModuleId = module.ModuleId,
+								Title = mat.Title?.Trim(),
+								Description = mat.Description,
+								FileUrl = mat.FileUrl,
+								IsActive = true
+							});
+						}
+					}
+
+					course.Modules.Add(module);
+				}
 			}
 
 			await unitOfWork.BeginTransactionAsync(async () =>

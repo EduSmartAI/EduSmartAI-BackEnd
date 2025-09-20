@@ -39,5 +39,9 @@ public partial class Module
 
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
 
+    public virtual ICollection<ModuleDiscussion> ModuleDiscussions { get; set; } = new List<ModuleDiscussion>();
+
+    public virtual ICollection<ModuleMaterial> ModuleMaterials { get; set; } = new List<ModuleMaterial>();
+
     public virtual ICollection<ModuleObjective> ModuleObjectives { get; set; } = new List<ModuleObjective>();
 }
