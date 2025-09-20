@@ -12,4 +12,6 @@ public record LearningGoalSelectsEventResponseEntity
     public Guid LearningGoalId { get; set; }
     
     public string LearningGoalName { get; set; }
+    
+    public short LearningGoalType { get; set; }
 }

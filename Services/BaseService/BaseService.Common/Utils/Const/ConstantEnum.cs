@@ -47,4 +47,12 @@ public static class ConstantEnum
         Database = 5,
         Other = 6,
     }
+    
+    public enum LearningGoalType
+    {
+        None = 1,
+        Frontend = 2,
+        Backend = 3,
+        Fullstack = 4
+    }
 }

@@ -43,13 +43,13 @@ public class StudentSurveyController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost]
+    [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lưu câu trả lời phần khảo sát của học sinh",
         Description = "Cần cấp quyền Student cho API"
     )]
-    public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync([FromBody] StudentSurveyInsertCommand request)
+    public async Task<StudentSurveyInsertResponse> InsertStudentSurvey([FromBody] StudentSurveyInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<StudentSurveyInsertCommand, StudentSurveyInsertResponse, string>(
             request,
@@ -67,13 +67,13 @@ public class StudentSurveyController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpGet]
+    [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Hiển câu trả lời phần khảo sát của học sinh",
         Description = "Cần cấp quyền cho API"
     )]
-    public async Task<StudentSurveySelectResponse> SelectStudentSurveyAsync([FromQuery] StudentSurveySelectQuery request)
+    public async Task<StudentSurveySelectResponse> SelectStudentSurvey([FromQuery] StudentSurveySelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<StudentSurveySelectQuery, StudentSurveySelectResponse, List<StudentSurveySelectResponseEntity>>(
             request,

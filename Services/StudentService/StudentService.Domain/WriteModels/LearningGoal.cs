@@ -10,6 +10,8 @@ public partial class LearningGoal
     public string GoalName { get; set; } = null!;
 
     public string? Description { get; set; }
+    
+    public short LearningGoalType { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

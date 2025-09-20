@@ -11,6 +11,9 @@ public record StudentTestInsertCommand : ICommand<StudentTestInsertResponse>
     [Required(ErrorMessage = "StartedAt is required")]
     public DateTime StartedAt { get; set; }
     
+    [Required(ErrorMessage = "QuizIds are required")]
+    public List<Guid> QuizIds { get; set; }
+    
     [Required(ErrorMessage = "Answers are required")]
     public List<StudentAnswerRequest> Answers { get; set; }
 }
