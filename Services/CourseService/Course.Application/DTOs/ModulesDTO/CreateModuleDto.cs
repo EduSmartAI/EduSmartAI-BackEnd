@@ -15,6 +15,4 @@ namespace Course.Application.DTOs.ModulesDTO
 		List<CreateModuleDiscussionDto>? Discussions,
 		List<CreateModuleMaterialDto>? Materials
 	);
-
-	public record CreateModuleObjectiveDto(string Content, int PositionIndex = 0, bool IsActive = true);
 }

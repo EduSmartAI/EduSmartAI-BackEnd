@@ -14,6 +14,4 @@ namespace Course.Application.DTOs.ModulesDTO
 		List<UpdateModuleObjectiveDto>? Objectives,
 		List<UpdateLessonDto> Lessons
 	);
-
-	public record UpdateModuleObjectiveDto(Guid? ObjectiveId, string Content, int PositionIndex, bool IsActive);
 }
