@@ -11,15 +11,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // Configure services using extension methods
-// builder.Services.AddDatabaseServices();
-// builder.Services.AddAuthenticationServices();
-// builder.Services.AddRepositoryServices();
-// builder.Services.AddMessagingServices();
+builder.Services.AddDatabaseServices();
+builder.Services.AddAuthenticationServices();
+builder.Services.AddRepositoryServices();
+builder.Services.AddMessagingServices();
 builder.Services.AddSwaggerServices();
 builder.Services.AddCorsServices();
 
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddAiServices(builder.Configuration);
+
 
 #region MVC and API behavior configuration
 builder.Services.Configure<ApiBehaviorOptions>(options =>
