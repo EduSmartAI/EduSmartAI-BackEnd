@@ -37,6 +37,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<Lesson> Lessons { get; set; }
 
+    public virtual DbSet<LessonQuiz> LessonQuizzes { get; set; }
+
     public virtual DbSet<Major> Majors { get; set; }
 
     public virtual DbSet<Module> Modules { get; set; }
@@ -46,6 +48,8 @@ public partial class CourseDbContext : AppDbContext
     public virtual DbSet<ModuleMaterial> ModuleMaterials { get; set; }
 
     public virtual DbSet<ModuleObjective> ModuleObjectives { get; set; }
+
+    public virtual DbSet<ModuleQuiz> ModuleQuizzes { get; set; }
 
     public virtual DbSet<Note> Notes { get; set; }
 
@@ -529,6 +533,30 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("fk_lessons_module");
         });
 
+        modelBuilder.Entity<LessonQuiz>(entity =>
+        {
+            entity.HasKey(e => e.LessonId).HasName("lesson_quizzes_pkey");
+
+            entity.ToTable("lesson_quizzes");
+
+            entity.HasIndex(e => e.QuizId, "uq_lesson_quizzes_quiz").IsUnique();
+
+            entity.Property(e => e.LessonId)
+                .ValueGeneratedNever()
+                .HasColumnName("lesson_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Lesson).WithOne(p => p.LessonQuiz)
+                .HasForeignKey<LessonQuiz>(d => d.LessonId)
+                .HasConstraintName("fk_lesson_quizzes_lesson");
+        });
+
         modelBuilder.Entity<Major>(entity =>
         {
             entity.HasKey(e => e.MajorId).HasName("majors_pkey");
@@ -751,6 +779,30 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Module).WithMany(p => p.ModuleObjectives)
                 .HasForeignKey(d => d.ModuleId)
                 .HasConstraintName("module_objectives_module_id_fkey");
+        });
+
+        modelBuilder.Entity<ModuleQuiz>(entity =>
+        {
+            entity.HasKey(e => e.ModuleId).HasName("module_quizzes_pkey");
+
+            entity.ToTable("module_quizzes");
+
+            entity.HasIndex(e => e.QuizId, "uq_module_quizzes_quiz").IsUnique();
+
+            entity.Property(e => e.ModuleId)
+                .ValueGeneratedNever()
+                .HasColumnName("module_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Module).WithOne(p => p.ModuleQuiz)
+                .HasForeignKey<ModuleQuiz>(d => d.ModuleId)
+                .HasConstraintName("fk_module_quizzes_module");
         });
 
         modelBuilder.Entity<Note>(entity =>
