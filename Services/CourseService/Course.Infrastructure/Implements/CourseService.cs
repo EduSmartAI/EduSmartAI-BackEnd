@@ -411,13 +411,9 @@ namespace Course.Infrastructure.Implements
 			// Get current user id from token
 			var currentUser = _identityService.GetCurrentUser()!;
 
-			// Check if user is enrolled in the course
-			//var enrollment = await _enrollmentRepository
-			//	.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
-			//	.FirstOrDefaultAsync(ct);
-
 			var cacheKey = $"enroll:status:{currentUser.UserId}:{courseId}";
 
+			// Check if user is enrolled in the course
 			var enrollment = await _enrollmentQueryRepository.GetOrSetAsync(
 				cacheKey,
 				() => _enrollmentQueryRepository.FirstOrDefaultAsync(x =>
