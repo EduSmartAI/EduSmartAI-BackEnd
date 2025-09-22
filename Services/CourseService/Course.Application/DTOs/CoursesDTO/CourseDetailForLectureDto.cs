@@ -1,5 +1,4 @@
-﻿using Course.Application.DTOs.LessonsDTO;
-using Course.Application.DTOs.ModulesDTO;
+﻿using Course.Application.DTOs.ModulesDTO;
 
 namespace Course.Application.DTOs.CoursesDTO
 {

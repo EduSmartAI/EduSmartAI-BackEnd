@@ -1,6 +1,5 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.ApiEntities;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
@@ -17,10 +16,11 @@ using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
+using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using FluentValidation;
@@ -33,6 +33,7 @@ namespace Course.Infrastructure.Implements
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
 		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
+		IQueryRepository<CourseStudentEnrollmentCollection> _enrollmentQueryRepository,
 		ICommandRepository<Tag> _tagRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
@@ -410,34 +411,29 @@ namespace Course.Infrastructure.Implements
 			// Get current user id from token
 			var currentUser = _identityService.GetCurrentUser()!;
 
+			var cacheKey = $"enroll:status:{currentUser.UserId}:{courseId}";
+
 			// Check if user is enrolled in the course
-			var enrollment = await _enrollmentRepository
-				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
-				.FirstOrDefaultAsync(ct);
+			var enrollment = await _enrollmentQueryRepository.GetOrSetAsync(
+				cacheKey,
+				() => _enrollmentQueryRepository.FirstOrDefaultAsync(x =>
+					x.CourseId == courseId &&
+					x.UserId == currentUser.UserId &&
+					x.IsActive),
+				TimeSpan.FromMinutes(5)
+			);
 
 			if (enrollment is null)
 			{
 				response.Success = true;
 				response.SetMessage(MessageId.I00000, "Người dùng chưa tham gia khóa học");
-				response.Response = new CheckEnrollmentDto(
-					CourseId: courseId,
-					IsEnrolled: false,
-					EnrolledAt: null,
-					ExpiresAt: null,
-					IsActive: false
-				);
+				response.Response = false;
 				return response;
 			}
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học");
-			response.Response = new CheckEnrollmentDto(
-				CourseId: courseId,
-				IsEnrolled: true,
-				EnrolledAt: enrollment.StartedAt,
-				ExpiresAt: enrollment.ExpiresAt,
-				IsActive: enrollment.IsActive
-			);
+			response.Response = true;
 
 			return response;
 		}
@@ -489,6 +485,9 @@ namespace Course.Infrastructure.Implements
 						{
 							await _enrollmentRepository.AddAsync(enrollment, currentUser.Email);
 							await unitOfWork.SaveChangesAsync(ct);
+
+							unitOfWork.Store(CourseStudentEnrollmentCollection.FromWriteModel(enrollment));
+							await unitOfWork.SessionSaveChangesAsync();
 							return true;
 						}, ct);
 
