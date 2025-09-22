@@ -6,6 +6,7 @@ using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
+using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByTeacherId;
 using Course.Application.Courses.Queries.GetCourseTags;
@@ -104,6 +105,41 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new GetCourseByIdForLectureResponse()
+			);
+		}
+
+		[HttpGet("slug/{slug}")]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for guest users",
+			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to guest users."
+		)]
+		public async Task<GetCourseBySlugForGuestResponse> ProcessRequestBySlug(string slug)
+		{
+			var query = new GetCourseBySlugForGuestQuery(slug);
+			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForGuestQuery, GetCourseBySlugForGuestResponse, CourseDetailForGuestDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseBySlugForGuestResponse()
+			);
+		}
+
+		[HttpGet("auth/slug/{slug}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for lectures",
+			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to lectures."
+		)]
+		public async Task<GetCourseBySlugForLectureResponse> ProcessRequestBySlugAuth(string slug)
+		{
+			var query = new GetCourseBySlugForLectureQuery(slug);
+			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse, CourseDetailForLectureDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseBySlugForLectureResponse()
 			);
 		}
 

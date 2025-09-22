@@ -7,6 +7,7 @@ using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
+using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
@@ -224,6 +225,62 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
+		/// Get course details by Slug for guest users
+		/// </summary>
+		/// <param name="Slug"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<GetCourseBySlugForGuestResponse> GetCourseBySlugForGuestAsync(string Slug, CancellationToken ct = default)
+		{
+			var response = new GetCourseBySlugForGuestResponse() { Success = false };
+
+			var cacheKey = $"CourseDetailBySlugForGuest:{Slug}";
+			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			var baseQuery = _courseRepository
+				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
+				return response;
+			}
+
+			var detail = MapCourseDetailForGuest(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
+		}
+
+		/// <summary>
 		/// Get course details by ID for lecturer (instructor) users
 		/// </summary>
 		/// <param name="id"></param>
@@ -264,6 +321,64 @@ namespace Course.Infrastructure.Implements
 			if (entity is null)
 			{
 				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
+				return response;
+			}
+
+			var detail = MapCourseDetailForLecture(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
+		}
+
+		/// <summary>
+		/// Get course details by Slug for lecturer (instructor) users
+		/// </summary>
+		/// <param name="Slug"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default)
+		{
+			var response = new GetCourseBySlugForLectureResponse() { Success = false };
+
+			var cacheKey = $"CourseDetailBySlugForLecture:{Slug}";
+			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			var baseQuery = _courseRepository
+				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
 				return response;
 			}
 
