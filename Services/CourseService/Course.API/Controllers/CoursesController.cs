@@ -2,6 +2,7 @@
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
@@ -246,6 +247,24 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new CheckEnrollmentResponse()
+			);
+		}
+
+		[HttpPost("{courseId:guid}/enrollment")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Enroll the current user in a course",
+			Description = "Enroll the authenticated user in the specified course"
+		)]
+		public async Task<EnrollInCourseResponse> EnrollInCourse([FromRoute] Guid courseId)
+		{
+			var request = new EnrollInCourseCommand(courseId);
+			return await ApiControllerHelper.HandleRequest<EnrollInCourseCommand, EnrollInCourseResponse, string>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new EnrollInCourseResponse()
 			);
 		}
 

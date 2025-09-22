@@ -1,8 +1,10 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.ApiEntities;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
@@ -436,6 +438,63 @@ namespace Course.Infrastructure.Implements
 				ExpiresAt: enrollment.ExpiresAt,
 				IsActive: enrollment.IsActive
 			);
+
+			return response;
+		}
+
+		/// <summary>
+		/// Enroll current user in a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new EnrollInCourseResponse() { Success = false };
+
+			// Get current user id from token
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			// Check if user is already enrolled in the course
+			var existingEnrollment = await _enrollmentRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingEnrollment is not null)
+			{
+				response.SetMessage(MessageId.E11004, "Người dùng đã tham gia khóa học");
+				return response;
+			}
+
+			// Create new enrollment
+			var enrollment = new CourseStudentEnrollment
+			{
+				EnrollmentId = Guid.NewGuid(),
+				CourseId = courseId,
+				UserId = currentUser.UserId,
+				StartedAt = DateTime.UtcNow,
+				ExpiresAt = null,
+				IsActive = true
+			};
+
+			// Save to database within a transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+						{
+							await _enrollmentRepository.AddAsync(enrollment, currentUser.Email);
+							await unitOfWork.SaveChangesAsync(ct);
+							return true;
+						}, ct);
+
+			// Respond success
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học thành công");
 
 			return response;
 		}
