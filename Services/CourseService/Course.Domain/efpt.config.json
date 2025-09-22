@@ -55,6 +55,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.lesson_quizzes",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.lessons",
          "ObjectType": 0
       },
@@ -72,6 +76,10 @@
       },
       {
          "Name": "public.module_objectives",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.module_quizzes",
          "ObjectType": 0
       },
       {

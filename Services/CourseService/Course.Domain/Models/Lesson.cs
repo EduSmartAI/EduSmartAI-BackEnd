@@ -29,6 +29,8 @@ public partial class Lesson
 
     public bool IsActive { get; set; }
 
+    public virtual LessonQuiz LessonQuiz { get; set; }
+
     public virtual Module Module { get; set; }
 
     public virtual ICollection<Note> Notes { get; set; } = new List<Note>();
