@@ -241,7 +241,7 @@ namespace Course.API.Controllers
 		{
 			var query = new CheckEnrollmentQuery(courseId);
 
-			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, CheckEnrollmentDto>(
+			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, bool>(
 				query,
 				_logger,
 				ModelState,
