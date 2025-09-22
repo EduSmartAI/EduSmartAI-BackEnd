@@ -6,6 +6,10 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+	<ItemGroup>
+		<PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.2" />
+	</ItemGroup>
+	
     <ItemGroup>
       <ProjectReference Include="..\..\BaseService\BaseService.Domain\BaseService.Domain.csproj" />
     </ItemGroup>

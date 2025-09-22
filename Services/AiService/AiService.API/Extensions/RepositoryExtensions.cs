@@ -1,3 +1,6 @@
+using AiService.Application.Handler;
+using AiService.Application.Interfaces;
+using AiService.Infrastructure.Implements;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
@@ -15,9 +18,19 @@ public static class RepositoryExtensions
         services.AddScoped<ICommonLogic, CommonLogic>();
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
-        
-        // Services
 
+        services.AddScoped(typeof(ICommandRepository<>), typeof(CommandRepository<>));
+        services.AddScoped(typeof(IQueryRepository<>), typeof(QueryRepository<>));
+
+        services.AddScoped<IAdvisorService, AdvisorService>();
+        services.AddScoped<IVectorSearchService, VectorSearchService>();
+        services.AddScoped<IMajorService, MajorService>();
+
+        // Services
+        services.AddMediatR(cfg =>
+        {
+            cfg.RegisterServicesFromAssemblyContaining<AiRecommendHandler>();
+        });
         return services;
     }
 }
