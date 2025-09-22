@@ -8,7 +8,6 @@ using Course.Application.Interfaces;
 using Course.Domain.Models;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
-using Course.Infrastructure.Data.Repositories;
 using Course.Infrastructure.Implements;
 using JasperFx;
 using Marten;
@@ -47,15 +46,15 @@ namespace Course.Infrastructure
 			services.AddScoped<ICommandRepository<Tag>, CommandRepository<Tag>>();
 			services.AddScoped<ICommandRepository<Subject>, CommandRepository<Subject>>();
 			services.AddScoped<ICourseService, CourseService>();
-		
+
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
 			services.AddScoped<IModuleService, ModuleService>();
 			services.AddScoped<ISubjectService, SubjectService>();
 
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
-			services.AddMarten(options => 
-			{ 
+			services.AddMarten(options =>
+			{
 				options.Connection(connectionString!);
 				options.AutoCreateSchemaObjects = AutoCreate.All;
 				options.DatabaseSchemaName = "CourseServiceDB_Marten";

@@ -1,8 +1,6 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.ApiEntities;
 using BaseService.Common.Utils.Const;
-using BaseService.Infrastructure.Repositories;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.EnrollCourse;
@@ -18,7 +16,7 @@ using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;

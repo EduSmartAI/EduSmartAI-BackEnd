@@ -1,1 +1,0 @@
-﻿global using CourseEntity = Course.Domain.Models.Course;

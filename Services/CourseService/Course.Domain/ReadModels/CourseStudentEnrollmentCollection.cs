@@ -34,6 +34,4 @@ namespace Course.Domain.ReadModels
 			return courseStudentEnrollment;
 		}
 	}
-
-	
 }
