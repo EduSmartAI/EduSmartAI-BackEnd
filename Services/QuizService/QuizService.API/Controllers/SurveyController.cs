@@ -45,7 +45,7 @@ public class SurveyController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost]
+    [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Tạo khảo sát mới",
@@ -97,7 +97,7 @@ public class SurveyController : ControllerBase
         Summary = "Lấy danh sách các khảo sát",
         Description = "Lấy danh sách các khảo sát"
     )]
-    public async Task<SurveySelectsResponse> SelectSurveyAsync()
+    public async Task<SurveySelectsResponse> SelectSurvey()
     {
         var request = new SurveySelectsQuery();
         return await ApiControllerHelper.HandleRequest<SurveySelectsQuery, SurveySelectsResponse, List<SurveySelectsResponseEntity>>(

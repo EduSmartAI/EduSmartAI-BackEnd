@@ -31,7 +31,7 @@ public interface IUnitOfWork : IDisposable
     /// <typeparam name="TCollection"></typeparam>
     void Store<TCollection>(TCollection entity) where TCollection : class;
     
-    void StoreRange<TCollection>(IEnumerable<TCollection> entities) where TCollection : class;
+    void Store<TCollection>(IEnumerable<TCollection> entities) where TCollection : class;
     
     /// <summary>
     /// Delete a collection of entities from the marten.

@@ -10,8 +10,6 @@ public partial class LearningGoal
     public string GoalName { get; set; } = null!;
 
     public string? Description { get; set; }
-    
-    public short LearningGoalType { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -22,6 +20,8 @@ public partial class LearningGoal
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public short LearningGoalType { get; set; }
 
     public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
 }

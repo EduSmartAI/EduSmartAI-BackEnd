@@ -5,6 +5,7 @@ using BuildingBlocks.Messaging.Events.QuizService.StudentTechnologyOrientationEv
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
+using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Infrastructure.Contexts;
 
@@ -53,6 +54,12 @@ public class OutboxPublisher : BackgroundService
                             var e2 = JsonSerializer.Deserialize<StudentMajorSemesterInformationEvent>(e.Content);
                             await publishEndpoint.Publish(e2!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentMajorSemesterInformationEvent for StudentId: {e2}");
+                            break;
+                        case nameof(QuizCourseCollectionInsertEvent):
+                            logging.InfoLog("Processing QuizCourseCollectionInsertEvent");
+                            var e3 = JsonSerializer.Deserialize<QuizCourseCollectionInsertEvent>(e.Content);
+                            await publishEndpoint.Publish(e3!, stoppingToken);
+                            logging.InfoLog($"Successfully published QuizCourseCollectionInsertEvent for CourseId: {e3.Quiz.QuizId}");
                             break;
                         default:
                             logging.WarningLog($"Unknown event type: {e.Type}");

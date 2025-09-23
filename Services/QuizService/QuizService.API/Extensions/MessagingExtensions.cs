@@ -3,6 +3,8 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
+using QuizService.Application.Applications.QuizCourses.Consumers;
+using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 
 namespace QuizService.API.Extensions;
 
@@ -18,7 +20,9 @@ public static class MessagingExtensions
         
         services.AddMassTransit(x =>
         {
-
+            x.AddConsumer<StudentQuizCollectionInsertConsumer>();
+            x.AddConsumer<QuizCourseCollectionInsertConsumer>();
+            x.AddConsumer<QuizCourseSelectConsumer>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -28,6 +32,13 @@ public static class MessagingExtensions
                 });
                 
                 cfg.ConfigureEndpoints(context);
+                
+                cfg.UseMessageRetry(r => r.Exponential(5,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(30),
+                    TimeSpan.FromSeconds(5)));
+
+                cfg.UseInMemoryOutbox(); 
             });
         });
         

@@ -14,4 +14,6 @@ public record SurveySelectsResponseEntity
     public string Title { get; set; } = null!;
     
     public string? Description { get; set; }
+    
+    public string SurveyCode { get; set; } = null!;
 }

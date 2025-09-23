@@ -11,6 +11,9 @@ public class SurveyInsertCommand : ICommand<SurveyInsertResponse>
     [Required(ErrorMessage = "Description is required")]
     public string? Description { get; set; }
     
+    [Required(ErrorMessage = "SurveyCode is required")]
+    public string SurveyCode { get; set; } = null!;
+    
     [Required(ErrorMessage = "Questions are required")]
     public List<SurveyQuestionRequest> Questions { get; set; } = null!;
 }
@@ -25,7 +28,7 @@ public record SurveyQuestionRequest
     public short QuestionType { get; set; }
 
     [Required(ErrorMessage = "Answers are required")]
-    public List<SurveyAnswerRequest>? Answers { get; set; } = null!;
+    public List<SurveyAnswerRequest> Answers { get; set; } = null!;
 }
 
 public record SurveyAnswerRequest

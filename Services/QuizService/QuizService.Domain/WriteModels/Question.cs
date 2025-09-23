@@ -11,6 +11,12 @@ public partial class Question
 
     public string QuestionText { get; set; } = null!;
 
+    public string? Explanation { get; set; }
+
+    public short QuestionType { get; set; }
+
+    public short? DifficultyLevel { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -20,12 +26,6 @@ public partial class Question
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
-
-    public string? Explanation { get; set; }
-
-    public short QuestionType { get; set; }
-    
-    public short? DifficultyLevel { get; set; }
 
     public virtual ICollection<Answer> Answers { get; set; } = new List<Answer>();
 

@@ -2,7 +2,6 @@
 using Microsoft.EntityFrameworkCore;
 using StudentService.Domain.WriteModels;
 
-
 namespace StudentService.Infrastructure.Contexts;
 
 public partial class StudentServiceContext : AppDbContext
@@ -17,10 +16,13 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<LearningGoal> LearningGoals { get; set; }
 
     public virtual DbSet<LearningPath> LearningPaths { get; set; }
-    
+    public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
+
     public virtual DbSet<Student> Students { get; set; }
 
     public virtual DbSet<StudentLearningGoal> StudentLearningGoals { get; set; }
+
+    public virtual DbSet<StudentOrientation> StudentOrientations { get; set; }
 
     public virtual DbSet<StudentTechnology> StudentTechnologies { get; set; }
 
@@ -77,13 +79,13 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
             entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.LearningGoalType).HasColumnName("learning_goal_type");
             entity.Property(e => e.GoalName)
                 .HasMaxLength(200)
                 .HasColumnName("goal_name");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.LearningGoalType).HasColumnName("learning_goal_type");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -121,6 +123,34 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
         });
+        
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
+
+            entity.ToTable("outbox_messages");
+
+            entity.Property(e => e.Id)
+                .ValueGeneratedNever()
+                .HasColumnName("id");
+            entity.Property(e => e.Content)
+                .HasColumnType("jsonb")
+                .HasColumnName("content");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.OccurredOnUtc).HasColumnName("occurred_on_utc");
+            entity.Property(e => e.ProcessedOnUtc).HasColumnName("processed_on_utc");
+            entity.Property(e => e.Type)
+                .HasMaxLength(255)
+                .HasColumnName("type");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+        });
 
         modelBuilder.Entity<Student>(entity =>
         {
@@ -129,8 +159,6 @@ public partial class StudentServiceContext : AppDbContext
             entity.ToTable("students");
 
             entity.HasIndex(e => e.MajorId, "IX_students_MajorId");
-
-            entity.HasIndex(e => e.SemesterId, "IX_students_SemesterId");
 
             entity.Property(e => e.StudentId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -200,6 +228,38 @@ public partial class StudentServiceContext : AppDbContext
             entity.HasOne(d => d.Student).WithMany(p => p.StudentLearningGoals).HasForeignKey(d => d.StudentId);
         });
 
+        modelBuilder.Entity<StudentOrientation>(entity =>
+        {
+            entity.HasKey(e => e.StudentOrientationId).HasName("student_orientation_pkey");
+
+            entity.ToTable("student_orientations");
+
+            entity.Property(e => e.StudentOrientationId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("student_orientation_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.ReasonRecommend)
+                .HasMaxLength(500)
+                .HasColumnName("reason_recommend");
+            entity.Property(e => e.RecommendType).HasColumnName("recommend_type");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.Technology)
+                .HasMaxLength(20)
+                .HasColumnName("technology");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Student).WithMany(p => p.StudentOrientations)
+                .HasForeignKey(d => d.StudentId)
+                .HasConstraintName("student_orientations_student_id_fkey");
+        });
+
         modelBuilder.Entity<StudentTechnology>(entity =>
         {
             entity.HasKey(e => new { e.StudentId, e.TechnologyId }).HasName("student_technologies_pkey");
@@ -212,21 +272,17 @@ public partial class StudentServiceContext : AppDbContext
 
             entity.Property(e => e.StudentId).HasColumnName("student_id");
             entity.Property(e => e.TechnologyId).HasColumnName("technology_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
 
             entity.HasOne(d => d.Student).WithMany(p => p.StudentTechnologies)
                 .HasForeignKey(d => d.StudentId)
@@ -248,9 +304,7 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.TechnologyId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("technology_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
@@ -262,9 +316,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("technology_name");
             entity.Property(e => e.TechnologyType).HasColumnName("technology_type");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");

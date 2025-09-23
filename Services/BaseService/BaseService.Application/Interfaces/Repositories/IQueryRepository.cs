@@ -61,5 +61,12 @@ public interface IQueryRepository<TEntity> where TEntity : class
     /// <returns></returns>
     Task<List<TEntity>> GetOrSetListAsync(string key, Func<Task<List<TEntity>>> factory, TimeSpan? expiry = null);
     
+    /// <summary>
+    /// Get or set a paged list of entities in cache
+    /// </summary>
+    /// <param name="key"></param>
+    /// <param name="factory"></param>
+    /// <param name="expiry"></param>
+    /// <returns></returns>
     Task<PagedResult<TEntity>> GetOrSetPagedAsync(string key, Func<Task<PagedResult<TEntity>>> factory, TimeSpan? expiry = null);
 }

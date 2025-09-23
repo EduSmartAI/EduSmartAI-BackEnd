@@ -11,9 +11,7 @@ public partial class StudentQuizAnswer
 
     public Guid QuestionId { get; set; }
 
-    public Guid? AnswerId { get; set; }
-
-    public string? AnswerText { get; set; }
+    public Guid AnswerId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -25,7 +23,7 @@ public partial class StudentQuizAnswer
 
     public bool IsActive { get; set; }
 
-    public virtual Answer? Answer { get; set; }
+    public virtual Answer Answer { get; set; } = null!;
 
     public virtual Question Question { get; set; } = null!;
 

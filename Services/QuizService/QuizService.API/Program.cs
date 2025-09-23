@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
+using QuizService.API;
 using QuizService.API.Extensions;
 
 EnvLoader.Load();
@@ -26,6 +27,10 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 #endregion
+
+// Add background service for outbox message publishing
+builder.Services.AddHostedService<OutboxPublisher>();
+
 #region Application build and middleware pipeline
 
 var app = builder.Build();

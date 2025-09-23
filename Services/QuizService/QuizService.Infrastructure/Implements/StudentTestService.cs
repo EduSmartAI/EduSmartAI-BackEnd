@@ -292,8 +292,8 @@ public class StudentTestService : IStudentTestService
                 QuizId = quiz.QuizId,
                 Title = quiz.Title,
                 Description = quiz.Description,
-                SubjectCode = quiz.SubjectCode,
-                SubjectCodeName = quiz.SubjectCodeName,
+                SubjectCode = quiz.PlacementTestQuizSetting!.SubjectCode,
+                SubjectCodeName = quiz.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = quiz.Questions.Count,
                 TotalCorrectAnswers = totalCorrectAnswers,
                 QuestionResults = questionResults

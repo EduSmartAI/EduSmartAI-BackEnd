@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
+using StudentService.API;
 using StudentService.API.Extensions;
 using StudentService.Infrastructure.Contexts;
 
@@ -31,6 +32,10 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
 });
+
+// Add background service for outbox message publishing
+builder.Services.AddHostedService<OutboxPublisher>();
+
 #region Application build and middleware pipeline
 var app = builder.Build();
 await app.EnsureDatabaseCreatedAsync();

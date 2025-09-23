@@ -13,5 +13,7 @@ public class MajorSelectsEventResponseEntity
     
     public string MajorName { get; set; }
     
+    public string MajorCode { get; set; }
+    
     public Guid? ParentMajorId { get; set; }
 }

@@ -1,5 +1,5 @@
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
-using BuildingBlocks.Messaging.Events.StudentInformationInsertEvents;
+using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Domain.WriteModels;
 
