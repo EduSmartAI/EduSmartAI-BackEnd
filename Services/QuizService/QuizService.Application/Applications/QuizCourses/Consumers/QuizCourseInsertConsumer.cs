@@ -1,5 +1,6 @@
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using MassTransit;
+using MassTransit.Initializers;
 using QuizService.Application.Applications.QuizCourses.Commands;
 using QuizService.Application.Interfaces;
 
@@ -34,17 +35,15 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
                 }).ToList()
         };
 
-        var quizInsertResponse = await quizCourseService.InsertQuizCourseAsync(request);
-        
-        // Map the service response to the event response
-        var response = new QuizCourseInsertEventResponse
-        {
-            Success = quizInsertResponse.Success,
-            Message = quizInsertResponse.Message,
-            Response = new QuizCourseInsertEventResponseEntity { QuizId = quizInsertResponse.Response.QuizId},
-            DetailErrors = quizInsertResponse.DetailErrors,
-            MessageId = quizInsertResponse.MessageId
-        };
+        var response = await quizCourseService.InsertQuizCourseAsync(request)
+            .Select(x => new QuizCourseInsertEventResponse
+            {
+                Success = x.Success,
+                Message = x.Message,
+                Response = new QuizCourseInsertEventResponseEntity { QuizId = x.Response.QuizId},
+                DetailErrors = x.DetailErrors,
+                MessageId = x.MessageId
+            });
         
         await context.RespondAsync(response);
     }
