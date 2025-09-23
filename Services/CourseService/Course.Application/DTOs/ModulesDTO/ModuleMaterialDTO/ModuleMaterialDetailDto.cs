@@ -1,4 +1,4 @@
-﻿namespace Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO
+﻿namespace Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO
 {
 	public record ModuleMaterialDetailDto(
 		Guid MaterialId,

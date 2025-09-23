@@ -3,10 +3,12 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
+using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
@@ -14,10 +16,11 @@ using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
+using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using FluentValidation;
@@ -30,6 +33,7 @@ namespace Course.Infrastructure.Implements
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
 		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
+		IQueryRepository<CourseStudentEnrollmentCollection> _enrollmentQueryRepository,
 		ICommandRepository<Tag> _tagRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
@@ -224,6 +228,62 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
+		/// Get course details by Slug for guest users
+		/// </summary>
+		/// <param name="Slug"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<GetCourseBySlugForGuestResponse> GetCourseBySlugForGuestAsync(string Slug, CancellationToken ct = default)
+		{
+			var response = new GetCourseBySlugForGuestResponse() { Success = false };
+
+			var cacheKey = $"CourseDetailBySlugForGuest:{Slug}";
+			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			var baseQuery = _courseRepository
+				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
+				return response;
+			}
+
+			var detail = MapCourseDetailForGuest(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
+		}
+
+		/// <summary>
 		/// Get course details by ID for lecturer (instructor) users
 		/// </summary>
 		/// <param name="id"></param>
@@ -281,6 +341,64 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
+		/// Get course details by Slug for lecturer (instructor) users
+		/// </summary>
+		/// <param name="Slug"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default)
+		{
+			var response = new GetCourseBySlugForLectureResponse() { Success = false };
+
+			var cacheKey = $"CourseDetailBySlugForLecture:{Slug}";
+			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			var baseQuery = _courseRepository
+				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
+				return response;
+			}
+
+			var detail = MapCourseDetailForLecture(entity);
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var modulesCount = entity.Modules.Count(m => m.IsActive);
+			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+			response.Response = detail;
+			response.ModulesCount = modulesCount;
+			response.LessonsCount = lessonsCount;
+			return response;
+		}
+
+		/// <summary>
 		/// Check if current user is enrolled in a course
 		/// </summary>
 		/// <param name="courseId"></param>
@@ -293,34 +411,89 @@ namespace Course.Infrastructure.Implements
 			// Get current user id from token
 			var currentUser = _identityService.GetCurrentUser()!;
 
+			var cacheKey = $"enroll:status:{currentUser.UserId}:{courseId}";
+
 			// Check if user is enrolled in the course
-			var enrollment = await _enrollmentRepository
-				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
-				.FirstOrDefaultAsync(ct);
+			var enrollment = await _enrollmentQueryRepository.GetOrSetAsync(
+				cacheKey,
+				() => _enrollmentQueryRepository.FirstOrDefaultAsync(x =>
+					x.CourseId == courseId &&
+					x.UserId == currentUser.UserId &&
+					x.IsActive),
+				TimeSpan.FromMinutes(5)
+			);
 
 			if (enrollment is null)
 			{
 				response.Success = true;
 				response.SetMessage(MessageId.I00000, "Người dùng chưa tham gia khóa học");
-				response.Response = new CheckEnrollmentDto(
-					CourseId: courseId,
-					IsEnrolled: false,
-					EnrolledAt: null,
-					ExpiresAt: null,
-					IsActive: false
-				);
+				response.Response = false;
 				return response;
 			}
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học");
-			response.Response = new CheckEnrollmentDto(
-				CourseId: courseId,
-				IsEnrolled: true,
-				EnrolledAt: enrollment.StartedAt,
-				ExpiresAt: enrollment.ExpiresAt,
-				IsActive: enrollment.IsActive
-			);
+			response.Response = true;
+
+			return response;
+		}
+
+		/// <summary>
+		/// Enroll current user in a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new EnrollInCourseResponse() { Success = false };
+
+			// Get current user id from token
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			// Check if user is already enrolled in the course
+			var existingEnrollment = await _enrollmentRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingEnrollment is not null)
+			{
+				response.SetMessage(MessageId.E11004, "Người dùng đã tham gia khóa học");
+				return response;
+			}
+
+			// Create new enrollment
+			var enrollment = new CourseStudentEnrollment
+			{
+				EnrollmentId = Guid.NewGuid(),
+				CourseId = courseId,
+				UserId = currentUser.UserId,
+				StartedAt = DateTime.UtcNow,
+				ExpiresAt = null,
+				IsActive = true
+			};
+
+			// Save to database within a transaction
+			await unitOfWork.BeginTransactionAsync(async () =>
+						{
+							await _enrollmentRepository.AddAsync(enrollment, currentUser.Email);
+							await unitOfWork.SaveChangesAsync(ct);
+
+							unitOfWork.Store(CourseStudentEnrollmentCollection.FromWriteModel(enrollment));
+							await unitOfWork.SessionSaveChangesAsync();
+							return true;
+						}, ct);
+
+			// Respond success
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học thành công");
 
 			return response;
 		}

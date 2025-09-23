@@ -2,12 +2,14 @@
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
+using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
-using Course.Application.Courses.Queries.GetCoursesByTeacherId;
+using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
@@ -104,6 +106,41 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new GetCourseByIdForLectureResponse()
+			);
+		}
+
+		[HttpGet("slug/{slug}")]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for guest users",
+			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to guest users."
+		)]
+		public async Task<GetCourseBySlugForGuestResponse> ProcessRequestBySlug(string slug)
+		{
+			var query = new GetCourseBySlugForGuestQuery(slug);
+			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForGuestQuery, GetCourseBySlugForGuestResponse, CourseDetailForGuestDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseBySlugForGuestResponse()
+			);
+		}
+
+		[HttpGet("auth/slug/{slug}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for lectures",
+			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to lectures."
+		)]
+		public async Task<GetCourseBySlugForLectureResponse> ProcessRequestBySlugAuth(string slug)
+		{
+			var query = new GetCourseBySlugForLectureQuery(slug);
+			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse, CourseDetailForLectureDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseBySlugForLectureResponse()
 			);
 		}
 
@@ -204,12 +241,30 @@ namespace Course.API.Controllers
 		{
 			var query = new CheckEnrollmentQuery(courseId);
 
-			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, CheckEnrollmentDto>(
+			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, bool>(
 				query,
 				_logger,
 				ModelState,
 				async () => await sender.Send(query),
 				new CheckEnrollmentResponse()
+			);
+		}
+
+		[HttpPost("{courseId:guid}/enrollment")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Enroll the current user in a course",
+			Description = "Enroll the authenticated user in the specified course"
+		)]
+		public async Task<EnrollInCourseResponse> EnrollInCourse([FromRoute] Guid courseId)
+		{
+			var request = new EnrollInCourseCommand(courseId);
+			return await ApiControllerHelper.HandleRequest<EnrollInCourseCommand, EnrollInCourseResponse, string>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new EnrollInCourseResponse()
 			);
 		}
 

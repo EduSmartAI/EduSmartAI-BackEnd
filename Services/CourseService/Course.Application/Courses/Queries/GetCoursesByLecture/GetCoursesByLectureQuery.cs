@@ -3,7 +3,7 @@ using BuildingBlocks.CQRS;
 using BuildingBlocks.Pagination;
 using Course.Application.DTOs.CoursesDTO;
 
-namespace Course.Application.Courses.Queries.GetCoursesByTeacherId
+namespace Course.Application.Courses.Queries.GetCoursesByLecture
 {
 	public record GetCoursesByLectureQuery(
 		PaginationRequest Pagination,

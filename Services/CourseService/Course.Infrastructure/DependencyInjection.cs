@@ -6,9 +6,10 @@ using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
 using Course.Application.Interfaces;
 using Course.Domain.Models;
+using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
-using Course.Infrastructure.Data.Repositories;
 using Course.Infrastructure.Implements;
+using JasperFx;
 using Marten;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -41,19 +42,27 @@ namespace Course.Infrastructure
 			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
 			services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
 			services.AddScoped<ICommandRepository<CourseStudentEnrollment>, CommandRepository<CourseStudentEnrollment>>();
+			services.AddScoped<IQueryRepository<CourseStudentEnrollmentCollection>, QueryRepository<CourseStudentEnrollmentCollection>>();
 			services.AddScoped<ICommandRepository<Tag>, CommandRepository<Tag>>();
 			services.AddScoped<ICommandRepository<Subject>, CommandRepository<Subject>>();
-			//services.AddScoped<ICourseRepository, CourseRepository>();
 			services.AddScoped<ICourseService, CourseService>();
-		
+
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
-			//services.AddScoped<IModuleRepository, ModuleRepository>();
 			services.AddScoped<IModuleService, ModuleService>();
 			services.AddScoped<ISubjectService, SubjectService>();
 
 			services.AddScoped<IUnitOfWork, UnitOfWork>();
-			services.AddMarten(options => { options.Connection(connectionString!); });
+			services.AddMarten(options =>
+			{
+				options.Connection(connectionString!);
+				options.AutoCreateSchemaObjects = AutoCreate.All;
+				options.DatabaseSchemaName = "CourseServiceDB_Marten";
+
+				// CourseStudentEnrollmentCollection
+				options.Schema.For<CourseStudentEnrollmentCollection>()
+					.Identity(x => x.EnrollmentId);
+			});
 
 			return services;
 		}

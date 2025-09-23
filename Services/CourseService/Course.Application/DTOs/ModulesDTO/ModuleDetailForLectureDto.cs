@@ -1,6 +1,6 @@
 ﻿using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleMaterialDetailDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 
 namespace Course.Application.DTOs.ModulesDTO
 {
