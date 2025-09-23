@@ -50,14 +50,14 @@ namespace Course.API.Controllers
 		}
 
 		/// <summary>
-		/// Get list of courses by teacher ID with pagination and optional filtering
+		/// Get list of courses with pagination and optional filtering for lecture
 		/// </summary>
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet("lecture")]
 		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Get list of courses by teacher ID",
+			Summary = "Get list of courses for lecture",
 			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
 		)]
 		public async Task<GetCoursesByTeacherIdResponse> GetCoursesByTeacherId(
@@ -73,6 +73,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Get course details by ID for guest users
+		/// </summary>
+		/// <param name="id"></param>
+		/// <returns></returns>
 		[HttpGet("{id:guid}")]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for guest users",
@@ -91,6 +96,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Get course details by ID for lectures
+		/// </summary>
+		/// <param name="id"></param>
+		/// <returns></returns>
 		[HttpGet("auth/{id:guid}")]
 		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
@@ -109,6 +119,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Get course details by slug for guest users
+		/// </summary>
+		/// <param name="slug"></param>
+		/// <returns></returns>
 		[HttpGet("slug/{slug}")]
 		[SwaggerOperation(
 			Summary = "Get course details by slug for guest users",
@@ -126,6 +141,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Get course details by slug for lectures
+		/// </summary>
+		/// <param name="slug"></param>
+		/// <returns></returns>
 		[HttpGet("auth/slug/{slug}")]
 		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(

@@ -37,6 +37,16 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
         };
 
         var response = await quizCourseService.InsertQuizCourseAsync(request);
-        await context.RespondAsync(response);
-    }
+		await context.RespondAsync(new QuizCourseInsertEventResponse
+		{
+			Success = response.Success,
+			MessageId = response.MessageId,
+			Message = response.Message,
+			DetailErrors = response.DetailErrors,
+			Response = new QuizCourseInsertEventResponseEntity
+			{
+				QuizId = response.Response?.QuizId ?? Guid.Empty
+			}
+		});
+	}
 }

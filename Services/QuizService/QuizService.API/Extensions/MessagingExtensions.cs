@@ -23,7 +23,8 @@ public static class MessagingExtensions
             x.AddConsumer<StudentQuizCollectionInsertConsumer>();
             x.AddConsumer<QuizCourseCollectionInsertConsumer>();
             x.AddConsumer<QuizCourseSelectConsumer>();
-            x.UsingRabbitMq((context, cfg) =>
+			x.AddConsumer<QuizCourseInsertConsumer>();
+			x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
                 {
