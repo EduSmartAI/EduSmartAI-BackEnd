@@ -14,8 +14,6 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
         var request = new QuizCourseInsertCommand
         {
             UserEmail = evt.UserEmail,
-            Title = evt.Title,
-            Description = evt.Description,
             DurationMinutes = evt.DurationMinutes,
             PassingScorePercentage = evt.PassingScorePercentage,
             ShuffleQuestions = evt.ShuffleQuestions,
@@ -36,7 +34,18 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
                 }).ToList()
         };
 
-        var response = await quizCourseService.InsertQuizCourseAsync(request);
+        var quizInsertResponse = await quizCourseService.InsertQuizCourseAsync(request);
+        
+        // Map the service response to the event response
+        var response = new QuizCourseInsertEventResponse
+        {
+            Success = quizInsertResponse.Success,
+            Message = quizInsertResponse.Message,
+            Response = new QuizCourseInsertEventResponseEntity { QuizId = quizInsertResponse.Response.QuizId},
+            DetailErrors = quizInsertResponse.DetailErrors,
+            MessageId = quizInsertResponse.MessageId
+        };
+        
         await context.RespondAsync(response);
     }
 }

@@ -36,11 +36,7 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<SurveyType> SurveyTypes { get; set; }
 
     public virtual DbSet<Test> Tests { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseNpgsql("Server=157.66.25.29;Database=QuizServiceDB;User Id=edusmart;Password=Edusmart@123;TrustServerCertificate=True;");
-
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -148,6 +144,10 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.Title)
+                .HasMaxLength(255)
+                .HasColumnName("title");
+            entity.Property(e => e.Description).HasColumnName("description");
 
             entity.HasOne(d => d.Quiz).WithOne(p => p.PlacementTestQuizSetting)
                 .HasForeignKey<PlacementTestQuizSetting>(d => d.QuizId)
@@ -200,15 +200,11 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
-            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.QuizType)
                 .HasComment("1: Survey, 2: PlacementTest, 3: Course Quiz")
                 .HasColumnName("quiz_type");
             entity.Property(e => e.TestId).HasColumnName("test_id");
-            entity.Property(e => e.Title)
-                .HasMaxLength(255)
-                .HasColumnName("title");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
@@ -365,6 +361,10 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.Title)
+                .HasMaxLength(255)
+                .HasColumnName("title");
+            entity.Property(e => e.Description).HasColumnName("description");
 
             entity.HasOne(d => d.Quiz).WithOne(p => p.SurveyQuizSetting)
                 .HasForeignKey<SurveyQuizSetting>(d => d.QuizId)

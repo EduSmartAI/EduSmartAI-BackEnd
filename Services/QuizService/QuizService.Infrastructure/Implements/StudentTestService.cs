@@ -290,8 +290,8 @@ public class StudentTestService : IStudentTestService
             quizResults.Add(new QuizResultSelectResponseEntity
             {
                 QuizId = quiz.QuizId,
-                Title = quiz.Title,
-                Description = quiz.Description,
+                Title = quiz.PlacementTestQuizSetting!.Title,
+                Description = quiz.PlacementTestQuizSetting.Description,
                 SubjectCode = quiz.PlacementTestQuizSetting!.SubjectCode,
                 SubjectCodeName = quiz.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = quiz.Questions.Count,

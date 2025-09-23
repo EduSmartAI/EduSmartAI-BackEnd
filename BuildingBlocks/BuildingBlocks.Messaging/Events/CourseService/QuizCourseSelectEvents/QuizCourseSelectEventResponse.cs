@@ -11,10 +11,6 @@ public class QuizCourseSelectEventResponseEntity
 {
     public Guid QuizId { get; set; }
     
-    public string Title { get; set; } = null!;
-
-    public string? Description { get; set; }
-    
     public int DurationMinutes { get; set; }
     
     public int PassingScorePercentage { get; set; }
@@ -35,6 +31,8 @@ public record QuestionDetailResponse
     public Guid QuestionId { get; set; }
     
     public string QuestionText { get; set; } = null!;
+    
+    public string Explanation { get; set; } = null!;
     
     public short QuestionType { get; set; }
     

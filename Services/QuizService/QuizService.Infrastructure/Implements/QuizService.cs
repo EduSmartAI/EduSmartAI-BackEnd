@@ -2,7 +2,6 @@ using BaseService.Application.Common;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.Quizzes.Queries;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Surveys.Queries;
@@ -66,8 +65,8 @@ public class QuizService : IQuizService
             .Select(q => new QuizSelectsResponseEntity
             {
                 QuizId = q.QuizId,
-                Title = q.Title,
-                Description = q.Description,
+                Title = q.PlacementTestQuizSetting!.Title,
+                Description = q.PlacementTestQuizSetting.Description,
                 SubjectCode = q.PlacementTestQuizSetting!.SubjectCode,
                 SubjectCodeName = q.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = q.Questions.Count,
@@ -110,12 +109,12 @@ public class QuizService : IQuizService
              // Insert new survey
             var survey = new Quiz
             {
-                QuizType = (short) ConstantEnum.TestType.Survey,
-                Title = request.Title,
-                Description = request.Description,
+                QuizType = (short) ConstantEnum.TestType.Survey, 
                 SurveyQuizSetting = new SurveyQuizSetting
                 {
-                    SurveyTypeId = surveyTypeExist.SurveyTypeId
+                    SurveyTypeId = surveyTypeExist.SurveyTypeId,
+                    Title = request.Title,
+                    Description = request.Description,
                 },
                 
                 Questions = request.Questions.Select(q => new Question
@@ -181,8 +180,8 @@ public class QuizService : IQuizService
         var mappedItems = pagedResult.Items.Select(entity => new SurveyDetailSelectResponseEntity
         {
             SurveyId = entity.QuizId,
-            Title = entity.Title,
-            Description = entity.Description,
+            Title = entity.SurveyQuizSetting!.Title,
+            Description = entity.SurveyQuizSetting.Description,
             SurveyCode = entity.SurveyQuizSetting!.SurveyCode,
             Questions = entity.Questions.Select(q => new QuestionSurveySelects
             {
@@ -243,8 +242,8 @@ public class QuizService : IQuizService
         var surveys = quizList.Select(x => new SurveySelectsResponseEntity
         {
             SurveyId = x.QuizId,
-            Title = x.Title,
-            Description = x.Description,
+            Title = x.SurveyQuizSetting!.Title,
+            Description = x.SurveyQuizSetting.Description,
             SurveyCode = x.SurveyQuizSetting!.SurveyCode
         }).ToList();
 

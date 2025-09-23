@@ -98,12 +98,12 @@ public class TestService : ITestService
                 {
                     QuizId = Guid.NewGuid(),
                     TestId = newTest.TestId,
-                    Title = quiz.Title,
-                    Description = quiz.Description,
                     QuizType = (short) ConstantEnum.TestType.Quiz,
                     PlacementTestQuizSetting = new PlacementTestQuizSetting
                     {
                         SubjectCode = quiz.SubjectCode,
+                        Title = quiz.Title,
+                        Description = quiz.Description,
                     },
                     Questions = quiz.Questions.Select(q => new Question
                     {
@@ -182,8 +182,8 @@ public class TestService : ITestService
             .Select(q => new QuizzDetailResponse
             {
                 QuizId = q.QuizId,
-                Title = q.Title,
-                Description = q.Description,
+                Title = q.PlacementTestQuizSetting!.Title,
+                Description = q.PlacementTestQuizSetting.Description,
                 SubjectCode = q.PlacementTestQuizSetting!.SubjectCode,
                 SubjectCodeName = q.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = q.Questions.Count,

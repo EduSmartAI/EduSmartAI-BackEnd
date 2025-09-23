@@ -7,10 +7,6 @@ public partial class Quiz
 {
     public Guid QuizId { get; set; }
 
-    public string Title { get; set; } = null!;
-
-    public string? Description { get; set; }
-
     /// <summary>
     /// 1: Survey, 2: PlacementTest, 3: Course Quiz
     /// </summary>
