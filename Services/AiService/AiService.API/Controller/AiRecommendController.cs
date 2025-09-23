@@ -1,4 +1,5 @@
 using AiService.Application.Features.AiEvaluate;
+using AiService.Application.Features.AiExternalCourse;
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
@@ -51,5 +52,19 @@ public class AiRecommendController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new AiEvaluateResponse());
+    }
+    [HttpPost("external-courses")]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<AiExternalCourseResponse> GenExternalCourseByAI(AiExternalCourseRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<AiExternalCourseRequest, AiExternalCourseResponse, AskResponse>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AiExternalCourseResponse());
     }
 }
