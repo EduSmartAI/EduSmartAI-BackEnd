@@ -1,6 +1,7 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.Questions.Commands;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
@@ -13,7 +14,6 @@ public class QuestionService : IQuestionService
     private readonly ICommandRepository<Question> _commandRepository;
     private readonly ICommandRepository<Answer> _answerCommandRepository;
     private readonly IQueryRepository<TestCollection> _testQueryRepository;
-    private readonly IQueryRepository<QuestionCollection> _questionQueryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
 
@@ -25,19 +25,17 @@ public class QuestionService : IQuestionService
     /// <param name="identityService"></param>
     /// <param name="unitOfWork"></param>
     /// <param name="testQueryRepository"></param>
-    /// <param name="questionQueryRepository"></param>
     public QuestionService(
         ICommandRepository<Question> commandRepository,
         ICommandRepository<Answer> answerCommandRepository,
         IIdentityService identityService,
-        IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository, IQueryRepository<QuestionCollection> questionQueryRepository)
+        IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository)
     {
         _commandRepository = commandRepository;
         _answerCommandRepository = answerCommandRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
         _testQueryRepository = testQueryRepository;
-        _questionQueryRepository = questionQueryRepository;
     }
 
     /// <summary>
@@ -45,6 +43,10 @@ public class QuestionService : IQuestionService
     /// </summary>
     /// <param name="quizId"></param>
     /// <param name="text"></param>
+    /// <param name="explanation"></param>
+    /// <param name="email"></param>
+    /// <param name="difficultyLevel"></param>
+    /// <param name="questionType"></param>
     /// <returns></returns>
     public async Task<Guid> InsertQuestionAsync(Guid quizId, string text, string explanation, string email, short difficultyLevel, short questionType)
     {
@@ -277,7 +279,7 @@ public class QuestionService : IQuestionService
             }
 
             // Delete answers of the question
-            var answers = _answerCommandRepository.Find(a => a.QuestionId == request.QuestionId && a.IsActive).ToList();
+            var answers = await _answerCommandRepository.Find(a => a.QuestionId == request.QuestionId && a.IsActive).ToListAsync();
             foreach (var answer in answers)
             {
                 if (answer != null)

@@ -441,8 +441,8 @@ public class StudentQuizService : IStudentQuizService
             StudentSurveyId = x.StudentQuizId,
             Survey = new StudentSurveySelectQuizResponseEntity
             {
-                Title = x.Quiz.Title,
-                Description = x.Quiz.Description,
+                Title = x.Quiz.SurveyQuizSetting!.Title,
+                Description = x.Quiz.SurveyQuizSetting.Description,
                 Questions = x.Quiz.Questions.Select(ques => new StudentSurveySelectQuestionResponseEntity
                 {
                     QuestionId = ques.QuestionId,

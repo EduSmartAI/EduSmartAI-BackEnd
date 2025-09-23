@@ -1,5 +1,6 @@
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using MassTransit;
+using MassTransit.Initializers;
 using QuizService.Application.Applications.QuizCourses.Commands;
 using QuizService.Application.Interfaces;
 
@@ -14,8 +15,6 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
         var request = new QuizCourseInsertCommand
         {
             UserEmail = evt.UserEmail,
-            Title = evt.Title,
-            Description = evt.Description,
             DurationMinutes = evt.DurationMinutes,
             PassingScorePercentage = evt.PassingScorePercentage,
             ShuffleQuestions = evt.ShuffleQuestions,
@@ -36,17 +35,16 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
                 }).ToList()
         };
 
-        var response = await quizCourseService.InsertQuizCourseAsync(request);
-		await context.RespondAsync(new QuizCourseInsertEventResponse
-		{
-			Success = response.Success,
-			MessageId = response.MessageId,
-			Message = response.Message,
-			DetailErrors = response.DetailErrors,
-			Response = new QuizCourseInsertEventResponseEntity
-			{
-				QuizId = response.Response?.QuizId ?? Guid.Empty
-			}
-		});
-	}
+        var response = await quizCourseService.InsertQuizCourseAsync(request)
+            .Select(x => new QuizCourseInsertEventResponse
+            {
+                Success = x.Success,
+                Message = x.Message,
+                Response = new QuizCourseInsertEventResponseEntity { QuizId = x.Response.QuizId},
+                DetailErrors = x.DetailErrors,
+                MessageId = x.MessageId
+            });
+        
+        await context.RespondAsync(response);
+    }
 }

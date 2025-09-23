@@ -36,6 +36,8 @@ public record QuestionDetailResponse
     
     public string QuestionText { get; set; } = null!;
     
+    public string Explanation { get; set; }
+    
     public short QuestionType { get; set; }
     
     public List<AnswerDetailResponse> Answers { get; set; } = null!;

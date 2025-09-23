@@ -7,12 +7,6 @@ public class QuizCourseInsertEvent
     [Required(ErrorMessage = "UserEmail is required")]
     public string UserEmail { get; set; } = null!;
 
-    [Required(ErrorMessage = "Title is required")]
-    public string Title { get; set; } = null!;
-
-    [Required(ErrorMessage = "Description is required")]
-    public string? Description { get; set; }
-
     [Required(ErrorMessage = "DurationMinutes is required")]
     public int DurationMinutes { get; set; }
 

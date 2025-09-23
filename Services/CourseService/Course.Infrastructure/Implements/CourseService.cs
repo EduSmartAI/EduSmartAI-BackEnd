@@ -1843,8 +1843,6 @@ namespace Course.Infrastructure.Implements
 			return new QuizCourseInsertEvent
 			{
 				UserEmail = userEmail,
-				Title = title,
-				Description = description,
 				DurationMinutes = q.QuizSettings.DurationMinutes,
 				PassingScorePercentage = q.QuizSettings.PassingScorePercentage,
 				ShuffleQuestions = q.QuizSettings.ShuffleQuestions,

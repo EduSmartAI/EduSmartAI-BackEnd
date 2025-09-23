@@ -46,9 +46,7 @@ public class QuizCourseService : IQuizCourseService
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             var newQuiz = new Quiz
-            {
-                Title = request.Title,
-                Description = request.Description,
+            { 
                 QuizType = (short) ConstantEnum.TestType.Exam,
                 CourseQuizSetting = new CourseQuizSetting
                 {
@@ -118,8 +116,6 @@ public class QuizCourseService : IQuizCourseService
             .Select(x => new QuizCourseSelectQueryResponseEntity
             {
                 QuizId = x.QuizId,
-                Title = x.Title,
-                Description = x.Description,
                 DurationMinutes = x.CourseQuizSetting!.DurationMinutes,
                 PassingScorePercentage = x.CourseQuizSetting.PassingScorePercentage,
                 ShuffleQuestions = x.CourseQuizSetting.ShuffleQuestions ?? false,
@@ -131,6 +127,7 @@ public class QuizCourseService : IQuizCourseService
                     QuestionId = q.QuestionId,
                     QuestionText = q.QuestionText,
                     QuestionType = q.QuestionType,
+                    Explanation = q.Explanation ?? string.Empty,
                     Answers = q.Answers.Where(a => a.IsActive).Select(a => new AnswerDetailResponse
                     {
                         AnswerId = a.AnswerId,

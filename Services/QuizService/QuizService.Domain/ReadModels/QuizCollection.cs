@@ -6,10 +6,6 @@ public sealed class QuizCollection
 {
     public Guid QuizId { get; set; }
     
-    public string Title { get; set; } = null!;
-    
-    public string? Description { get; set; }
-    
     public short QuizType { get; set; }
     
     public DateTime CreatedAt { get; set; }
@@ -35,8 +31,6 @@ public sealed class QuizCollection
         var quiz = new QuizCollection
         {
             QuizId = model.QuizId,
-            Title = model.Title,
-            Description = model.Description,
             QuizType = model.QuizType,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
@@ -58,8 +52,9 @@ public sealed class QuizCollection
             {
                 SurveyTypeId = model.SurveyQuizSetting.SurveyTypeId,
                 SurveyCode = surveyType.SurveyCode,
-                Description = surveyType.Description,
                 SurveyTypeName = surveyType.SurveyTypeName,
+                Title = model.SurveyQuizSetting.Title,
+                Description = model.SurveyQuizSetting.Description,
             };
         }
        
@@ -85,8 +80,6 @@ public sealed class QuizCollection
         var quiz = new QuizCollection
         {
             QuizId = model.QuizId,
-            Title = model.Title,
-            Description = model.Description,
             QuizType = model.QuizType,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
@@ -107,6 +100,8 @@ public sealed class QuizCollection
             {
                 SubjectCode = model.PlacementTestQuizSetting.SubjectCode,
                 SubjectCodeName = subjectCodeName,
+                Title = model.PlacementTestQuizSetting.Title,
+                Description = model.PlacementTestQuizSetting.Description,
             };
         }
         

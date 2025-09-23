@@ -8,6 +8,10 @@ public partial class SurveyQuizSetting
     public Guid QuizId { get; set; }
 
     public short SurveyTypeId { get; set; }
+    
+    public string Title { get; set; } = null!;
+
+    public string? Description { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
