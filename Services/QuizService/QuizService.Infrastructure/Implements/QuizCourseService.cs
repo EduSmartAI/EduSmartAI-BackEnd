@@ -113,7 +113,7 @@ public class QuizCourseService : IQuizCourseService
 
         var quizSelect = await _quizQueryRepository.GetOrSetAsync(
             cacheKey,
-            async () => await _quizQueryRepository.FirstOrDefaultAsync(q => q.QuizId == request.QuizId && q.IsActive),
+            async () => await _quizQueryRepository.FirstOrDefaultAsync(q => q.QuizId == request.QuizId && q.QuizType == (short) ConstantEnum.TestType.Exam && q.IsActive),
             TimeSpan.FromMinutes(10))
             .Select(x => new QuizCourseSelectQueryResponseEntity
             {
