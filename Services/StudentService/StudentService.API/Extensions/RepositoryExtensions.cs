@@ -30,18 +30,20 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<Technology>, CommandRepository<Technology>>();
         services.AddScoped<ICommandRepository<StudentOrientation>, CommandRepository<StudentOrientation>>();
         services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
-        
+        services.AddScoped<ICommandRepository<LearningPath>, CommandRepository<LearningPath>>();
+
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();
         services.AddScoped<IQueryRepository<StudentLearningGoalCollection>, QueryRepository<StudentLearningGoalCollection>>();
         services.AddScoped<IQueryRepository<TechnologyCollection>, QueryRepository<TechnologyCollection>>();
         services.AddScoped<IQueryRepository<StudentOrientationCollection>, QueryRepository<StudentOrientationCollection>>();
-        
+
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
         services.AddScoped<ILearningGoalService, LearningGoalService>();
         services.AddScoped<ITechnologyService, TechnologyService>();
-        
+        services.AddScoped<ILearningPathService, LearningPathService>();
+
         // MediatR configuration
         services.AddMediatR(cfg =>
         {
@@ -51,7 +53,7 @@ public static class RepositoryExtensions
             cfg.RegisterServicesFromAssemblyContaining<TechnologyInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<StudentMajorSemesterInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<TechnologySelectsQueryHandler>();
-        });        
+        });
         return services;
     }
 }

@@ -33,6 +33,7 @@ public class LearningPathCollection
             CreatedBy = model.CreatedBy,
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive,
+            StudentId = model.StudentId,
             LearningPathMajors = model.LearningPathMajors
                 .Select(LearningPathMajorCollection.FromWriteModel)
                 .ToList()
