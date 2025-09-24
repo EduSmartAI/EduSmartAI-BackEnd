@@ -15,10 +15,14 @@
 		decimal? DealPrice,
 		bool IsActive,
 		List<UpdateCourseObjectiveDto>? Objectives,
-		List<UpdateCourseRequirementDto>? Requirements
+		List<UpdateCourseRequirementDto>? Requirements,
+		List<UpdateCourseAudienceDto>? Audiences,
+		List<UpdateCourseTagDto>? CourseTags
 	//List<UpdateModuleDto> Modules
 	);
 
 	public record UpdateCourseObjectiveDto(Guid? ObjectiveId, string Content, int PositionIndex, bool IsActive);
 	public record UpdateCourseRequirementDto(Guid? RequirementId, string Content, int PositionIndex, bool IsActive);
+	public record UpdateCourseAudienceDto(Guid? AudienceId, string Content, int PositionIndex, bool IsActive);
+	public record UpdateCourseTagDto(long TagId);
 }

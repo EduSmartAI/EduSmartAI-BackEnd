@@ -809,7 +809,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Update course and its related data (objectives, requirements)
+		/// Update course and its related data (objectives, requirements, audiences, course-tags)
 		/// </summary>
 		/// <param name="courseId"></param>
 		/// <param name="dto"></param>
@@ -819,13 +819,15 @@ namespace Course.Infrastructure.Implements
 		{
 			var response = new UpdateCourseResponse() { Success = false };
 			// 1. Validate PositionIndex uniqueness
-			ValidatePositionIndexes(dto);
+			ValidateCourseDetailPositionIndexes(dto);
 
 			// 2. Get existing course with all related data
 			var existingCourse = await _courseRepository
 				.Find(x => x.CourseId == courseId, isTracking: true, ct,
 					x => x.CourseObjectives,
-					x => x.CourseRequirements)
+					x => x.CourseRequirements,
+					x => x.CourseAudiences,
+					x => x.CourseTags)
 				.FirstOrDefaultAsync(ct);
 
 			if (existingCourse is null)
@@ -834,17 +836,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system"
-				};
-			}
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			// 3. Update basic course properties
 			existingCourse.TeacherId = dto.TeacherId;
@@ -875,13 +867,33 @@ namespace Course.Infrastructure.Implements
 			// 6. Update CourseRequirements
 			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
 
-			// 7. Save changes in transaction
-			await unitOfWork.BeginTransactionAsync(async () =>
+			// 6.1 Update CourseAudiences
+			await UpdateCourseAudiencesAsync(existingCourse, dto.Audiences, currentUser.Email);
+
+			// 6.2 Update CourseTags
+			await UpdateCourseTagsAsync(existingCourse, dto.CourseTags);
+
+			try
 			{
-				_courseRepository.Update(existingCourse, currentUser.Email);
-				await unitOfWork.SaveChangesAsync(ct);
-				return true;
-			}, ct);
+				// 7. Save changes in transaction
+				await unitOfWork.BeginTransactionAsync(async () =>
+				{
+					_courseRepository.Update(existingCourse, currentUser.Email);
+					await unitOfWork.SaveChangesAsync(ct);
+					return true;
+				}, ct);
+			}
+			catch (DbUpdateConcurrencyException)
+			{
+				response.SetMessage(MessageId.E11003, "Cập nhật khóa học thất bại do xung đột dữ liệu. Vui lòng thử lại.");
+				return response;
+			}
+			catch (Exception ex)
+			{
+				response.SetMessage(MessageId.E00000, $"Cập nhật khóa học thất bại: {ex.Message}");
+				return response;
+			}
+
 
 			// 8. Clear cache after successful update
 			await ClearGetAllCacheAsync();
@@ -1419,7 +1431,7 @@ namespace Course.Infrastructure.Implements
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <exception cref="ValidationException"></exception>
-		private static void ValidatePositionIndexes(UpdateCourseDto dto)
+		private static void ValidateCourseDetailPositionIndexes(UpdateCourseDto dto)
 		{
 			// Course Objectives (chỉ active)
 			if (dto.Objectives is { Count: > 0 })
@@ -1449,6 +1461,19 @@ namespace Course.Infrastructure.Implements
 
 				if (activeIdx.Any(i => i < 0))
 					throw new ValidationException("Requirement PositionIndex must be >= 0 for active requirements.");
+			}
+
+			// Course Audiences (chỉ active)
+			if (dto.Audiences is { Count: > 0 })
+			{
+				var activeIdx = dto.Audiences
+					.Where(a => a.IsActive)
+					.Select(a => a.PositionIndex)
+					.ToList();
+				if (activeIdx.Count != activeIdx.Distinct().Count())
+					throw new ValidationException("Audience PositionIndex must be unique among active audiences.");
+				if (activeIdx.Any(i => i <= 0))
+					throw new ValidationException("Audience PositionIndex must be > 0 for active audiences.");
 			}
 		}
 
@@ -1565,6 +1590,145 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
+		/// Update CourseAudiences based on payload
+		/// </summary>
+		/// <param name="course"></param>
+		/// <param name="audiences"></param>
+		/// <param name="actor"></param>
+		/// <returns></returns>
+		private Task UpdateCourseAudiencesAsync(CourseEntity course, List<UpdateCourseAudienceDto>? audiences, string actor)
+		{
+			if (audiences is null || audiences.Count == 0)
+			{
+				// Mark all existing audiences as inactive (soft delete)
+				foreach (var aud in course.CourseAudiences.Where(a => a.IsActive))
+				{
+					aud.IsActive = false;
+				}
+				return Task.CompletedTask;
+			}
+			var now = DateTime.UtcNow;
+			var existingAudiences = course.CourseAudiences.ToDictionary(a => a.AudienceId, a => a);
+			var payloadAudienceIds = audiences.Where(a => a.AudienceId.HasValue).Select(a => a.AudienceId!.Value).ToHashSet();
+
+			// 1. Mark audiences not in payload as inactive (soft delete)
+			foreach (var existing in existingAudiences.Values.Where(a => a.IsActive && !payloadAudienceIds.Contains(a.AudienceId)))
+			{
+				existing.IsActive = false;
+			}
+
+			// 2. Update existing audiences or create new ones
+			foreach (var audDto in audiences)
+			{
+				if (audDto.AudienceId.HasValue && existingAudiences.TryGetValue(audDto.AudienceId.Value, out var existing))
+				{
+					// Update existing audience
+					existing.Content = audDto.Content;
+					existing.PositionIndex = audDto.PositionIndex;
+					existing.IsActive = audDto.IsActive;
+				}
+				else
+				{
+					// Create new audience - let EF generate the ID
+					var newAudience = new CourseAudience
+					{
+						CourseId = course.CourseId,
+						Content = audDto.Content,
+						PositionIndex = audDto.PositionIndex,
+						IsActive = audDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					course.CourseAudiences.Add(newAudience);
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		private async Task UpdateCourseTagsAsync(
+	CourseEntity course,
+	List<UpdateCourseTagDto>? courseTags,
+	CancellationToken ct = default)
+		{
+			try
+			{
+
+
+				// Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
+				if (courseTags is null || courseTags.Count == 0)
+				{
+					if (course.CourseTags.Count > 0)
+					{
+						course.CourseTags.Clear(); // EF sẽ xóa các hàng ở bảng CourseTags (nếu cấu hình đúng)
+					}
+					return;
+				}
+
+				// 1) Chuẩn hóa payload: loại trùng và bỏ TagId <= 0
+				var payloadTagIds = courseTags
+					.Select(t => t.TagId)
+					.Where(id => id > 0)
+					.Distinct()
+					.ToHashSet();
+
+				if (payloadTagIds.Count == 0)
+				{
+					// Không còn tag hợp lệ => xóa hết
+					course.CourseTags.Clear();
+					return;
+				}
+
+				// 2) Validate các TagId có tồn tại trong bảng Tag
+				var existedTagIds = await _tagRepository
+					.Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
+					.Select(t => t.TagId)
+					.ToListAsync(ct);
+
+				var notFound = payloadTagIds.Except(existedTagIds).ToList();
+				if (notFound.Count > 0)
+					throw new ValidationException($"TagId không tồn tại: {string.Join(", ", notFound)}");
+
+				// 3) Tập hiện tại trong course
+				var currentTagIds = course.CourseTags.Select(ctg => ctg.TagId).ToHashSet();
+
+				// 4) Tính phần cần xóa và cần thêm
+				var toRemove = currentTagIds.Except(payloadTagIds).ToList();
+				var toAdd = payloadTagIds.Except(currentTagIds).ToList();
+
+				// 5) Hard delete: gỡ các CourseTag không còn trong payload
+				if (toRemove.Count > 0)
+				{
+					// Lấy các entity tương ứng để Remove
+					var removeEntities = course.CourseTags.Where(ctg => toRemove.Contains(ctg.TagId)).ToList();
+					foreach (var rm in removeEntities)
+						course.CourseTags.Remove(rm); // EF sẽ xóa bản ghi join
+				}
+
+				// 6) Thêm mới những TagId chưa có
+				if (toAdd.Count > 0)
+				{
+					var now = DateTime.UtcNow;
+					foreach (var tagId in toAdd)
+					{
+						course.CourseTags.Add(new CourseTag
+						{
+							CourseId = course.CourseId,
+							TagId = tagId,
+							CreatedAt = now
+						});
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.Message);
+			}
+		}
+
+
+		/// <summary>
 		/// Validate PositionIndex uniqueness across all modules in course
 		/// </summary>
 		private static void ValidateCourseModulesPositionIndexes(UpdateCourseModulesDto dto)
@@ -1624,6 +1788,7 @@ namespace Course.Infrastructure.Implements
 		/// </summary>
 		private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules, string actor)
 		{
+			// If payload is null or empty, mark all existing modules as inactive
 			if (modules is null || modules.Count == 0)
 			{
 				// Mark all existing modules as inactive (soft delete)
