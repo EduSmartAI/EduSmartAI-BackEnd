@@ -18,8 +18,9 @@ public class LearningPathCollection
 
     public bool IsActive { get; set; }
 
-    public ICollection<CourseLearningPathCollection> CourseLearningPaths { get; set; } = new List<CourseLearningPathCollection>();
-    
+    public Guid? StudentId { get; set; }
+
+    public virtual ICollection<LearningPathMajorCollection> LearningPathMajors { get; set; } = new List<LearningPathMajorCollection>();
     public static LearningPathCollection FromWriteModel(WriteModels.LearningPath model)
     {
         return new LearningPathCollection
@@ -32,8 +33,9 @@ public class LearningPathCollection
             CreatedBy = model.CreatedBy,
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive,
-            CourseLearningPaths = model.CourseLearningPaths
-                .Select(CourseLearningPathCollection.FromWriteModel)
+            StudentId = model.StudentId,
+            LearningPathMajors = model.LearningPathMajors
+                .Select(LearningPathMajorCollection.FromWriteModel)
                 .ToList()
         };
     }

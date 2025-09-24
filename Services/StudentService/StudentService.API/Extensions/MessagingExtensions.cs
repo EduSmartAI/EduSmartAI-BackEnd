@@ -6,6 +6,7 @@ using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
 using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
+using StudentService.Application.Consumers;
 
 namespace StudentService.API.Extensions;
 
@@ -14,11 +15,11 @@ public static class MessagingExtensions
     public static IServiceCollection AddMessagingServices(this IServiceCollection services)
     {
         EnvLoader.Load();
-        
+
         var rabbitMqHost = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqHost);
         var rabbitMqUsername = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqUsername);
         var rabbitMqPassword = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqPassword);
-        
+
         services.AddMassTransit(x =>
         {
             x.AddConsumer<UserInsertEventConsumer>();
@@ -27,6 +28,7 @@ public static class MessagingExtensions
             x.AddConsumer<ExternalTechnologySelectsConsumer>();
             x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
             x.AddConsumer<StudentInformationUpdatedEventConsumer>();
+            x.AddConsumer<InsertLearningPathConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -35,21 +37,21 @@ public static class MessagingExtensions
                     h.Username(rabbitMqUsername!);
                     h.Password(rabbitMqPassword!);
                 });
-                
+
                 cfg.ConfigureEndpoints(context);
-                
+
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
                     TimeSpan.FromSeconds(5)));
 
-                cfg.UseInMemoryOutbox(); 
+                cfg.UseInMemoryOutbox();
             });
 
             x.AddRequestClient<UserInsertEvent>();
             x.AddRequestClient<UserLoginEvent>();
         });
-        
+
         return services;
     }
 }

@@ -5,7 +5,6 @@ using Marten;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using StudentService.Domain.ReadModels;
-using StudentService.Domain.WriteModels;
 using StudentService.Infrastructure.Contexts;
 
 namespace StudentService.API.Extensions;
@@ -16,38 +15,38 @@ public static class DatabaseExtensions
     {
         var connectionString = Environment.GetEnvironmentVariable(ConstEnv.StudentServiceDb);
         var redisConnectionString = Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!;
-        
-        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));        
+
+        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
-        
+
         // Entity Framework configuration
         services.AddDbContext<StudentServiceContext>(options =>
         {
             options.UseNpgsql(connectionString);
         });
-        
+
         services.AddScoped<AppDbContext, StudentServiceContext>();
-        
+
         // Marten document database configuration
         services.AddMarten(options =>
         {
             options.Connection(connectionString!);
             options.AutoCreateSchemaObjects = AutoCreate.All;
             options.DatabaseSchemaName = "StudentServiceDB_Marten";
-            
+
             options.Schema.For<StudentCollection>().Identity(x => x.StudentId);
             options.Schema.For<LearningGoalCollection>().Identity(x => x.GoalId);
             options.Schema.For<TechnologyCollection>().Identity(x => x.TechnologyId);
-            options.Schema.For<CourseLearningPathCollection>().Identity(x => x.CourseId);
+            options.Schema.For<LearningPathCourseCollection>().Identity(x => x.CourseId);
             options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
             options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);
             options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);
             options.Schema.For<StudentOrientationCollection>().Identity(x => x.StudentOrientationId);
         });
-        
+
         return services;
     }
-    
+
     public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
     {
         using var scope = app.Services.CreateScope();

@@ -1,12 +1,12 @@
-using StudentService.Domain.WriteModels;
-
 namespace StudentService.Domain.ReadModels;
 
-public class CourseLearningPathCollection
+public class LearningPathCourseCollection
 {
-    public Guid CourseId { get; set; }
+    public Guid LearningPathCourseId { get; set; }
 
-    public Guid PathId { get; set; }
+    public Guid LearningPathMajorId { get; set; }
+
+    public Guid CourseId { get; set; }
 
     public int? Position { get; set; }
 
@@ -19,13 +19,12 @@ public class CourseLearningPathCollection
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
-
-    public static CourseLearningPathCollection FromWriteModel(CourseLearningPath model)
+    public static LearningPathCourseCollection FromWriteModel(WriteModels.LearningPathCourse model)
     {
-        return new CourseLearningPathCollection
+        return new LearningPathCourseCollection
         {
             CourseId = model.CourseId,
-            PathId = model.PathId,
+            LearningPathMajorId = model.LearningPathMajorId,
             Position = model.Position,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
