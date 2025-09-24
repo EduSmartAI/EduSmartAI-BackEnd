@@ -3,7 +3,6 @@
 namespace Course.Application.DTOs.CoursesDTO
 {
 	public record CreateCourseDto(
-		Guid TeacherId,
 		Guid SubjectId,
 		string Title,
 		string? ShortDescription,
