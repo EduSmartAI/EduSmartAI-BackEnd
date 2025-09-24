@@ -1,12 +1,14 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using Course.Application.Courses.Commands.UpdateModule;
+using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Models;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace Course.Infrastructure.Implements
 {
@@ -56,7 +58,9 @@ namespace Course.Infrastructure.Implements
 			var existingModule = await _moduleRepository
 				.Find(x => x.ModuleId == moduleId, isTracking: true, ct,
 					x => x.ModuleObjectives,
-					x => x.Lessons)
+					x => x.Lessons,
+					x => x.ModuleDiscussions,
+					x => x.ModuleMaterials)
 				.FirstOrDefaultAsync(ct);
 
 			if (existingModule is null)
@@ -79,6 +83,12 @@ namespace Course.Infrastructure.Implements
 
 			// 5. Update Lessons
 			await UpdateLessonsAsync(existingModule, dto.Lessons, currentUser.Email);
+
+			// 5.1 Update ModuleDiscussions
+			await UpdateModuleDiscussionInternalAsync(existingModule, dto.Discussions, currentUser.Email);
+
+			// 5.2 Update ModuleMaterials
+			await UpdateModuleMaterialsInternalAsync(existingModule, dto.Materials, currentUser.Email);
 
 			// 6. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
@@ -145,6 +155,122 @@ namespace Course.Infrastructure.Implements
 				}
 			}
 
+			return Task.CompletedTask;
+		}
+
+		/// <summary>
+		/// Update ModuleDiscussions for existing module
+		/// </summary>
+		/// <param name="module"></param>
+		/// <param name="discussions"></param>
+		/// <param name="actor"></param>
+		/// <returns></returns>
+		private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions, string actor)
+		{
+			if (discussions is null || discussions.Count == 0)
+			{
+				// Mark all existing discussions as inactive (soft delete)
+				foreach (var dis in module.ModuleDiscussions.Where(d => d.IsActive))
+				{
+					dis.IsActive = false;
+				}
+				return Task.CompletedTask;
+			}
+			var now = DateTime.UtcNow;
+			var existingDiscussions = module.ModuleDiscussions.ToDictionary(d => d.DiscussionId, d => d);
+			var payloadDiscussionIds = discussions.Where(d => d.DiscussionId.HasValue).Select(d => d.DiscussionId!.Value).ToHashSet();
+			// 1. Mark discussions not in payload as inactive (soft delete)
+			foreach (var existing in existingDiscussions.Values.Where(d => d.IsActive && !payloadDiscussionIds.Contains(d.DiscussionId)))
+			{
+				existing.IsActive = false;
+			}
+			// 2. Update existing discussions or create new ones
+			foreach (var disDto in discussions)
+			{
+				if (disDto.DiscussionId.HasValue && existingDiscussions.TryGetValue(disDto.DiscussionId.Value, out var existing))
+				{
+					// Update existing discussion
+					existing.Title = disDto.Title;
+					existing.Description = disDto.Description;
+					existing.DiscussionQuestion = disDto.DiscussionQuestion;
+					existing.IsActive = disDto.IsActive;
+				}
+				else
+				{
+					// Create new discussion - let EF generate the ID
+					var newDiscussion = new ModuleDiscussion
+					{
+						ModuleId = module.ModuleId,
+						Title = disDto.Title,
+						Description = disDto.Description,
+						DiscussionQuestion = disDto.DiscussionQuestion,
+						IsActive = disDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.ModuleDiscussions.Add(newDiscussion);
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		/// <summary>
+		/// Update ModuleMaterials for existing module
+		/// </summary>
+		/// <param name="module"></param>
+		/// <param name="materials"></param>
+		/// <param name="actor"></param>
+		/// <returns></returns>
+		private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials, string actor)
+		{
+			if (materials is null || materials.Count == 0)
+			{
+				// Mark all existing materials as inactive (soft delete)
+				foreach (var mat in module.ModuleMaterials.Where(m => m.IsActive))
+				{
+					mat.IsActive = false;
+				}
+				return Task.CompletedTask;
+			}
+			var now = DateTime.UtcNow;
+			var existingMaterials = module.ModuleMaterials.ToDictionary(m => m.MaterialId, m => m);
+			var payloadMaterialIds = materials.Where(m => m.MaterialId.HasValue).Select(m => m.MaterialId!.Value).ToHashSet();
+			// 1. Mark materials not in payload as inactive (soft delete)
+			foreach (var existing in existingMaterials.Values.Where(m => m.IsActive && !payloadMaterialIds.Contains(m.MaterialId)))
+			{
+				existing.IsActive = false;
+			}
+			// 2. Update existing materials or create new ones
+			foreach (var matDto in materials)
+			{
+				if (matDto.MaterialId.HasValue && existingMaterials.TryGetValue(matDto.MaterialId.Value, out var existing))
+				{
+					// Update existing material
+					existing.Title = matDto.Title;
+					existing.Description = matDto.Description;
+					existing.FileUrl = matDto.FileUrl;
+					existing.IsActive = matDto.IsActive;
+				}
+				else
+				{
+					// Create new material - let EF generate the ID
+					var newMaterial = new ModuleMaterial
+					{
+						ModuleId = module.ModuleId,
+						Title = matDto.Title,
+						Description = matDto.Description,
+						FileUrl = matDto.FileUrl,
+						IsActive = matDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.ModuleMaterials.Add(newMaterial);
+				}
+			}
 			return Task.CompletedTask;
 		}
 
@@ -242,6 +368,33 @@ namespace Course.Infrastructure.Implements
 				if (activeIdx.Any(i => i <= 0))
 					throw new ValidationException("Lesson PositionIndex must be > 0 for active lessons.");
 			}
+
+			// Module Discussions (chỉ active)
+			if (dto.Discussions is { Count: > 0 })
+			{
+				var activeIdx = dto.Discussions
+					.Where(d => d.IsActive)
+					.Select((d, index) => index + 1) // Giả sử PositionIndex là thứ tự trong danh sách
+					.ToList();
+				if (activeIdx.Count != activeIdx.Distinct().Count())
+					throw new ValidationException("Module Discussion PositionIndex must be unique among active discussions.");
+				if (activeIdx.Any(i => i <= 0))
+					throw new ValidationException("Module Discussion PositionIndex must be > 0 for active discussions.");
+			}
+
+			// Module Materials (chỉ active)
+			if (dto.Materials is { Count: > 0 })
+			{
+				var activeIdx = dto.Materials
+					.Where(m => m.IsActive)
+					.Select((m, index) => index + 1) // Giả sử PositionIndex là thứ tự trong danh sách
+					.ToList();
+				if (activeIdx.Count != activeIdx.Distinct().Count())
+					throw new ValidationException("Module Material PositionIndex must be unique among active materials.");
+				if (activeIdx.Any(i => i <= 0))
+					throw new ValidationException("Module Material PositionIndex must be > 0 for active materials.");
+			}
+
 		}
 	}
 }

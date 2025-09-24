@@ -1,4 +1,5 @@
-﻿using Course.Application.DTOs.LessonsDTO;
+﻿using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.LessonsDTO;
 
 namespace Course.Application.DTOs.ModulesDTO
 {
@@ -12,6 +13,8 @@ namespace Course.Application.DTOs.ModulesDTO
 		int? DurationMinutes,
 		short? Level,
 		List<UpdateModuleObjectiveDto>? Objectives,
-		List<UpdateLessonDto> Lessons
+		List<UpdateLessonDto> Lessons,
+		List<UpdateModuleDiscussionDto>? Discussions,
+		List<UpdateModuleMaterialDto>? Materials
 	);
 }

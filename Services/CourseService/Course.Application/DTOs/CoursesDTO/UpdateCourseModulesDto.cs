@@ -20,7 +20,9 @@ namespace Course.Application.DTOs.CoursesDTO
 		int? DurationMinutes,
 		short? Level,
 		List<UpdateCourseModuleObjectiveDto>? Objectives,
-		List<UpdateCourseLessonDto> Lessons
+		List<UpdateCourseLessonDto> Lessons,
+		List<UpdateModuleDiscussionDto>? Discussions,
+		List<UpdateModuleMaterialDto>? Materials
 	);
 
 	/// <summary>
@@ -42,6 +44,22 @@ namespace Course.Application.DTOs.CoursesDTO
 		string VideoUrl,
 		int? VideoDurationSec,
 		int PositionIndex,
+		bool IsActive
+	);
+
+	public record UpdateModuleDiscussionDto(
+		Guid? DiscussionId,          // null => create new discussion
+		string Title,
+		string Description,
+		string DiscussionQuestion,
+		bool IsActive
+	);
+
+	public record UpdateModuleMaterialDto(
+		Guid? MaterialId,            // null => create new material
+		string Title,
+		string Description,
+		string FileUrl,
 		bool IsActive
 	);
 }
