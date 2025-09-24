@@ -15,13 +15,6 @@ namespace AiService.Infrastructure.Implements
         private readonly IVectorSearchService _search;
         private readonly ChatClient _chat;
         private readonly EmbeddingClient _embed;
-        private static readonly string[] SeedKeywords = new[]
-        {
-        "golang","go","vuejs","vue.js","vue 3","pinia","vite","microservices","rest api","grpc",
-        "database","postgresql","mongodb","sql","performance","optimization","caching","docker","kubernetes","k8s",
-        "devops","ci/cd","testing","clean architecture","ddd","cloud","aws","gcp","javascript","node.js","node"
-        };
-
         public AdvisorService(IMajorService service, IVectorSearchService search, ChatClient chat, EmbeddingClient embed)
         {
             _service = service;
@@ -58,7 +51,25 @@ namespace AiService.Infrastructure.Implements
                 var evals = new List<MajorEvaluation>();
                 foreach (var mj in targets)
                 {
-                    string sys = "Bạn là cố vấn hướng nghiệp đại học. Hãy đánh giá mức độ PHÙ HỢP của một ngành học cho sinh viên theo mục tiêu nghề nghiệp và công cụ/ngôn ngữ đã biết. TRẢ LỜI CHỈ BẰNG JSON hợp lệ cho MỖI MAJOR.";
+                    string sys = """
+                    Bạn là cố vấn hướng nghiệp CNTT. Nhiệm vụ: ĐÁNH GIÁ MỨC ĐỘ PHÙ HỢP của MỘT ngành học (major) so với mục tiêu nghề nghiệp và stack đã biết.
+
+                    Nguyên tắc CHẤM ĐIỂM (0–100, số nguyên):
+                    - Trọng số: 70% bám sát mục tiêu nghề nghiệp (career_goal), 30% khớp công nghệ/ngôn ngữ (frameworks/languages).
+                    - Phân loại theo mức độ gần domain:
+                      A) TRỰC TIẾP (Direct Domain Match): tên/code/miêu tả major cho thấy cùng miền với career_goal (vd: “Game”, “Gaming”, “Trò chơi”, “Unity/Unreal game”, “Game programming”). 
+                         → Khung điểm nền: 85–100.
+                      B) LÂN CẬN/HỖ TRỢ (Adjacent/Supportive): backend, frontend, .NET/Java/React… hỗ trợ làm game (server, tools, pipeline) nhưng không phải domain chính.
+                         → Khung điểm nền: 60–84.
+                      C) XA MIỀN (Distant/Unrelated): không hỗ trợ rõ ràng cho career_goal.
+                         → Khung điểm nền: 0–59.
+
+                    RÀNG BUỘC XẾP HẠNG:
+                    - Nếu tồn tại major TRỰC TIẾP với career_goal, thì major đó PHẢI có điểm cao hơn tất cả major khác ÍT NHẤT 5 điểm (trừ khi lý do mạnh mẽ ngược lại, nhưng hiếm).
+                    - Lý do (reasons) 1–3 câu, viện dẫn rõ career_goal và nội dung major; không phóng đại.
+
+                    ĐẦU RA: CHỈ JSON theo schema đã cho, không thêm văn xuôi.
+                    """;
                     string user =
                         $@"Yêu cầu:
                 - career_goal: {req.CareerGoal}

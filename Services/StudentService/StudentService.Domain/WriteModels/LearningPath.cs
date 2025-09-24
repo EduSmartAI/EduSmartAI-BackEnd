@@ -21,5 +21,9 @@ public partial class LearningPath
 
     public bool IsActive { get; set; }
 
-    public virtual ICollection<CourseLearningPath> CourseLearningPaths { get; set; } = new List<CourseLearningPath>();
+    public Guid? StudentId { get; set; }
+
+    public virtual ICollection<LearningPathMajor> LearningPathMajors { get; set; } = new List<LearningPathMajor>();
+
+    public virtual Student? Student { get; set; }
 }
