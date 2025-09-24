@@ -515,17 +515,7 @@ namespace Course.Infrastructure.Implements
 			var response = new CreateCourseResponse() { Success = false };
 
 			// Get current user id
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system@gmail.com"
-				};
-			}
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			var title = dto.Title?.Trim();
 
@@ -566,7 +556,10 @@ namespace Course.Infrastructure.Implements
 						ObjectiveId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = obj.Content,
-						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx
+						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx,
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -583,7 +576,10 @@ namespace Course.Infrastructure.Implements
 						RequirementId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = req.Content,
-						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx
+						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -600,6 +596,40 @@ namespace Course.Infrastructure.Implements
 					});
 				}
 			}
+
+			// 5.1) Course Audiences – optional (1-N)
+			if (dto.Audiences is { Count: > 0 })
+			{
+				// Validate không trùng PositionIndex trong payload
+				EnsureDistinct(dto.Audiences.Select(a => a.PositionIndex),
+					"Audience PositionIndex must be unique within the course.");
+
+				// Tập position đã dùng (đang rỗng vì course mới)
+				var takenIdx = new HashSet<int>();
+
+				foreach (var (aud, idx) in dto.Audiences
+							 .OrderBy(a => a.PositionIndex)
+							 .Select((a, i) => (a, i)))
+				{
+					// fallback index nếu client gửi <= 0
+					var pos = aud.PositionIndex > 0 ? aud.PositionIndex : NextIndex(takenIdx);
+					if (takenIdx.Contains(pos)) pos = NextIndex(takenIdx);
+					takenIdx.Add(pos);
+
+					course.CourseAudiences.Add(new CourseAudience
+					{
+						AudienceId = Guid.NewGuid(),      // sinh ID ngay
+						CourseId = course.CourseId,
+						Content = aud.Content,
+						PositionIndex = pos,
+						IsActive = aud.IsActive,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
+					});
+				}
+			}
+
+
 			if (dto.Modules is { Count: > 0 })
 			{
 				// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
@@ -615,7 +645,9 @@ namespace Course.Infrastructure.Implements
 						IsCore = m.IsCore,
 						DurationMinutes = m.DurationMinutes,
 						Level = m.Level,
-						IsActive = true
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					};
 
 					// Module Objectives (optional)
@@ -631,7 +663,9 @@ namespace Course.Infrastructure.Implements
 								ModuleId = module.ModuleId,
 								Content = mo.Content,
 								PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
-								IsActive = true
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -649,7 +683,9 @@ namespace Course.Infrastructure.Implements
 								VideoUrl = l.VideoUrl,
 								VideoDurationSec = l.VideoDurationSec,
 								PositionIndex = l.PositionIndex,
-								IsActive = true
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
 							};
 
 							module.Lessons.Add(lesson);
@@ -671,7 +707,9 @@ namespace Course.Infrastructure.Implements
 								Title = d.Title?.Trim(),
 								Description = d.Description,
 								DiscussionQuestion = d.DiscussionQuestion,
-								IsActive = true
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -1860,6 +1898,31 @@ namespace Course.Infrastructure.Implements
 					}).ToList()
 				}).ToList()
 			};
+		}
+
+		/// <summary>
+		/// Help validate that a list of integers are all distinct
+		/// </summary>
+		/// <param name="indexes"></param>
+		/// <param name="errorMsg"></param>
+		/// <exception cref="ValidationException"></exception>
+		private static void EnsureDistinct(IEnumerable<int> indexes, string errorMsg)
+		{
+			var list = indexes.ToList();
+			if (list.Count != list.Distinct().Count())
+				throw new ValidationException(errorMsg);
+		}
+
+		/// <summary>
+		/// Check if two lists of integers have any intersection
+		/// </summary>
+		/// <param name="taken"></param>
+		/// <returns></returns>
+		private static int NextIndex(ISet<int> taken)
+		{
+			var next = taken.Count == 0 ? 1 : taken.Max() + 1;
+			while (taken.Contains(next)) next++;
+			return next;
 		}
 
 		#endregion

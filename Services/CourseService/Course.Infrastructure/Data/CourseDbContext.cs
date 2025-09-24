@@ -17,6 +17,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseEntity> Courses { get; set; }
 
+    public virtual DbSet<CourseAudience> CourseAudiences { get; set; }
+
     public virtual DbSet<CourseComment> CourseComments { get; set; }
 
     public virtual DbSet<CourseDiscussion> CourseDiscussions { get; set; }
@@ -141,6 +143,49 @@ public partial class CourseDbContext : AppDbContext
                 .HasForeignKey(d => d.SubjectId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("fk_courses_subject");
+        });
+
+        modelBuilder.Entity<CourseAudience>(entity =>
+        {
+            entity.HasKey(e => e.AudienceId).HasName("course_audiences_pkey");
+
+            entity.ToTable("course_audiences");
+
+            entity.HasIndex(e => e.CourseId, "idx_course_audiences_course");
+
+            entity.HasIndex(e => new { e.CourseId, e.PositionIndex }, "uq_course_audiences_course_pos_active")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
+
+            entity.Property(e => e.AudienceId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("audience_id");
+            entity.Property(e => e.Content)
+                .IsRequired()
+                .HasColumnName("content");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.PositionIndex)
+                .HasDefaultValue(0)
+                .HasColumnName("position_index");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.CourseAudiences)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("course_audiences_course_id_fkey");
         });
 
         modelBuilder.Entity<CourseComment>(entity =>

@@ -15,6 +15,10 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "public.course_audiences",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.course_comments",
          "ObjectType": 0
       },
