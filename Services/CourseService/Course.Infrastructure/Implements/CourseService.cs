@@ -1,6 +1,7 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.EnrollCourse;
@@ -17,6 +18,7 @@ using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
+using Course.Application.DTOs.QuizDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
 using Course.Domain.Models;
@@ -24,6 +26,7 @@ using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using FluentValidation;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using System.Linq.Expressions;
@@ -37,7 +40,10 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<Tag> _tagRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
-		IIdentityService _identityService) : ICourseService
+		IIdentityService _identityService,
+		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
+		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
+		ICommandRepository<LessonQuiz> _lessonQuizRepository) : ICourseService
 	{
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
@@ -509,22 +515,11 @@ namespace Course.Infrastructure.Implements
 			var response = new CreateCourseResponse() { Success = false };
 
 			// Get current user id
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = _identityService.GetCurrentUser()!;
 
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system"
-				};
-			}
+			var title = dto.Title?.Trim();
 
-			var title = dto.Title?.Trim() ?? string.Empty;
-
-			// TODO: fix logic validate (khi nhập slug trong quá trình Create)
-			var slug = !string.IsNullOrWhiteSpace(dto.Slug) ? dto.Slug.Trim() : await GenerateUniqueSlugAsync(dto.Title!, ct);
+			var slug = await GenerateUniqueSlugAsync(dto.Title!, ct);
 
 			var course = new CourseEntity
 			{
@@ -545,6 +540,10 @@ namespace Course.Infrastructure.Implements
 				CourseIntroVideoUrl = dto.CourseIntroVideoUrl,
 			};
 
+			// Pending quizzes để gửi sau khi commit (module/lesson)
+			var pendingModuleQuizzes = new List<(Guid ModuleId, CreateQuizDto Quiz)>();
+			var pendingLessonQuizzes = new List<(Guid ModuleId, Guid LessonId, CreateQuizDto Quiz)>();
+
 			// 3) Mục tiêu học tập (CourseObjectives) – optional
 			if (dto.Objectives is { Count: > 0 })
 			{
@@ -557,7 +556,10 @@ namespace Course.Infrastructure.Implements
 						ObjectiveId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = obj.Content,
-						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx
+						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx,
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -574,7 +576,10 @@ namespace Course.Infrastructure.Implements
 						RequirementId = Guid.NewGuid(),
 						CourseId = course.CourseId,
 						Content = req.Content,
-						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx
+						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -591,6 +596,40 @@ namespace Course.Infrastructure.Implements
 					});
 				}
 			}
+
+			// 5.1) Course Audiences – optional (1-N)
+			if (dto.Audiences is { Count: > 0 })
+			{
+				// Validate không trùng PositionIndex trong payload
+				EnsureDistinct(dto.Audiences.Select(a => a.PositionIndex),
+					"Audience PositionIndex must be unique within the course.");
+
+				// Tập position đã dùng (đang rỗng vì course mới)
+				var takenIdx = new HashSet<int>();
+
+				foreach (var (aud, idx) in dto.Audiences
+							 .OrderBy(a => a.PositionIndex)
+							 .Select((a, i) => (a, i)))
+				{
+					// fallback index nếu client gửi <= 0
+					var pos = aud.PositionIndex > 0 ? aud.PositionIndex : NextIndex(takenIdx);
+					if (takenIdx.Contains(pos)) pos = NextIndex(takenIdx);
+					takenIdx.Add(pos);
+
+					course.CourseAudiences.Add(new CourseAudience
+					{
+						AudienceId = Guid.NewGuid(),      // sinh ID ngay
+						CourseId = course.CourseId,
+						Content = aud.Content,
+						PositionIndex = pos,
+						IsActive = aud.IsActive,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
+					});
+				}
+			}
+
+
 			if (dto.Modules is { Count: > 0 })
 			{
 				// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
@@ -606,7 +645,9 @@ namespace Course.Infrastructure.Implements
 						IsCore = m.IsCore,
 						DurationMinutes = m.DurationMinutes,
 						Level = m.Level,
-						IsActive = true
+						IsActive = true,
+						CreatedBy = currentUser.Email,
+						UpdatedBy = currentUser.Email
 					};
 
 					// Module Objectives (optional)
@@ -622,7 +663,9 @@ namespace Course.Infrastructure.Implements
 								ModuleId = module.ModuleId,
 								Content = mo.Content,
 								PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
-								IsActive = true
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -632,7 +675,7 @@ namespace Course.Infrastructure.Implements
 					{
 						foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
 						{
-							module.Lessons.Add(new Lesson
+							var lesson = new Lesson
 							{
 								LessonId = Guid.NewGuid(),
 								ModuleId = module.ModuleId,
@@ -640,8 +683,15 @@ namespace Course.Infrastructure.Implements
 								VideoUrl = l.VideoUrl,
 								VideoDurationSec = l.VideoDurationSec,
 								PositionIndex = l.PositionIndex,
-								IsActive = true
-							});
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
+							};
+
+							module.Lessons.Add(lesson);
+
+							if (l.LessonQuiz is not null)
+								pendingLessonQuizzes.Add((module.ModuleId, lesson.LessonId, l.LessonQuiz));
 						}
 					}
 
@@ -657,7 +707,9 @@ namespace Course.Infrastructure.Implements
 								Title = d.Title?.Trim(),
 								Description = d.Description,
 								DiscussionQuestion = d.DiscussionQuestion,
-								IsActive = true
+								IsActive = true,
+								CreatedBy = currentUser.Email,
+								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -679,6 +731,10 @@ namespace Course.Infrastructure.Implements
 						}
 					}
 
+					if (m.ModuleQuiz is not null)
+						pendingModuleQuizzes.Add((module.ModuleId, m.ModuleQuiz));
+
+
 					course.Modules.Add(module);
 				}
 			}
@@ -690,6 +746,56 @@ namespace Course.Infrastructure.Implements
 
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 						}, ct);
+
+
+			// ===== Request/Response tới QuizService theo event QuizCourseInsertEvent (ModuleQuizInsertEvent/LessonQuizInsertEvent) =====
+
+			// Module-level
+
+			foreach (var (moduleId, quizDto) in pendingModuleQuizzes)
+			{
+				var payload = ToQuizCourseInsertEvent(
+					currentUser.Email,
+					quizDto
+				);
+
+				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+
+				if (!resp.Message.Success)
+					throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
+
+				var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
+				if (quizId == Guid.Empty)
+					throw new InvalidOperationException("QuizId is empty.");
+
+				await _moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
+				await unitOfWork.SaveChangesAsync(ct);
+
+
+			}
+
+			// Lesson-level
+			foreach (var (moduleId, lessonId, quizDto) in pendingLessonQuizzes)
+			{
+				var payload = ToQuizCourseInsertEvent(
+					currentUser.Email,
+					quizDto
+				);
+
+				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+
+				if (!resp.Message.Success)
+					throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
+
+				var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
+				if (quizId == Guid.Empty)
+					throw new InvalidOperationException("QuizId is empty.");
+
+				await _lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
+				await unitOfWork.SaveChangesAsync(ct);
+
+			}
+
 
 			// Clear cache after successful creation
 			await ClearGetAllCacheAsync();
@@ -1756,6 +1862,63 @@ namespace Course.Infrastructure.Implements
 			}
 			return Task.CompletedTask;
 		}
+
+		/// <summary>
+		/// Convert CreateQuizDto to QuizCourseInsertEvent for publishing to message bus
+		/// </summary>
+		/// <param name="dto"></param>
+		/// <returns></returns>
+		private static QuizCourseInsertEvent ToQuizCourseInsertEvent(
+			string userEmail,
+			CreateQuizDto q)
+		{
+			return new QuizCourseInsertEvent
+			{
+				UserEmail = userEmail,
+				DurationMinutes = q.QuizSettings.DurationMinutes,
+				PassingScorePercentage = q.QuizSettings.PassingScorePercentage,
+				ShuffleQuestions = q.QuizSettings.ShuffleQuestions,
+				ShowResultsImmediately = q.QuizSettings.ShowResultsImmediately,
+				AllowRetake = q.QuizSettings.AllowRetake,
+				Questions = q.Questions.Select(qq => new BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents.Questions
+				{
+					QuestionText = qq.QuestionText,
+					QuestionType = (short)qq.QuestionType, // 1 & 3 theo bạn yêu cầu
+					Explanation = qq.Explanation,
+					Answers = qq.Options.Select(a => new BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents.Answers
+					{
+						AnswerText = a.Text,
+						IsCorrect = a.IsCorrect
+					}).ToList()
+				}).ToList()
+			};
+		}
+
+		/// <summary>
+		/// Help validate that a list of integers are all distinct
+		/// </summary>
+		/// <param name="indexes"></param>
+		/// <param name="errorMsg"></param>
+		/// <exception cref="ValidationException"></exception>
+		private static void EnsureDistinct(IEnumerable<int> indexes, string errorMsg)
+		{
+			var list = indexes.ToList();
+			if (list.Count != list.Distinct().Count())
+				throw new ValidationException(errorMsg);
+		}
+
+		/// <summary>
+		/// Check if two lists of integers have any intersection
+		/// </summary>
+		/// <param name="taken"></param>
+		/// <returns></returns>
+		private static int NextIndex(ISet<int> taken)
+		{
+			var next = taken.Count == 0 ? 1 : taken.Max() + 1;
+			while (taken.Contains(next)) next++;
+			return next;
+		}
+
 		#endregion
 	}
 }

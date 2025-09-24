@@ -28,11 +28,14 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<StudentTechnology>, CommandRepository<StudentTechnology>>();
         services.AddScoped<ICommandRepository<StudentLearningGoal>, CommandRepository<StudentLearningGoal>>();
         services.AddScoped<ICommandRepository<Technology>, CommandRepository<Technology>>();
+        services.AddScoped<ICommandRepository<StudentOrientation>, CommandRepository<StudentOrientation>>();
+        services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
         
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();
         services.AddScoped<IQueryRepository<StudentLearningGoalCollection>, QueryRepository<StudentLearningGoalCollection>>();
         services.AddScoped<IQueryRepository<TechnologyCollection>, QueryRepository<TechnologyCollection>>();
+        services.AddScoped<IQueryRepository<StudentOrientationCollection>, QueryRepository<StudentOrientationCollection>>();
         
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();

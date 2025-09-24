@@ -29,6 +29,8 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<StudentTest>, CommandRepository<StudentTest>>();
         services.AddScoped<ICommandRepository<StudentQuiz>, CommandRepository<StudentQuiz>>();
         services.AddScoped<ICommandRepository<StudentQuizAnswer>, CommandRepository<StudentQuizAnswer>>();
+        services.AddScoped<ICommandRepository<SurveyType>, CommandRepository<SurveyType>>();
+        services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
         
         services.AddScoped<IQueryRepository<TestCollection>, QueryRepository<TestCollection>>();
         services.AddScoped<IQueryRepository<QuizCollection>, QueryRepository<QuizCollection>>();
@@ -45,6 +47,7 @@ public static class RepositoryExtensions
         services.AddScoped<IAnswerService, AnswerService>();
         services.AddScoped<IStudentTestService, StudentTestService>();
         services.AddScoped<IStudentQuizService, StudentQuizService>();
+        services.AddScoped<IQuizCourseService, QuizCourseService>();
         
         // MediatR configuration
         services.AddMediatR(cfg =>

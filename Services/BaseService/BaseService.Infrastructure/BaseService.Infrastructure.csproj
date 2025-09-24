@@ -21,6 +21,7 @@
     <ItemGroup>
       <ProjectReference Include="..\BaseService.Application\BaseService.Application.csproj" />
       <ProjectReference Include="..\BaseService.Common\BaseService.Common.csproj" />
+      <ProjectReference Include="..\BaseService.Domain\BaseService.Domain.csproj" />
     </ItemGroup>
     
     <PropertyGroup>

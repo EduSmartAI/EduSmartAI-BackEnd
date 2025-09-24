@@ -1,3 +1,4 @@
+using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
@@ -16,6 +17,7 @@ public static class MessagingExtensions
 
         services.AddMassTransit(x =>
         {
+            x.AddConsumer<StudentMajorRecommendConsumer>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>

@@ -33,13 +33,13 @@ public sealed class TestCollection
         {
             test.Quizzes = model.Quizzes.Select(quiz =>
             {
-                var subjectName = quiz.SubjectCode.HasValue && subjectMapping.ContainsKey(quiz.SubjectCode.Value)
-                    ? subjectMapping[quiz.SubjectCode.Value]
+                var subjectName = quiz.PlacementTestQuizSetting != null && subjectMapping.ContainsKey(quiz.PlacementTestQuizSetting.SubjectCode)
+                    ? subjectMapping[quiz.PlacementTestQuizSetting.SubjectCode]
                     : string.Empty;
                 return QuizCollection.FromWriteModel(quiz, subjectName);
             }).ToList();
         }
-    
+        
         return test;
     }
 }

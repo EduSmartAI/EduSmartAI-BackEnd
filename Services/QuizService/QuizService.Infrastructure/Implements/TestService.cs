@@ -54,8 +54,7 @@ public class TestService : ITestService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<TestInsertResponse> InsertTestAsync(TestInsertCommand request,
-        CancellationToken cancellationToken)
+    public async Task<TestInsertResponse> InsertTestAsync(TestInsertCommand request, CancellationToken cancellationToken)
     {
         var response = new TestInsertResponse { Success = false };
 
@@ -95,39 +94,45 @@ public class TestService : ITestService
 
             foreach (var quiz in request.Quizzes)
             {
-                // Insert new quizzes
-                var quizId = await _quizService.InsertQuizAsync(newTest.TestId, quiz.Title, quiz.Description, quiz.SubjectCode, currentEmail);
-                foreach (var question in quiz.Questions)
+                var newQuiz = new Quiz
                 {
-                    // Insert new questions
-                    var questionId = await _questionService.InsertQuestionAsync(quizId, question.QuestionText, question.Explanation, currentEmail, question.DifficultyLevel, question.QuestionType);
-                    foreach (var answer in question.Answers)
+                    QuizId = Guid.NewGuid(),
+                    TestId = newTest.TestId,
+                    QuizType = (short) ConstantEnum.TestType.Quiz,
+                    PlacementTestQuizSetting = new PlacementTestQuizSetting
                     {
-                        // Insert new answers
-                        await _answerService.InsertAnswerAsync(questionId, answer.AnswerText, answer.IsCorrect, currentEmail);
-                    }
-                }
+                        SubjectCode = quiz.SubjectCode,
+                        Title = quiz.Title,
+                        Description = quiz.Description,
+                    },
+                    Questions = quiz.Questions.Select(q => new Question
+                    {
+                        QuestionId = Guid.NewGuid(),
+                        QuestionText = q.QuestionText,
+                        QuestionType = q.QuestionType,
+                        DifficultyLevel = q.DifficultyLevel,
+                        Answers = q.Answers.Select(a => new Answer
+                        {
+                            AnswerId = Guid.NewGuid(),
+                            AnswerText = a.AnswerText,
+                            IsCorrect = a.IsCorrect,
+                        }).ToList()
+                    }).ToList()
+                };
+                newTest.Quizzes.Add(newQuiz);
             }
 
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _commandRepository.AddAsync(newTest);
+            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken);
+            
+            // Store to read database
             _unitOfWork.Store(TestCollection.FromWriteModel(newTest, subjectMapping));
             
             foreach (var quiz in newTest.Quizzes)
             {
-                foreach (var question in quiz.Questions)
-                {
-                    foreach (var answer in question.Answers)
-                    {
-                        _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
-                    }
-
-                    _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
-                }
-
                 // Get subject name from mapping, fallback to empty string if not found
-                var subjectName = quiz.SubjectCode.HasValue && subjectMapping.ContainsKey(quiz.SubjectCode.Value) 
-                    ? subjectMapping[quiz.SubjectCode.Value] 
-                    : string.Empty;
+                var subjectName = subjectMapping.TryGetValue(quiz.PlacementTestQuizSetting!.SubjectCode, 
+                    out var name) ? name : string.Empty;
 
                 _unitOfWork.Store(QuizCollection.FromWriteModel(quiz, subjectName));
             }
@@ -173,14 +178,14 @@ public class TestService : ITestService
 
         // Build quizzes with full details
         var quizzes = test.Quizzes
-            .Where(x => request.QuizId == null || !request.QuizId.Any() || request.QuizId.Contains(x.QuizId))
+            .Where(x => !request.QuizId.Any() || request.QuizId.Contains(x.QuizId))
             .Select(q => new QuizzDetailResponse
             {
                 QuizId = q.QuizId,
-                Title = q.Title,
-                Description = q.Description,
-                SubjectCode = q.SubjectCode,
-                SubjectCodeName = q.SubjectCodeName,
+                Title = q.PlacementTestQuizSetting!.Title,
+                Description = q.PlacementTestQuizSetting.Description,
+                SubjectCode = q.PlacementTestQuizSetting!.SubjectCode,
+                SubjectCodeName = q.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = q.Questions.Count,
                 Questions = q.Questions.Select(ques => new QuestionDetailResponse
                 {

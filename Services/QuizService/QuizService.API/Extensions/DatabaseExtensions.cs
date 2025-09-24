@@ -40,8 +40,7 @@ public static class DatabaseExtensions
             
             // QuizCollection
             options.Schema.For<QuizCollection>()
-                .Identity(x => x.QuizId)
-                .Duplicate(x => x.Title);
+                .Identity(x => x.QuizId);
 
             // QuestionCollection
             options.Schema.For<QuestionCollection>()

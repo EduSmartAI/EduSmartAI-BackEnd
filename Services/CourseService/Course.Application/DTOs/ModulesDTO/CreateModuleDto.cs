@@ -1,4 +1,5 @@
 ﻿using Course.Application.DTOs.LessonsDTO;
+using Course.Application.DTOs.QuizDTO;
 
 namespace Course.Application.DTOs.ModulesDTO
 {
@@ -7,12 +8,13 @@ namespace Course.Application.DTOs.ModulesDTO
 		string? Description,
 		int PositionIndex,
 		bool IsActive,
-		bool IsCore,                      // new
-		int? DurationMinutes,             // new
-		short? Level,                     // new
-		List<CreateModuleObjectiveDto>? Objectives,  // optional
+		bool IsCore,
+		int? DurationMinutes,
+		short? Level,
+		List<CreateModuleObjectiveDto>? Objectives,
 		List<CreateLessonDto> Lessons,
 		List<CreateModuleDiscussionDto>? Discussions,
-		List<CreateModuleMaterialDto>? Materials
+		List<CreateModuleMaterialDto>? Materials,
+		CreateQuizDto? ModuleQuiz
 	);
 }

@@ -34,18 +34,14 @@ public static class ConstantEnum
     {
         MultipleChoice = 1,
         TrueFalse = 2,
-        ShortAnswer = 3,
-        SingleChoice = 4,
+        SingleChoice = 3,
     }
     
     public enum TechnologyType
     {
         ProgrammingLanguage = 1,
         Framework = 2,
-        Tool = 3,
-        Platform = 4,
-        Database = 5,
-        Other = 6,
+        Database = 3,
     }
     
     public enum LearningGoalType
@@ -54,5 +50,17 @@ public static class ConstantEnum
         Frontend = 2,
         Backend = 3,
         Fullstack = 4
+    }
+
+    public enum OrientationRecommendType
+    {
+        Internal = 1,
+        External = 2
+    }
+
+    public enum SurveyCode
+    {
+        INTEREST,
+        HABIT
     }
 }

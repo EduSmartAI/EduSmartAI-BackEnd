@@ -37,6 +37,7 @@ public class MajorService(ICommandRepository<Major> commandRepository) : IMajorS
             {
                 MajorId = x.MajorId,
                 MajorName = x.MajorName,
+                MajorCode = x.MajorCode,
                 ParentMajorId = x.ParentMajorId 
             })
             .ToListAsync(cancellationToken: cancellationToken);

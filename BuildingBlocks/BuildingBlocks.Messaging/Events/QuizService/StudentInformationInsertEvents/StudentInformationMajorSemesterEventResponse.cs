@@ -1,8 +1,8 @@
 using BaseService.Common.ApiEntities;
 
-namespace BuildingBlocks.Messaging.Events.StudentInformationInsertEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
 
-public record StudentInformationMajorSemesterEventResponse : AbstractApiResponse<string>
+public record StudentInformationMajorSemesterEventResponse : AbstractApiResponse<List<StudentMajorOrientation>>
 {
-    public override string Response { get; set; }
+    public override List<StudentMajorOrientation> Response { get; set; }
 }

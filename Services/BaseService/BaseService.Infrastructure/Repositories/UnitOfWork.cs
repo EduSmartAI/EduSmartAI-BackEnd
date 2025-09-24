@@ -76,7 +76,7 @@ public class UnitOfWork(AppDbContext context, IDocumentSession session, IDatabas
     /// </summary>
     /// <param name="entities"></param>
     /// <typeparam name="TCollection"></typeparam>
-    public void StoreRange<TCollection>(IEnumerable<TCollection> entities) where TCollection : class
+    public void Store<TCollection>(IEnumerable<TCollection> entities) where TCollection : class
     {
         session.Store(entities);
     }

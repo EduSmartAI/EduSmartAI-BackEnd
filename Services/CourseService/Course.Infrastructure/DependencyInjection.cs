@@ -46,6 +46,9 @@ namespace Course.Infrastructure
 			services.AddScoped<ICommandRepository<Tag>, CommandRepository<Tag>>();
 			services.AddScoped<ICommandRepository<Subject>, CommandRepository<Subject>>();
 			services.AddScoped<ICourseService, CourseService>();
+			services.AddScoped<ICommandRepository<ModuleQuiz>, CommandRepository<ModuleQuiz>>();
+			services.AddScoped<ICommandRepository<LessonQuiz>, CommandRepository<LessonQuiz>>();
+
 
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();

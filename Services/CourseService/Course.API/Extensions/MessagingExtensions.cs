@@ -1,5 +1,6 @@
 ﻿using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using Course.Application.Consumers;
 using MassTransit;
 
@@ -32,6 +33,8 @@ namespace Course.API.Extensions
 
 					cfg.ConfigureEndpoints(context);
 				});
+
+				x.AddRequestClient<QuizCourseInsertEvent>();
 			});
 
 			return services;

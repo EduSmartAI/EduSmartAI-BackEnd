@@ -5,6 +5,7 @@ using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
 using StudentService.Application.Applications.Students.Consumers;
+using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 
 namespace StudentService.API.Extensions;
 
@@ -25,6 +26,7 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationInsertConsumer>();
             x.AddConsumer<ExternalTechnologySelectsConsumer>();
             x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
+            x.AddConsumer<StudentInformationUpdatedEventConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {
@@ -35,6 +37,13 @@ public static class MessagingExtensions
                 });
                 
                 cfg.ConfigureEndpoints(context);
+                
+                cfg.UseMessageRetry(r => r.Exponential(5,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(30),
+                    TimeSpan.FromSeconds(5)));
+
+                cfg.UseInMemoryOutbox(); 
             });
 
             x.AddRequestClient<UserInsertEvent>();

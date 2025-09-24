@@ -10,10 +10,8 @@ public class StudentQuizAnswerCollection
 
     public Guid QuestionId { get; set; }
 
-    public Guid? AnswerId { get; set; }
-
-    public string? AnswerText { get; set; }
-
+    public Guid AnswerId { get; set; }
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -36,7 +34,6 @@ public class StudentQuizAnswerCollection
             StudentQuizId = model.StudentQuizId,
             QuestionId = model.QuestionId,
             AnswerId = model.AnswerId,
-            AnswerText = model.AnswerText,
             IsActive = model.IsActive,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,

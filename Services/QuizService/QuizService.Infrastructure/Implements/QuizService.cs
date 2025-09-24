@@ -14,6 +14,7 @@ namespace QuizService.Infrastructure.Implements;
 public class QuizService : IQuizService
 {
     private readonly ICommandRepository<Quiz> _commandRepository;
+    private readonly ICommandRepository<SurveyType> _commandSurveyTypeRepository;
     private readonly IQueryRepository<QuizCollection> _queryRepository;
     private readonly IQueryRepository<TestCollection> _testQueryRepository;
     private readonly IIdentityService _identityService;
@@ -27,39 +28,17 @@ public class QuizService : IQuizService
     /// <param name="identityService"></param>
     /// <param name="unitOfWork"></param>
     /// <param name="testQueryRepository"></param>
+    /// <param name="commandSurveyTypeRepository"></param>
     public QuizService(ICommandRepository<Quiz> commandRepository, IQueryRepository<QuizCollection> queryRepository,
-        IIdentityService identityService, IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository)
+        IIdentityService identityService, IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository,
+        ICommandRepository<SurveyType> commandSurveyTypeRepository)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
         _testQueryRepository = testQueryRepository;
-    }
-
-    /// <summary>
-    /// Insert quiz
-    /// </summary>
-    /// <param name="testId"></param>
-    /// <param name="title"></param>
-    /// <param name="description"></param>
-    /// <param name="subjectCode"></param>
-    /// <param name="userEmail"></param>
-    /// <returns></returns>
-    public async Task<Guid> InsertQuizAsync(Guid testId, string title, string? description, Guid subjectCode, string userEmail)
-    {
-        var quiz = new Quiz
-        {
-            QuizId = Guid.NewGuid(),
-            TestId = testId,
-            Title = title,
-            Description = description,
-            SubjectCode = subjectCode,
-            QuizType = (byte) ConstantEnum.TestType.Quiz
-        };
-
-        await _commandRepository.AddAsync(quiz, userEmail);
-        return quiz.QuizId;
+        _commandSurveyTypeRepository = commandSurveyTypeRepository;
     }
 
     /// <summary>
@@ -86,10 +65,10 @@ public class QuizService : IQuizService
             .Select(q => new QuizSelectsResponseEntity
             {
                 QuizId = q.QuizId,
-                Title = q.Title,
-                Description = q.Description,
-                SubjectCode = q.SubjectCode,
-                SubjectCodeName = q.SubjectCodeName, // Set if available
+                Title = q.PlacementTestQuizSetting!.Title,
+                Description = q.PlacementTestQuizSetting.Description,
+                SubjectCode = q.PlacementTestQuizSetting!.SubjectCode,
+                SubjectCodeName = q.PlacementTestQuizSetting.SubjectCodeName,
                 TotalQuestions = q.Questions.Count,
             }).ToList();
         if (quizzes == null || !quizzes.Any())
@@ -116,27 +95,37 @@ public class QuizService : IQuizService
         var response = new SurveyInsertResponse { Success = false };
         
         // Begin transaction
-        await _unitOfWork.BeginTransactionAsync(async () => 
+        await _unitOfWork.BeginTransactionAsync(async () =>
         {
             var userEmail = _identityService.GetCurrentUser()!.Email;
-            
-            // Insert new survey
+
+            var surveyTypeExist = await _commandSurveyTypeRepository.FirstOrDefaultAsync(x => x.SurveyCode == request.SurveyCode, cancellationToken: cancellationToken);
+            if (surveyTypeExist == null)
+            {
+                response.SetMessage(MessageId.E00000, "Mã khảo sát không tồn tại");
+                return false;
+            }
+
+             // Insert new survey
             var survey = new Quiz
             {
-                QuizType = ((short)ConstantEnum.TestType.Survey),
-                Title = request.Title,
-                Description = request.Description,
+                QuizType = (short) ConstantEnum.TestType.Survey, 
+                SurveyQuizSetting = new SurveyQuizSetting
+                {
+                    SurveyTypeId = surveyTypeExist.SurveyTypeId,
+                    Title = request.Title,
+                    Description = request.Description,
+                },
+                
                 Questions = request.Questions.Select(q => new Question
                 {
                     QuestionText = q.QuestionText,
                     QuestionType = q.QuestionType,
-                    Answers = q.Answers != null
-                        ? q.Answers.Select(a => new Answer
+                    Answers =  q.Answers.Select(a => new Answer
                         {
                             AnswerText = a.AnswerText,
                             IsCorrect = a.IsCorrect,
                         }).ToList()
-                        : []
                 }).ToList()
             };
             
@@ -144,7 +133,8 @@ public class QuizService : IQuizService
             await _commandRepository.AddAsync(survey);
             await _unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
             
-            _unitOfWork.Store(QuizCollection.FromWriteModel(survey, string.Empty));
+            // Store to read model
+            _unitOfWork.Store(QuizCollection.FromWriteModel(survey, surveyTypeExist));
             await _unitOfWork.SessionSaveChangesAsync();
 
             // Remove cache
@@ -190,8 +180,9 @@ public class QuizService : IQuizService
         var mappedItems = pagedResult.Items.Select(entity => new SurveyDetailSelectResponseEntity
         {
             SurveyId = entity.QuizId,
-            Title = entity.Title,
-            Description = entity.Description,
+            Title = entity.SurveyQuizSetting!.Title,
+            Description = entity.SurveyQuizSetting.Description,
+            SurveyCode = entity.SurveyQuizSetting!.SurveyCode,
             Questions = entity.Questions.Select(q => new QuestionSurveySelects
             {
                 QuestionId = q.QuestionId,
@@ -237,7 +228,7 @@ public class QuizService : IQuizService
             cacheKey,
             async () =>
             {
-                return await _queryRepository.ToListAsync(x => x.IsActive && x.QuizType == (short)ConstantEnum.TestType.Survey);
+                return await _queryRepository.ToListAsync(x => x.IsActive && x.QuizType == (short) ConstantEnum.TestType.Survey);
             },
             TimeSpan.FromMinutes(10)
         );
@@ -251,8 +242,9 @@ public class QuizService : IQuizService
         var surveys = quizList.Select(x => new SurveySelectsResponseEntity
         {
             SurveyId = x.QuizId,
-            Title = x.Title,
-            Description = x.Description
+            Title = x.SurveyQuizSetting!.Title,
+            Description = x.SurveyQuizSetting.Description,
+            SurveyCode = x.SurveyQuizSetting!.SurveyCode
         }).ToList();
 
         // True

@@ -40,7 +40,8 @@ public static class DatabaseExtensions
             options.Schema.For<LearningPathCourseCollection>().Identity(x => x.CourseId);
             options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
             options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);
-            options.Schema.For<StudentLearningGoalCollection>().Identity(x => x.Id);
+            options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);
+            options.Schema.For<StudentOrientationCollection>().Identity(x => x.StudentOrientationId);
         });
 
         return services;

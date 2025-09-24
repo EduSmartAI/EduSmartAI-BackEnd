@@ -19,6 +19,7 @@ namespace Course.Application.DTOs.CoursesDTO
 		List<CreateCourseObjectiveDto>? Objectives,
 		List<CreateCourseRequirementDto>? Requirements,
 		List<CreateCourseTagDto>? CourseTags,
+		List<CreateCourseAudienceDto>? Audiences,
 		List<CreateModuleDto> Modules
 	);
 

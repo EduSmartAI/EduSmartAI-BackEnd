@@ -23,7 +23,7 @@ public sealed class StudentCollection
     public string? UpdatedBy { get; set; }
     public bool IsActive { get; set; }
     
-    public ICollection<LearningGoalCollection> LearningGoals { get; set; } = new List<LearningGoalCollection>();
+    public ICollection<StudentLearningGoalCollection> LearningGoals { get; set; } = new List<StudentLearningGoalCollection>();
 
     public static StudentCollection FromWriteModel(Student model, string? semesterName, string? majorName, bool included = false)
     {
@@ -48,18 +48,31 @@ public sealed class StudentCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
-
-        if (included)
+        
+        return studentCollection;
+    }
+    
+    public static StudentCollection FromWriteModel(Student model)
+    {
+        var studentCollection = new StudentCollection
         {
-            
-            if (model.StudentLearningGoals.Any())
-            {
-                studentCollection.LearningGoals = model.StudentLearningGoals
-                    .Where(sl => sl.Goal != null)
-                    .Select(sl => LearningGoalCollection.FromWriteModel(sl.Goal!))
-                    .ToList();
-            }
-        }
+            StudentId = model.StudentId,
+            FirstName = model.FirstName,
+            LastName = model.LastName,
+            DateOfBirth = model.DateOfBirth,
+            PhoneNumber = model.PhoneNumber,
+            Gender = model.Gender,
+            AvatarUrl = model.AvatarUrl,
+            Address = model.Address,
+            MajorId = model.MajorId,
+            SemesterId = model.SemesterId,
+            Bio = model.Bio,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt,
+            CreatedBy = model.CreatedBy,
+            UpdatedBy = model.UpdatedBy,
+            IsActive = model.IsActive
+        };
 
         return studentCollection;
     }
