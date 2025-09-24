@@ -1,4 +1,6 @@
-﻿namespace Course.Application.DTOs.LessonsDTO
+﻿using Course.Application.DTOs.QuizDTO;
+
+namespace Course.Application.DTOs.LessonsDTO
 {
 	public record LectureLessonDetailDto(
 		Guid LessonId,
@@ -6,6 +8,7 @@
 		string VideoUrl,
 		int? VideoDurationSec,
 		int PositionIndex,
-		bool IsActive
+		bool IsActive,
+		QuizOutDto? LessonQuiz = null
 	);
 }
