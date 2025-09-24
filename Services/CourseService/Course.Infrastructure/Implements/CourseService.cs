@@ -2,6 +2,7 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.EnrollCourse;
@@ -43,7 +44,10 @@ namespace Course.Infrastructure.Implements
 		IIdentityService _identityService,
 		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
-		ICommandRepository<LessonQuiz> _lessonQuizRepository) : ICourseService
+		ICommandRepository<LessonQuiz> _lessonQuizRepository,
+		IRequestClient<QuizCourseSelectEvent> _quizSelectClient,
+		IQueryRepository<ModuleQuiz> _moduleQuizQueryRepository,
+		IQueryRepository<LessonQuiz> _lessonQuizQueryRepository) : ICourseService
 	{
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
@@ -333,7 +337,39 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = MapCourseDetailForLecture(entity);
+			// 1) Lấy tất cả ModuleId & LessonId còn active
+			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+			var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
+										  .Where(l => l.IsActive)
+										  .Select(l => l.LessonId).ToList();
+
+			// 2) Load mapping (module->quiz, lesson->quiz)
+			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+												   .Select(x => new { x.ModuleId, x.QuizId })
+												   .ToListAsync(ct);
+
+			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+												   .Select(x => new { x.LessonId, x.QuizId })
+												   .ToListAsync(ct);
+
+			// 3) Gọi song song QuizService, dedupe quizIds
+			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
+									   .Distinct().ToList();
+
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			await Task.WhenAll(quizTasks.Values);
+
+			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+
+			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+			var detail = MapCourseDetailForLecture(
+							entity,
+							moduleQuizIdByModuleId,
+							lessonQuizIdByLessonId,
+							quizDict
+						);
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
@@ -391,7 +427,40 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = MapCourseDetailForLecture(entity);
+			// 1) Lấy tất cả ModuleId & LessonId còn active
+			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+			var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
+										  .Where(l => l.IsActive)
+										  .Select(l => l.LessonId).ToList();
+
+			// 2) Load mapping (module->quiz, lesson->quiz)
+			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+												   .Select(x => new { x.ModuleId, x.QuizId })
+												   .ToListAsync(ct);
+
+			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+												   .Select(x => new { x.LessonId, x.QuizId })
+												   .ToListAsync(ct);
+
+			// 3) Gọi song song QuizService, dedupe quizIds
+			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
+									   .Distinct().ToList();
+
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			await Task.WhenAll(quizTasks.Values);
+
+			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+
+			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+			var detail = MapCourseDetailForLecture(
+							entity,
+							moduleQuizIdByModuleId,
+							lessonQuizIdByLessonId,
+							quizDict
+						);
+
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
@@ -1271,12 +1340,55 @@ namespace Course.Infrastructure.Implements
 		/// </summary>
 		/// <param name="e"></param>
 		/// <returns></returns>
-		private static CourseDetailForLectureDto MapCourseDetailForLecture(CourseEntity e)
+		private static CourseDetailForLectureDto MapCourseDetailForLecture(
+			CourseEntity e,
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId,     // moduleId -> quizId
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId,     // lessonId -> quizId
+			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId         // quizId -> QuizOutDto
+		)
 		{
 			var modules = e.Modules
-				.Where(m => m.IsActive)
-				.OrderBy(m => m.PositionIndex)
-				.Select(m => new ModuleDetailForLectureDto(
+			.Where(m => m.IsActive)
+			.OrderBy(m => m.PositionIndex)
+			.Select(m =>
+			{
+				// Lấy quiz cho module (nếu có)
+				QuizOutDto? moduleQuiz = null;
+				if (moduleQuizIdByModuleId is not null &&
+					moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid) &&
+					quizByQuizId is not null &&
+					quizByQuizId.TryGetValue(qid, out var qdto))
+					{
+						moduleQuiz = qdto;
+					}
+
+				var lessons = m.Lessons
+					.Where(l => l.IsActive)
+					.OrderBy(l => l.PositionIndex)
+					.Select(l =>
+					{
+						QuizOutDto? lessonQuiz = null;
+						if (lessonQuizIdByLessonId is not null &&
+							lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid) &&
+							quizByQuizId is not null &&
+							quizByQuizId.TryGetValue(lqid, out var lqdto))
+							{
+								lessonQuiz = lqdto;
+							}
+
+						return new LectureLessonDetailDto(
+							l.LessonId,
+							l.Title,
+							l.VideoUrl,
+							l.VideoDurationSec,
+							l.PositionIndex,
+							l.IsActive,
+							lessonQuiz // NEW
+						);
+					})
+					.ToList();
+
+				return new ModuleDetailForLectureDto(
 					m.ModuleId,
 					m.ModuleName,
 					m.Description,
@@ -1286,47 +1398,21 @@ namespace Course.Infrastructure.Implements
 					m.DurationMinutes,
 					m.DurationHours,
 					m.Level,
-					m.ModuleObjectives
-						.Where(o => o.IsActive)
+					m.ModuleObjectives.Where(o => o.IsActive)
 						.OrderBy(o => o.PositionIndex)
-						.Select(o => new ModuleObjectiveDto(
-							o.ObjectiveId,
-							o.Content,
-							o.PositionIndex,
-							o.IsActive
-						)).ToList(),
-					m.ModuleDiscussions
-						.Where(d => d.IsActive)
-						.Select(d => new ModuleDiscussionDetailDto(
-						d.DiscussionId,
-						d.Title,
-						d.Description,
-						d.DiscussionQuestion,
-						d.CreatedAt,
-						d.UpdatedAt
-					)).ToList(),
-					m.ModuleMaterials
-						.Where(mat => mat.IsActive)
-						.Select(mat => new ModuleMaterialDetailDto(
-						mat.MaterialId,
-						mat.Title,
-						mat.Description,
-						mat.FileUrl,
-						mat.CreatedAt,
-						mat.UpdatedAt
-					)).ToList(),
-					m.Lessons
-						.Where(l => l.IsActive)
-						.OrderBy(l => l.PositionIndex)
-						.Select(l => new LectureLessonDetailDto(
-							l.LessonId,
-							l.Title,
-							l.VideoUrl,
-							l.VideoDurationSec,
-							l.PositionIndex,
-							l.IsActive))
-						.ToList()
-				)).ToList();
+						.Select(o => new ModuleObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
+						.ToList(),
+					m.ModuleDiscussions.Where(d => d.IsActive)
+						.Select(d => new ModuleDiscussionDetailDto(d.DiscussionId, d.Title, d.Description, d.DiscussionQuestion, d.CreatedAt, d.UpdatedAt))
+						.ToList(),
+					m.ModuleMaterials.Where(mat => mat.IsActive)
+						.Select(mat => new ModuleMaterialDetailDto(mat.MaterialId, mat.Title, mat.Description, mat.FileUrl, mat.CreatedAt, mat.UpdatedAt))
+						.ToList(),
+					lessons,
+					moduleQuiz // NEW
+				);
+			})
+			.ToList();
 
 			// Comments
 			var comments = e.CourseComments
@@ -1403,6 +1489,37 @@ namespace Course.Infrastructure.Implements
 				//ratingsAverage
 				5.0
 			);
+		}
+
+		private static QuizOutDto ToQuizOutDto(QuizCourseSelectEventResponseEntity q)
+		{
+			return new QuizOutDto(
+				new QuizSettingsOutDto(
+					q.DurationMinutes,
+					q.PassingScorePercentage,
+					q.ShuffleQuestions,
+					q.ShowResultsImmediately,
+					q.AllowRetake
+				),
+				q.Questions.Select(qq => new QuizQuestionOutDto(
+					qq.QuestionId,
+					qq.QuestionText,
+					qq.Explanation,
+					qq.QuestionType,
+					qq.Answers.Select(a => new QuizAnswerOutDto(a.AnswerId, a.AnswerText)).ToList()
+				)).ToList()
+			);
+		}
+
+		private async Task<QuizOutDto?> FetchQuizAsync(Guid quizId, CancellationToken ct)
+		{
+			var res = await _quizSelectClient.GetResponse<QuizCourseSelectEventResponse>(
+				new QuizCourseSelectEvent { QuizId = quizId }, ct);
+
+			if (!res.Message.Success || res.Message.Response is null)
+				return null;
+
+			return ToQuizOutDto(res.Message.Response);
 		}
 
 		/// <summary>

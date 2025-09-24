@@ -1,6 +1,7 @@
 ﻿using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
+using Course.Application.DTOs.QuizDTO;
 
 namespace Course.Application.DTOs.ModulesDTO
 {
@@ -17,6 +18,7 @@ namespace Course.Application.DTOs.ModulesDTO
 		List<ModuleObjectiveDto> Objectives,
 		List<ModuleDiscussionDetailDto> ModuleDiscussionDetails,
 		List<ModuleMaterialDetailDto> ModuleMaterialDetails,
-		List<LectureLessonDetailDto> Lessons
-		);
+		List<LectureLessonDetailDto> Lessons,
+		QuizOutDto? ModuleQuiz = null
+	);
 }
