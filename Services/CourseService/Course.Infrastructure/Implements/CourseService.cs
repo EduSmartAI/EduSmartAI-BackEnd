@@ -524,7 +524,7 @@ namespace Course.Infrastructure.Implements
 			var course = new CourseEntity
 			{
 				CourseId = Guid.NewGuid(),
-				TeacherId = dto.TeacherId,
+				TeacherId = currentUser.UserId,
 				SubjectId = dto.SubjectId,
 				Title = title,
 				ShortDescription = dto.ShortDescription,
@@ -810,6 +810,7 @@ namespace Course.Infrastructure.Implements
 
 		/// <summary>
 		/// Update course and its related data (objectives, requirements, audiences, course-tags)
+		/// Delete Course: Set IsActive = false (soft delete)
 		/// </summary>
 		/// <param name="courseId"></param>
 		/// <param name="dto"></param>
@@ -926,6 +927,10 @@ namespace Course.Infrastructure.Implements
 					.ThenInclude(m => m.ModuleObjectives)
 				.Include(x => x.Modules)
 					.ThenInclude(m => m.Lessons)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.ModuleDiscussions)
+				.Include(x => x.Modules)
+					.ThenInclude(m => m.ModuleMaterials)
 				.FirstOrDefaultAsync(ct);
 
 			if (existingCourse is null)
@@ -1647,83 +1652,82 @@ namespace Course.Infrastructure.Implements
 			return Task.CompletedTask;
 		}
 
+		/// <summary>
+		/// Update CourseTags based on payload
+		/// </summary>
+		/// <param name="course"></param>
+		/// <param name="courseTags"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="ValidationException"></exception>
 		private async Task UpdateCourseTagsAsync(
-	CourseEntity course,
-	List<UpdateCourseTagDto>? courseTags,
-	CancellationToken ct = default)
+			CourseEntity course,
+			List<UpdateCourseTagDto>? courseTags,
+			CancellationToken ct = default)
 		{
-			try
+			// Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
+			if (courseTags is null || courseTags.Count == 0)
 			{
-
-
-				// Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
-				if (courseTags is null || courseTags.Count == 0)
+				if (course.CourseTags.Count > 0)
 				{
-					if (course.CourseTags.Count > 0)
-					{
-						course.CourseTags.Clear(); // EF sẽ xóa các hàng ở bảng CourseTags (nếu cấu hình đúng)
-					}
-					return;
+					course.CourseTags.Clear(); // EF sẽ xóa các hàng ở bảng CourseTags (nếu cấu hình đúng)
 				}
-
-				// 1) Chuẩn hóa payload: loại trùng và bỏ TagId <= 0
-				var payloadTagIds = courseTags
-					.Select(t => t.TagId)
-					.Where(id => id > 0)
-					.Distinct()
-					.ToHashSet();
-
-				if (payloadTagIds.Count == 0)
-				{
-					// Không còn tag hợp lệ => xóa hết
-					course.CourseTags.Clear();
-					return;
-				}
-
-				// 2) Validate các TagId có tồn tại trong bảng Tag
-				var existedTagIds = await _tagRepository
-					.Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
-					.Select(t => t.TagId)
-					.ToListAsync(ct);
-
-				var notFound = payloadTagIds.Except(existedTagIds).ToList();
-				if (notFound.Count > 0)
-					throw new ValidationException($"TagId không tồn tại: {string.Join(", ", notFound)}");
-
-				// 3) Tập hiện tại trong course
-				var currentTagIds = course.CourseTags.Select(ctg => ctg.TagId).ToHashSet();
-
-				// 4) Tính phần cần xóa và cần thêm
-				var toRemove = currentTagIds.Except(payloadTagIds).ToList();
-				var toAdd = payloadTagIds.Except(currentTagIds).ToList();
-
-				// 5) Hard delete: gỡ các CourseTag không còn trong payload
-				if (toRemove.Count > 0)
-				{
-					// Lấy các entity tương ứng để Remove
-					var removeEntities = course.CourseTags.Where(ctg => toRemove.Contains(ctg.TagId)).ToList();
-					foreach (var rm in removeEntities)
-						course.CourseTags.Remove(rm); // EF sẽ xóa bản ghi join
-				}
-
-				// 6) Thêm mới những TagId chưa có
-				if (toAdd.Count > 0)
-				{
-					var now = DateTime.UtcNow;
-					foreach (var tagId in toAdd)
-					{
-						course.CourseTags.Add(new CourseTag
-						{
-							CourseId = course.CourseId,
-							TagId = tagId,
-							CreatedAt = now
-						});
-					}
-				}
+				return;
 			}
-			catch (Exception ex)
+
+			// 1) Chuẩn hóa payload: loại trùng và bỏ TagId <= 0
+			var payloadTagIds = courseTags
+				.Select(t => t.TagId)
+				.Where(id => id > 0)
+				.Distinct()
+				.ToHashSet();
+
+			if (payloadTagIds.Count == 0)
 			{
-				Console.WriteLine(ex.Message);
+				// Không còn tag hợp lệ => xóa hết
+				course.CourseTags.Clear();
+				return;
+			}
+
+			// 2) Validate các TagId có tồn tại trong bảng Tag
+			var existedTagIds = await _tagRepository
+				.Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
+				.Select(t => t.TagId)
+				.ToListAsync(ct);
+
+			var notFound = payloadTagIds.Except(existedTagIds).ToList();
+			if (notFound.Count > 0)
+				throw new ValidationException($"TagId không tồn tại: {string.Join(", ", notFound)}");
+
+			// 3) Tập hiện tại trong course
+			var currentTagIds = course.CourseTags.Select(ctg => ctg.TagId).ToHashSet();
+
+			// 4) Tính phần cần xóa và cần thêm
+			var toRemove = currentTagIds.Except(payloadTagIds).ToList();
+			var toAdd = payloadTagIds.Except(currentTagIds).ToList();
+
+			// 5) Hard delete: gỡ các CourseTag không còn trong payload
+			if (toRemove.Count > 0)
+			{
+				// Lấy các entity tương ứng để Remove
+				var removeEntities = course.CourseTags.Where(ctg => toRemove.Contains(ctg.TagId)).ToList();
+				foreach (var rm in removeEntities)
+					course.CourseTags.Remove(rm); // EF sẽ xóa bản ghi join
+			}
+
+			// 6) Thêm mới những TagId chưa có
+			if (toAdd.Count > 0)
+			{
+				var now = DateTime.UtcNow;
+				foreach (var tagId in toAdd)
+				{
+					course.CourseTags.Add(new CourseTag
+					{
+						CourseId = course.CourseId,
+						TagId = tagId,
+						CreatedAt = now
+					});
+				}
 			}
 		}
 
@@ -1843,6 +1847,12 @@ namespace Course.Infrastructure.Implements
 
 			// Update Lessons
 			await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons, actor);
+
+			// Update Discussions
+			await UpdateModuleDiscussionInternalAsync(existingModule, moduleDto.Discussions, actor);
+
+			// Update Materials
+			await UpdateModuleMaterialsInternalAsync(existingModule, moduleDto.Materials, actor);
 		}
 
 		/// <summary>
@@ -1900,6 +1910,46 @@ namespace Course.Infrastructure.Implements
 						VideoDurationSec = lessonDto.VideoDurationSec,
 						PositionIndex = lessonDto.PositionIndex,
 						IsActive = lessonDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					});
+				}
+			}
+
+			// Add Discussions
+			if (moduleDto.Discussions is { Count: > 0 })
+			{
+				foreach (var disDto in moduleDto.Discussions)
+				{
+					newModule.ModuleDiscussions.Add(new ModuleDiscussion
+					{
+						ModuleId = newModule.ModuleId,
+						Title = disDto.Title,
+						Description = disDto.Description,
+						DiscussionQuestion = disDto.DiscussionQuestion,
+						IsActive = true,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					});
+				}
+			}
+
+			// Add Materials
+			if (moduleDto.Materials is { Count: > 0 })
+			{
+				foreach (var matDto in moduleDto.Materials)
+				{
+					newModule.ModuleMaterials.Add(new ModuleMaterial
+					{
+						ModuleId = newModule.ModuleId,
+						Title = matDto.Title,
+						Description = matDto.Description,
+						FileUrl = matDto.FileUrl,
+						IsActive = true,
 						CreatedAt = now,
 						UpdatedAt = now,
 						CreatedBy = actor,
@@ -2023,6 +2073,122 @@ namespace Course.Infrastructure.Implements
 						UpdatedBy = actor
 					};
 					module.Lessons.Add(newLesson);
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		/// <summary>
+		/// Update ModuleDiscussions for existing module
+		/// </summary>
+		/// <param name="module"></param>
+		/// <param name="discussions"></param>
+		/// <param name="actor"></param>
+		/// <returns></returns>
+		private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions, string actor)
+		{
+			if (discussions is null || discussions.Count == 0)
+			{
+				// Mark all existing discussions as inactive (soft delete)
+				foreach (var dis in module.ModuleDiscussions.Where(d => d.IsActive))
+				{
+					dis.IsActive = false;
+				}
+				return Task.CompletedTask;
+			}
+			var now = DateTime.UtcNow;
+			var existingDiscussions = module.ModuleDiscussions.ToDictionary(d => d.DiscussionId, d => d);
+			var payloadDiscussionIds = discussions.Where(d => d.DiscussionId.HasValue).Select(d => d.DiscussionId!.Value).ToHashSet();
+			// 1. Mark discussions not in payload as inactive (soft delete)
+			foreach (var existing in existingDiscussions.Values.Where(d => d.IsActive && !payloadDiscussionIds.Contains(d.DiscussionId)))
+			{
+				existing.IsActive = false;
+			}
+			// 2. Update existing discussions or create new ones
+			foreach (var disDto in discussions)
+			{
+				if (disDto.DiscussionId.HasValue && existingDiscussions.TryGetValue(disDto.DiscussionId.Value, out var existing))
+				{
+					// Update existing discussion
+					existing.Title = disDto.Title;
+					existing.Description = disDto.Description;
+					existing.DiscussionQuestion = disDto.DiscussionQuestion;
+					existing.IsActive = disDto.IsActive;
+				}
+				else
+				{
+					// Create new discussion - let EF generate the ID
+					var newDiscussion = new ModuleDiscussion
+					{
+						ModuleId = module.ModuleId,
+						Title = disDto.Title,
+						Description = disDto.Description,
+						DiscussionQuestion = disDto.DiscussionQuestion,
+						IsActive = disDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.ModuleDiscussions.Add(newDiscussion);
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		/// <summary>
+		/// Update ModuleMaterials for existing module
+		/// </summary>
+		/// <param name="module"></param>
+		/// <param name="materials"></param>
+		/// <param name="actor"></param>
+		/// <returns></returns>
+		private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials, string actor)
+		{
+			if (materials is null || materials.Count == 0)
+			{
+				// Mark all existing materials as inactive (soft delete)
+				foreach (var mat in module.ModuleMaterials.Where(m => m.IsActive))
+				{
+					mat.IsActive = false;
+				}
+				return Task.CompletedTask;
+			}
+			var now = DateTime.UtcNow;
+			var existingMaterials = module.ModuleMaterials.ToDictionary(m => m.MaterialId, m => m);
+			var payloadMaterialIds = materials.Where(m => m.MaterialId.HasValue).Select(m => m.MaterialId!.Value).ToHashSet();
+			// 1. Mark materials not in payload as inactive (soft delete)
+			foreach (var existing in existingMaterials.Values.Where(m => m.IsActive && !payloadMaterialIds.Contains(m.MaterialId)))
+			{
+				existing.IsActive = false;
+			}
+			// 2. Update existing materials or create new ones
+			foreach (var matDto in materials)
+			{
+				if (matDto.MaterialId.HasValue && existingMaterials.TryGetValue(matDto.MaterialId.Value, out var existing))
+				{
+					// Update existing material
+					existing.Title = matDto.Title;
+					existing.Description = matDto.Description;
+					existing.FileUrl = matDto.FileUrl;
+					existing.IsActive = matDto.IsActive;
+				}
+				else
+				{
+					// Create new material - let EF generate the ID
+					var newMaterial = new ModuleMaterial
+					{
+						ModuleId = module.ModuleId,
+						Title = matDto.Title,
+						Description = matDto.Description,
+						FileUrl = matDto.FileUrl,
+						IsActive = matDto.IsActive,
+						CreatedAt = now,
+						UpdatedAt = now,
+						CreatedBy = actor,
+						UpdatedBy = actor
+					};
+					module.ModuleMaterials.Add(newMaterial);
 				}
 			}
 			return Task.CompletedTask;
