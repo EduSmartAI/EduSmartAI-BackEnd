@@ -8,7 +8,6 @@ namespace Course.Application.Courses.Commands.CreateCourse
 	{
 		public CreateCourseValidator()
 		{
-			RuleFor(x => x.Payload.TeacherId).NotEmpty();
 			RuleFor(x => x.Payload.SubjectId).NotEmpty();
 			RuleFor(x => x.Payload.Title).NotEmpty().MaximumLength(200);
 			RuleFor(x => x.Payload.Price).GreaterThan(0);
