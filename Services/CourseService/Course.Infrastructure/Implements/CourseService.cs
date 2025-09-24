@@ -45,9 +45,7 @@ namespace Course.Infrastructure.Implements
 		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		IRequestClient<QuizCourseSelectEvent> _quizSelectClient,
-		IQueryRepository<ModuleQuiz> _moduleQuizQueryRepository,
-		IQueryRepository<LessonQuiz> _lessonQuizQueryRepository) : ICourseService
+		IRequestClient<QuizCourseSelectEvent> _quizSelectClient) : ICourseService
 	{
 		/// <summary>
 		/// Get all courses with pagination and optional filtering

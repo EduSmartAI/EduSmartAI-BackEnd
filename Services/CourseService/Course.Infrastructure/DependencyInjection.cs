@@ -48,8 +48,6 @@ namespace Course.Infrastructure
 			services.AddScoped<ICourseService, CourseService>();
 			services.AddScoped<ICommandRepository<ModuleQuiz>, CommandRepository<ModuleQuiz>>();
 			services.AddScoped<ICommandRepository<LessonQuiz>, CommandRepository<LessonQuiz>>();
-			services.AddScoped<IQueryRepository<ModuleQuiz>, QueryRepository<ModuleQuiz>>();
-			services.AddScoped<IQueryRepository<LessonQuiz>, QueryRepository<LessonQuiz>>();
 
 
 			// Module services
