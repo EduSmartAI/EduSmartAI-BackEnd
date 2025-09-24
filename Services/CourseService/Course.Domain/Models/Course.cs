@@ -47,6 +47,8 @@ public partial class Course
 
     public string CourseIntroVideoUrl { get; set; }
 
+    public virtual ICollection<CourseAudience> CourseAudiences { get; set; } = new List<CourseAudience>();
+
     public virtual ICollection<CourseComment> CourseComments { get; set; } = new List<CourseComment>();
 
     public virtual ICollection<CourseDiscussion> CourseDiscussions { get; set; } = new List<CourseDiscussion>();
