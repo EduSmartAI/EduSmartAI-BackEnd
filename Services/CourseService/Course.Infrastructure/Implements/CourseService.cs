@@ -14,11 +14,14 @@ using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.LessonsDTO;
+using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
+using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.QuizDTO;
 using Course.Application.Interfaces;
 using Course.Domain.Enum;
@@ -45,8 +48,13 @@ namespace Course.Infrastructure.Implements
 		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		IRequestClient<QuizCourseSelectEvent> _quizSelectClient) : ICourseService
+		IRequestClient<QuizCourseSelectEvent> _quizSelectClient,
+		ICommandRepository<UserLessonProgress> _userLessonProgressQuery,
+		ICommandRepository<UserModuleProgress> _userModuleProgressQuery,
+		ICommandRepository<UserCourseProgress> _userCourseProgressQuery) : ICourseService
 	{
+		#region Service for Lecture & Guest
+
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
 		/// </summary>
@@ -1091,7 +1099,284 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		#endregion
 
+		#region Service for Student (Learner)
+
+		/// <summary>
+		/// Get course details by Id for student (learner) users
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetCourseByIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new GetCourseByIdForStudentResponse() { Success = false };
+
+			// Lấy userId từ token (soft FK, không join bảng Users)
+			var currentUser = _identityService.GetCurrentUser()!;
+			var userId = currentUser.UserId;
+			//var userId = new Guid("776d9cb2-acb8-4985-9720-5a5ab50dd35e");
+
+			// Cache theo user + course (nội dung kèm progress riêng từng user)
+			var cacheKey = $"CourseDetailForStudent:{courseId}:{userId}";
+			var cached = await _cache.GetAsync<CourseDetailForStudentDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Chi tiết khóa học cho học viên (cached)");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			// 1) Kiểm tra enrollment (must be active)
+			var activeEnroll = await _enrollmentRepository
+				.Find(x => x.CourseId == courseId && x.UserId == userId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+			if (activeEnroll is null)
+			{
+				response.SetMessage(MessageId.E00000, "Bạn chưa đăng ký (enroll) khóa học này hoặc thời hạn học đã không còn hiệu lực.");
+				return response;
+			}
+
+			// 2) Nạp course + modules + lessons (y hệt bản lecture)
+			var baseQuery = _courseRepository
+				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ctg => ctg.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học {courseId}");
+				return response;
+			}
+
+			// 3) Lấy mapping quiz (module/lesson) & gọi QuizService (y hệt bản lecture)
+			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+			var lessonIds = entity.Modules.SelectMany(m => m.Lessons).Where(l => l.IsActive).Select(l => l.LessonId).ToList();
+
+			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+				.Select(x => new { x.ModuleId, x.QuizId }).ToListAsync(ct);
+
+			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+				.Select(x => new { x.LessonId, x.QuizId }).ToListAsync(ct);
+
+			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId)).Distinct().ToList();
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			await Task.WhenAll(quizTasks.Values);
+
+			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
+			var lessonProgress = await _userLessonProgressQuery
+				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
+				.Select(x => new LessonProgressSnap(
+					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
+				.ToListAsync(ct);
+			var progressByLessonId =
+				lessonProgress.ToDictionary(x => x.LessonId, x => x);
+
+			// 5) Tải module/course progress snapshot (nếu đã có từ trigger); nếu chưa có sẽ fallback tự tính
+			// module snapshot
+			var moduleProgress = await _userModuleProgressQuery
+				.Find(x => x.UserId == userId && moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+				.Select(x => new ModuleProgressSnap(
+					x.ModuleId, x.LessonsTotal, x.LessonsCompleted, (x.PercentCompleted ?? 0m),
+					x.Status, x.StartedAt, x.CompletedAt))
+				.ToListAsync(ct);
+			var moduleProgressById = moduleProgress.ToDictionary(x => x.ModuleId, x => x);
+
+			// course snapshot
+			var courseProgress = await _userCourseProgressQuery
+				.Find(x => x.UserId == userId && x.CourseId == courseId, isTracking: false, ct)
+				.Select(x => new CourseProgressSnap(
+					x.LessonsTotal, x.LessonsCompleted, (x.PercentCompleted ?? 0m),
+					x.Status, x.StartedAt, x.CompletedAt))
+				.FirstOrDefaultAsync(ct);
+
+			// 6) Map sang DTO Student (tick bài, % module, % course chỉ tính core)
+			var detail = MapCourseDetailForStudent(
+				entity,
+				moduleQuizIdByModuleId,
+				lessonQuizIdByLessonId,
+				quizDict,
+				progressByLessonId,
+				moduleProgressById,
+				courseProgress,
+				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
+			);
+
+			// 7) Gợi ý “tiếp tục học” (optional nhưng hữu ích cho FE)
+			//detail.Continue = ComputeContinueLesson(detail.Modules);
+
+			// 8) Cache ngắn
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(5));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Chi tiết khóa học cho học viên");
+			response.Response = detail;
+			response.ModulesCount = detail.Modules.Count;
+			response.LessonsCount = detail.Modules.Sum(m => m.Lessons.Count);
+			return response;
+		}
+
+		/// <summary>
+		/// Get course details by Slug for student (learner) users
+		/// </summary>
+		/// <param name="courseSlug"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug, CancellationToken ct = default)
+		{
+			var response = new GetCourseBySlugForStudentResponse() { Success = false };
+
+			// Lấy userId từ token (soft FK, không join bảng Users)
+			var currentUser = _identityService.GetCurrentUser()!;
+			var userId = currentUser.UserId;
+
+			// Cache theo user + course (nội dung kèm progress riêng từng user)
+			var cacheKey = $"CourseDetailForStudent:{courseSlug}:{userId}";
+			var cached = await _cache.GetAsync<CourseDetailForStudentDto>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Chi tiết khóa học cho học viên (cached)");
+				response.Response = cached;
+				response.ModulesCount = cached.Modules.Count;
+				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+				return response;
+			}
+
+			// Tìm courseId từ slug
+			var courseEntity = await _courseRepository
+				.Find(x => x.Slug == courseSlug && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (courseEntity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với slug '{courseSlug}'");
+				return response;
+			}
+
+			var courseId = courseEntity?.CourseId;
+
+			// 1) Kiểm tra enrollment (must be active)
+			var activeEnroll = await _enrollmentRepository
+			.Find(x => x.CourseId == courseId && x.UserId == userId && x.IsActive, isTracking: false, ct)
+			.FirstOrDefaultAsync(ct);
+			if (activeEnroll is null)
+			{
+				response.SetMessage(MessageId.E00000, "Bạn chưa đăng ký (enroll) khóa học này hoặc thời hạn học đã không còn hiệu lực.");
+				return response;
+			}
+
+			// 2) Nạp course + modules + lessons (y hệt bản lecture)
+			var baseQuery = _courseRepository
+				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.Cast<CourseEntity>()
+				.Include(x => x.Subject)
+				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
+				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
+				.Include(x => x.CourseComments.Where(c => c.IsActive))
+				.Include(x => x.CourseTags).ThenInclude(ctg => ctg.Tag)
+				.Include(x => x.CourseRatings)
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+			var entity = await baseQuery.FirstOrDefaultAsync(ct);
+			if (entity is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học {courseId}");
+				return response;
+			}
+
+			// 3) Lấy mapping quiz (module/lesson) & gọi QuizService (y hệt bản lecture)
+			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+			var lessonIds = entity.Modules.SelectMany(m => m.Lessons).Where(l => l.IsActive).Select(l => l.LessonId).ToList();
+
+			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+				.Select(x => new { x.ModuleId, x.QuizId }).ToListAsync(ct);
+
+			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+				.Select(x => new { x.LessonId, x.QuizId }).ToListAsync(ct);
+
+			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId)).Distinct().ToList();
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			await Task.WhenAll(quizTasks.Values);
+
+			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
+			var lessonProgress = await _userLessonProgressQuery
+				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
+				.Select(x => new LessonProgressSnap(
+					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
+				.ToListAsync(ct);
+			var progressByLessonId =
+				lessonProgress.ToDictionary(x => x.LessonId, x => x);
+
+			// 5) Tải module/course progress snapshot (nếu đã có từ trigger); nếu chưa có sẽ fallback tự tính
+			// module snapshot
+			var moduleProgress = await _userModuleProgressQuery
+				.Find(x => x.UserId == userId && moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+				.Select(x => new ModuleProgressSnap(
+					x.ModuleId, x.LessonsTotal, x.LessonsCompleted, (x.PercentCompleted ?? 0m),
+					x.Status, x.StartedAt, x.CompletedAt))
+				.ToListAsync(ct);
+			var moduleProgressById = moduleProgress.ToDictionary(x => x.ModuleId, x => x);
+
+			// course snapshot
+			var courseProgress = await _userCourseProgressQuery
+				.Find(x => x.UserId == userId && x.CourseId == courseId, isTracking: false, ct)
+				.Select(x => new CourseProgressSnap(
+					x.LessonsTotal, x.LessonsCompleted, (x.PercentCompleted ?? 0m),
+					x.Status, x.StartedAt, x.CompletedAt))
+				.FirstOrDefaultAsync(ct);
+
+			// 6) Map sang DTO Student (tick bài, % module, % course chỉ tính core)
+			var detail = MapCourseDetailForStudent(
+				entity,
+				moduleQuizIdByModuleId,
+				lessonQuizIdByLessonId,
+				quizDict,
+				progressByLessonId,
+				moduleProgressById,
+				courseProgress,
+				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
+			);
+
+			// 7) Gợi ý “tiếp tục học” (optional nhưng hữu ích cho FE)
+			//detail.Continue = ComputeContinueLesson(detail.Modules);
+
+			// 8) Cache ngắn
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(5));
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Chi tiết khóa học cho học viên");
+			response.Response = detail;
+			response.ModulesCount = detail.Modules.Count;
+			response.LessonsCount = detail.Modules.Sum(m => m.Lessons.Count);
+			return response;
+		}
+		#endregion
 
 		#region Private Helper Methods
 
@@ -1366,9 +1651,9 @@ namespace Course.Infrastructure.Implements
 					moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid) &&
 					quizByQuizId is not null &&
 					quizByQuizId.TryGetValue(qid, out var qdto))
-					{
-						moduleQuiz = qdto;
-					}
+				{
+					moduleQuiz = qdto;
+				}
 
 				var lessons = m.Lessons
 					.Where(l => l.IsActive)
@@ -1380,9 +1665,9 @@ namespace Course.Infrastructure.Implements
 							lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid) &&
 							quizByQuizId is not null &&
 							quizByQuizId.TryGetValue(lqid, out var lqdto))
-							{
-								lessonQuiz = lqdto;
-							}
+						{
+							lessonQuiz = lqdto;
+						}
 
 						return new LectureLessonDetailDto(
 							l.LessonId,
@@ -2374,6 +2659,212 @@ namespace Course.Infrastructure.Implements
 			while (taken.Contains(next)) next++;
 			return next;
 		}
+
+		private static CourseDetailForStudentDto MapCourseDetailForStudent(
+			CourseEntity e,
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId,
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId,
+			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId,
+			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId,   // lessonId -> { Status, LastPositionSec, CompletedAt }
+			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById,   // moduleId -> { LessonsTotal, LessonsCompleted, PercentCompleted, Status, StartedAt, CompletedAt }
+			CourseProgressSnap? courseProgress,                                 // { LessonsTotal, LessonsCompleted, PercentCompleted, Status, StartedAt, CompletedAt }
+			bool preferCoreForCourse
+		)
+		{
+			// MODULES
+			var modules = e.Modules
+				.Where(m => m.IsActive)
+				.OrderBy(m => m.PositionIndex)
+				.Select(m =>
+				{
+					// Quiz cho module
+					QuizOutDto? moduleQuiz = null;
+					if (moduleQuizIdByModuleId is not null &&
+						moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid) &&
+						quizByQuizId is not null &&
+						quizByQuizId.TryGetValue(qid, out var qdto))
+					{
+						moduleQuiz = qdto;
+					}
+
+					// LESSONS + tick
+					var lessons = m.Lessons
+						.Where(l => l.IsActive)
+						.OrderBy(l => l.PositionIndex)
+						.Select(l =>
+						{
+							QuizOutDto? lessonQuiz = null;
+							if (lessonQuizIdByLessonId is not null &&
+								lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid) &&
+								quizByQuizId is not null &&
+								quizByQuizId.TryGetValue(lqid, out var lqdto))
+							{
+								lessonQuiz = lqdto;
+							}
+
+							var has = progressByLessonId.TryGetValue(l.LessonId, out var lp);
+							var isCompleted = has && lp!.Status == 2;
+							var lastPos = has ? lp!.LastPositionSec : 0;
+
+							return new StudentLessonDetailDto(
+								l.LessonId,
+								l.Title,
+								l.VideoUrl,
+								l.VideoDurationSec,
+								l.PositionIndex,
+								l.IsActive,
+								isCompleted,
+								lastPos,
+								lessonQuiz // để FE có thể hiển thị quiz của bài
+							);
+						})
+						.ToList();
+
+					// MODULE PROGRESS (dùng snapshot nếu có; fallback tự tính)
+					int lessonsTotal = lessons.Count;
+					int lessonsCompleted = lessons.Count(x => x.IsCompleted);
+					decimal percent = lessonsTotal == 0 ? 0 : Math.Round((decimal)lessonsCompleted * 100m / lessonsTotal, 2);
+
+					short status = lessonsCompleted == 0 ? (short)0 : (lessonsCompleted == lessonsTotal ? (short)2 : (short)1);
+					DateTime? startedAt = null, completedAt = null;
+
+					if (moduleProgressById.TryGetValue(m.ModuleId, out var mp))
+					{
+						lessonsTotal = mp.LessonsTotal;
+						lessonsCompleted = mp.LessonsCompleted;
+						percent = mp.PercentCompleted;
+						status = mp.Status;
+						startedAt = mp.StartedAt;
+						completedAt = mp.CompletedAt;
+					}
+
+					return new ModuleDetailForStudentDto(
+						m.ModuleId,
+						m.ModuleName,
+						m.Description,
+						m.PositionIndex,
+						m.IsActive,
+						m.IsCore,
+						m.DurationMinutes,
+						m.DurationHours,
+						m.Level,
+						// objectives, discussions, materials giữ nguyên như lecture
+						m.ModuleObjectives.Where(o => o.IsActive)
+							.OrderBy(o => o.PositionIndex)
+							.Select(o => new ModuleObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
+							.ToList(),
+						m.ModuleDiscussions.Where(d => d.IsActive)
+							.Select(d => new ModuleDiscussionDetailDto(d.DiscussionId, d.Title, d.Description, d.DiscussionQuestion, d.CreatedAt, d.UpdatedAt))
+							.ToList(),
+						m.ModuleMaterials.Where(mat => mat.IsActive)
+							.Select(mat => new ModuleMaterialDetailDto(mat.MaterialId, mat.Title, mat.Description, mat.FileUrl, mat.CreatedAt, mat.UpdatedAt))
+							.ToList(),
+						lessons,
+						moduleQuiz,
+						// progress
+						new ModuleProgressDto(lessonsTotal, lessonsCompleted, percent, status, startedAt, completedAt)
+					);
+				})
+				.ToList();
+
+			// COURSE PROGRESS (chỉ CORE nếu preferCoreForCourse=true)
+			int courseTotalLessons, courseCompletedLessons;
+			decimal coursePercent;
+			short courseStatus;
+			DateTime? courseStartedAt = null, courseCompletedAt = null;
+
+			if (courseProgress is not null)
+			{
+				courseTotalLessons = courseProgress.LessonsTotal;
+				courseCompletedLessons = courseProgress.LessonsCompleted;
+				coursePercent = courseProgress.PercentCompleted;
+				courseStatus = courseProgress.Status;
+				courseStartedAt = courseProgress.StartedAt;
+				courseCompletedAt = courseProgress.CompletedAt;
+			}
+			else
+			{
+				// Fallback: tự tính theo modules is_core = true
+				var coreModules = preferCoreForCourse ? modules.Where(m => m.IsCore) : modules;
+				courseTotalLessons = coreModules.Sum(m => m.Progress.LessonsTotal);
+				courseCompletedLessons = coreModules.Sum(m => m.Progress.LessonsCompleted);
+				coursePercent = courseTotalLessons == 0 ? 0 : Math.Round((decimal)courseCompletedLessons * 100m / courseTotalLessons, 2);
+				courseStatus = courseCompletedLessons == 0 ? (short)0 : (courseCompletedLessons == courseTotalLessons ? (short)2 : (short)1);
+			}
+
+			// Comments, Tags, Ratings giống lecture
+			var comments = e.CourseComments
+				.OrderBy(c => c.CreatedAt)
+				.Select(c => new CourseCommentDto(c.CommentId, c.UserId, c.Content, c.ParentCommentId, c.CreatedAt, c.IsActive))
+				.ToList();
+
+			var tags = e.CourseTags.Select(t => new CourseTagDto(t.TagId, t.Tag?.TagName ?? string.Empty)).ToList();
+
+			var ratings = e.CourseRatings
+				.OrderByDescending(r => r.CreatedAt)
+				.Select(r => new CourseRatingDto(r.RatingId, r.UserId, r.Rating, r.CreatedAt))
+				.ToList();
+
+			var ratingsCount = ratings.Count;
+			var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault();
+
+			var continueHint = ComputeContinueLesson(modules);
+
+			return new CourseDetailForStudentDto(
+				e.CourseId,
+				e.SubjectId,
+				e.Subject?.SubjectCode ?? string.Empty,
+				e.Title ?? string.Empty,
+				e.ShortDescription,
+				e.Description,
+				e.Slug,
+				e.CourseImageUrl,
+				e.LearnerCount,
+				firstLesson?.VideoUrl ?? string.Empty,
+				firstLesson?.VideoDurationSec ?? 0,
+				e.DurationMinutes,
+				e.DurationHours,
+				e.Level,
+				e.Price,
+				e.DealPrice,
+				e.IsActive,
+				e.CreatedAt,
+				e.UpdatedAt,
+				e.CourseObjectives.OrderBy(o => o.PositionIndex).Select(o => new CourseObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive)).ToList(),
+				e.CourseRequirements.OrderBy(r => r.PositionIndex).Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive)).ToList(),
+				modules,
+				comments,
+				tags,
+				ratings,
+				ratingsCount,
+				// Progress course
+				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt),
+				// Continue hint – set ở ngoài
+				continueHint
+			);
+		}
+
+		private static ContinueHintDto? ComputeContinueLesson(List<ModuleDetailForStudentDto> modules)
+		{
+			// Ưu tiên modules core trước, sau đó theo position_index
+			foreach (var m in modules.OrderByDescending(x => x.IsCore).ThenBy(x => x.PositionIndex))
+			{
+				// Tìm bài chưa hoàn thành có position nhỏ nhất
+				var next = m.Lessons.OrderBy(l => l.PositionIndex).FirstOrDefault(l => !l.IsCompleted);
+				if (next is not null)
+				{
+					return new ContinueHintDto(
+						ModuleId: m.ModuleId,
+						ModuleName: m.ModuleName,
+						LessonId: next.LessonId,
+						LessonTitle: next.Title,
+						ResumeSecond: next.LastPositionSec
+					);
+				}
+			}
+			return null;
+		}
+
 
 		#endregion
 	}

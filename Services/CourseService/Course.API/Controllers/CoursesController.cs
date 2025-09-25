@@ -12,6 +12,7 @@ using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +28,8 @@ namespace Course.API.Controllers
 	public class CoursesController(ISender sender) : ControllerBase
 	{
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
+		#region Controllers for Courses Service (Role based: Lecturer, Guest)
 
 		/// <summary>
 		/// Get list of courses with pagination and optional filtering
@@ -310,5 +313,50 @@ namespace Course.API.Controllers
 				new GetCourseTagsResponse()
 			);
 		}
+
+		#endregion
+
+		#region Controllers for Courses Service (Role based: Student)
+		/// <summary>
+		/// Get course details by ID for students
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
+		[HttpGet("student/{courseId:guid}")]
+		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by ID for students",
+			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to students."
+		)]
+		public async Task<GetCourseByIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId)
+		{
+			var query = new GetCourseByIdForStudentQuery(courseId);
+			return await ApiControllerHelper.HandleRequest<GetCourseByIdForStudentQuery, GetCourseByIdForStudentResponse, CourseDetailForStudentDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseByIdForStudentResponse()
+			);
+		}
+
+		[HttpGet("student/{courseSlug}")]
+		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for students",
+			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to students."
+		)]
+		public async Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug)
+		{
+			var query = new GetCourseBySlugForStudentQuery(courseSlug);
+			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForStudentQuery, GetCourseBySlugForStudentResponse, CourseDetailForStudentDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetCourseBySlugForStudentResponse()
+			);
+		}
+		#endregion
 	}
 }
