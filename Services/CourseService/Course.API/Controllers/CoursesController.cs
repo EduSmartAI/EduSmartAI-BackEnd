@@ -340,6 +340,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Get course details by slug for students
+		/// </summary>
+		/// <param name="courseSlug"></param>
+		/// <returns></returns>
 		[HttpGet("student/{courseSlug}")]
 		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
