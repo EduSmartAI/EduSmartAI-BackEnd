@@ -262,12 +262,9 @@ Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema
                   "duration_weeks": number,
                   "objectives": [string],
                   "suggested_courses": [
-                    { "title": string, "link": string, "provider": string, "reason": string }
+                    { "title": string, "link": string, "provider": string, "reason": string, "level": string, "rating": string }
                   ]
                 }
-              ],
-              "sources": [
-                { "title": string, "url": string, "provider": string, "level": string, "rating": string }
               ]
             }
 
@@ -301,19 +298,6 @@ Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema
                 return new AskResponse { Answer = answer };
             }
 
-            // Optionally: fill sources từ docs nếu LLM không trả
-            if (showSources && (roadmap.Sources == null || roadmap.Sources.Count == 0))
-            {
-                roadmap.Sources = FormatSources(docs).Select(s => new RoadmapSourcePayload
-                {
-                    Title = s.Title,
-                    Url = s.Url,
-                    Provider = s.Provider,
-                    Level = s.Level,
-                    Rating = s.Rating
-                }).ToList();
-            }
-
             return new AskResponse
             {
                 Answer = "",   // vì đã có JSON structured
@@ -326,7 +310,7 @@ Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema
             try
             {
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                return System.Text.Json.JsonSerializer.Deserialize<T>(json, opts);
+                return JsonSerializer.Deserialize<T>(json, opts);
             }
             catch { return default; }
         }
@@ -394,34 +378,6 @@ Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema
             }
             return "";
         }
-
-        private static List<(string Title, string Url, string Provider, string Level, string Rating)>
-        FormatSources(IReadOnlyList<DocumentDto> docs)
-        {
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var list = new List<(string, string, string, string, string)>();
-
-            foreach (var d in docs)
-            {
-                var md = d.Metadata;
-
-                string title = md.TryGetProperty("title", out var jt) ? jt.GetString() ?? "(no title)" : "(no title)";
-                string url = GetUrl(md, d.Content); // dùng helper GetUrl bạn đã có
-                string key = $"{title}|{url}";
-                if (seen.Contains(key)) continue;
-                seen.Add(key);
-
-                string org = md.TryGetProperty("organization", out var jo) ? jo.GetString() ?? "—" : "—";
-                string level = md.TryGetProperty("level", out var jl) ? jl.GetString() ?? "—" : "—";
-                string rating = md.TryGetProperty("rating", out var jr)
-                                ? (jr.ValueKind == JsonValueKind.String ? jr.GetString()! : jr.ToString())
-                                : "—";
-
-                list.Add((title, url, org, level, rating));
-            }
-
-            return list;
-        }
         private static string NormalizeNoTables(string text)
         {
             var lines = text.Split('\n');
@@ -429,8 +385,8 @@ Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema
             foreach (var ln in lines)
             {
                 var s = ln.TrimEnd();
-                if (s.StartsWith("|") && s.EndsWith("|")) continue;                    // bỏ dòng bảng
-                if (Regex.IsMatch(s, @"^[-:\s|]{3,}$")) continue;                      // bỏ separator
+                if (s.StartsWith("|") && s.EndsWith("|")) continue;
+                if (Regex.IsMatch(s, @"^[-:\s|]{3,}$")) continue;
                 outLines.Add(ln);
             }
             return string.Join('\n', outLines).Trim();
