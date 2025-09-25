@@ -23,5 +23,7 @@ public partial class UserLessonProgress
 
     public DateTime UpdatedAt { get; set; }
 
+    public int? LastPositionSec { get; set; }
+
     public virtual Lesson Lesson { get; set; }
 }

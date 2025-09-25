@@ -51,10 +51,6 @@ public partial class Course
 
     public virtual ICollection<CourseComment> CourseComments { get; set; } = new List<CourseComment>();
 
-    public virtual ICollection<CourseDiscussion> CourseDiscussions { get; set; } = new List<CourseDiscussion>();
-
-    public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
-
     public virtual ICollection<CourseObjective> CourseObjectives { get; set; } = new List<CourseObjective>();
 
     public virtual ICollection<CourseRating> CourseRatings { get; set; } = new List<CourseRating>();
@@ -70,4 +66,6 @@ public partial class Course
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
 
     public virtual Subject Subject { get; set; }
+
+    public virtual ICollection<UserCourseProgress> UserCourseProgresses { get; set; } = new List<UserCourseProgress>();
 }
