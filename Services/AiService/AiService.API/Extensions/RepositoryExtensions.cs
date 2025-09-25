@@ -30,6 +30,7 @@ public static class RepositoryExtensions
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssemblyContaining<AiRecommendHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<AiExternalRecommendHandler>();
         });
         return services;
     }

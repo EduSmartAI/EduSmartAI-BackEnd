@@ -13,7 +13,7 @@ public static class SwaggerExtensions
                 Title = "AI Service Swagger",
                 Version = "v1"
             });
-        
+
             c.AddSecurityDefinition("JWT_Token", new OpenApiSecurityScheme
             {
                 Description = "Copy this into the value field: Bearer {token}",
@@ -21,7 +21,7 @@ public static class SwaggerExtensions
                 In = ParameterLocation.Header,
                 Type = SecuritySchemeType.ApiKey
             });
-        
+
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
                 {
@@ -38,7 +38,7 @@ public static class SwaggerExtensions
             });
             c.EnableAnnotations();
         });
-        
+
         return services;
     }
 }

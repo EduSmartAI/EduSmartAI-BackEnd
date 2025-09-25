@@ -133,21 +133,55 @@ namespace AiService.Infrastructure.Implements
                 var externalSuggestions = new List<ExternalSuggestion>();
                 if (uncovered.Count > 0)
                 {
-                    string sys = "Bạn là chuyên gia thiết kế chương trình đào tạo CNTT. Hãy đề xuất 1-3 chuyên ngành/track mới tập trung vào các công nghệ/khung chưa được bao phủ bởi majors hiện có.";
-                    string user =
-                        $@"Các công nghệ/khung CHƯA được bao phủ: {string.Join(", ", uncovered)}
-                Bối cảnh người học:
-                - career_goal: {req.CareerGoal}
-                - known_frameworks: {(kf.Count == 0 ? "None" : string.Join(", ", kf))}
-                - known_languages: {(kl.Count == 0 ? "None" : string.Join(", ", kl))}
+                    string sys = """
+Bạn là chuyên gia thiết kế chương trình đào tạo CNTT.
+Mục tiêu: Đề xuất 1–3 chuyên ngành/track MỚI thật sát với career_goal của người học
+và tập trung vào các CÔNG NGHỆ/FRAMEWORK nằm trong danh sách "chưa được bao phủ".
 
-                Trả về MẢNG JSON (1-3 phần tử), mỗi phần tử có dạng:
-                {{
-                  ""major_code"": ""<VIẾT HOA, gợi ý code ngắn>"",
-                  ""major_name"": ""<tên track/major đề xuất>"",
-                  ""description"": ""<3-5 câu: trọng tâm kỹ năng, môn học tiêu biểu, đầu ra nghề nghiệp>"",
-                  ""why_for_you"": ""<1-2 câu: vì sao hợp với tiêu chí trên>""
-                }}";
+RÀNG BUỘC QUAN TRỌNG:
+- Chỉ dùng TIẾNG VIỆT.
+- Trả về MẢNG JSON HỢP LỆ (1–3 phần tử). KHÔNG thêm văn bản ngoài JSON.
+- Không bịa công nghệ. ƯU TIÊN dùng chính xác các mục trong danh sách "chưa được bao phủ"
+  (cho phép dùng tên đồng nghĩa/phổ biến, nhưng không thêm công nghệ mới ngoài danh sách).
+- Tính phù hợp: ưu tiên track bám SÁT career_goal; sau đó mới đến bổ trợ.
+- Không trùng lặp ý tưởng/track.
+- "major_code": viết HOA, dạng UPPER_SNAKE_CASE, 3–12 ký tự, gợi từ công nghệ chính (vd: "GENAI_NLP", "CLOUD_DEVOPS").
+- "major_name": ngắn gọn (< 60 ký tự), nêu rõ định hướng/miền.
+- "why_for_you": 1–2 câu, nêu vì sao hợp với career_goal & nền tảng hiện tại.
+
+YÊU CẦU QUAN TRỌNG VỀ "description":
+- Trả về MỘT CHUỖI có cấu trúc nhất quán theo template dưới (không dùng Markdown):
+  TÓM TẮT: <1 câu nêu vai trò/mục tiêu và công nghệ chính>.
+  ĐẦU VÀO TỐI THIỂU: <tiên quyết ngắn gọn hoặc "Không yêu cầu">.
+  LỘ TRÌNH (3 giai đoạn):
+  1) <Tên giai đoạn> | <X–Y tuần> | Mục tiêu: <...>. Chủ đề: <...>. Sản phẩm: <...>.
+  2) <Tên giai đoạn> | <X–Y tuần> | Mục tiêu: <...>. Chủ đề: <...>. Sản phẩm: <...>.
+  3) <Tên giai đoạn> | <X–Y tuần> | Mục tiêu: <...>. Chủ đề: <...>. Sản phẩm: <...>.
+  ĐẦU RA/KỸ NĂNG: <kỹ năng, vị trí việc làm, chứng chỉ liên quan nếu có>.
+  ĐÁNH GIÁ: <cách đo tiến độ/tiêu chí hoàn thành (vd: bài tập, mini-capstone, rubric)>.
+  TỪ KHÓA: <danh sách từ khóa, phân tách bằng dấu phẩy>.
+
+- Thời lượng mỗi giai đoạn thường 4–8 tuần; tổng ≤ 24 tuần trừ khi có lý do rõ ràng.
+- Mỗi track chọn TỐI ĐA 3 công nghệ trọng tâm từ "chưa được bao phủ" và lồng ghép vào các giai đoạn.
+- Không chèn link. Không dùng bảng Markdown. Không lạm dụng ký tự đặc biệt.
+""";
+
+                    string user =
+                    $@"Ngữ cảnh người học:
+- career_goal: {req.CareerGoal}
+- known_frameworks: {(kf.Count == 0 ? "None" : string.Join(", ", kf))}
+- known_languages: {(kl.Count == 0 ? "None" : string.Join(", ", kl))}
+
+Các công nghệ/khung CHƯA được bao phủ (bắt buộc phải là trung tâm của track):
+{(uncovered.Count == 0 ? "(không có)" : string.Join(", ", uncovered))}
+
+Hãy TRẢ VỀ MẢNG JSON (1–3 phần tử), mỗi phần tử đúng schema:
+{{
+  ""major_code"": ""<VIẾT HOA, UPPER_SNAKE_CASE, 3–12 ký tự>"",
+  ""major_name"": ""<tên track ngắn gọn, ≤ 60 ký tự>"",
+  ""description"": ""<theo đúng template đã cho ở trên>"",
+  ""why_for_you"": ""<1–2 câu, bám career_goal & nền tảng hiện tại>""
+}}";
 
                     ChatCompletion completion = await _chat.CompleteChatAsync(
                         new List<ChatMessage> { new SystemChatMessage(sys), new UserChatMessage(user) },

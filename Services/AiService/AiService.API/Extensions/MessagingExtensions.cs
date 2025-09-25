@@ -1,9 +1,10 @@
+using AiService.Application.Consumers.ExtermalMajorCourse;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
 
-namespace QuizService.API.Extensions;
+namespace AiService.API.Extensions;
 
 public static class MessagingExtensions
 {
@@ -18,6 +19,7 @@ public static class MessagingExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<StudentMajorRecommendConsumer>();
+            x.AddConsumer<ExtermalMajorCourseConsumer>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
