@@ -542,6 +542,17 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
+			// Check if course exists
+			var course = await _courseRepository
+				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (course is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {courseId}");
+				return response;
+			}
+
 			// Create new enrollment
 			var enrollment = new CourseStudentEnrollment
 			{
@@ -550,7 +561,6 @@ namespace Course.Infrastructure.Implements
 				UserId = currentUser.UserId,
 				StartedAt = DateTime.UtcNow,
 				ExpiresAt = null,
-				IsActive = true
 			};
 
 			// Save to database within a transaction
