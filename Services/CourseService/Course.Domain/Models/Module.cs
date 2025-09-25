@@ -46,4 +46,6 @@ public partial class Module
     public virtual ICollection<ModuleObjective> ModuleObjectives { get; set; } = new List<ModuleObjective>();
 
     public virtual ModuleQuiz ModuleQuiz { get; set; }
+
+    public virtual ICollection<UserModuleProgress> UserModuleProgresses { get; set; } = new List<UserModuleProgress>();
 }
