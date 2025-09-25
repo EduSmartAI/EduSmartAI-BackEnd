@@ -34,6 +34,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using System.Linq.Expressions;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace Course.Infrastructure.Implements
 {
@@ -1115,8 +1116,8 @@ namespace Course.Infrastructure.Implements
 
 			// Lấy userId từ token (soft FK, không join bảng Users)
 			var currentUser = _identityService.GetCurrentUser()!;
-			var userId = currentUser.UserId;
-			//var userId = new Guid("776d9cb2-acb8-4985-9720-5a5ab50dd35e");
+			//var userId = currentUser.UserId;
+			var userId = new Guid("776d9cb2-acb8-4985-9720-5a5ab50dd35e");
 
 			// Cache theo user + course (nội dung kèm progress riêng từng user)
 			var cacheKey = $"CourseDetailForStudent:{courseId}:{userId}";
@@ -2703,7 +2704,7 @@ namespace Course.Infrastructure.Implements
 							}
 
 							var has = progressByLessonId.TryGetValue(l.LessonId, out var lp);
-							var isCompleted = has && lp!.Status == 2;
+							var isCompleted = has && lp!.Status == (short)LessonStatus.Completed;
 							var lastPos = has ? lp!.LastPositionSec : 0;
 
 							return new StudentLessonDetailDto(
@@ -2725,7 +2726,7 @@ namespace Course.Infrastructure.Implements
 					int lessonsCompleted = lessons.Count(x => x.IsCompleted);
 					decimal percent = lessonsTotal == 0 ? 0 : Math.Round((decimal)lessonsCompleted * 100m / lessonsTotal, 2);
 
-					short status = lessonsCompleted == 0 ? (short)0 : (lessonsCompleted == lessonsTotal ? (short)2 : (short)1);
+					short status = lessonsCompleted == 0 ? (short)LessonStatus.NotStarted : (lessonsCompleted == lessonsTotal ? (short)LessonStatus.Completed : (short)LessonStatus.InProgress);
 					DateTime? startedAt = null, completedAt = null;
 
 					if (moduleProgressById.TryGetValue(m.ModuleId, out var mp))
@@ -2789,7 +2790,7 @@ namespace Course.Infrastructure.Implements
 				courseTotalLessons = coreModules.Sum(m => m.Progress.LessonsTotal);
 				courseCompletedLessons = coreModules.Sum(m => m.Progress.LessonsCompleted);
 				coursePercent = courseTotalLessons == 0 ? 0 : Math.Round((decimal)courseCompletedLessons * 100m / courseTotalLessons, 2);
-				courseStatus = courseCompletedLessons == 0 ? (short)0 : (courseCompletedLessons == courseTotalLessons ? (short)2 : (short)1);
+				courseStatus = courseCompletedLessons == 0 ? (short)0 : (courseCompletedLessons == courseTotalLessons ? (short)CourseStatus.Completed : (short)CourseStatus.InProgress);
 			}
 
 			// Comments, Tags, Ratings giống lecture
@@ -2806,6 +2807,11 @@ namespace Course.Infrastructure.Implements
 				.ToList();
 
 			var ratingsCount = ratings.Count;
+
+			var ratingsAverage = ratingsCount > 0
+				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
+				: 0.0;
+
 			var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault();
 
 			var continueHint = ComputeContinueLesson(modules);
@@ -2837,6 +2843,8 @@ namespace Course.Infrastructure.Implements
 				tags,
 				ratings,
 				ratingsCount,
+				//ratingsAverage
+				5.0,
 				// Progress course
 				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt),
 				// Continue hint – set ở ngoài

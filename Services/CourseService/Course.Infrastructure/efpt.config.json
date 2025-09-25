@@ -125,6 +125,38 @@
       {
          "Name": "public.user_module_progress",
          "ObjectType": 0
+      },
+      {
+         "Name": "public.v_user_course_progress",
+         "ObjectType": 3
+      },
+      {
+         "Name": "public.v_user_module_progress",
+         "ObjectType": 3
+      },
+      {
+         "Name": "public.fn_recalc_course_progress",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.fn_upsert_user_module_course_progress",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.fn_validate_enrollment_for_lesson_progress",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.trg_after_delete_enrollment",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.trg_after_upsert_enrollment",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.trg_after_upsert_user_lesson_progress",
+         "ObjectType": 1
       }
    ],
    "UiHint": null,
