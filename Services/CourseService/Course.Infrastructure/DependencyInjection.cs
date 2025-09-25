@@ -49,6 +49,10 @@ namespace Course.Infrastructure
 			services.AddScoped<ICommandRepository<ModuleQuiz>, CommandRepository<ModuleQuiz>>();
 			services.AddScoped<ICommandRepository<LessonQuiz>, CommandRepository<LessonQuiz>>();
 
+			services.AddScoped<ICommandRepository<UserLessonProgress>, CommandRepository<UserLessonProgress>>();
+			services.AddScoped<ICommandRepository<UserModuleProgress>, CommandRepository<UserModuleProgress>>();
+			services.AddScoped<ICommandRepository<UserCourseProgress>, CommandRepository<UserCourseProgress>>();
+
 
 			// Module services
 			services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();

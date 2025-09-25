@@ -35,5 +35,8 @@ namespace Course.Application.Interfaces
 		Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default);
 
 		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
+
+		Task<GetCourseByIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId, CancellationToken ct = default);
+		Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug, CancellationToken ct = default);
 	}
 }
