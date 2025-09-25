@@ -30,6 +30,7 @@ namespace Course.Application.DTOs.CoursesDTO.CourseStudentDTO
 		List<CourseTagDto> Tags,
 		List<CourseRatingDto> Ratings,
 		int RatingsCount,
+		double RatingsAverage,
 		CourseProgressDto Progress,
 		ContinueHintDto? Continue
 	);

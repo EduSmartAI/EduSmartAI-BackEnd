@@ -69,6 +69,10 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<UserModuleProgress> UserModuleProgresses { get; set; }
 
+    public virtual DbSet<VUserCourseProgress> VUserCourseProgresses { get; set; }
+
+    public virtual DbSet<VUserModuleProgress> VUserModuleProgresses { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
@@ -391,6 +395,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.UserId, "idx_cse_user");
 
+            entity.HasIndex(e => new { e.CourseId, e.UserId }, "idx_enroll_active").HasFilter("is_active");
+
             entity.HasIndex(e => new { e.UserId, e.CourseId }, "uq_cse_user_course_active")
                 .IsUnique()
                 .HasFilter("(is_active = true)");
@@ -457,6 +463,8 @@ public partial class CourseDbContext : AppDbContext
             entity.HasIndex(e => e.IsActive, "idx_lessons_is_active");
 
             entity.HasIndex(e => e.ModuleId, "idx_lessons_module");
+
+            entity.HasIndex(e => e.ModuleId, "idx_lessons_module_active").HasFilter("is_active");
 
             entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_lessons_module_position_active")
                 .IsUnique()
@@ -564,6 +572,8 @@ public partial class CourseDbContext : AppDbContext
             entity.ToTable("modules");
 
             entity.HasIndex(e => e.CourseId, "idx_modules_course");
+
+            entity.HasIndex(e => e.CourseId, "idx_modules_course_active").HasFilter("is_active");
 
             entity.HasIndex(e => e.IsActive, "idx_modules_is_active");
 
@@ -1066,6 +1076,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.UserId, "idx_progress_user");
 
+            entity.HasIndex(e => new { e.UserId, e.LessonId }, "idx_ulp_user_lesson");
+
             entity.HasIndex(e => new { e.UserId, e.LessonId }, "uq_progress_user_lesson").IsUnique();
 
             entity.Property(e => e.UserLessonProgressId)
@@ -1135,6 +1147,32 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Module).WithMany(p => p.UserModuleProgresses)
                 .HasForeignKey(d => d.ModuleId)
                 .HasConstraintName("user_module_progress_module_id_fkey");
+        });
+
+        modelBuilder.Entity<VUserCourseProgress>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_user_course_progress");
+
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.LessonsCompleted).HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal).HasColumnName("lessons_total");
+            entity.Property(e => e.PercentCompleted).HasColumnName("percent_completed");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+        });
+
+        modelBuilder.Entity<VUserModuleProgress>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_user_module_progress");
+
+            entity.Property(e => e.LessonsCompleted).HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal).HasColumnName("lessons_total");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.PercentCompleted).HasColumnName("percent_completed");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
         });
 
         OnModelCreatingPartial(modelBuilder);

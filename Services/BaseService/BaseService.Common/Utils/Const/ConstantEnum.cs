@@ -63,4 +63,17 @@ public static class ConstantEnum
         INTEREST,
         HABIT
     }
+
+    public enum LessonStatus
+    {
+        NotStarted = 0,
+        InProgress = 1,
+        Completed = 2
+	}
+
+	public enum CourseStatus
+	{
+		InProgress = 1,
+		Completed = 2
+	}
 }
