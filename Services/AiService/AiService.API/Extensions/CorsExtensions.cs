@@ -1,4 +1,4 @@
-namespace QuizService.API.Extensions;
+namespace AiService.API.Extensions;
 
 public static class CorsExtensions
 {
@@ -13,7 +13,7 @@ public static class CorsExtensions
                     .AllowAnyHeader()
             );
         });
-        
+
         return services;
     }
 }

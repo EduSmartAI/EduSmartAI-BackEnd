@@ -23,11 +23,6 @@ namespace AiService.Application.Handler
         }
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
-            // AI recommend major
-            var result = await _advisorService.EvaluateAsync(request, cancellationToken);
-            var matched = result.Matched ?? new();
-            var hasMatched = matched.Count > 0;
-
             // Get user info
             var currentUserEmail = _identityService.GetCurrentUser()!.Email;
             var studentId = _identityService.GetCurrentUser()!.UserId;
@@ -41,6 +36,11 @@ namespace AiService.Application.Handler
                     StudentId: studentId,
                     CurrentUserEmail: currentUserEmail
                 ), cancellationToken);
+
+            // AI recommend major
+            var result = await _advisorService.EvaluateAsync(request, cancellationToken);
+            var matched = result.Matched ?? new();
+            var hasMatched = matched.Count > 0;
 
             //if (hasMatched)
             if (hasMatched && response.Message.Success)
@@ -62,6 +62,29 @@ namespace AiService.Application.Handler
                     ),
                     cancellationToken
                 );
+            }
+            if (response.Message.Success && (result.ExternalSuggestions?.Count ?? 0) > 0)
+            {
+                var externalMajors = result.ExternalSuggestions!
+                    .Where(s => !string.IsNullOrWhiteSpace(s.MajorCode))
+                    .Select(s => new ExternalMajorItem(
+                        MajorCode: s.MajorCode!.Trim().ToUpperInvariant(),
+                        Reason: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim(),
+                        Description: string.IsNullOrWhiteSpace(s.Description) ? "—" : s.Description!.Trim(),
+                        WhyForYou: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim()
+                    ))
+                    .GroupBy(x => x.MajorCode, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .Take(3)
+                    .ToList();
+
+                if (externalMajors.Count > 0)
+                {
+                    await _requestPublishEndpoint.Publish(
+                        new ExternalMajorEvent(LearningPathId: learningPathId, Majors: externalMajors),
+                        cancellationToken
+                    );
+                }
             }
             if (result == null)
             {
