@@ -3,17 +3,13 @@ using System.Collections.Generic;
 
 namespace StudentService.Domain.WriteModels;
 
-public partial class OutboxMessage
+public partial class LearningPathMajorType
 {
-    public Guid Id { get; set; }
+    public Guid TypeId { get; set; }
 
-    public string Type { get; set; } = null!;
+    public Guid LearningPathMajorId { get; set; }
 
-    public string Content { get; set; } = null!;
-
-    public DateTime OccurredOnUtc { get; set; }
-
-    public DateTime? ProcessedOnUtc { get; set; }
+    public string TypeName { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; }
 
@@ -24,4 +20,6 @@ public partial class OutboxMessage
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }
