@@ -23,7 +23,9 @@ using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.QuizDTO;
+using Course.Application.DTOs.UserLessonProgressDTO;
 using Course.Application.Interfaces;
+using Course.Application.UserLessonProgresses.Commands;
 using Course.Domain.Enum;
 using Course.Domain.Models;
 using Course.Domain.ReadModels;
@@ -50,9 +52,10 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
 		IRequestClient<QuizCourseSelectEvent> _quizSelectClient,
-		ICommandRepository<UserLessonProgress> _userLessonProgressQuery,
+		ICommandRepository<UserLessonProgress> _userLessonProgress,
 		ICommandRepository<UserModuleProgress> _userModuleProgressQuery,
-		ICommandRepository<UserCourseProgress> _userCourseProgressQuery) : ICourseService
+		ICommandRepository<UserCourseProgress> _userCourseProgressQuery,
+		ICommandRepository<Lesson> _lessonRepository) : ICourseService
 	{
 		#region Service for Lecture & Guest
 
@@ -1116,8 +1119,7 @@ namespace Course.Infrastructure.Implements
 
 			// Lấy userId từ token (soft FK, không join bảng Users)
 			var currentUser = _identityService.GetCurrentUser()!;
-			//var userId = currentUser.UserId;
-			var userId = new Guid("776d9cb2-acb8-4985-9720-5a5ab50dd35e");
+			var userId = currentUser.UserId;
 
 			// Cache theo user + course (nội dung kèm progress riêng từng user)
 			var cacheKey = $"CourseDetailForStudent:{courseId}:{userId}";
@@ -1183,7 +1185,7 @@ namespace Course.Infrastructure.Implements
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
 			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
-			var lessonProgress = await _userLessonProgressQuery
+			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
 				.Select(x => new LessonProgressSnap(
 					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
@@ -1220,9 +1222,6 @@ namespace Course.Infrastructure.Implements
 				courseProgress,
 				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
 			);
-
-			// 7) Gợi ý “tiếp tục học” (optional nhưng hữu ích cho FE)
-			//detail.Continue = ComputeContinueLesson(detail.Modules);
 
 			// 8) Cache ngắn
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(5));
@@ -1326,7 +1325,7 @@ namespace Course.Infrastructure.Implements
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
 			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
-			var lessonProgress = await _userLessonProgressQuery
+			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
 				.Select(x => new LessonProgressSnap(
 					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
@@ -1375,6 +1374,70 @@ namespace Course.Infrastructure.Implements
 			response.Response = detail;
 			response.ModulesCount = detail.Modules.Count;
 			response.LessonsCount = detail.Modules.Sum(m => m.Lessons.Count);
+			return response;
+		}
+
+		/// <summary>
+		/// Create user lesson progress
+		/// Call khi người dùng đã bắt đầu học 1 bài (lần đầu xem video)
+		/// </summary>
+		/// <param name="dto"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CreateUserLessonProgressResponse> CreateUserLessonProgressAsync(CreateUserLessonProgressDto dto, CancellationToken ct = default)
+		{
+			var response = new CreateUserLessonProgressResponse() { Success = false };
+			var currentUser = _identityService.GetCurrentUser()!;
+			var userId = currentUser.UserId;
+
+			// Validate lesson exists and is active
+			var lesson = await _lessonRepository
+				.Find(x => x.LessonId == dto.LessonId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+			if (lesson is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {dto.LessonId}");
+				return response;
+			}
+			// Check if progress already exists
+			var existingProgress = await _userLessonProgress
+				.Find(x => x.UserId == userId && x.LessonId == dto.LessonId, isTracking: true, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingProgress is not null)
+			{
+				response.SetMessage(MessageId.E00000, "Đã tồn tại tiến độ học cho bài học này.");
+				return response;
+			}
+
+			var now = DateTime.UtcNow;
+
+			// Create new progress record
+			var progress = new UserLessonProgress
+			{
+				UserId = userId,
+				LessonId = dto.LessonId,
+				Status = dto.Status,
+				LastPositionSec = dto.LastPositionSec,
+				DurationWatchedSec = dto.DurationWatchedSec,
+				CompletedAt = dto.Status == (short)LessonStatus.Completed ? now : null,
+				CreatedAt = now,
+			};
+
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				await _userLessonProgress.AddAsync(progress);
+				await unitOfWork.SaveChangesAsync(ct);
+
+				unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(progress));
+				await unitOfWork.SessionSaveChangesAsync();
+				return true;
+			}, ct);
+
+			response.Success = true;
+			response.Response = true;
+			response.SetMessage(MessageId.I00000, "Tạo tiến độ học bài học thành công.");
 			return response;
 		}
 		#endregion
@@ -2814,6 +2877,7 @@ namespace Course.Infrastructure.Implements
 
 			var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault();
 
+			// Gợi ý “tiếp tục học”
 			var continueHint = ComputeContinueLesson(modules);
 
 			return new CourseDetailForStudentDto(
@@ -2852,6 +2916,11 @@ namespace Course.Infrastructure.Implements
 			);
 		}
 
+		/// <summary>
+		/// Return the next lesson to continue learning
+		/// </summary>
+		/// <param name="modules"></param>
+		/// <returns></returns>
 		private static ContinueHintDto? ComputeContinueLesson(List<ModuleDetailForStudentDto> modules)
 		{
 			// Ưu tiên modules core trước, sau đó theo position_index

@@ -52,6 +52,7 @@ namespace Course.Infrastructure
 			services.AddScoped<ICommandRepository<UserLessonProgress>, CommandRepository<UserLessonProgress>>();
 			services.AddScoped<ICommandRepository<UserModuleProgress>, CommandRepository<UserModuleProgress>>();
 			services.AddScoped<ICommandRepository<UserCourseProgress>, CommandRepository<UserCourseProgress>>();
+			services.AddScoped<ICommandRepository<Lesson>, CommandRepository<Lesson>>();
 
 
 			// Module services
@@ -69,6 +70,10 @@ namespace Course.Infrastructure
 				// CourseStudentEnrollmentCollection
 				options.Schema.For<CourseStudentEnrollmentCollection>()
 					.Identity(x => x.EnrollmentId);
+
+				// UserLessonProgressCollection
+				options.Schema.For<UserLessonProgressCollection>()
+					.Identity(x => x.UserLessonProgressId);
 			});
 
 			return services;

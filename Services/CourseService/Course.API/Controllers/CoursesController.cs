@@ -14,6 +14,7 @@ using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.CourseTagsDTO;
+using Course.Application.UserLessonProgresses.Commands;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -273,6 +274,11 @@ namespace Course.API.Controllers
 			);
 		}
 
+		/// <summary>
+		/// Enroll the current user in a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
 		[HttpPost("{courseId:guid}/enrollment")]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
@@ -323,7 +329,7 @@ namespace Course.API.Controllers
 		/// <param name="courseId"></param>
 		/// <returns></returns>
 		[HttpGet("student/{courseId:guid}")]
-		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for students",
 			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to students."
@@ -346,7 +352,7 @@ namespace Course.API.Controllers
 		/// <param name="courseSlug"></param>
 		/// <returns></returns>
 		[HttpGet("student/{courseSlug}")]
-		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get course details by slug for students",
 			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to students."
@@ -360,6 +366,28 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new GetCourseBySlugForStudentResponse()
+			);
+		}
+
+		/// <summary>
+		/// Create user lesson progress for a specific lesson
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpPost("student/lessonProgress")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Create user lesson progress",
+			Description = "Create user lesson progress for a specific lesson"
+		)]
+		public async Task<CreateUserLessonProgressResponse> CreateUserLessonProgress([FromBody] CreateUserLessonProgressCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<CreateUserLessonProgressCommand, CreateUserLessonProgressResponse, bool>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new CreateUserLessonProgressResponse()
 			);
 		}
 		#endregion
