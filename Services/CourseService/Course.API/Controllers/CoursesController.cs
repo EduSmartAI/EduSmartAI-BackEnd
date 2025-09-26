@@ -380,19 +380,15 @@ namespace Course.API.Controllers
 			Summary = "Create user lesson progress",
 			Description = "Create user lesson progress for a specific lesson"
 		)]
-		public async Task<IActionResult> CreateUserLessonProgress([FromBody] CreateUserLessonProgressCommand request)
+		public async Task<CreateUserLessonProgressResponse> CreateUserLessonProgress([FromBody] CreateUserLessonProgressCommand request)
 		{
-			var response = await ApiControllerHelper.HandleRequest<CreateUserLessonProgressCommand, CreateUserLessonProgressResponse, bool>(
+			return await ApiControllerHelper.HandleRequest<CreateUserLessonProgressCommand, CreateUserLessonProgressResponse, bool>(
 				request,
 				_logger,
 				ModelState,
 				async () => await sender.Send(request),
 				new CreateUserLessonProgressResponse()
 			);
-			if (response.Success)
-				return Ok(response);
-			else
-				return BadRequest(response);
 		}
 		#endregion
 	}
