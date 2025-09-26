@@ -25,4 +25,9 @@ namespace Course.Application.DTOs.CoursesDTO
 	public record CreateCourseObjectiveDto(string Content, int PositionIndex = 0, bool IsActive = true);
 	public record CreateCourseRequirementDto(string Content, int PositionIndex = 0, bool IsActive = true);
 	public record CreateCourseTagDto(long TagId);
+	public record CreateCourseAudienceDto(
+		string Content,
+		int PositionIndex = 0,
+		bool IsActive = true
+	);
 }

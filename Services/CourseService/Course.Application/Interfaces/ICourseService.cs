@@ -9,6 +9,8 @@ using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.UserLessonProgressDTO;
+using Course.Application.UserLessonProgresses.Commands;
 
 namespace Course.Application.Interfaces
 {
@@ -37,6 +39,9 @@ namespace Course.Application.Interfaces
 		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
 
 		Task<GetCourseByIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId, CancellationToken ct = default);
+
 		Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug, CancellationToken ct = default);
+
+		Task<CreateUserLessonProgressResponse> CreateUserLessonProgressAsync(CreateUserLessonProgressDto dto, CancellationToken ct = default);
 	}
 }
