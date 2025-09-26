@@ -14,7 +14,8 @@ using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.CourseTagsDTO;
-using Course.Application.UserLessonProgresses.Commands;
+using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
+using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -388,6 +389,28 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new CreateUserLessonProgressResponse()
+			);
+		}
+
+		/// <summary>
+		/// Update user lesson progress for a specific lesson
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpPut("student/lessonProgress")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Update user lesson progress",
+			Description = "Update user lesson progress for a specific lesson"
+		)]
+		public async Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgress([FromBody] UpdateUserLessonProgressCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<UpdateUserLessonProgressCommand, UpdateUserLessonProgressResponse, bool>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new UpdateUserLessonProgressResponse()
 			);
 		}
 		#endregion

@@ -10,7 +10,8 @@ using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
-using Course.Application.UserLessonProgresses.Commands;
+using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
+using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 
 namespace Course.Application.Interfaces
 {
@@ -43,5 +44,7 @@ namespace Course.Application.Interfaces
 		Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug, CancellationToken ct = default);
 
 		Task<CreateUserLessonProgressResponse> CreateUserLessonProgressAsync(CreateUserLessonProgressDto dto, CancellationToken ct = default);
+
+		Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgressAsync(UpdateUserLessonProgressDto dto, CancellationToken ct = default);
 	}
 }

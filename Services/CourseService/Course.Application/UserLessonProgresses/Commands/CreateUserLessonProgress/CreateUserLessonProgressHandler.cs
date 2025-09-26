@@ -1,7 +1,7 @@
 ﻿using BuildingBlocks.CQRS;
 using Course.Application.Interfaces;
 
-namespace Course.Application.UserLessonProgresses.Commands
+namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress
 {
 	public class CreateUserLessonProgressHandler(ICourseService _courseService) : ICommandHandler<CreateUserLessonProgressCommand, CreateUserLessonProgressResponse>
 	{

@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
 
-namespace Course.Application.UserLessonProgresses.Commands
+namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress
 {
 	public class CreateUserLessonProgressValidator : AbstractValidator<CreateUserLessonProgressCommand>
 	{
