@@ -25,7 +25,8 @@ using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.QuizDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
 using Course.Application.Interfaces;
-using Course.Application.UserLessonProgresses.Commands;
+using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
+using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Domain.Enum;
 using Course.Domain.Models;
 using Course.Domain.ReadModels;
@@ -1363,9 +1364,6 @@ namespace Course.Infrastructure.Implements
 				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
 			);
 
-			// 7) Gợi ý “tiếp tục học” (optional nhưng hữu ích cho FE)
-			//detail.Continue = ComputeContinueLesson(detail.Modules);
-
 			// 8) Cache ngắn
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(5));
 
@@ -1435,11 +1433,73 @@ namespace Course.Infrastructure.Implements
 				return true;
 			}, ct);
 
+			// Clear relevant caches
+			await ClearCourseDetailForStudentCacheAsync();
+
 			response.Success = true;
 			response.Response = true;
 			response.SetMessage(MessageId.I00000, "Tạo tiến độ học bài học thành công.");
 			return response;
 		}
+
+		public async Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgressAsync(UpdateUserLessonProgressDto dto, CancellationToken ct = default)
+		{
+			var response = new UpdateUserLessonProgressResponse() { Success = false };
+			var currentUser = _identityService.GetCurrentUser()!;
+			var userId = currentUser.UserId;
+			// Validate lesson exists and is active
+			var lesson = await _lessonRepository
+				.Find(x => x.LessonId == dto.LessonId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+			if (lesson is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {dto.LessonId}");
+				return response;
+			}
+			// Check if progress already exists
+			var existingProgress = await _userLessonProgress
+				.Find(x => x.UserId == userId && x.LessonId == dto.LessonId, isTracking: true, ct)
+				.FirstOrDefaultAsync(ct);
+			if (existingProgress is null)
+			{
+				response.SetMessage(MessageId.E00000, "Không tìm thấy tiến độ học cho bài học này.");
+				return response;
+			}
+			var now = DateTime.UtcNow;
+
+			// Update progress record
+			existingProgress.Status = dto.Status;
+			existingProgress.LastPositionSec = dto.LastPositionSec;
+			existingProgress.DurationWatchedSec = dto.DurationWatchedSec;
+			if (dto.Status == (short)LessonStatus.Completed)
+			{
+				existingProgress.CompletedAt = now;
+			}
+			else if (dto.Status == (short)LessonStatus.InProgress && existingProgress.CompletedAt.HasValue)
+			{
+				// Nếu chuyển từ Completed về InProgress thì xóa CompletedAt
+				existingProgress.CompletedAt = null;
+			}
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				_userLessonProgress.Update(existingProgress);
+				await unitOfWork.SaveChangesAsync(ct);
+
+				unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(existingProgress));
+				await unitOfWork.SessionSaveChangesAsync();
+				return true;
+			}, ct);
+
+			// Clear relevant caches
+			await ClearCourseDetailForStudentCacheAsync();
+
+			response.Success = true;
+			response.Response = true;
+			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ học bài học thành công.");
+			return response;
+		}
+
 		#endregion
 
 		#region Private Helper Methods
@@ -1489,6 +1549,20 @@ namespace Course.Infrastructure.Implements
 			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
 			var keys = server.Keys(pattern: "Courses:GetAll*");
 
+			if (keys.Any())
+			{
+				await _cache.KeyDeleteAsync(keys.ToArray());
+			}
+		}
+
+		/// <summary>
+		/// Clear cache for GetCourseByIdForStudentAsync and GetCourseBySlugForStudentAsync methods when user progress or enrollment changes
+		/// </summary>
+		/// <returns></returns>
+		private async Task ClearCourseDetailForStudentCacheAsync()
+		{
+			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
+			var keys = server.Keys(pattern: "CourseDetailForStudent*");
 			if (keys.Any())
 			{
 				await _cache.KeyDeleteAsync(keys.ToArray());

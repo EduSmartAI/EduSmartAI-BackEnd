@@ -2,7 +2,7 @@
 using BuildingBlocks.CQRS;
 using Course.Application.DTOs.UserLessonProgressDTO;
 
-namespace Course.Application.UserLessonProgresses.Commands
+namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress
 {
 	public record CreateUserLessonProgressCommand(CreateUserLessonProgressDto UserLessonProgress) : ICommand<CreateUserLessonProgressResponse>;
 
