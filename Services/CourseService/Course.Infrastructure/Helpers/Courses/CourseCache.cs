@@ -1,7 +1,4 @@
-﻿using Course.Application.Interfaces.Helpers;
-using StackExchange.Redis;
-
-namespace Course.Infrastructure.Helpers.Courses
+﻿namespace Course.Infrastructure.Helpers.Courses
 {
 	public sealed class CourseCache(IConnectionMultiplexer mux, IDatabase _cache) : ICourseCache
 	{

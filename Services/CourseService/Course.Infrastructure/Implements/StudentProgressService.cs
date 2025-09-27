@@ -1,23 +1,15 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils.Const;
-using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
+﻿using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
-using Course.Application.Interfaces;
-using Course.Application.Interfaces.Helpers;
 using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
-using Course.Domain.Models;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
-using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace Course.Infrastructure.Implements

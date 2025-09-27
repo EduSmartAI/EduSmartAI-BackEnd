@@ -1,11 +1,6 @@
-using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.QuizService.SemesterSelectsEvents;
-using Course.Application.Interfaces;
 using Course.Application.Semesters.Queries;
-using Course.Domain.Models;
 using MassTransit.Initializers;
-using Microsoft.EntityFrameworkCore;
 
 namespace Course.Infrastructure.Implements;
 

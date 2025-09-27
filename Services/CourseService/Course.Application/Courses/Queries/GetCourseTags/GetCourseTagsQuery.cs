@@ -1,6 +1,4 @@
-﻿using BaseService.Common.ApiEntities;
-using BuildingBlocks.CQRS;
-using Course.Application.DTOs.CourseTagsDTO;
+﻿using Course.Application.DTOs.CourseTagsDTO;
 
 namespace Course.Application.Courses.Queries.GetCourseTags
 {

@@ -1,7 +1,5 @@
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.Majors.Queries;
-using MassTransit;
-using MediatR;
 
 namespace Course.Application.Consumers;
 

@@ -1,6 +1,4 @@
-﻿using BaseService.Common.ApiEntities;
-using BuildingBlocks.CQRS;
-using Course.Application.DTOs.UserLessonProgressDTO;
+﻿using Course.Application.DTOs.UserLessonProgressDTO;
 
 namespace Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress
 {

@@ -27,4 +27,8 @@
 		<ProjectReference Include="..\Course.Application\Course.Application.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Data\Repositories\" />
+	</ItemGroup>
+
 </Project>

@@ -1,13 +1,7 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
-using Course.Application.Courses.Commands.UpdateModule;
+﻿using Course.Application.Courses.Commands.UpdateModule;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.ModulesDTO;
-using Course.Application.Interfaces;
-using Course.Domain.Models;
-using FluentValidation;
-using Microsoft.EntityFrameworkCore;
 
 namespace Course.Infrastructure.Implements
 {

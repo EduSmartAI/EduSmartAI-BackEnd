@@ -1,6 +1,4 @@
-﻿using BuildingBlocks.Pagination;
-using Course.Application.DTOs.CoursesDTO;
-using Course.Application.Interfaces.Helpers;
+﻿using Course.Application.DTOs.CoursesDTO;
 
 namespace Course.Infrastructure.Helpers.Courses
 {

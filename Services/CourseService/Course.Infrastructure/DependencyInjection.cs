@@ -1,22 +1,14 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils.Const;
-using BaseService.Infrastructure.Contexts;
+﻿using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
-using Course.Application.Interfaces;
-using Course.Application.Interfaces.Helpers;
-using Course.Domain.Models;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Helpers.Courses;
 using Course.Infrastructure.Implements;
 using JasperFx;
 using Marten;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using StackExchange.Redis;
 
 namespace Course.Infrastructure
 {

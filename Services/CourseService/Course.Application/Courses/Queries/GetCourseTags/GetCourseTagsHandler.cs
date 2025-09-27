@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.Courses.Queries.GetCourseTags
+﻿namespace Course.Application.Courses.Queries.GetCourseTags
 {
 	public class GetCourseTagsHandler(ICourseService _courseService) : IQueryHandler<GetCourseTagsQuery, GetCourseTagsResponse>
 	{

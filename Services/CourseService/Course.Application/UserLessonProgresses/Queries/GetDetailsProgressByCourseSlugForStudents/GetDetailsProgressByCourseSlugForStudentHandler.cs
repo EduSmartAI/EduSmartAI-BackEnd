@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents
+﻿namespace Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents
 {
 	public class GetDetailsProgressByCourseSlugForStudentHandler(IStudentProgressService _studentProgressService) : IQueryHandler<GetDetailsProgressByCourseSlugForStudentQuery, GetDetailsProgressByCourseSlugForStudentResponse>
 	{
