@@ -1,7 +1,4 @@
-﻿using BaseService.Common.ApiEntities;
-using BuildingBlocks.CQRS;
-
-namespace Course.Application.UserLessonProgresses.Commands.EnrollCourse
+﻿namespace Course.Application.UserLessonProgresses.Commands.EnrollCourse
 {
 	public record EnrollInCourseCommand(Guid CourseId) : ICommand<EnrollInCourseResponse>;
 

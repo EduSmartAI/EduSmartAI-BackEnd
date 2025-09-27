@@ -1,8 +1,4 @@
-﻿using BaseService.Application.Interfaces.Repositories;
-using Course.Application.Interfaces.Helpers;
-using Microsoft.EntityFrameworkCore;
-
-namespace Course.Infrastructure.Helpers.Courses
+﻿namespace Course.Infrastructure.Helpers.Courses
 {
 	public sealed class SlugService(ICommandRepository<CourseEntity> _courseRepository) : ISlugService
 	{

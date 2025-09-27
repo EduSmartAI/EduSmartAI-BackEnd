@@ -1,6 +1,5 @@
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.Majors.Queries;
-using Course.Domain.Models;
 
 namespace Course.Application.Interfaces;
 

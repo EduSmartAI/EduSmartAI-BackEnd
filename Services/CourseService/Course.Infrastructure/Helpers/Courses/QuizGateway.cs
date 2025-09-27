@@ -1,7 +1,5 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using Course.Application.DTOs.QuizDTO;
-using Course.Application.Interfaces.Helpers;
-using MassTransit;
 
 namespace Course.Infrastructure.Helpers.Courses
 {

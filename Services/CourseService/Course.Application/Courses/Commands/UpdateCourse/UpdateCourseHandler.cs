@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.Courses.Commands.UpdateCourse
+﻿namespace Course.Application.Courses.Commands.UpdateCourse
 {
 	public class UpdateCourseHandler(ICourseService courseService)
 	: ICommandHandler<UpdateCourseCommand, UpdateCourseResponse>

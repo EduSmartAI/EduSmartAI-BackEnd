@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.Courses.Commands.CreateCourse
+﻿namespace Course.Application.Courses.Commands.CreateCourse
 {
 	public class CreateCourseHandler(ICourseService courseService)
 	: ICommandHandler<CreateCourseCommand, CreateCourseResponse>

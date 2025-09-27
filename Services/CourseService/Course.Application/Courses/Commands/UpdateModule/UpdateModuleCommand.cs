@@ -1,6 +1,4 @@
-﻿using BaseService.Common.ApiEntities;
-using BuildingBlocks.CQRS;
-using Course.Application.DTOs.ModulesDTO;
+﻿using Course.Application.DTOs.ModulesDTO;
 
 namespace Course.Application.Courses.Commands.UpdateModule
 {

@@ -1,6 +1,5 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using Course.Application.DTOs.QuizDTO;
-using Course.Application.Interfaces.Helpers;
 
 namespace Course.Infrastructure.Helpers.Courses
 {

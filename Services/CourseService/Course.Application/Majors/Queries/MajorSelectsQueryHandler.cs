@@ -1,6 +1,4 @@
-using BuildingBlocks.CQRS;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
-using Course.Application.Interfaces;
 
 namespace Course.Application.Majors.Queries;
 

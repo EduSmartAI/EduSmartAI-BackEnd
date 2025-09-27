@@ -1,6 +1,4 @@
-﻿using System.Linq.Expressions;
-
-namespace Course.Infrastructure.Extensions
+﻿namespace Course.Infrastructure.Extensions
 {
 	public static class ExpressionExtensions
 	{

@@ -7,7 +7,6 @@ using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.QuizDTO;
-using Course.Application.Interfaces.Helpers;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace Course.Infrastructure.Helpers.Courses

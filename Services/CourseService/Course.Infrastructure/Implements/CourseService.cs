@@ -1,8 +1,4 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
-using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
@@ -13,17 +9,9 @@ using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.QuizDTO;
-using Course.Application.Interfaces;
-using Course.Application.Interfaces.Helpers;
 using Course.Domain.Enum;
-using Course.Domain.Models;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
-using FluentValidation;
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
-using System.Linq.Expressions;
 
 namespace Course.Infrastructure.Implements
 {
