@@ -1415,10 +1415,7 @@ namespace Course.Infrastructure.Implements
 			{
 				UserId = userId,
 				LessonId = dto.LessonId,
-				Status = dto.Status,
-				LastPositionSec = dto.LastPositionSec,
-				DurationWatchedSec = dto.DurationWatchedSec,
-				CompletedAt = dto.Status == (short)LessonStatus.Completed ? now : null,
+				Status = (short)LessonStatus.NotStarted,
 				CreatedAt = now,
 			};
 
@@ -1445,8 +1442,11 @@ namespace Course.Infrastructure.Implements
 		public async Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgressAsync(UpdateUserLessonProgressDto dto, CancellationToken ct = default)
 		{
 			var response = new UpdateUserLessonProgressResponse() { Success = false };
+
+			// Get current user
 			var currentUser = _identityService.GetCurrentUser()!;
 			var userId = currentUser.UserId;
+
 			// Validate lesson exists and is active
 			var lesson = await _lessonRepository
 				.Find(x => x.LessonId == dto.LessonId && x.IsActive, isTracking: false, ct)
@@ -1456,6 +1456,7 @@ namespace Course.Infrastructure.Implements
 				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {dto.LessonId}");
 				return response;
 			}
+
 			// Check if progress already exists
 			var existingProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && x.LessonId == dto.LessonId, isTracking: true, ct)
