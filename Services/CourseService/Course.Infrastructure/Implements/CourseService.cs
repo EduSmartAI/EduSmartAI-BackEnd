@@ -40,10 +40,7 @@ namespace Course.Infrastructure.Implements
 		/// <param name="query"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<GetCoursesResponse> GetAllAsync(
-			PaginationRequest pagination,
-			CourseQuery? query = null,
-			CancellationToken ct = default)
+		public async Task<GetCoursesResponse> GetAllAsync(PaginationRequest pagination, CourseQuery? query = null, CancellationToken ct = default)
 		{
 			var response = new GetCoursesResponse() { Success = false };
 
