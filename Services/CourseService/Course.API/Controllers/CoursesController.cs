@@ -1,6 +1,4 @@
-﻿using BaseService.API.BaseControllers;
-using BaseService.Common.Utils.Const;
-using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
@@ -11,12 +9,6 @@ using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
-using MediatR;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using NLog;
-using OpenIddict.Validation.AspNetCore;
-using Swashbuckle.AspNetCore.Annotations;
 
 namespace Course.API.Controllers
 {

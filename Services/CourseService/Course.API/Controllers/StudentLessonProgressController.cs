@@ -1,18 +1,10 @@
-﻿using BaseService.API.BaseControllers;
-using BaseService.Common.Utils.Const;
-using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
+﻿using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
-using MediatR;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using NLog;
-using OpenIddict.Validation.AspNetCore;
-using Swashbuckle.AspNetCore.Annotations;
 
 namespace Course.API.Controllers
 {
