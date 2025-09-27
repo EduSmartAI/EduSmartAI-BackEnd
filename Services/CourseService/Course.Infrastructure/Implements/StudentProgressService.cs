@@ -11,6 +11,7 @@ using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
+using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
 using Course.Domain.Models;
 using Course.Domain.ReadModels;
