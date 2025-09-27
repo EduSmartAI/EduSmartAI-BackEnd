@@ -4,7 +4,6 @@ using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
-using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressForStudents;
 
 namespace Course.Application.Interfaces
 {

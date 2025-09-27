@@ -8,7 +8,6 @@ using Course.Application.Interfaces;
 using Course.Domain.Models;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 
 namespace Course.Infrastructure.Implements
 {
