@@ -1,11 +1,11 @@
 ﻿namespace Course.Application.DTOs.ModulesDTO.ModuleStudentDTO
 {
 	public sealed record ModuleProgressSnap(
-		Guid ModuleId, 
+		Guid ModuleId,
 		int LessonsTotal,
 		int LessonsCompleted,
 		decimal PercentCompleted,
-		short Status, 
+		short Status,
 		DateTime? StartedAt,
 		DateTime? CompletedAt
 	);

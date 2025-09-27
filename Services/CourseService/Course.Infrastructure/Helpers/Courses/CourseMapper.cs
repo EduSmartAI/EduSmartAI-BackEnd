@@ -339,7 +339,7 @@ namespace Course.Infrastructure.Helpers.Courses
 					// MODULE PROGRESS (dùng snapshot nếu có; fallback tự tính)
 					int lessonsTotal = lessons.Count;
 					int lessonsCompleted = lessons.Count(x => x.IsCompleted);
-					decimal percent = lessonsTotal == 0 ? 0 : Math.Round((decimal)lessonsCompleted * 100m / lessonsTotal, 2);
+					decimal percent = lessonsTotal == 0 ? 0 : Math.Round(lessonsCompleted * 100m / lessonsTotal, 2);
 
 					short status = lessonsCompleted == 0 ? (short)LessonStatus.NotStarted : (lessonsCompleted == lessonsTotal ? (short)LessonStatus.Completed : (short)LessonStatus.InProgress);
 					DateTime? startedAt = null, completedAt = null;
@@ -404,7 +404,7 @@ namespace Course.Infrastructure.Helpers.Courses
 				var coreModules = preferCoreForCourse ? modules.Where(m => m.IsCore) : modules;
 				courseTotalLessons = coreModules.Sum(m => m.Progress.LessonsTotal);
 				courseCompletedLessons = coreModules.Sum(m => m.Progress.LessonsCompleted);
-				coursePercent = courseTotalLessons == 0 ? 0 : Math.Round((decimal)courseCompletedLessons * 100m / courseTotalLessons, 2);
+				coursePercent = courseTotalLessons == 0 ? 0 : Math.Round(courseCompletedLessons * 100m / courseTotalLessons, 2);
 				courseStatus = courseCompletedLessons == 0 ? (short)0 : (courseCompletedLessons == courseTotalLessons ? (short)CourseStatus.Completed : (short)CourseStatus.InProgress);
 			}
 

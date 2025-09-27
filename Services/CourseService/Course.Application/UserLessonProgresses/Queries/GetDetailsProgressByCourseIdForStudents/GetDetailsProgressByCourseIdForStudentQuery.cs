@@ -2,7 +2,7 @@
 using BuildingBlocks.CQRS;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 
-namespace Course.Application.UserLessonProgresses.Queries.GetDetailsProgressForStudents
+namespace Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents
 {
 	public record GetDetailsProgressByCourseIdForStudentQuery(Guid Id) : IQuery<GetDetailsProgressByCourseIdForStudentResponse>;
 

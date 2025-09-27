@@ -4,8 +4,8 @@
 		int LessonsTotal,
 		int LessonsCompleted,
 		decimal PercentCompleted,
-		short Status, 
-		DateTime? StartedAt, 
+		short Status,
+		DateTime? StartedAt,
 		DateTime? CompletedAt
 	);
 }
