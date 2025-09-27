@@ -31,8 +31,8 @@ namespace AiService.Infrastructure.Implements
                 int k = req.KRetrieval <= 0 ? 4 : req.KRetrieval;
                 int threshold = Math.Clamp(req.ScoreThreshold, 0, 100);
 
-                var kf = (req.KnownFrameworks ?? new()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                var kl = (req.KnownLanguages ?? new()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                var kf = (req.KnownFrameworks ?? []).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                var kl = (req.KnownLanguages ?? []).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
 
                 // 1) Embedding cho truy vấn
                 string queryText = $"Career goal: {req.CareerGoal}. Frameworks: {(kf.Count == 0 ? "None" : string.Join(", ", kf))}. Languages: {(kl.Count == 0 ? "None" : string.Join(", ", kl))}.";
@@ -92,11 +92,10 @@ namespace AiService.Infrastructure.Implements
                 }}";
 
                     ChatCompletion completion = await _chat.CompleteChatAsync(
-                        new List<ChatMessage>
-                        {
-                    new SystemChatMessage(sys),
-                    new UserChatMessage(user)
-                        },
+                        [
+                        new SystemChatMessage(sys),
+                        new UserChatMessage(user)
+                        ],
                         cancellationToken: ct
                     );
 
@@ -161,18 +160,47 @@ namespace AiService.Infrastructure.Implements
                 var uncovered = desired.Where(x => !coveredText.Contains(x)).ToList();
 
                 // Luôn generate external (kể cả khi uncovered rỗng)
-                var externalSuggestions = new List<ExternalSuggestion>();
+                List<ExternalSuggestion> externalSuggestions = await GenerateExternalSuggestionsAsync(req, kf, kl, matched, uncovered, ct);
+
+                return new EvaluateResult
                 {
-                    var timeLimitText = string.IsNullOrWhiteSpace(req.externalLimitTime)
-                        ? "120 giờ"
-                        : req.externalLimitTime.Trim();
+                    Inputs = new
+                    {
+                        career_goal = req.CareerGoal,
+                        known_frameworks = kf,
+                        known_languages = kl,
+                        score_threshold = threshold,
+                        k_retrieval = k
+                    },
+                    Evaluations = evals,
+                    Matched = matched,
+                    ExternalSuggestions = externalSuggestions,
+                };
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error " + e.Message);
+                throw;
+            }
+        }
+        private async Task<List<ExternalSuggestion>> GenerateExternalSuggestionsAsync(
+        AiEvaluateRequest req,
+        List<string> kf,
+        List<string> kl,
+        List<MajorEvaluation> matched,
+        List<string> uncovered,
+        CancellationToken ct)
+        {
+            var timeLimitText = string.IsNullOrWhiteSpace(req.ExternalLimitTime)
+                ? "120 giờ"
+                : req.ExternalLimitTime.Trim();
 
-                    // Tóm lược internal matched cho mô hình (nếu có)
-                    var internalBrief = matched.Count > 0
-                        ? string.Join("; ", matched.Select(e => $"{e.MajorName} (score {e.SupportScore})"))
-                        : "(chưa có)";
+            // Tóm lược internal matched cho mô hình (nếu có)
+            var internalBrief = matched.Count > 0
+                ? string.Join("; ", matched.Select(e => $"{e.MajorName} (score {e.SupportScore})"))
+                : "(chưa có)";
 
-                    string sys = """
+            string sys = """
                     Bạn là chuyên gia thiết kế chương trình đào tạo CNTT.
                     Mục tiêu: Đề xuất 1–3 track HỖ TRỢ (external) để BÙ LỖ HỔNG cho lộ trình nội bộ (internal) đã match,
                     hoặc TỰ THIẾT KẾ từ thông tin hiện có nếu chưa có internal match.
@@ -204,8 +232,7 @@ namespace AiService.Infrastructure.Implements
                     - Nếu KHÔNG có internal match, external phải bám career_goal + known tech.
                     """;
 
-
-                    string user =
+            string user =
                     $@"Ngữ cảnh người học:
                     - career_goal: {req.CareerGoal}
                     - known_frameworks: {(kf.Count == 0 ? "None" : string.Join(", ", kf))}
@@ -226,40 +253,33 @@ namespace AiService.Infrastructure.Implements
                       ""why_for_you"": ""<1–2 câu, nhấn mạnh vai trò BÙ LỖ HỔNG so với internal>""
                     }}";
 
+            var completion = await _chat.CompleteChatAsync(
+                [new SystemChatMessage(sys), new UserChatMessage(user)],
+                new ChatCompletionOptions { Temperature = 0.3f },
+                cancellationToken: ct
+            );
 
-                    ChatCompletion completion = await _chat.CompleteChatAsync(
-                        new List<ChatMessage> { new SystemChatMessage(sys), new UserChatMessage(user) },
-                        new ChatCompletionOptions { Temperature = 0.3f },
-                        cancellationToken: ct
-                    );
-                    string content = completion.Content.Count > 0 ? completion.Content[0].Text : "[]";
-                    externalSuggestions = TryParse<List<ExternalSuggestion>>(content) ?? new List<ExternalSuggestion>();
-                }
+            var content = completion.Value.Content.Count > 0 ? completion.Value.Content[0].Text : "[]";
+            var parsed = TryParse<List<ExternalSuggestion>>(content);
 
-                return new EvaluateResult
-                {
-                    Inputs = new
-                    {
-                        career_goal = req.CareerGoal,
-                        known_frameworks = kf,
-                        known_languages = kl,
-                        score_threshold = threshold,
-                        k_retrieval = k
-                    },
-                    Evaluations = evals,
-                    Matched = matched,
-                    ExternalSuggestions = externalSuggestions,
-                };
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Error " + e.Message);
-                throw;
-            }
+            return parsed ?? [];
         }
 
         // Helpers
-        private static string TrimLen(string? s, int max) => string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s[..max]);
+        private static string TrimLen(string? s, int max)
+        {
+            if (string.IsNullOrEmpty(s))
+            {
+                return string.Empty;
+            }
+
+            if (s.Length <= max)
+            {
+                return s;
+            }
+
+            return s[..max];
+        }
 
         private static T? TryParse<T>(string raw)
         {
@@ -276,7 +296,7 @@ namespace AiService.Infrastructure.Implements
             try
             {
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                return System.Text.Json.JsonSerializer.Deserialize<T>(candidate, opts);
+                return JsonSerializer.Deserialize<T>(candidate, opts);
             }
             catch { return default; }
         }
@@ -366,10 +386,10 @@ Ràng buộc khác:
             var user = $"Câu hỏi: {question}\n\nDữ liệu:\n{context}";
 
             var completion = await _chat.CompleteChatAsync(
-                new List<ChatMessage> {
-            new SystemChatMessage(sys),
-            new UserChatMessage(user)
-                },
+                [
+                    new SystemChatMessage(sys),
+                    new UserChatMessage(user)
+                ],
                 cancellationToken: ct
             );
 
@@ -557,7 +577,7 @@ Ràng buộc khác:
             foreach (var ln in lines)
             {
                 var s = ln.TrimEnd();
-                if (s.StartsWith("|") && s.EndsWith("|")) continue;
+                if (s.StartsWith('|') && s.EndsWith('|')) continue;
                 if (Regex.IsMatch(s, @"^[-:\s|]{3,}$")) continue;
                 outLines.Add(ln);
             }

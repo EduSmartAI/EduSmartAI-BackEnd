@@ -25,7 +25,7 @@ namespace StudentService.Application.Consumers
             {
                 Success = res.Success,
                 Response = res.Success ? "OK" : string.Empty,
-                DetailErrors = new()
+                DetailErrors = []
             };
             await context.RespondAsync(resp);
         }

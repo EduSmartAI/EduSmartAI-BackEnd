@@ -6,6 +6,7 @@ using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using MassTransit;
 using MediatR;
+using static AiService.Application.Contracts.AiRecommendContracts;
 
 namespace AiService.Application.Handler
 {
@@ -107,12 +108,17 @@ namespace AiService.Application.Handler
             }
             if (result == null)
             {
-                throw new Exception("Error");
+                return new AiEvaluateResponse
+                {
+                    Success = false,
+                    Message = "There's nothing",
+                    Response = new EvaluateResult()
+                };
             }
             return new AiEvaluateResponse
             {
                 Success = true,
-                Message = "Uploaded successfully",
+                Message = "Generate successfully",
                 Response = result
             };
         }

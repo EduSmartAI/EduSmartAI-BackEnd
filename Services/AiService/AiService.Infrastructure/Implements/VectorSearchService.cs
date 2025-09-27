@@ -2,7 +2,6 @@
 using AiService.Domain.Models;
 using BaseService.Application.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
-using OpenAI.Embeddings;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using System.Text.Json;
@@ -12,9 +11,8 @@ namespace AiService.Infrastructure.Implements
 {
     public class VectorSearchService : IVectorSearchService
     {
-        ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
-        ICommandRepository<CourseEmbedding> _courseEmbeddingRepository;
-        private readonly EmbeddingClient _embed;
+        private readonly ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
+        private readonly ICommandRepository<CourseEmbedding> _courseEmbeddingRepository;
         public VectorSearchService(ICommandRepository<MajorEmbedding> majorEmbeddingRepository, ICommandRepository<CourseEmbedding> courseEmbeddingRepository)
         {
             _majorEmbeddingRepository = majorEmbeddingRepository;

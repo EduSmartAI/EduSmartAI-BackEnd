@@ -4,6 +4,6 @@ namespace StudentService.Application.Applications.LearningPathsMajor.Commands.In
 {
     public record InsertLearningPathsMajorResponse : AbstractApiResponse<string>
     {
-        public override string Response { get; set; }
+        public override string Response { get; set; } = string.Empty;
     }
 }
