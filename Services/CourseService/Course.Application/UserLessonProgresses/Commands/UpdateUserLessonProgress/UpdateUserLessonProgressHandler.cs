@@ -3,11 +3,11 @@ using Course.Application.Interfaces;
 
 namespace Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress
 {
-	public class UpdateUserLessonProgressHandler(ICourseService _courseService) : ICommandHandler<UpdateUserLessonProgressCommand, UpdateUserLessonProgressResponse>
+	public class UpdateUserLessonProgressHandler(IStudentProgressService _studentProgressService) : ICommandHandler<UpdateUserLessonProgressCommand, UpdateUserLessonProgressResponse>
 	{
 		public Task<UpdateUserLessonProgressResponse> Handle(UpdateUserLessonProgressCommand request, CancellationToken cancellationToken)
 		{
-			return _courseService.UpdateUserLessonProgressAsync(request.UpdateUserLessonProgress, cancellationToken);
+			return _studentProgressService.UpdateUserLessonProgressAsync(request.UpdateUserLessonProgress, cancellationToken);
 		}
 	}
 }

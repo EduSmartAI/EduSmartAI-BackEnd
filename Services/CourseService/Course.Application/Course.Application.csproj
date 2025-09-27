@@ -17,7 +17,6 @@
   <ItemGroup>
     <Folder Include="Courses\Consumers\" />
     <Folder Include="UserLessonProgresses\Consumers\" />
-    <Folder Include="UserLessonProgresses\Queries\" />
   </ItemGroup>
 
 </Project>

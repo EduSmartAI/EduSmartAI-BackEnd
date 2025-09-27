@@ -1,12 +1,12 @@
 ﻿using BaseService.API.BaseControllers;
 using BaseService.Common.Utils.Const;
-using Course.Application.Courses.Commands.EnrollCourse;
-using Course.Application.Courses.Queries.CheckEnrollment;
-using Course.Application.Courses.Queries.GetCourseById;
-using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
+using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
+using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
+using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
+using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressForStudents;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -124,15 +124,15 @@ namespace Course.API.Controllers
 			Summary = "Get course details by ID for students",
 			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to students."
 		)]
-		public async Task<GetCourseByIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId)
+		public async Task<GetDetailsProgressByCourseIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId)
 		{
-			var query = new GetCourseByIdForStudentQuery(courseId);
-			return await ApiControllerHelper.HandleRequest<GetCourseByIdForStudentQuery, GetCourseByIdForStudentResponse, CourseDetailForStudentDto>(
+			var query = new GetDetailsProgressByCourseIdForStudentQuery(courseId);
+			return await ApiControllerHelper.HandleRequest<GetDetailsProgressByCourseIdForStudentQuery, GetDetailsProgressByCourseIdForStudentResponse, CourseDetailForStudentDto>(
 				query,
 				_logger,
 				ModelState,
 				async () => await sender.Send(query),
-				new GetCourseByIdForStudentResponse()
+				new GetDetailsProgressByCourseIdForStudentResponse()
 			);
 		}
 
@@ -147,15 +147,15 @@ namespace Course.API.Controllers
 			Summary = "Get course details by slug for students",
 			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to students."
 		)]
-		public async Task<GetCourseBySlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug)
+		public async Task<GetDetailsProgressByCourseSlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug)
 		{
-			var query = new GetCourseBySlugForStudentQuery(courseSlug);
-			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForStudentQuery, GetCourseBySlugForStudentResponse, CourseDetailForStudentDto>(
+			var query = new GetDetailsProgressByCourseSlugForStudentQuery(courseSlug);
+			return await ApiControllerHelper.HandleRequest<GetDetailsProgressByCourseSlugForStudentQuery, GetDetailsProgressByCourseSlugForStudentResponse, CourseDetailForStudentDto>(
 				query,
 				_logger,
 				ModelState,
 				async () => await sender.Send(query),
-				new GetCourseBySlugForStudentResponse()
+				new GetDetailsProgressByCourseSlugForStudentResponse()
 			);
 		}
 	}
