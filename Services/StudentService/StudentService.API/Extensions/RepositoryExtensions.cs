@@ -31,6 +31,8 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<StudentOrientation>, CommandRepository<StudentOrientation>>();
         services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
         services.AddScoped<ICommandRepository<LearningPath>, CommandRepository<LearningPath>>();
+        services.AddScoped<ICommandRepository<LearningPathMajor>, CommandRepository<LearningPathMajor>>();
+        services.AddScoped<ICommandRepository<LearningPathCourse>, CommandRepository<LearningPathCourse>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();

@@ -2,7 +2,10 @@
 {
     public sealed record UpdateExternalMajorEvent(
         Guid LearningPathId,
-        IReadOnlyList<StepExternalMajorItem> Steps
+        string CurrentUserEmail,
+        string MajorCode,
+        string Reason,
+        List<StepExternalMajorItem> Steps
     );
 
     public sealed record StepExternalMajorItem(
@@ -17,6 +20,8 @@
         string Title,
         string Link,
         string Provider,
-        string Reason
+        string Reason,
+        string Duration,
+        string Level
     );
 }

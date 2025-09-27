@@ -73,7 +73,6 @@ namespace AiService.Application.Contracts
         {
             [JsonPropertyName("roadmap_title")] public string RoadmapTitle { get; set; } = string.Empty;
             [JsonPropertyName("steps")] public List<RoadmapStepPayload> Steps { get; set; } = new();
-            [JsonPropertyName("sources")] public List<RoadmapSourcePayload> Sources { get; set; } = new();
         }
         public sealed class RoadmapStepPayload
         {
@@ -88,14 +87,9 @@ namespace AiService.Application.Contracts
             [JsonPropertyName("link")] public string Link { get; set; } = string.Empty;
             [JsonPropertyName("provider")] public string Provider { get; set; } = string.Empty;
             [JsonPropertyName("reason")] public string Reason { get; set; } = string.Empty;
-        }
-        public sealed class RoadmapSourcePayload
-        {
-            [JsonPropertyName("title")] public string Title { get; set; } = string.Empty;
-            [JsonPropertyName("url")] public string Url { get; set; } = string.Empty;
-            [JsonPropertyName("provider")] public string Provider { get; set; } = "—";
             [JsonPropertyName("level")] public string Level { get; set; } = "—";
             [JsonPropertyName("rating")] public string Rating { get; set; } = "—";
+            [JsonPropertyName("est_duration_weeks")] public int? EstDurationWeeks { get; set; }
         }
     }
 }
