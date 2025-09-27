@@ -13,7 +13,10 @@ namespace StudentService.Application.Consumers
 
             var request = new LearningPathInsertCommand
             {
-                PathId = evt.LearningPathId
+                PathId = evt.LearningPathId,
+                CurrentUserEmail = evt.CurrentUserEmail,
+                PathName = evt.PathName,
+                StudentId = evt.StudentId
             };
 
             var res = await _service.InsertLearningPathAsync(request, context.CancellationToken);

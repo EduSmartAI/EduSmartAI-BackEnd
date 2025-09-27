@@ -1,4 +1,5 @@
 ﻿using AiService.Application.Features.AiEvaluate;
+using AiService.Application.Features.AiExternalCourse;
 using AiService.Application.Interfaces;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
@@ -14,12 +15,14 @@ namespace AiService.Application.Handler
         private readonly IIdentityService _identityService;
         private readonly IPublishEndpoint _requestPublishEndpoint;
         private readonly IRequestClient<InsertLearningPathEventLearningPathEvent> _requestClient;
-        public AiRecommendHandler(IAdvisorService advisorService, IIdentityService identityService, IPublishEndpoint requestPublishEndpoint, IRequestClient<InsertLearningPathEventLearningPathEvent> requestClient)
+        private readonly IMediator _mediator;
+        public AiRecommendHandler(IAdvisorService advisorService, IIdentityService identityService, IPublishEndpoint requestPublishEndpoint, IRequestClient<InsertLearningPathEventLearningPathEvent> requestClient, IMediator mediator)
         {
             _advisorService = advisorService;
             _identityService = identityService;
             _requestPublishEndpoint = requestPublishEndpoint;
             _requestClient = requestClient;
+            _mediator = mediator;
         }
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
@@ -28,14 +31,14 @@ namespace AiService.Application.Handler
             var studentId = _identityService.GetCurrentUser()!.UserId;
 
             // Insert Learning path
-            var learningPathId = Guid.NewGuid();
-            var response = await _requestClient.GetResponse<InsertLearningPathResponseEvent>(
-                new InsertLearningPathEventLearningPathEvent(
-                    LearningPathId: learningPathId,
-                    PathName: "Lộ trình " + request.CareerGoal,
-                    StudentId: studentId,
-                    CurrentUserEmail: currentUserEmail
-                ), cancellationToken);
+            //var learningPathId = Guid.NewGuid();
+            //var response = await _requestClient.GetResponse<InsertLearningPathResponseEvent>(
+            //    new InsertLearningPathEventLearningPathEvent(
+            //        LearningPathId: learningPathId,
+            //        PathName: "Lộ trình " + request.CareerGoal,
+            //        StudentId: studentId,
+            //        CurrentUserEmail: currentUserEmail
+            //    ), cancellationToken);
 
             // AI recommend major
             var result = await _advisorService.EvaluateAsync(request, cancellationToken);
@@ -43,27 +46,29 @@ namespace AiService.Application.Handler
             var hasMatched = matched.Count > 0;
 
             //if (hasMatched)
-            if (hasMatched && response.Message.Success)
-            {
-                // Publish message internal
-                var majors = matched
-                    .Where(e => !string.IsNullOrWhiteSpace(e.MajorCode))
-                    .Select(e => new InternalMajorItem(
-                        MajorCode: e.MajorCode.Trim(),
-                        Reason: string.IsNullOrWhiteSpace(e.Reasons) ? "—" : e.Reasons.Trim(),
-                        SupportScore: e.SupportScore
-                    ))
-                    .ToList();
+            //    if (hasMatched && response.Message.Success)
+            //    {
+            //        // Publish message internal
+            //        var majors = matched
+            //            .Where(e => !string.IsNullOrWhiteSpace(e.MajorCode))
+            //            .Select(e => new InternalMajorItem(
+            //                MajorCode: e.MajorCode.Trim(),
+            //                Reason: string.IsNullOrWhiteSpace(e.Reasons) ? "—" : e.Reasons.Trim(),
+            //                SupportScore: e.SupportScore
+            //            ))
+            //            .ToList();
 
-                await _requestPublishEndpoint.Publish(
-                    new InternalMajorEvent(
-                        LearningPathId: learningPathId,
-                        Majors: majors
-                    ),
-                    cancellationToken
-                );
-            }
-            if (response.Message.Success && (result.ExternalSuggestions?.Count ?? 0) > 0)
+            //        await _requestPublishEndpoint.Publish(
+            //            new InternalMajorEvent(
+            //                LearningPathId: learningPathId,
+            //                Majors: majors
+            //            ),
+            //            cancellationToken
+            //        );
+            //    }
+
+            //if (response.Message.Success && (result.ExternalSuggestions?.Count ?? 0) > 0)
+            if ((result.ExternalSuggestions?.Count ?? 0) > 0)
             {
                 var externalMajors = result.ExternalSuggestions!
                     .Where(s => !string.IsNullOrWhiteSpace(s.MajorCode))
@@ -80,10 +85,24 @@ namespace AiService.Application.Handler
 
                 if (externalMajors.Count > 0)
                 {
-                    await _requestPublishEndpoint.Publish(
-                        new ExternalMajorEvent(LearningPathId: learningPathId, Majors: externalMajors),
-                        cancellationToken
-                    );
+                    //var @event = new ExternalMajorEvent(
+                    //    LearningPathId: Guid.Parse("19107229-e2cc-4387-8557-6a26f778c14b"), CurrentUserEmail: "",
+                    //    Majors: externalMajors
+                    //    );
+                    //await _requestPublishEndpoint.Publish(@event, cancellationToken);
+
+                    foreach (var m in externalMajors)
+                    {
+                        var extReq = new AiExternalCourseRequest
+                        {
+                            GoalMajor = m.MajorCode,
+                            LearningPathId = "5d1c2d92-49e7-40b3-9e2a-5588885b29f0",
+                            CurrentUserEmail = currentUserEmail,
+                            MajorCode = m.MajorCode,
+                            Reason = m.Reason
+                        };
+                        await _mediator.Send(extReq, cancellationToken);
+                    }
                 }
             }
             if (result == null)

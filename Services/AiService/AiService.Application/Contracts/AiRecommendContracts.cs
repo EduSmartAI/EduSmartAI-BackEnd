@@ -89,6 +89,7 @@ namespace AiService.Application.Contracts
             [JsonPropertyName("reason")] public string Reason { get; set; } = string.Empty;
             [JsonPropertyName("level")] public string Level { get; set; } = "—";
             [JsonPropertyName("rating")] public string Rating { get; set; } = "—";
+            [JsonPropertyName("est_duration_weeks")] public int? EstDurationWeeks { get; set; }
         }
     }
 }

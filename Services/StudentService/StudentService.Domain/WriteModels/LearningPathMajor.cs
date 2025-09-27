@@ -9,11 +9,9 @@ public partial class LearningPathMajor
 
     public Guid PathId { get; set; }
 
-    public Guid MajorId { get; set; }
+    public string MajorCode { get; set; } = null!;
 
     public string? Reason { get; set; }
-
-    public string? Description { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -25,9 +23,12 @@ public partial class LearningPathMajor
 
     public bool IsActive { get; set; }
 
-    public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
+    /// <summary>
+    /// 1: Internal, 2: External
+    /// </summary>
+    public short Type { get; set; }
 
-    public virtual ICollection<LearningPathMajorType> LearningPathMajorTypes { get; set; } = new List<LearningPathMajorType>();
+    public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
 
     public virtual LearningPath Path { get; set; } = null!;
 }

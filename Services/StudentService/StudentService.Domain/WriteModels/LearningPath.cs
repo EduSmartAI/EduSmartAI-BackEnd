@@ -9,8 +9,6 @@ public partial class LearningPath
 
     public string PathName { get; set; } = null!;
 
-    public string? Description { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -22,6 +20,8 @@ public partial class LearningPath
     public bool IsActive { get; set; }
 
     public Guid? StudentId { get; set; }
+
+    public short Status { get; set; }
 
     public virtual ICollection<LearningPathMajor> LearningPathMajors { get; set; } = new List<LearningPathMajor>();
 

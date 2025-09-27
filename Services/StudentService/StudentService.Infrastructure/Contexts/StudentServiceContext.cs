@@ -6,7 +6,6 @@ namespace StudentService.Infrastructure.Contexts;
 
 public partial class StudentServiceContext : AppDbContext
 {
-
     public StudentServiceContext(DbContextOptions<StudentServiceContext> options)
         : base(options)
     {
@@ -20,8 +19,6 @@ public partial class StudentServiceContext : AppDbContext
 
     public virtual DbSet<LearningPathMajor> LearningPathMajors { get; set; }
 
-    public virtual DbSet<LearningPathMajorType> LearningPathMajorTypes { get; set; }
-
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<Student> Students { get; set; }
@@ -33,6 +30,7 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<StudentTechnology> StudentTechnologies { get; set; }
 
     public virtual DbSet<Technology> Technologies { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("pgcrypto");
@@ -83,13 +81,13 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
-            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
             entity.Property(e => e.PathName)
                 .HasMaxLength(200)
                 .HasColumnName("path_name");
+            entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
@@ -113,7 +111,6 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.LearningPathCourseId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("learning_path_course_id");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
@@ -121,11 +118,15 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("created_by");
+            entity.Property(e => e.InternalCourseId).HasColumnName("internal_course_id");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
             entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
             entity.Property(e => e.Position).HasColumnName("position");
+            entity.Property(e => e.StepName)
+                .HasMaxLength(255)
+                .HasColumnName("step_name");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -133,6 +134,24 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("updated_by");
+            entity.Property(e => e.ExternalCourseLink)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_link");
+            entity.Property(e => e.ExternalCourseReason)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_reason");
+            entity.Property(e => e.ExternalCourseRating)
+                .HasColumnType("numeric(3, 2)")
+                .HasColumnName("external_course_rating");
+            entity.Property(e => e.ExternalCourseLevel)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_level");
+            entity.Property(e => e.ExternalCourseDuration)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_duration");
+            entity.Property(e => e.ExternalCourseProvider)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_provider");
 
             entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathCourses)
                 .HasForeignKey(d => d.LearningPathMajorId)
@@ -155,13 +174,17 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("created_by");
-            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.MajorId).HasColumnName("major_id");
+            entity.Property(e => e.MajorCode)
+                .HasColumnType("character varying")
+                .HasColumnName("major_code");
             entity.Property(e => e.PathId).HasColumnName("path_id");
             entity.Property(e => e.Reason).HasColumnName("reason");
+            entity.Property(e => e.Type)
+                .HasComment("1: Internal, 2: External")
+                .HasColumnName("type");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -173,42 +196,6 @@ public partial class StudentServiceContext : AppDbContext
             entity.HasOne(d => d.Path).WithMany(p => p.LearningPathMajors)
                 .HasForeignKey(d => d.PathId)
                 .HasConstraintName("fk_lpm_path");
-        });
-
-        modelBuilder.Entity<LearningPathMajorType>(entity =>
-        {
-            entity.HasKey(e => e.TypeId).HasName("learning_path_major_types_pkey");
-
-            entity.ToTable("learning_path_major_types");
-
-            entity.Property(e => e.TypeId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("type_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasDefaultValueSql("'system'::character varying")
-                .HasColumnName("created_by");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
-            entity.Property(e => e.TypeName)
-                .HasMaxLength(100)
-                .HasColumnName("type_name");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasDefaultValueSql("'system'::character varying")
-                .HasColumnName("updated_by");
-
-            entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathMajorTypes)
-                .HasForeignKey(d => d.LearningPathMajorId)
-                .HasConstraintName("fk_lpmt_lpm");
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

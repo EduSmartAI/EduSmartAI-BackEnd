@@ -2,6 +2,7 @@
 {
     public sealed record ExternalMajorEvent(
         Guid LearningPathId,
+        string CurrentUserEmail,
         IReadOnlyList<ExternalMajorItem> Majors
     );
 
