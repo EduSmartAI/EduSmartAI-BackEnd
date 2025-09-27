@@ -1,5 +1,4 @@
 ﻿using BaseService.Common.Settings;
-using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using Course.Application.Consumers;

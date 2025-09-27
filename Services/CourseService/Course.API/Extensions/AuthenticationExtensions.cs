@@ -1,6 +1,4 @@
 ﻿using BaseService.Common.Settings;
-using BaseService.Common.Utils.Const;
-using OpenIddict.Validation.AspNetCore;
 
 namespace Course.API.Extensions
 {
