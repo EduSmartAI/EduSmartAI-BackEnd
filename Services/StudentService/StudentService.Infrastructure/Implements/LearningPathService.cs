@@ -1,7 +1,6 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
 using StudentService.Application.Interfaces;
@@ -104,13 +103,13 @@ public class LearningPathService : ILearningPathService
             await _learningPathMajorCommandRepository.AddAsync(major, request.CurrentUserEmail!);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // 2) Insert Courses (nếu có)
+            // 2) Insert Courses
             if (request.Courses != null)
             {
                 foreach (var step in request.Courses)
                 {
                     var stepOrder = step.Order > 0 ? step.Order : (int?)null;
-                    var courses = step.SuggestedCourses ?? Array.Empty<StepCourseItem>();
+                    var courses = step.SuggestedCourses ?? [];
 
                     foreach (var sc in courses)
                     {

@@ -18,7 +18,7 @@ namespace AiService.Application.Consumers.ExtermalMajorCourse
                 {
                     GoalMajor = "Tôi muốn lộ trình về mảng IT và về " + major.Description
                 };
-                var response = await mediator.Send(request);
+                await mediator.Send(request);
             }
         }
     }

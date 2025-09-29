@@ -2,7 +2,6 @@
 using AiService.Domain.Models;
 using BaseService.Application.Interfaces.Repositories;
 using Microsoft.EntityFrameworkCore;
-using OpenAI.Embeddings;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using System.Text.Json;
@@ -12,9 +11,8 @@ namespace AiService.Infrastructure.Implements
 {
     public class VectorSearchService : IVectorSearchService
     {
-        ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
-        ICommandRepository<CourseEmbedding> _courseEmbeddingRepository;
-        private readonly EmbeddingClient _embed;
+        private readonly ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
+        private readonly ICommandRepository<CourseEmbedding> _courseEmbeddingRepository;
         public VectorSearchService(ICommandRepository<MajorEmbedding> majorEmbeddingRepository, ICommandRepository<CourseEmbedding> courseEmbeddingRepository)
         {
             _majorEmbeddingRepository = majorEmbeddingRepository;
@@ -93,14 +91,12 @@ namespace AiService.Infrastructure.Implements
                     if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
                     if (!doc.RootElement.TryGetProperty("title", out var t)) return false;
                     var title = (t.GetString() ?? string.Empty).ToLowerInvariant();
-                    foreach (var key in keys)
-                        if (!string.IsNullOrWhiteSpace(key) && title.Contains(key)) return true;
-                    return false;
+                    return keys.Any(key => !string.IsNullOrWhiteSpace(key) && title.Contains(key));
                 }
                 catch { return false; }
             }
 
-            static double Clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
+            static double Clamp01(double v) => Math.Clamp(v, 0d, 1d);
 
             static JsonElement ToJsonElementOrEmpty(string? json)
             {
@@ -137,7 +133,11 @@ namespace AiService.Infrastructure.Implements
             var q = (raw ?? string.Empty).ToLowerInvariant();
             var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            void Add(params string[] arr) { foreach (var s in arr) if (!string.IsNullOrWhiteSpace(s)) keys.Add(s.Trim()); }
+            void Add(params string[] arr)
+            {
+                keys.UnionWith(arr.Where(s => !string.IsNullOrWhiteSpace(s))
+                                  .Select(s => s.Trim()));
+            }
 
             // tách token đơn giản
             foreach (var t in q.Split(new[] { ' ', ',', '.', '/', '-', '_' }, StringSplitOptions.RemoveEmptyEntries))
@@ -156,7 +156,7 @@ namespace AiService.Infrastructure.Implements
             if (q.Contains("azure"))
                 Add("azure", "azure solutions architect");
 
-            return keys.ToList();
+            return [.. keys];
         }
     }
 }

@@ -5,6 +5,7 @@ using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using static AiService.Application.Contracts.AiRecommendContracts;
 
 namespace AiService.Application.Handler
 {
@@ -29,7 +30,12 @@ namespace AiService.Application.Handler
                 _logger.LogInformation("Advisor result json: {Json}", JsonSerializer.Serialize(result));
                 if (result == null)
                 {
-                    throw new Exception("Error");
+                    return new AiExternalCourseResponse
+                    {
+                        Success = false,
+                        Message = "There's no result",
+                        Response = new AskResponse()
+                    };
                 }
                 var steps = result.Roadmap?.Steps
                    ?.Select((s, idx) => new StepExternalMajorItem(
@@ -37,7 +43,7 @@ namespace AiService.Application.Handler
                        Title: s.Title ?? string.Empty,
                        DurationWeeks: s.DurationWeeks,
                        Objectives: (s.Objectives ?? new()).ToList(),
-                       SuggestedCourses: (s.SuggestedCourses ?? new())
+                       SuggestedCourses: [.. (s.SuggestedCourses ?? new())
                            .Select(c => new StepCourseItem(
                                Title: c.Title ?? string.Empty,
                                Link: c.Link ?? string.Empty,
@@ -45,9 +51,8 @@ namespace AiService.Application.Handler
                                Reason: c.Reason ?? string.Empty,
                                Duration: c.EstDurationWeeks.ToString() + " Tuần",
                                Level: c.Level
-                               ))
-                           .ToList()))
-                   .ToList() ?? new List<StepExternalMajorItem>();
+                               ))]))
+                   .ToList() ?? [];
 
                 var @event = new UpdateExternalMajorEvent(
                         LearningPathId: Guid.Parse(request.LearningPathId),
@@ -62,22 +67,23 @@ namespace AiService.Application.Handler
                 {
                     return new AiExternalCourseResponse
                     {
-                        Success = true,
-                        Message = "Uploaded successfully",
-                        Response = null
+                        Success = false,
+                        Message = "There's something error",
+                        Response = new AskResponse()
                     };
                 }
 
                 return new AiExternalCourseResponse
                 {
                     Success = true,
-                    Message = "Uploaded successfully",
+                    Message = "Generate successfully",
                     Response = result
                 };
             }
             catch (Exception ex)
             {
-                throw new Exception(ex.Message);
+                Console.WriteLine(ex.ToString());
+                throw;
             }
         }
     }
