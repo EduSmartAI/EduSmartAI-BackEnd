@@ -1,7 +1,6 @@
 ﻿using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
-using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
@@ -62,46 +61,25 @@ namespace Course.API.Controllers
 		}
 
 		/// <summary>
-		/// Create user lesson progress for a specific lesson
-		/// </summary>
-		/// <param name="request"></param>
-		/// <returns></returns>
-		[HttpPost]
-		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Create user lesson progress",
-			Description = "Create user lesson progress for a specific lesson"
-		)]
-		public async Task<CreateUserLessonProgressResponse> CreateUserLessonProgress([FromBody] CreateUserLessonProgressCommand request)
-		{
-			return await ApiControllerHelper.HandleRequest<CreateUserLessonProgressCommand, CreateUserLessonProgressResponse, bool>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new CreateUserLessonProgressResponse()
-			);
-		}
-
-		/// <summary>
-		/// Update user lesson progress for a specific lesson
+		/// Create or update user lesson progress
 		/// </summary>
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut]
 		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Update user lesson progress",
-			Description = "Update user lesson progress for a specific lesson"
+			Summary = "Upsert user lesson progress",
+			Description = "Create or update the progress of a user in a specific lesson"
 		)]
-		public async Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgress([FromBody] UpdateUserLessonProgressCommand request)
+		public async Task<UpsertUserLessonProgressResponse> UpsertUserLessonProgress([FromBody] UpsertUserLessonProgressCommand request)
 		{
-			return await ApiControllerHelper.HandleRequest<UpdateUserLessonProgressCommand, UpdateUserLessonProgressResponse, bool>(
+
+			return await ApiControllerHelper.HandleRequest<UpsertUserLessonProgressCommand, UpsertUserLessonProgressResponse, UserLessonProgressEntity>(
 				request,
 				_logger,
 				ModelState,
 				async () => await sender.Send(request),
-				new UpdateUserLessonProgressResponse()
+				new UpsertUserLessonProgressResponse()
 			);
 		}
 

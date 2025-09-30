@@ -4,7 +4,6 @@ using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
 using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
-using Course.Application.UserLessonProgresses.Commands.UpdateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
@@ -409,53 +408,144 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Create user lesson progress
-		/// Call khi người dùng đã bắt đầu học 1 bài (lần đầu xem video)
+		/// Create or update user lesson progress
+		/// Upsert: nếu chưa có thì tạo mới, nếu đã có thì cập nhật (idempotent, đảm bảo đơn điệu)
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<CreateUserLessonProgressResponse> CreateUserLessonProgressAsync(CreateUserLessonProgressDto dto, CancellationToken ct = default)
+		public async Task<UpsertUserLessonProgressResponse> UpsertUserLessonProgressAsync(Guid lessonId, UpsertUserLessonProgressDto dto, CancellationToken ct = default)
 		{
-			var response = new CreateUserLessonProgressResponse() { Success = false };
+			var response = new UpsertUserLessonProgressResponse() { Success = false };
 			var currentUser = _identityService.GetCurrentUser()!;
 			var userId = currentUser.UserId;
+			var now = DateTime.UtcNow;
+			const int MaxDeltaPerTick = 300;
 
-			// Validate lesson exists and is active
+			// 1) Validate lesson
 			var lesson = await _lessonRepository
-				.Find(x => x.LessonId == dto.LessonId && x.IsActive, isTracking: false, ct)
+				.Find(x => x.LessonId == lessonId && x.IsActive, isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 			if (lesson is null)
 			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {dto.LessonId}");
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {lessonId}");
 				return response;
 			}
-			// Check if progress already exists
-			var existingProgress = await _userLessonProgress
-				.Find(x => x.UserId == userId && x.LessonId == dto.LessonId, isTracking: true, ct)
+			var videoMax = lesson.VideoDurationSec ?? int.MaxValue;
+
+
+
+			// 2) Tìm progress hiện có
+			var progress = await _userLessonProgress
+				.Find(x => x.UserId == userId && x.LessonId == lessonId, isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
 
-			if (existingProgress is not null)
+			// 3) Nếu chưa có → tạo mới
+			if (progress is null)
 			{
-				response.SetMessage(MessageId.E00000, "Đã tồn tại tiến độ học cho bài học này.");
+				var incomingStatus = dto.Status ?? (short)LessonStatus.InProgress;
+				var clampedPos = Math.Clamp(dto.LastPositionSec ?? 0, 0, videoMax);
+				var delta = Math.Max(0, Math.Min(dto.WatchedDeltaSec ?? 0, MaxDeltaPerTick));
+
+				progress = new UserLessonProgress
+				{
+					UserId = userId,
+					LessonId = lessonId,
+					Status = incomingStatus == (short)LessonStatus.Completed
+								? (short)LessonStatus.Completed
+								: (short)LessonStatus.InProgress,
+					LastPositionSec = clampedPos,
+					DurationWatchedSec = delta,  // tích lũy từ tick đầu
+					CreatedAt = now,
+					UpdatedAt = now,
+					CompletedAt = incomingStatus == (short)LessonStatus.Completed ? now : null
+				};
+
+				await unitOfWork.BeginTransactionAsync(async () =>
+				{
+					await _userLessonProgress.AddAsync(progress);
+					await unitOfWork.SaveChangesAsync(ct);
+
+					unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(progress));
+					await unitOfWork.SessionSaveChangesAsync();
+					return true;
+				}, ct);
+
+				await _courseCache.ClearCourseDetailForStudentCacheAsync();
+
+				response.Success = true;
+				response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
+									  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+				response.SetMessage(MessageId.I00000, "Ghi tiến độ lần đầu thành công.");
 				return response;
 			}
 
-			var now = DateTime.UtcNow;
-
-			// Create new progress record
-			var progress = new UserLessonProgress
+			// 4) ĐÃ CÓ RECORD
+			// 4.a) Nếu đã Completed: KHÔNG cho revert; chỉ cập nhật resume/time
+			if (progress.Status == (short)LessonStatus.Completed)
 			{
-				UserId = userId,
-				LessonId = dto.LessonId,
-				Status = (short)LessonStatus.NotStarted,
-				CreatedAt = now,
-			};
+				if (dto.LastPositionSec.HasValue)
+				{
+					var clamped = Math.Clamp(dto.LastPositionSec.Value, 0, videoMax);
+					progress.LastPositionSec = Math.Max(progress.LastPositionSec ?? 0, clamped);
+				}
+				if (dto.WatchedDeltaSec is int d && d > 0)
+				{
+					progress.DurationWatchedSec += Math.Min(d, MaxDeltaPerTick);
+				}
 
+				progress.UpdatedAt = now;
+
+				await unitOfWork.BeginTransactionAsync(async () =>
+				{
+					_userLessonProgress.Update(progress);
+					await unitOfWork.SaveChangesAsync(ct);
+
+					unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(progress));
+					await unitOfWork.SessionSaveChangesAsync();
+					return true;
+				}, ct);
+
+				await _courseCache.ClearCourseDetailForStudentCacheAsync();
+
+				response.Success = true;
+				response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
+									  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+				response.SetMessage(MessageId.I00001, "Bài đã hoàn thành — cập nhật thành công.");
+				return response;
+			}
+
+			// 4.b) Chưa Completed: cập nhật đơn điệu + xử lý trạng thái
+			if (dto.LastPositionSec.HasValue)
+			{
+				var clamped = Math.Clamp(dto.LastPositionSec.Value, 0, videoMax);
+				progress.LastPositionSec = Math.Max(progress.LastPositionSec ?? 0, clamped);
+			}
+			if (dto.WatchedDeltaSec is int d2 && d2 > 0)
+			{
+				progress.DurationWatchedSec += Math.Min(d2, MaxDeltaPerTick);
+			}
+
+			if (dto.Status.HasValue)
+			{
+				var incoming = dto.Status.Value;
+				if (incoming == (short)LessonStatus.Completed)
+				{
+					progress.Status = (short)LessonStatus.Completed;
+					if (!progress.CompletedAt.HasValue) progress.CompletedAt = now;
+				}
+				else
+				{
+					// NotStarted/InProgress -> InProgress (không revert về NotStarted)
+					progress.Status = (short)LessonStatus.InProgress;
+				}
+			}
+
+			progress.UpdatedAt = now;
 
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				await _userLessonProgress.AddAsync(progress);
+				_userLessonProgress.Update(progress);
 				await unitOfWork.SaveChangesAsync(ct);
 
 				unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(progress));
@@ -463,80 +553,12 @@ namespace Course.Infrastructure.Implements
 				return true;
 			}, ct);
 
-			// Clear relevant caches
 			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
 			response.Success = true;
-			response.Response = true;
-			response.SetMessage(MessageId.I00000, "Tạo tiến độ học bài học thành công.");
-			return response;
-		}
-
-		/// <summary>
-		/// Update user lesson progress
-		/// </summary>
-		/// <param name="dto"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<UpdateUserLessonProgressResponse> UpdateUserLessonProgressAsync(UpdateUserLessonProgressDto dto, CancellationToken ct = default)
-		{
-			var response = new UpdateUserLessonProgressResponse() { Success = false };
-
-			// Get current user
-			var currentUser = _identityService.GetCurrentUser()!;
-			var userId = currentUser.UserId;
-
-			// Validate lesson exists and is active
-			var lesson = await _lessonRepository
-				.Find(x => x.LessonId == dto.LessonId && x.IsActive, isTracking: false, ct)
-				.FirstOrDefaultAsync(ct);
-			if (lesson is null)
-			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {dto.LessonId}");
-				return response;
-			}
-
-			// Check if progress already exists
-			var existingProgress = await _userLessonProgress
-				.Find(x => x.UserId == userId && x.LessonId == dto.LessonId, isTracking: true, ct)
-				.FirstOrDefaultAsync(ct);
-			if (existingProgress is null)
-			{
-				response.SetMessage(MessageId.E00000, "Không tìm thấy tiến độ học cho bài học này.");
-				return response;
-			}
-			var now = DateTime.UtcNow;
-
-			// Update progress record
-			existingProgress.Status = dto.Status;
-			existingProgress.LastPositionSec = dto.LastPositionSec;
-			existingProgress.DurationWatchedSec = dto.DurationWatchedSec;
-			if (dto.Status == (short)LessonStatus.Completed)
-			{
-				existingProgress.CompletedAt = now;
-			}
-			else if (dto.Status == (short)LessonStatus.InProgress && existingProgress.CompletedAt.HasValue)
-			{
-				// Nếu chuyển từ Completed về InProgress thì xóa CompletedAt
-				existingProgress.CompletedAt = null;
-			}
-
-			await unitOfWork.BeginTransactionAsync(async () =>
-			{
-				_userLessonProgress.Update(existingProgress);
-				await unitOfWork.SaveChangesAsync(ct);
-
-				unitOfWork.Store(UserLessonProgressCollection.FromWriteModel(existingProgress));
-				await unitOfWork.SessionSaveChangesAsync();
-				return true;
-			}, ct);
-
-			// Clear relevant caches
-			await _courseCache.ClearCourseDetailForStudentCacheAsync();
-
-			response.Success = true;
-			response.Response = true;
-			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ học bài học thành công.");
+			response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
+								  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ thành công.");
 			return response;
 		}
 	}
