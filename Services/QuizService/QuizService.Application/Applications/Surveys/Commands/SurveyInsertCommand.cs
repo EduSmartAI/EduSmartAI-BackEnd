@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 
 namespace QuizService.Application.Applications.Surveys.Commands;
@@ -37,4 +38,15 @@ public record SurveyAnswerRequest
     public string AnswerText { get; set; } = null!;
     
     public bool IsCorrect { get; set; }
+    
+    public List<AnswerRuleRequest>? AnswerRules { get; set; }
+}
+
+public class AnswerRuleRequest
+{
+    public int? NumericMin { get; set; }
+    public int? NumericMax { get; set; }
+    public ConstantEnum.AnswerRuleUnit Unit { get; set; }
+    public string? MappedField { get; set; }
+    public string? Formula { get; set; }
 }

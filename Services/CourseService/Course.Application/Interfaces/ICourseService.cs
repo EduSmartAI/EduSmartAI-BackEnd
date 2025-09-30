@@ -1,4 +1,6 @@
-﻿using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
@@ -29,5 +31,7 @@ namespace Course.Application.Interfaces
 		Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default);
 
 		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
+		
+		Task<CoursesSelectEventResponse> GetCourseSelectsAsync(CoursesSelectEvent request, CancellationToken ct = default);
 	}
 }

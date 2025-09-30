@@ -1,6 +1,8 @@
-using BuildingBlocks.Messaging.Events.QuizService.StudentTechnologyOrientationEvents;
+using AiService.Application.Features.AiEvaluate;
+using BuildingBlocks.Messaging.Events.QuizService.StudentMajorOrientationEvents;
 using MassTransit;
 using MediatR;
+using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace AiService.Application.Consumers.StudentMajorRecommends;
 
@@ -10,15 +12,21 @@ public class StudentMajorRecommendConsumer(IMediator mediator) : IConsumer<Stude
     {
         var evt = context.Message;
 
-        var request = new StudentMajorRecommendRequest
+        var request = new AiEvaluateRequest
         {
-            LearningGoal = evt.LearningGoal,
-            Languages = evt.Languages,
-            Frameworks = evt.Frameworks
+            CareerGoal = evt.LearningGoal,
+            KnownFrameworks = evt.Frameworks,
+            KnownLanguages = evt.Languages,
+            IdentityEntity = new IdentityEntity
+            {
+                UserId = evt.IdentityEntity.UserId,
+                Email = evt.IdentityEntity.Email
+            },
+            ExternalLimitTime = evt.LimitTime,
+            LearningPathId = evt.LearningPathId,
+            SemesterId = evt.SemesterId,
         };
-
-        var response = await mediator.Send(request);
-
-        await context.RespondAsync(response);
+        
+        await mediator.Send(request, context.CancellationToken);
     }
 }

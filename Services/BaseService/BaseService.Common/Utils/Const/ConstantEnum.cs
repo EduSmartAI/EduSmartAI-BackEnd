@@ -46,16 +46,10 @@ public static class ConstantEnum
     
     public enum LearningGoalType
     {
-        None = 1,
+        None = 0,
         Frontend = 2,
         Backend = 3,
         Fullstack = 4
-    }
-
-    public enum OrientationRecommendType
-    {
-        Internal = 1,
-        External = 2
     }
 
     public enum SurveyCode
@@ -64,11 +58,19 @@ public static class ConstantEnum
         HABIT
     }
 
-    public enum LearningPathMajorEnum
+    public enum LearningPathMajor
     {
         Basic = 1,
         Internal = 2,
-        External = 3
+        External = 3,
+    }
+
+    public enum AnswerRuleUnit
+    {
+        HourPerDay = 1,
+        HourPerWeek = 2,
+        Days = 3,
+        Months = 4,
     }
 
     public enum LessonStatus

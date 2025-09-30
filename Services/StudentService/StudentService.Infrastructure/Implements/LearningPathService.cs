@@ -1,12 +1,13 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.QuizService;
+using MassTransit;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
-using static BaseService.Common.Utils.Const.ConstantEnum;
+using LearningPathMajor = StudentService.Domain.WriteModels.LearningPathMajor;
 
 namespace StudentService.Infrastructure.Implements;
 
@@ -15,29 +16,28 @@ public class LearningPathService : ILearningPathService
     private readonly ICommandRepository<LearningPath> _learningPathCommandRepository;
     private readonly ICommandRepository<LearningPathMajor> _learningPathMajorCommandRepository;
     private readonly ICommandRepository<LearningPathCourse> _learningPathCourseCommandRepository;
+    private readonly IRequestClient<CoursesSelectEventResponse> _requestClientCoursesSelectEvent;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IIdentityService _identityService;
 
     /// <summary>
     /// Constructor
     /// </summary>
-    /// <param name="learningGoalCommandRepository"></param>
-    /// <param name="learningGoalQueryRepository"></param>
     /// <param name="unitOfWork"></param>
-    /// <param name="identityService"></param>
-    public LearningPathService(
-        ICommandRepository<LearningPath> learningPathCommandRepository,
-        IUnitOfWork unitOfWork,
-        IIdentityService identityService,
+    /// <param name="learningPathMajorCommandRepository"></param>
+    /// <param name="learningPathCommandRepository"></param>
+    /// <param name="learningPathCourseCommandRepository"></param>
+    /// <param name="requestClientCoursesSelectEvent"></param>
+    public LearningPathService(IUnitOfWork unitOfWork,
         ICommandRepository<LearningPathMajor> learningPathMajorCommandRepository,
-        ICommandRepository<LearningPathCourse> learningPathCourseCommandRepository
-        )
+        ICommandRepository<LearningPath> learningPathCommandRepository,
+        ICommandRepository<LearningPathCourse> learningPathCourseCommandRepository, 
+        IRequestClient<CoursesSelectEventResponse> requestClientCoursesSelectEvent)
     {
-        _learningPathCommandRepository = learningPathCommandRepository;
         _unitOfWork = unitOfWork;
-        _identityService = identityService;
-        _learningPathCourseCommandRepository = learningPathCourseCommandRepository;
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
+        _learningPathCommandRepository = learningPathCommandRepository;
+        _learningPathCourseCommandRepository = learningPathCourseCommandRepository;
+        _requestClientCoursesSelectEvent = requestClientCoursesSelectEvent;
     }
 
     public async Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken)
@@ -53,8 +53,14 @@ public class LearningPathService : ILearningPathService
                 PathName = request.PathName,
                 StudentId = request.StudentId,
             };
+            
             await _learningPathCommandRepository.AddAsync(learningPath, request.CurrentUserEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            for (int i = 0; i < 20; i++)
+            {
+                Console.WriteLine("Inserting learning path... " + i);
+            }
 
             _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
             await _unitOfWork.SessionSaveChangesAsync();
@@ -67,25 +73,11 @@ public class LearningPathService : ILearningPathService
         }, cancellationToken);
         return response;
     }
-    /// <summary>
-    /// Insert External Major and Insert Their Course
-    /// </summary>
-    /// <param name="request"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
+
     public async Task<InsertLearningPathsMajorResponse> InsertLearningPathMajorCourseAsync(
-        InsertLearningPathsMajorCommand request,
-        CancellationToken cancellationToken)
+        InsertLearningPathsMajorCommand request, CancellationToken cancellationToken)
     {
         var response = new InsertLearningPathsMajorResponse { Success = false };
-
-        // Validate
-        if (request.PathId == Guid.Empty || string.IsNullOrWhiteSpace(request.MajorCode))
-        {
-            response.Success = false;
-            response.SetMessage(MessageId.E00000, "Thiếu PathId hoặc MajorCode");
-            return response;
-        }
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
@@ -95,9 +87,8 @@ public class LearningPathService : ILearningPathService
                 LearningPathMajorId = Guid.NewGuid(),
                 PathId = request.PathId,
                 MajorCode = request.MajorCode.Trim(),
-                Reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason,
-                IsActive = true,
-                Type = (short)LearningPathMajorEnum.External,
+                Reason = request.Reason,
+                Type = (short) ConstantEnum.LearningPathMajor.External,
             };
 
             await _learningPathMajorCommandRepository.AddAsync(major, request.CurrentUserEmail!);
@@ -109,7 +100,7 @@ public class LearningPathService : ILearningPathService
                 foreach (var step in request.Courses)
                 {
                     var stepOrder = step.Order > 0 ? step.Order : (int?)null;
-                    var courses = step.SuggestedCourses ?? [];
+                    var courses = step.SuggestedCourses;
 
                     foreach (var sc in courses)
                     {
@@ -142,7 +133,72 @@ public class LearningPathService : ILearningPathService
             // 4) Done
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm ngành và học phần vào lộ trình");
+            return true;
+        }, cancellationToken);
+        return response;
+    }
 
+    /// <summary>
+    /// Insert learning path major internal
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    /// <exception cref="NotImplementedException"></exception>
+    public async Task<LearningPathMajorInternalInsertResponse> InsertLearningPathMajorAsync(LearningPathMajorInsertCommand request, CancellationToken cancellationToken = default)
+    {
+        var response = new LearningPathMajorInternalInsertResponse { Success = false };
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            var learningPath = await _learningPathCommandRepository.FirstOrDefaultAsync(
+                x => x.PathId == request.LearningPathId && x.IsActive, cancellationToken: cancellationToken);
+            if (learningPath == null)
+            {
+                response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
+                return false;
+            }
+            
+            var coursesSelectEventRequest = new CoursesSelectEvent
+            {
+                MajorCodes = request.Majors.Select(x => x.MajorCode).ToList(),
+                SemesterId = request.SemesterId,
+                LimitTime = request.LimitTime * 60
+            };
+            var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
+            
+            // Insert new learning path major
+            var learningPathMajors = request.Majors.Select(x =>
+            {
+                var matchedCourses = courseSelectEvent
+                    .Message
+                    .Response
+                    .FirstOrDefault(r => r.MajorCode == x.MajorCode);
+
+                return new LearningPathMajor
+                {
+                    PathId = request.LearningPathId,
+                    MajorCode = x.MajorCode,
+                    Reason = x.Reason,
+                    Type = request.MajorType,
+                    LearningPathCourses = matchedCourses?.CourseCodeIds
+                        .Select(courseId => new LearningPathCourse
+                        {
+                            InternalCourseId = courseId
+                        }).ToList()!
+                };
+            }).ToList();
+
+            await _learningPathMajorCommandRepository.AddRangeAsync(learningPathMajors);
+            await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, cancellationToken);
+            
+
+            _unitOfWork.Store(learningPathMajors.Select(LearningPathMajorCollection.FromWriteModel).ToList());
+            await _unitOfWork.SessionSaveChangesAsync();
+
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm chuyên ngành vào lộ trình học tập");
             return true;
         }, cancellationToken);
 

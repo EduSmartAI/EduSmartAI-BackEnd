@@ -1,4 +1,4 @@
-﻿namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
+namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
 {
     public sealed record ExternalMajorEvent(
         Guid LearningPathId,

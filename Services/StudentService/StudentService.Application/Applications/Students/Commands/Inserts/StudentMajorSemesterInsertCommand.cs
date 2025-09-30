@@ -11,16 +11,7 @@ public record StudentMajorSemesterInsertCommand : ICommand<StudentInformationMaj
     public Guid MajorId { get; set; }
     public string MajorName { get; set; }
     public List<Guid> TechnologyIds { get; set; }
-    public Guid LearningGoalId { get; set; } 
-    
-    public StudentMajorOrientation StudentMajorOrientation { get; set; }
-}
-
-public class StudentMajorOrientation
-{
-    public List<MajorInternal> MajorInternals { get; set; } = null!;
-    
-    public List<MajorExternal> MajorExternals { get; set; } = null!;
+    public Guid LearningGoalId { get; set; }
 }
 
 public class MajorInternal

@@ -1,4 +1,4 @@
-﻿namespace StudentService.Domain.WriteModels;
+namespace StudentService.Domain.WriteModels;
 
 public partial class LearningPathCourse
 {

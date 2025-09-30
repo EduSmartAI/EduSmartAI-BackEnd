@@ -140,7 +140,7 @@ namespace AiService.Infrastructure.Implements
                     var baseSet = targets.Count > 0 ? targets : majors;
                     coveredText = string.Join(' ', baseSet.Select(m => $"{m.MajorName} {m.Description}"));
                 }
-                coveredText = (coveredText ?? string.Empty).ToLowerInvariant();
+                coveredText = (coveredText).ToLowerInvariant();
 
                 // Từ khóa mong muốn: known tech + token từ career_goal
                 var cgKeywords = Regex.Matches(req.CareerGoal ?? "", @"[\p{L}A-Za-z0-9\+\#\.]{3,}")
@@ -326,62 +326,62 @@ namespace AiService.Infrastructure.Implements
 
             // 3) ÉP JSON-ONLY với schema rõ ràng
             var sys = $@"
-Bạn là trợ lý học tập. Chỉ dùng THÔNG TIN trong phần 'Dữ liệu' để trả lời bằng tiếng Việt.
-TRẢ LỜI CHỈ BẰNG JSON HỢP LỆ (UTF-8), KHÔNG THÊM VĂN BẢN NGOÀI JSON.
+            Bạn là trợ lý học tập. Chỉ dùng THÔNG TIN trong phần 'Dữ liệu' để trả lời bằng tiếng Việt.
+            TRẢ LỜI CHỈ BẰNG JSON HỢP LỆ (UTF-8), KHÔNG THÊM VĂN BẢN NGOÀI JSON.
 
-MỤC TIÊU & THUẬT NGỮ LÕI:
-- Từ nội dung 'Câu hỏi', hãy trích ra CORE_TERMS = tập các thuật ngữ/stack/domain bắt buộc (ví dụ: Node.js, JavaScript, Express, React, .NET, Java, Python, TensorFlow, PyTorch, MLOps, Deployment, REST API...).
-- Mọi đề xuất phải BÁM SÁT CORE_TERMS; chỉ chọn tài liệu/khóa học liên quan trực tiếp.
+            MỤC TIÊU & THUẬT NGỮ LÕI:
+            - Từ nội dung 'Câu hỏi', hãy trích ra CORE_TERMS = tập các thuật ngữ/stack/domain bắt buộc (ví dụ: Node.js, JavaScript, Express, React, .NET, Java, Python, TensorFlow, PyTorch, MLOps, Deployment, REST API...).
+            - Mọi đề xuất phải BÁM SÁT CORE_TERMS; chỉ chọn tài liệu/khóa học liên quan trực tiếp.
 
-TIMEBOX BẮT BUỘC:
-- Tổng thời lượng của toàn bộ lộ trình (tổng 'duration_weeks' các step) PHẢI ≤ {limitWeeks}.
-- Mỗi suggested_course PHẢI có 'est_duration_weeks' (số nguyên, ước lượng từ dữ liệu).
-- Chỉ chọn khóa có est_duration_weeks ≤ duration_weeks của step chứa nó.
-- Nếu một khóa là Specialization dài hơn step, hãy chọn MỘT học phần/module/phần tử con phù hợp (nếu có trong dữ liệu) hoặc bỏ qua.
-- Ưu tiên các mục có 'DurationHintWeeks' phù hợp với step.
+            TIMEBOX BẮT BUỘC:
+            - Tổng thời lượng của toàn bộ lộ trình (tổng 'duration_weeks' các step) PHẢI ≤ {limitWeeks}.
+            - Mỗi suggested_course PHẢI có 'est_duration_weeks' (số nguyên, ước lượng từ dữ liệu).
+            - Chỉ chọn khóa có est_duration_weeks ≤ duration_weeks của step chứa nó.
+            - Nếu một khóa là Specialization dài hơn step, hãy chọn MỘT học phần/module/phần tử con phù hợp (nếu có trong dữ liệu) hoặc bỏ qua.
+            - Ưu tiên các mục có 'DurationHintWeeks' phù hợp với step.
 
-RÀNG BUỘC TÍNH LIÊN QUAN (RẤT QUAN TRỌNG):
-- Định nghĩa LIÊN QUAN: (tiêu đề hoặc nội dung tóm tắt trong 'Dữ liệu' hoặc URL hoặc provider) chứa ÍT NHẤT MỘT phần tử của CORE_TERMS.
-- ÍT NHẤT 60% tổng số 'suggested_courses' trong toàn lộ trình phải LIÊN QUAN theo định nghĩa trên.
-- Nếu CORE_TERMS chứa 'Node.js' hoặc 'JavaScript' hoặc 'Express' thì ÍT NHẤT 2 khóa phải nhắc trực tiếp đến 'Node.js'/'JavaScript'/'Express'.
-- Nếu CORE_TERMS chứa 'TensorFlow' hoặc 'PyTorch', thì ÍT NHẤT 1 khóa phải nhắc trực tiếp đến framework đó.
-- KHÔNG chọn khóa thiên về 'data analysis' chung chung hoặc công cụ khác stack nếu không phục vụ trực tiếp mục tiêu của step.
-- Tránh khóa chỉ dạy Python/Flask khi CORE_TERMS yêu cầu Node.js/JS/Express, trừ khi minh họa nguyên tắc chuyển đổi; tối đa 1 khóa ngoại lệ như vậy.
-- Nếu không tìm thấy khóa phù hợp cho một step, để 'suggested_courses' rỗng thay vì chèn khóa không liên quan.
+            RÀNG BUỘC TÍNH LIÊN QUAN (RẤT QUAN TRỌNG):
+            - Định nghĩa LIÊN QUAN: (tiêu đề hoặc nội dung tóm tắt trong 'Dữ liệu' hoặc URL hoặc provider) chứa ÍT NHẤT MỘT phần tử của CORE_TERMS.
+            - ÍT NHẤT 60% tổng số 'suggested_courses' trong toàn lộ trình phải LIÊN QUAN theo định nghĩa trên.
+            - Nếu CORE_TERMS chứa 'Node.js' hoặc 'JavaScript' hoặc 'Express' thì ÍT NHẤT 2 khóa phải nhắc trực tiếp đến 'Node.js'/'JavaScript'/'Express'.
+            - Nếu CORE_TERMS chứa 'TensorFlow' hoặc 'PyTorch', thì ÍT NHẤT 1 khóa phải nhắc trực tiếp đến framework đó.
+            - KHÔNG chọn khóa thiên về 'data analysis' chung chung hoặc công cụ khác stack nếu không phục vụ trực tiếp mục tiêu của step.
+            - Tránh khóa chỉ dạy Python/Flask khi CORE_TERMS yêu cầu Node.js/JS/Express, trừ khi minh họa nguyên tắc chuyển đổi; tối đa 1 khóa ngoại lệ như vậy.
+            - Nếu không tìm thấy khóa phù hợp cho một step, để 'suggested_courses' rỗng thay vì chèn khóa không liên quan.
 
-CHẤT LƯỢNG LỘ TRÌNH:
-- Mỗi 'step' phải có tiêu đề phản ánh trực tiếp CORE_TERMS và mục tiêu của step.
-- Mỗi 'reason' phải nêu rõ: {"khóa này hỗ trợ CORE_TERMS nào và mục tiêu nào của step"}.
-- Loại bỏ trùng lặp theo tiêu đề/URL/provider. Tổng số khóa toàn lộ trình ≤ 5.
+            CHẤT LƯỢNG LỘ TRÌNH:
+            - Mỗi 'step' phải có tiêu đề phản ánh trực tiếp CORE_TERMS và mục tiêu của step.
+            - Mỗi 'reason' phải nêu rõ: {"khóa này hỗ trợ CORE_TERMS nào và mục tiêu nào của step"}.
+            - Loại bỏ trùng lặp theo tiêu đề/URL/provider. Tổng số khóa toàn lộ trình ≤ 5.
 
-Schema JSON bắt buộc:
-{{
-  ""roadmap_title"": string,
-  ""steps"": [
-    {{
-      ""title"": string,
-      ""duration_weeks"": number,
-      ""objectives"": [string],
-      ""suggested_courses"": [
-        {{
-          ""title"": string,
-          ""link"": string,
-          ""provider"": string,
-          ""reason"": string,
-          ""level"": string,
-          ""rating"": string,
-          ""est_duration_weeks"": number
-        }}
-      ]
-    }}
-  ]
-}}
+            Schema JSON bắt buộc:
+            {{
+              ""roadmap_title"": string,
+              ""steps"": [
+                {{
+                  ""title"": string,
+                  ""duration_weeks"": number,
+                  ""objectives"": [string],
+                  ""suggested_courses"": [
+                    {{
+                      ""title"": string,
+                      ""link"": string,
+                      ""provider"": string,
+                      ""reason"": string,
+                      ""level"": string,
+                      ""rating"": string,
+                      ""est_duration_weeks"": number
+                    }}
+                  ]
+                }}
+              ]
+            }}
 
-Ràng buộc khác:
-- Không dùng bảng Markdown. Không in chữ ngoài JSON.
-- ""link"" lấy từ metadata.url nếu có; nếu không có hãy bóc link đầu tiên trong content.
-- Tối đa 5 khóa học toàn bộ.
-";
+            Ràng buộc khác:
+            - Không dùng bảng Markdown. Không in chữ ngoài JSON.
+            - ""link"" lấy từ metadata.url nếu có; nếu không có hãy bóc link đầu tiên trong content.
+            - Tối đa 5 khóa học toàn bộ.
+            ";
 
             var user = $"Câu hỏi: {question}\n\nDữ liệu:\n{context}";
 

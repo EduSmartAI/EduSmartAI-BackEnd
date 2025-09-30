@@ -5,15 +5,15 @@ using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using static AiService.Application.Contracts.AiRecommendContracts;
+using BaseService.Common.Utils.Const;
 
 namespace AiService.Application.Handler
 {
     public class AiExternalRecommendHandler(
         IAdvisorService advisorService,
-        ILogger<AiExternalRecommendHandler> _logger,
-        IRequestClient<UpdateExternalMajorEvent> _requestClient,
-        IPublishEndpoint _requestPublishEndpoint) : IRequestHandler<AiExternalCourseRequest, AiExternalCourseResponse>
+        ILogger<AiExternalRecommendHandler> logger,
+        IRequestClient<UpdateExternalMajorEvent> requestClient,
+        IPublishEndpoint requestPublishEndpoint) : IRequestHandler<AiExternalCourseRequest, AiExternalCourseResponse>
     {
         /// <summary>
         /// Handle Generate course external from external Major
@@ -24,35 +24,30 @@ namespace AiService.Application.Handler
         /// <exception cref="Exception"></exception>
         public async Task<AiExternalCourseResponse> Handle(AiExternalCourseRequest request, CancellationToken cancellationToken)
         {
+            var aiExternalCourseResponse = new AiExternalCourseResponse {Success = false};
+
             try
             {
                 var result = await advisorService.AskAsync(request.GoalMajor, 80, true, cancellationToken);
-                _logger.LogInformation("Advisor result json: {Json}", JsonSerializer.Serialize(result));
-                if (result == null)
-                {
-                    return new AiExternalCourseResponse
-                    {
-                        Success = false,
-                        Message = "There's no result",
-                        Response = new AskResponse()
-                    };
-                }
+                logger.LogInformation("Advisor result json: {Json}", JsonSerializer.Serialize(result));
+                
                 var steps = result.Roadmap?.Steps
                    ?.Select((s, idx) => new StepExternalMajorItem(
                        Order: idx + 1,
-                       Title: s.Title ?? string.Empty,
+                       Title: s.Title,
                        DurationWeeks: s.DurationWeeks,
-                       Objectives: (s.Objectives ?? new()).ToList(),
-                       SuggestedCourses: [.. (s.SuggestedCourses ?? new())
+                       Objectives: (s.Objectives).ToList(),
+                       SuggestedCourses: (s.SuggestedCourses)
                            .Select(c => new StepCourseItem(
-                               Title: c.Title ?? string.Empty,
-                               Link: c.Link ?? string.Empty,
-                               Provider: c.Provider ?? string.Empty,
-                               Reason: c.Reason ?? string.Empty,
-                               Duration: c.EstDurationWeeks.ToString() + " Tuần",
+                               Title: c.Title,
+                               Link: c.Link,
+                               Provider: c.Provider,
+                               Reason: c.Reason,
+                               Duration: c.EstDurationWeeks + " Tuần",
                                Level: c.Level
-                               ))]))
-                   .ToList() ?? [];
+                               ))
+                           .ToList()))
+                   .ToList();
 
                 var @event = new UpdateExternalMajorEvent(
                         LearningPathId: Guid.Parse(request.LearningPathId),
@@ -61,29 +56,23 @@ namespace AiService.Application.Handler
                         Reason: request.Reason,
                         Steps: steps);
 
-                var response = await _requestClient.GetResponse<UpdateExternalMajorEventResponse>(@event, cancellationToken);
-                //await _requestPublishEndpoint.Publish(@event, cancellationToken);
+                var response = await requestClient.GetResponse<UpdateExternalMajorEventResponse>(@event, cancellationToken);
                 if (!response.Message.Success)
                 {
-                    return new AiExternalCourseResponse
-                    {
-                        Success = false,
-                        Message = "There's something error",
-                        Response = new AskResponse()
-                    };
+                    aiExternalCourseResponse.SetMessage(MessageId.E00000, "Uploaded failed"); 
+                    return aiExternalCourseResponse;
                 }
 
-                return new AiExternalCourseResponse
-                {
-                    Success = true,
-                    Message = "Generate successfully",
-                    Response = result
-                };
+                aiExternalCourseResponse.Success = true;
+                aiExternalCourseResponse.SetMessage(MessageId.I00001, "Uploaded successfully");
+                aiExternalCourseResponse.Response = result;
+                return aiExternalCourseResponse;
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.ToString());
-                throw;
+                logger.LogError(ex, "Error in AiExternalRecommendHandler: {Message}", ex.Message);
+                aiExternalCourseResponse.SetMessage(MessageId.E00000, "Uploaded failed");
+                return aiExternalCourseResponse;
             }
         }
     }

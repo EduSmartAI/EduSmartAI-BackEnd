@@ -1,4 +1,6 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
@@ -12,24 +14,26 @@ using Course.Application.DTOs.QuizDTO;
 using Course.Domain.Enum;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
+using NLog;
 
 namespace Course.Infrastructure.Implements
 {
 	public class CourseService(
-		ICommandRepository<CourseEntity> _courseRepository,
-		ICommandRepository<Tag> _tagRepository,
+		ICommandRepository<CourseEntity> courseRepository,
+		ICommandRepository<Tag> tagRepository,
 		IUnitOfWork unitOfWork,
-		IDatabase _cache,
-		IIdentityService _identityService,
-		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
-		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
-		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		ISlugService _slugService,
-		ICacheKeyFactory _cacheKeyFactory,
-		ICourseCache _courseCache,
-		ICourseMapper _courseMapper,
-		IQuizGateway _quizGateway,
-		IQuizEventFactory _quizEventFactory) : ICourseService
+		IDatabase cache,
+		IIdentityService identityService,
+		IRequestClient<QuizCourseInsertEvent> quizCourseClient,
+		ICommandRepository<ModuleQuiz> moduleQuizRepository,
+		ICommandRepository<LessonQuiz> lessonQuizRepository,
+		ICommandRepository<Semester> semesterRepository,
+		ISlugService slugService,
+		ICacheKeyFactory cacheKeyFactory,
+		ICourseCache courseCache,
+		ICourseMapper courseMapper,
+		IQuizGateway quizGateway,
+		IQuizEventFactory quizEventFactory) : ICourseService
 	{
 		#region Service for Lecture & Guest
 
@@ -48,10 +52,10 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCoursesResponse() { Success = false };
 
 			// Generate cache key based on pagination and query parameters
-			var cacheKey = _cacheKeyFactory.GenerateCacheKeyForGetAll(pagination, query);
+			var cacheKey = cacheKeyFactory.GenerateCacheKeyForGetAll(pagination, query);
 
 			// Try to get from cache first
-			var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
+			var cached = await cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -135,7 +139,7 @@ namespace Course.Infrastructure.Implements
 			var pageNumber = pagination.PageIndex + 1;
 			var pageSize = pagination.PageSize;
 
-			var page = await _courseRepository.PagedAsync(
+			var page = await courseRepository.PagedAsync(
 				pageNumber: pageNumber,
 				pageSize: pageSize,
 				predicate: predicate,
@@ -147,7 +151,7 @@ namespace Course.Infrastructure.Implements
 			);
 
 			// Map entity -> DTO
-			var items = page.Items.Select(_courseMapper.ToDto).ToList();
+			var items = page.Items.Select(courseMapper.ToDto).ToList();
 
 			var result = new PaginatedResult<CourseDto>(
 				pageIndex: pagination.PageIndex,
@@ -157,7 +161,7 @@ namespace Course.Infrastructure.Implements
 			);
 
 			// Cache the result for future requests
-			await _cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
+			await cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
 
 			response.Success = true;
 			response.Response = result;
@@ -177,7 +181,7 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCourseByIdForGuestResponse() { Success = false };
 
 			var cacheKey = $"CourseDetailForGuest:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			var cached = await cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -188,7 +192,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var baseQuery = _courseRepository
+			var baseQuery = courseRepository
 				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
@@ -208,8 +212,8 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = _courseMapper.MapCourseDetailForGuest(entity);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var detail = courseMapper.MapCourseDetailForGuest(entity);
+			await cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -233,7 +237,7 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCourseBySlugForGuestResponse() { Success = false };
 
 			var cacheKey = $"CourseDetailBySlugForGuest:{Slug}";
-			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+			var cached = await cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -244,7 +248,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var baseQuery = _courseRepository
+			var baseQuery = courseRepository
 				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
@@ -264,8 +268,8 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = _courseMapper.MapCourseDetailForGuest(entity);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			var detail = courseMapper.MapCourseDetailForGuest(entity);
+			await cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -288,7 +292,7 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCourseByIdForLectureResponse() { Success = false };
 
 			var cacheKey = $"CourseDetailForLecture:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			var cached = await cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -299,7 +303,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var baseQuery = _courseRepository
+			var baseQuery = courseRepository
 				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
@@ -328,11 +332,11 @@ namespace Course.Infrastructure.Implements
 										  .Select(l => l.LessonId).ToList();
 
 			// 2) Load mapping (module->quiz, lesson->quiz)
-			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+			var moduleMaps = await moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
 												   .Select(x => new { x.ModuleId, x.QuizId })
 												   .ToListAsync(ct);
 
-			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+			var lessonMaps = await lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
 												   .Select(x => new { x.LessonId, x.QuizId })
 												   .ToListAsync(ct);
 
@@ -340,7 +344,7 @@ namespace Course.Infrastructure.Implements
 			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
 									   .Distinct().ToList();
 
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => quizGateway.FetchQuizAsync(id, ct));
 			await Task.WhenAll(quizTasks.Values);
 
 			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
@@ -348,13 +352,13 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
-			var detail = _courseMapper.MapCourseDetailForLecture(
+			var detail = courseMapper.MapCourseDetailForLecture(
 							entity,
 							moduleQuizIdByModuleId,
 							lessonQuizIdByLessonId,
 							quizDict
 						);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			await cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -378,7 +382,7 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCourseBySlugForLectureResponse() { Success = false };
 
 			var cacheKey = $"CourseDetailBySlugForLecture:{Slug}";
-			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+			var cached = await cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -389,7 +393,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var baseQuery = _courseRepository
+			var baseQuery = courseRepository
 				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
@@ -418,11 +422,11 @@ namespace Course.Infrastructure.Implements
 										  .Select(l => l.LessonId).ToList();
 
 			// 2) Load mapping (module->quiz, lesson->quiz)
-			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+			var moduleMaps = await moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
 												   .Select(x => new { x.ModuleId, x.QuizId })
 												   .ToListAsync(ct);
 
-			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+			var lessonMaps = await lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
 												   .Select(x => new { x.LessonId, x.QuizId })
 												   .ToListAsync(ct);
 
@@ -430,7 +434,7 @@ namespace Course.Infrastructure.Implements
 			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
 									   .Distinct().ToList();
 
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => quizGateway.FetchQuizAsync(id, ct));
 			await Task.WhenAll(quizTasks.Values);
 
 			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
@@ -438,14 +442,14 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
-			var detail = _courseMapper.MapCourseDetailForLecture(
+			var detail = courseMapper.MapCourseDetailForLecture(
 							entity,
 							moduleQuizIdByModuleId,
 							lessonQuizIdByLessonId,
 							quizDict
 						);
 
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+			await cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 
@@ -468,11 +472,11 @@ namespace Course.Infrastructure.Implements
 			var response = new CreateCourseResponse() { Success = false };
 
 			// Get current user id
-			var currentUser = _identityService.GetCurrentUser()!;
+			var currentUser = identityService.GetCurrentUser()!;
 
 			var title = dto.Title?.Trim();
 
-			var slug = await _slugService.GenerateUniqueSlugAsync(dto.Title!, ct);
+			var slug = await slugService.GenerateUniqueSlugAsync(dto.Title!, ct);
 
 			var course = new CourseEntity
 			{
@@ -694,7 +698,7 @@ namespace Course.Infrastructure.Implements
 
 			await unitOfWork.BeginTransactionAsync(async () =>
 						{
-							await _courseRepository.AddAsync(course, currentUser.Email);
+							await courseRepository.AddAsync(course, currentUser.Email);
 							await unitOfWork.SaveChangesAsync(ct);
 
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
@@ -707,12 +711,12 @@ namespace Course.Infrastructure.Implements
 
 			foreach (var (moduleId, quizDto) in pendingModuleQuizzes)
 			{
-				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
+				var payload = quizEventFactory.ToQuizCourseInsertEvent(
 					currentUser.Email,
 					quizDto
 				);
 
-				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+				var resp = await quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
 
 				if (!resp.Message.Success)
 					throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
@@ -721,7 +725,7 @@ namespace Course.Infrastructure.Implements
 				if (quizId == Guid.Empty)
 					throw new InvalidOperationException("QuizId is empty.");
 
-				await _moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
+				await moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
 				await unitOfWork.SaveChangesAsync(ct);
 
 
@@ -730,12 +734,12 @@ namespace Course.Infrastructure.Implements
 			// Lesson-level
 			foreach (var (moduleId, lessonId, quizDto) in pendingLessonQuizzes)
 			{
-				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
+				var payload = quizEventFactory.ToQuizCourseInsertEvent(
 					currentUser.Email,
 					quizDto
 				);
 
-				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+				var resp = await quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
 
 				if (!resp.Message.Success)
 					throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
@@ -744,15 +748,15 @@ namespace Course.Infrastructure.Implements
 				if (quizId == Guid.Empty)
 					throw new InvalidOperationException("QuizId is empty.");
 
-				await _lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
+				await lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
 				await unitOfWork.SaveChangesAsync(ct);
 
 			}
 
 
 			// Clear cache after successful creation
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
+			await courseCache.ClearGetAllCacheAsync();
+			await courseCache.ClearCourseTagsCacheAsync();
 
 			response.Response = course.CourseId.ToString();
 			response.Success = true;
@@ -776,7 +780,7 @@ namespace Course.Infrastructure.Implements
 			ValidateCourseDetailPositionIndexes(dto);
 
 			// 2. Get existing course with all related data
-			var existingCourse = await _courseRepository
+			var existingCourse = await courseRepository
 				.Find(x => x.CourseId == courseId, isTracking: true, ct,
 					x => x.CourseObjectives,
 					x => x.CourseRequirements,
@@ -790,7 +794,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var currentUser = _identityService.GetCurrentUser()!;
+			var currentUser = identityService.GetCurrentUser()!;
 
 			// 3. Update basic course properties
 			existingCourse.TeacherId = dto.TeacherId;
@@ -811,7 +815,7 @@ namespace Course.Infrastructure.Implements
 				var newSlug = dto.Slug.Trim();
 				if (newSlug != existingCourse.Slug)
 				{
-					existingCourse.Slug = await _slugService.EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
+					existingCourse.Slug = await slugService.EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
 				}
 			}
 
@@ -832,7 +836,7 @@ namespace Course.Infrastructure.Implements
 				// 7. Save changes in transaction
 				await unitOfWork.BeginTransactionAsync(async () =>
 				{
-					_courseRepository.Update(existingCourse, currentUser.Email);
+					courseRepository.Update(existingCourse, currentUser.Email);
 					await unitOfWork.SaveChangesAsync(ct);
 					return true;
 				}, ct);
@@ -850,8 +854,8 @@ namespace Course.Infrastructure.Implements
 
 
 			// 8. Clear cache after successful update
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
+			await courseCache.ClearGetAllCacheAsync();
+			await courseCache.ClearCourseTagsCacheAsync();
 
 			// 9. Return updated course detail
 			response.Success = true;
@@ -873,7 +877,7 @@ namespace Course.Infrastructure.Implements
 			ValidateCourseModulesPositionIndexes(dto);
 
 			// 2. Get existing course with all modules and related data
-			var existingCourse = await _courseRepository
+			var existingCourse = await courseRepository
 				.Find(x => x.CourseId == courseId, isTracking: true, ct,
 					x => x.Modules)
 				.Include(x => x.Modules)
@@ -892,7 +896,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = identityService.GetCurrentUser();
 
 			if (currentUser is null)
 			{
@@ -910,14 +914,14 @@ namespace Course.Infrastructure.Implements
 			// 4. Save changes in transaction
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
-				_courseRepository.Update(existingCourse, currentUser.Email);
+				courseRepository.Update(existingCourse, currentUser.Email);
 				await unitOfWork.SaveChangesAsync(ct);
 				return true;
 			}, ct);
 
 			// 5. Clear cache after successful update
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
+			await courseCache.ClearGetAllCacheAsync();
+			await courseCache.ClearCourseTagsCacheAsync();
 
 			// 6. Return response
 			response.Success = true;
@@ -939,7 +943,7 @@ namespace Course.Infrastructure.Implements
 			var cacheKey = "CourseTags:GetAll";
 
 			// get from cache first
-			var cached = await _cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
+			var cached = await cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
 			if (cached is not null)
 			{
 				response.Success = true;
@@ -949,7 +953,7 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// get from database
-			var tags = await _tagRepository
+			var tags = await tagRepository
 				.Find(predicate: null, isTracking: false, cancellationToken: ct)
 				.Select(t => new CourseTagDetailsDto(
 					t.TagId,
@@ -958,7 +962,7 @@ namespace Course.Infrastructure.Implements
 				.ToListAsync(ct);
 
 			// Cache the result for future requests
-			await _cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
+			await cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
@@ -967,6 +971,59 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Get course selects response QuizService
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(CoursesSelectEvent request, CancellationToken ct = default)
+		{
+			var response = new CoursesSelectEventResponse { Success = false };
+
+			// 1. Get Semester Number from SemesterId
+			var startSemester = await semesterRepository
+				.Find(s => s.SemesterId == request.SemesterId)
+				.Select(s => s!.SemesterNumber)
+				.FirstOrDefaultAsync(cancellationToken: ct);
+
+			// 2. Get all SemesterIds from startSemester to the latest
+			var semesterIds = await semesterRepository
+				.Find(s => s.SemesterNumber >= startSemester)
+				.Select(s => s!.SemesterId)
+				.ToListAsync(cancellationToken: ct);
+
+			// 3. Select Courses matching MajorCodes + SemesterIds
+			var coursesQuery = courseRepository.Find(
+				predicate: c => c.Subject.SyllabusSubjects.Any(ss =>
+					semesterIds.Contains(ss.SemesterId) &&
+					request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode)),
+				includes: c => c.Subject.SyllabusSubjects
+			);
+
+			// 4. Apply soft limit (~10% more) to avoid long processing time
+			var softLimit = (int) (request.LimitTime * 1.1);
+
+			// 5. Group by MajorCode and select CourseIds
+			var groupedCourses = await coursesQuery
+				.Take(softLimit)
+				.GroupBy(c => c.Subject.SyllabusSubjects
+					.Select(ss => ss.Syllabus.Major.MajorCode)
+					.FirstOrDefault())
+				.Select(g => new CoursesSelectEventResponseEntity
+				{
+					MajorCode = g.Key!,
+					CourseCodeIds = g.Select(c => c!.CourseId).ToList()
+				})
+				.ToListAsync(cancellationToken: ct);
+
+			// 6. Build response
+			response.Success = true;
+			response.Response = groupedCourses;
+			response.SetMessage(MessageId.I00001, "Lấy dữ liệu select thành công");
+			return response;
+		}
+		
 		#endregion
 
 		#region Private Helper Methods
@@ -1227,7 +1284,7 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// 2) Validate các TagId có tồn tại trong bảng Tag
-			var existedTagIds = await _tagRepository
+			var existedTagIds = await tagRepository
 				.Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
 				.Select(t => t.TagId)
 				.ToListAsync(ct);

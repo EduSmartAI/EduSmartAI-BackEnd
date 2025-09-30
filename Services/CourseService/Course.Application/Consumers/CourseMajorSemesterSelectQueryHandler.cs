@@ -1,5 +1,5 @@
 using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 
 namespace Course.Application.Consumers;
 
@@ -38,8 +38,8 @@ public class CourseMajorSemesterSelectQueryHandler : IQueryHandler<CourseMajorSe
         }
         
         // Get Semester Name
-        var semesterName = await _semesterService.SelectSemesterAsync(request.SemesterId, cancellationToken);
-        if (string.IsNullOrEmpty(semesterName))
+        var semester = await _semesterService.SelectSemesterAsync(request.SemesterId, cancellationToken);
+        if (semester == null)
         {
             response.SetMessage(MessageId.E00000, "Kỳ học không tồn tại");
             return response;
@@ -49,7 +49,8 @@ public class CourseMajorSemesterSelectQueryHandler : IQueryHandler<CourseMajorSe
         response.Response = new CourseMajorSemesterSelectEventResponseEntity
         {
             MajorName = majorName,
-            SemesterName = semesterName
+            SemesterName = semester.SemesterName,
+            SemesterNumber = semester.SemesterNumber
         };
         
         // True

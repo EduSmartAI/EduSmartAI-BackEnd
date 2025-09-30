@@ -48,6 +48,8 @@ public static class RepositoryExtensions
         services.AddScoped<IStudentTestService, StudentTestService>();
         services.AddScoped<IStudentQuizService, StudentQuizService>();
         services.AddScoped<IQuizCourseService, QuizCourseService>();
+        services.AddScoped<IQuizSurveyService, QuizSurveyService>();
+        services.AddScoped<IStudentSurveyService, StudentSurveyService>();
         
         // MediatR configuration
         services.AddMediatR(cfg =>

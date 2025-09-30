@@ -26,22 +26,28 @@ public class MajorService(ICommandRepository<Major> commandRepository) : IMajorS
         var response = new MajorSelectsEventResponse { Success = false };
         
         // Get data
-        var query = await commandRepository
-            .Find(x => x.IsActive, isTracking: false)
+        var majorsQuery = commandRepository.Find(x => x.IsActive, isTracking: false);
+
+        if (request.MajorCodes != null && request.MajorCodes.Any())
+        {
+            majorsQuery = majorsQuery.Where(x => request.MajorCodes.Contains(x.MajorCode));
+        }
+
+        var query = await majorsQuery
             .Select(x => new MajorSelectsEventResponseEntity
             {
                 MajorId = x.MajorId,
                 MajorName = x.MajorName,
                 MajorCode = x.MajorCode,
-                ParentMajorId = x.ParentMajorId 
+                ParentMajorId = x.ParentMajorId
             })
             .ToListAsync(cancellationToken: cancellationToken);
+
         if (!query.Any())
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy chuyên ngành nào");
             return response;
-        }
-        
+        }        
         // True
         response.Success = true;
         response.Response = query;

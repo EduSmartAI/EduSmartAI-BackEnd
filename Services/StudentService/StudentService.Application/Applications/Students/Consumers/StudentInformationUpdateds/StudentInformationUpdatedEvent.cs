@@ -8,7 +8,6 @@ public class StudentInformationUpdatedEvent
     
     public List<StudentTechnologyCollection> StudentTechnologies { get; set; } = default!;
     public StudentLearningGoalCollection StudentLearningGoal { get; set; }
-    public List<StudentOrientationCollection> StudentOrientations { get; set; }
 }
 
 public class StudentEvent

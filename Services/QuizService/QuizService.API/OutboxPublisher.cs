@@ -1,7 +1,6 @@
 using System.Text.Json;
 using BaseService.Common.Utils;
 using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
-using BuildingBlocks.Messaging.Events.QuizService.StudentTechnologyOrientationEvents;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;

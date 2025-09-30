@@ -1,4 +1,6 @@
-﻿using BaseService.Common.Utils.Const;
+﻿using AiService.Application.Interfaces;
+using AiService.Infrastructure.Implements;
+using BaseService.Common.Utils.Const;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Chat;
@@ -61,6 +63,8 @@ namespace AiService.API.Extensions
                 var root = sp.GetRequiredService<OpenAIClient>();
                 return root.GetAudioClient(o.AudioModel);
             });
+
+            services.AddScoped<ISurveyAnalysis, SurveyAnalysisService>();
 
             return services;
         }

@@ -1,6 +1,6 @@
 using BaseService.Common.ApiEntities;
 
-namespace BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService;
 
 public record CourseMajorSemesterSelectEventResponse : AbstractApiResponse<CourseMajorSemesterSelectEventResponseEntity>
 {

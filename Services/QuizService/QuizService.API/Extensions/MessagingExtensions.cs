@@ -3,6 +3,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
+using QuizService.Application.Applications.Consumers;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 
@@ -24,6 +25,8 @@ public static class MessagingExtensions
             x.AddConsumer<QuizCourseCollectionInsertConsumer>();
             x.AddConsumer<QuizCourseSelectConsumer>();
 			x.AddConsumer<QuizCourseInsertConsumer>();
+			x.AddConsumer<StudentStudyTimeConsumer>();
+            
 			x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>

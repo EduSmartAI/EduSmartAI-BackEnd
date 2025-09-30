@@ -22,11 +22,6 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
         }
         unitOfWork.Store(student);
         
-        foreach (var orientation in message.StudentOrientations)
-        {
-            unitOfWork.Store(orientation);
-        }
-
         foreach (var tech in message.StudentTechnologies)
         {
             unitOfWork.Store(tech);

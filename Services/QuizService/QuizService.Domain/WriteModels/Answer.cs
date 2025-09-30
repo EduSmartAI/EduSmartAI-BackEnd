@@ -23,6 +23,8 @@ public partial class Answer
 
     public bool IsActive { get; set; }
 
+    public virtual ICollection<AnswerRule> AnswerRules { get; set; } = new List<AnswerRule>();
+
     public virtual Question Question { get; set; } = null!;
 
     public virtual ICollection<StudentAnswer> StudentAnswers { get; set; } = new List<StudentAnswer>();

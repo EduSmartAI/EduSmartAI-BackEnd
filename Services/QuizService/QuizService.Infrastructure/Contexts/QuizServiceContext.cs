@@ -4,17 +4,8 @@ using QuizService.Domain.WriteModels;
 
 namespace QuizService.Infrastructure.Contexts;
 
-public partial class QuizServiceContext : AppDbContext
+public partial class QuizServiceContext(DbContextOptions options) : AppDbContext(options)
 {
-    public QuizServiceContext(DbContextOptions<QuizServiceContext> options)
-        : base(options)
-    {
-    }
-
-    public virtual DbSet<Answer> Answers { get; set; }
-
-    public virtual DbSet<CourseQuizSetting> CourseQuizSettings { get; set; }
-
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<PlacementTestQuizSetting> PlacementTestQuizSettings { get; set; }
@@ -37,6 +28,7 @@ public partial class QuizServiceContext : AppDbContext
 
     public virtual DbSet<Test> Tests { get; set; }
     
+    public virtual DbSet<AnswerRule> AnswerRules { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -64,6 +56,40 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasOne(d => d.Question).WithMany(p => p.Answers)
                 .HasForeignKey(d => d.QuestionId)
                 .HasConstraintName("answers_question_id_fkey");
+        });
+
+        modelBuilder.Entity<AnswerRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId).HasName("answer_rules_pkey");
+
+            entity.ToTable("answer_rules");
+
+            entity.Property(e => e.RuleId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("rule_id");
+            entity.Property(e => e.AnswerId).HasColumnName("answer_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.Formula).HasColumnName("formula");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.MappedField)
+                .HasMaxLength(100)
+                .HasColumnName("mapped_field");
+            entity.Property(e => e.NumericMax).HasColumnName("numeric_max");
+            entity.Property(e => e.NumericMin).HasColumnName("numeric_min");
+            entity.Property(e => e.Unit)
+                .HasMaxLength(50)
+                .HasColumnName("unit");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Answer).WithMany(p => p.AnswerRules)
+                .HasForeignKey(d => d.AnswerId)
+                .HasConstraintName("answer_rules_answer_id_fkey");
         });
 
         modelBuilder.Entity<CourseQuizSetting>(entity =>
@@ -96,7 +122,7 @@ public partial class QuizServiceContext : AppDbContext
                 .HasForeignKey<CourseQuizSetting>(d => d.QuizId)
                 .HasConstraintName("course_quiz_settings_quiz_id_fkey");
         });
-        
+
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -138,16 +164,16 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.SubjectCode).HasColumnName("subject_code");
+            entity.Property(e => e.Title)
+                .HasMaxLength(255)
+                .HasColumnName("title");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
-            entity.Property(e => e.Title)
-                .HasMaxLength(255)
-                .HasColumnName("title");
-            entity.Property(e => e.Description).HasColumnName("description");
 
             entity.HasOne(d => d.Quiz).WithOne(p => p.PlacementTestQuizSetting)
                 .HasForeignKey<PlacementTestQuizSetting>(d => d.QuizId)
@@ -355,16 +381,16 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
+            entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.SurveyTypeId).HasColumnName("survey_type_id");
+            entity.Property(e => e.Title)
+                .HasMaxLength(255)
+                .HasColumnName("title");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
-            entity.Property(e => e.Title)
-                .HasMaxLength(255)
-                .HasColumnName("title");
-            entity.Property(e => e.Description).HasColumnName("description");
 
             entity.HasOne(d => d.Quiz).WithOne(p => p.SurveyQuizSetting)
                 .HasForeignKey<SurveyQuizSetting>(d => d.QuizId)
