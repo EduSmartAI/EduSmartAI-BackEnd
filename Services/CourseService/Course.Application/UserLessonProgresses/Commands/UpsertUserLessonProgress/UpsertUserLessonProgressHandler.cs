@@ -1,4 +1,4 @@
-﻿namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress
+﻿namespace Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress
 {
 	public class UpsertUserLessonProgressHandler(IStudentProgressService _studentProgressService) : ICommandHandler<UpsertUserLessonProgressCommand, UpsertUserLessonProgressResponse>
 	{

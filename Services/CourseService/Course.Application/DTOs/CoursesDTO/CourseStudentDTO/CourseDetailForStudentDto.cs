@@ -1,5 +1,4 @@
-﻿using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
+﻿using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 
 namespace Course.Application.DTOs.CoursesDTO.CourseStudentDTO
 {
@@ -13,13 +12,13 @@ namespace Course.Application.DTOs.CoursesDTO.CourseStudentDTO
 		string? Slug,
 		string? CourseImageUrl,
 		int LearnerCount,
-		string VideoUrl,
-		int VideoDurationSec,
+		//string VideoUrl,
+		//int VideoDurationSec,
 		int? DurationMinutes,
 		decimal? DurationHours,
 		short? Level,
-		decimal Price,
-		decimal? DealPrice,
+		//decimal Price,
+		//decimal? DealPrice,
 		bool IsActive,
 		DateTime CreatedAt,
 		DateTime UpdatedAt,
@@ -31,7 +30,7 @@ namespace Course.Application.DTOs.CoursesDTO.CourseStudentDTO
 		List<CourseRatingDto> Ratings,
 		int RatingsCount,
 		double RatingsAverage,
-		CourseProgressDto Progress,
-		ContinueHintDto? Continue
+		CourseProgressDto Progress
+	//ContinueHintDto? Continue
 	);
 }
