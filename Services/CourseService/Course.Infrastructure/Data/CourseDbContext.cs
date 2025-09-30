@@ -21,10 +21,6 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseComment> CourseComments { get; set; }
 
-    public virtual DbSet<CourseDiscussion> CourseDiscussions { get; set; }
-
-    public virtual DbSet<CourseMaterial> CourseMaterials { get; set; }
-
     public virtual DbSet<CourseObjective> CourseObjectives { get; set; }
 
     public virtual DbSet<CourseRating> CourseRatings { get; set; }
@@ -67,7 +63,15 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<Tag> Tags { get; set; }
 
+    public virtual DbSet<UserCourseProgress> UserCourseProgresses { get; set; }
+
     public virtual DbSet<UserLessonProgress> UserLessonProgresses { get; set; }
+
+    public virtual DbSet<UserModuleProgress> UserModuleProgresses { get; set; }
+
+    public virtual DbSet<VUserCourseProgress> VUserCourseProgresses { get; set; }
+
+    public virtual DbSet<VUserModuleProgress> VUserModuleProgresses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -227,90 +231,6 @@ public partial class CourseDbContext : AppDbContext
                 .HasForeignKey(d => d.ParentCommentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_comments_parent");
-        });
-
-        modelBuilder.Entity<CourseDiscussion>(entity =>
-        {
-            entity.HasKey(e => e.DiscussionId).HasName("course_discussions_pkey");
-
-            entity.ToTable("course_discussions");
-
-            entity.HasIndex(e => e.CourseId, "idx_course_discussions_course");
-
-            entity.HasIndex(e => e.IsActive, "idx_course_discussions_is_active");
-
-            entity.Property(e => e.DiscussionId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("discussion_id");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("created_by");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.DiscussionQuestion)
-                .IsRequired()
-                .HasColumnName("discussion_question");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.Title)
-                .IsRequired()
-                .HasMaxLength(200)
-                .HasColumnName("title");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
-
-            entity.HasOne(d => d.Course).WithMany(p => p.CourseDiscussions)
-                .HasForeignKey(d => d.CourseId)
-                .HasConstraintName("fk_discussions_course");
-        });
-
-        modelBuilder.Entity<CourseMaterial>(entity =>
-        {
-            entity.HasKey(e => e.MaterialId).HasName("course_materials_pkey");
-
-            entity.ToTable("course_materials");
-
-            entity.HasIndex(e => e.CourseId, "idx_course_materials_course");
-
-            entity.HasIndex(e => e.IsActive, "idx_course_materials_is_active");
-
-            entity.Property(e => e.MaterialId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("material_id");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("created_by");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.FileUrl).HasColumnName("file_url");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.Title)
-                .IsRequired()
-                .HasMaxLength(200)
-                .HasColumnName("title");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
-
-            entity.HasOne(d => d.Course).WithMany(p => p.CourseMaterials)
-                .HasForeignKey(d => d.CourseId)
-                .HasConstraintName("fk_materials_course");
         });
 
         modelBuilder.Entity<CourseObjective>(entity =>
@@ -475,6 +395,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.HasIndex(e => e.UserId, "idx_cse_user");
 
+            entity.HasIndex(e => new { e.CourseId, e.UserId }, "idx_enroll_active").HasFilter("is_active");
+
             entity.HasIndex(e => new { e.UserId, e.CourseId }, "uq_cse_user_course_active")
                 .IsUnique()
                 .HasFilter("(is_active = true)");
@@ -541,6 +463,8 @@ public partial class CourseDbContext : AppDbContext
             entity.HasIndex(e => e.IsActive, "idx_lessons_is_active");
 
             entity.HasIndex(e => e.ModuleId, "idx_lessons_module");
+
+            entity.HasIndex(e => e.ModuleId, "idx_lessons_module_active").HasFilter("is_active");
 
             entity.HasIndex(e => new { e.ModuleId, e.PositionIndex }, "uq_lessons_module_position_active")
                 .IsUnique()
@@ -648,6 +572,8 @@ public partial class CourseDbContext : AppDbContext
             entity.ToTable("modules");
 
             entity.HasIndex(e => e.CourseId, "idx_modules_course");
+
+            entity.HasIndex(e => e.CourseId, "idx_modules_course_active").HasFilter("is_active");
 
             entity.HasIndex(e => e.IsActive, "idx_modules_is_active");
 
@@ -1096,6 +1022,50 @@ public partial class CourseDbContext : AppDbContext
                 .HasColumnName("tag_name");
         });
 
+        modelBuilder.Entity<UserCourseProgress>(entity =>
+        {
+            entity.HasKey(e => e.UserCourseProgressId).HasName("user_course_progress_pkey");
+
+            entity.ToTable("user_course_progress");
+
+            entity.HasIndex(e => e.CourseId, "idx_ucp_course");
+
+            entity.HasIndex(e => e.UserId, "idx_ucp_user");
+
+            entity.HasIndex(e => new { e.UserId, e.CourseId }, "uq_user_course").IsUnique();
+
+            entity.Property(e => e.UserCourseProgressId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("user_course_progress_id");
+            entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.LessonsCompleted)
+                .HasDefaultValue(0)
+                .HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal)
+                .HasDefaultValue(0)
+                .HasColumnName("lessons_total");
+            entity.Property(e => e.PercentCompleted)
+                .HasPrecision(5, 2)
+                .HasComputedColumnSql("\nCASE\n    WHEN (lessons_total = 0) THEN (0)::numeric\n    ELSE round((((lessons_completed)::numeric * 100.0) / (lessons_total)::numeric), 2)\nEND", true)
+                .HasColumnName("percent_completed");
+            entity.Property(e => e.StartedAt).HasColumnName("started_at");
+            entity.Property(e => e.Status)
+                .HasDefaultValue((short)0)
+                .HasColumnName("status");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Course).WithMany(p => p.UserCourseProgresses)
+                .HasForeignKey(d => d.CourseId)
+                .HasConstraintName("user_course_progress_course_id_fkey");
+        });
+
         modelBuilder.Entity<UserLessonProgress>(entity =>
         {
             entity.HasKey(e => e.UserLessonProgressId).HasName("user_lesson_progress_pkey");
@@ -1105,6 +1075,8 @@ public partial class CourseDbContext : AppDbContext
             entity.HasIndex(e => e.LessonId, "idx_progress_lesson");
 
             entity.HasIndex(e => e.UserId, "idx_progress_user");
+
+            entity.HasIndex(e => new { e.UserId, e.LessonId }, "idx_ulp_user_lesson");
 
             entity.HasIndex(e => new { e.UserId, e.LessonId }, "uq_progress_user_lesson").IsUnique();
 
@@ -1118,6 +1090,9 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.DurationWatchedSec)
                 .HasDefaultValue(0)
                 .HasColumnName("duration_watched_sec");
+            entity.Property(e => e.LastPositionSec)
+                .HasDefaultValue(0)
+                .HasColumnName("last_position_sec");
             entity.Property(e => e.LessonId).HasColumnName("lesson_id");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
@@ -1128,6 +1103,76 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Lesson).WithMany(p => p.UserLessonProgresses)
                 .HasForeignKey(d => d.LessonId)
                 .HasConstraintName("fk_progress_lesson");
+        });
+
+        modelBuilder.Entity<UserModuleProgress>(entity =>
+        {
+            entity.HasKey(e => e.UserModuleProgressId).HasName("user_module_progress_pkey");
+
+            entity.ToTable("user_module_progress");
+
+            entity.HasIndex(e => e.ModuleId, "idx_ump_module");
+
+            entity.HasIndex(e => e.UserId, "idx_ump_user");
+
+            entity.HasIndex(e => new { e.UserId, e.ModuleId }, "uq_user_module").IsUnique();
+
+            entity.Property(e => e.UserModuleProgressId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("user_module_progress_id");
+            entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.LessonsCompleted)
+                .HasDefaultValue(0)
+                .HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal)
+                .HasDefaultValue(0)
+                .HasColumnName("lessons_total");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.PercentCompleted)
+                .HasPrecision(5, 2)
+                .HasComputedColumnSql("\nCASE\n    WHEN (lessons_total = 0) THEN (0)::numeric\n    ELSE round((((lessons_completed)::numeric * 100.0) / (lessons_total)::numeric), 2)\nEND", true)
+                .HasColumnName("percent_completed");
+            entity.Property(e => e.StartedAt).HasColumnName("started_at");
+            entity.Property(e => e.Status)
+                .HasDefaultValue((short)0)
+                .HasColumnName("status");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Module).WithMany(p => p.UserModuleProgresses)
+                .HasForeignKey(d => d.ModuleId)
+                .HasConstraintName("user_module_progress_module_id_fkey");
+        });
+
+        modelBuilder.Entity<VUserCourseProgress>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_user_course_progress");
+
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.LessonsCompleted).HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal).HasColumnName("lessons_total");
+            entity.Property(e => e.PercentCompleted).HasColumnName("percent_completed");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+        });
+
+        modelBuilder.Entity<VUserModuleProgress>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_user_module_progress");
+
+            entity.Property(e => e.LessonsCompleted).HasColumnName("lessons_completed");
+            entity.Property(e => e.LessonsTotal).HasColumnName("lessons_total");
+            entity.Property(e => e.ModuleId).HasColumnName("module_id");
+            entity.Property(e => e.PercentCompleted).HasColumnName("percent_completed");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
         });
 
         OnModelCreatingPartial(modelBuilder);

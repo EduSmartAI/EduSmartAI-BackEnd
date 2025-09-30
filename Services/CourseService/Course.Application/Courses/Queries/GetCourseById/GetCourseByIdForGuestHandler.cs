@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.Courses.Queries.GetCourseById
+﻿namespace Course.Application.Courses.Queries.GetCourseById
 {
 	public class GetCourseByIdForGuestHandler(ICourseService courseService) : IQueryHandler<GetCourseByIdForGuestQuery, GetCourseByIdForGuestResponse>
 	{

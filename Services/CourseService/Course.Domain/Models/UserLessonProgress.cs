@@ -13,15 +13,17 @@ public partial class UserLessonProgress
 
     public Guid LessonId { get; set; }
 
-    public short Status { get; set; }
+    public short Status { get; set; } // 0 - Not Started, 1 - In Progress, 2 - Completed
 
-    public DateTime? CompletedAt { get; set; }
+	public DateTime? CompletedAt { get; set; }
 
     public int DurationWatchedSec { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
+
+    public int? LastPositionSec { get; set; }
 
     public virtual Lesson Lesson { get; set; }
 }

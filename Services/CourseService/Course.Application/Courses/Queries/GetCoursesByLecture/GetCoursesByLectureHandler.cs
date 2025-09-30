@@ -1,6 +1,3 @@
-using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
 namespace Course.Application.Courses.Queries.GetCoursesByLecture
 {
 	public class GetCoursesByLectureHandler(ICourseService _courseService) : IQueryHandler<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse>

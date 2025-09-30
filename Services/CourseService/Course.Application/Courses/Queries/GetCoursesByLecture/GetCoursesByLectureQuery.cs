@@ -1,5 +1,3 @@
-using BaseService.Common.ApiEntities;
-using BuildingBlocks.CQRS;
 using BuildingBlocks.Pagination;
 using Course.Application.DTOs.CoursesDTO;
 

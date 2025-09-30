@@ -1,6 +1,4 @@
 using BuildingBlocks.Messaging.Events.QuizService.CourseMajorSemesterSelectEvents;
-using MassTransit;
-using MediatR;
 
 namespace Course.Application.Consumers;
 

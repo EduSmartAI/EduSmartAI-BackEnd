@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
-namespace Course.Application.Courses.Queries.GetCourseBySlug
+﻿namespace Course.Application.Courses.Queries.GetCourseBySlug
 {
 	public class GetCourseBySlugForLectureHandler(ICourseService courseService) : IQueryHandler<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse>
 	{

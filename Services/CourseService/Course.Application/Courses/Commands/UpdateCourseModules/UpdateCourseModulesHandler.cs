@@ -1,6 +1,3 @@
-using BuildingBlocks.CQRS;
-using Course.Application.Interfaces;
-
 namespace Course.Application.Courses.Commands.UpdateCourseModules
 {
 	internal class UpdateCourseModulesHandler(ICourseService courseService) : ICommandHandler<UpdateCourseModulesCommand, UpdateCourseModulesResponse>

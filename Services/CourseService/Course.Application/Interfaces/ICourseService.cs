@@ -1,9 +1,7 @@
 ﻿using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
-using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
-using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
@@ -29,10 +27,6 @@ namespace Course.Application.Interfaces
 		Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default);
 
 		Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default);
-
-		Task<CheckEnrollmentResponse> CheckEnrollmentAsync(Guid courseId, CancellationToken ct = default);
-
-		Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default);
 
 		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
 	}

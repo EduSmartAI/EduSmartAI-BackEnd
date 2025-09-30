@@ -1,43 +1,22 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
-using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
-using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
-using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using Course.Application.Courses.Commands.CreateCourse;
-using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
-using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
-using Course.Application.DTOs.LessonsDTO;
-using Course.Application.DTOs.ModulesDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleDiscussionDTO;
-using Course.Application.DTOs.ModulesDTO.ModuleMaterialDTO;
 using Course.Application.DTOs.QuizDTO;
-using Course.Application.Interfaces;
 using Course.Domain.Enum;
-using Course.Domain.Models;
-using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
-using FluentValidation;
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
-using System.Linq.Expressions;
 
 namespace Course.Infrastructure.Implements
 {
 	public class CourseService(
 		ICommandRepository<CourseEntity> _courseRepository,
-		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
-		IQueryRepository<CourseStudentEnrollmentCollection> _enrollmentQueryRepository,
 		ICommandRepository<Tag> _tagRepository,
 		IUnitOfWork unitOfWork,
 		IDatabase _cache,
@@ -45,8 +24,15 @@ namespace Course.Infrastructure.Implements
 		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		IRequestClient<QuizCourseSelectEvent> _quizSelectClient) : ICourseService
+		ISlugService _slugService,
+		ICacheKeyFactory _cacheKeyFactory,
+		ICourseCache _courseCache,
+		ICourseMapper _courseMapper,
+		IQuizGateway _quizGateway,
+		IQuizEventFactory _quizEventFactory) : ICourseService
 	{
+		#region Service for Lecture & Guest
+
 		/// <summary>
 		/// Get all courses with pagination and optional filtering
 		/// </summary>
@@ -62,7 +48,7 @@ namespace Course.Infrastructure.Implements
 			var response = new GetCoursesResponse() { Success = false };
 
 			// Generate cache key based on pagination and query parameters
-			var cacheKey = GenerateCacheKeyForGetAll(pagination, query);
+			var cacheKey = _cacheKeyFactory.GenerateCacheKeyForGetAll(pagination, query);
 
 			// Try to get from cache first
 			var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
@@ -161,7 +147,7 @@ namespace Course.Infrastructure.Implements
 			);
 
 			// Map entity -> DTO
-			var items = page.Items.Select(MapToDto).ToList();
+			var items = page.Items.Select(_courseMapper.ToDto).ToList();
 
 			var result = new PaginatedResult<CourseDto>(
 				pageIndex: pagination.PageIndex,
@@ -222,7 +208,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = MapCourseDetailForGuest(entity);
+			var detail = _courseMapper.MapCourseDetailForGuest(entity);
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
@@ -278,7 +264,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			var detail = MapCourseDetailForGuest(entity);
+			var detail = _courseMapper.MapCourseDetailForGuest(entity);
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
 			var modulesCount = entity.Modules.Count(m => m.IsActive);
 			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
@@ -354,7 +340,7 @@ namespace Course.Infrastructure.Implements
 			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
 									   .Distinct().ToList();
 
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
 			await Task.WhenAll(quizTasks.Values);
 
 			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
@@ -362,7 +348,7 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
-			var detail = MapCourseDetailForLecture(
+			var detail = _courseMapper.MapCourseDetailForLecture(
 							entity,
 							moduleQuizIdByModuleId,
 							lessonQuizIdByLessonId,
@@ -444,7 +430,7 @@ namespace Course.Infrastructure.Implements
 			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
 									   .Distinct().ToList();
 
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => FetchQuizAsync(id, ct));
+			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
 			await Task.WhenAll(quizTasks.Values);
 
 			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
@@ -452,7 +438,7 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
-			var detail = MapCourseDetailForLecture(
+			var detail = _courseMapper.MapCourseDetailForLecture(
 							entity,
 							moduleQuizIdByModuleId,
 							lessonQuizIdByLessonId,
@@ -472,106 +458,6 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Check if current user is enrolled in a course
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<CheckEnrollmentResponse> CheckEnrollmentAsync(Guid courseId, CancellationToken ct = default)
-		{
-			var response = new CheckEnrollmentResponse() { Success = false };
-
-			// Get current user id from token
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			var cacheKey = $"enroll:status:{currentUser.UserId}:{courseId}";
-
-			// Check if user is enrolled in the course
-			var enrollment = await _enrollmentQueryRepository.GetOrSetAsync(
-				cacheKey,
-				() => _enrollmentQueryRepository.FirstOrDefaultAsync(x =>
-					x.CourseId == courseId &&
-					x.UserId == currentUser.UserId &&
-					x.IsActive),
-				TimeSpan.FromMinutes(5)
-			);
-
-			if (enrollment is null)
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00000, "Người dùng chưa tham gia khóa học");
-				response.Response = false;
-				return response;
-			}
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học");
-			response.Response = true;
-
-			return response;
-		}
-
-		/// <summary>
-		/// Enroll current user in a course
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <exception cref="NotImplementedException"></exception>
-		public async Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default)
-		{
-			var response = new EnrollInCourseResponse() { Success = false };
-
-			// Get current user id from token
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			if (currentUser is null)
-			{
-				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
-				return response;
-			}
-
-			// Check if user is already enrolled in the course
-			var existingEnrollment = await _enrollmentRepository
-				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId && x.IsActive, isTracking: false, ct)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingEnrollment is not null)
-			{
-				response.SetMessage(MessageId.E11004, "Người dùng đã tham gia khóa học");
-				return response;
-			}
-
-			// Create new enrollment
-			var enrollment = new CourseStudentEnrollment
-			{
-				EnrollmentId = Guid.NewGuid(),
-				CourseId = courseId,
-				UserId = currentUser.UserId,
-				StartedAt = DateTime.UtcNow,
-				ExpiresAt = null,
-				IsActive = true
-			};
-
-			// Save to database within a transaction
-			await unitOfWork.BeginTransactionAsync(async () =>
-						{
-							await _enrollmentRepository.AddAsync(enrollment, currentUser.Email);
-							await unitOfWork.SaveChangesAsync(ct);
-
-							unitOfWork.Store(CourseStudentEnrollmentCollection.FromWriteModel(enrollment));
-							await unitOfWork.SessionSaveChangesAsync();
-							return true;
-						}, ct);
-
-			// Respond success
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học thành công");
-
-			return response;
-		}
-
-		/// <summary>
 		/// Create course with modules + lessons
 		/// </summary>
 		/// <param name="dto"></param>
@@ -586,7 +472,7 @@ namespace Course.Infrastructure.Implements
 
 			var title = dto.Title?.Trim();
 
-			var slug = await GenerateUniqueSlugAsync(dto.Title!, ct);
+			var slug = await _slugService.GenerateUniqueSlugAsync(dto.Title!, ct);
 
 			var course = new CourseEntity
 			{
@@ -821,7 +707,7 @@ namespace Course.Infrastructure.Implements
 
 			foreach (var (moduleId, quizDto) in pendingModuleQuizzes)
 			{
-				var payload = ToQuizCourseInsertEvent(
+				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
 					currentUser.Email,
 					quizDto
 				);
@@ -844,7 +730,7 @@ namespace Course.Infrastructure.Implements
 			// Lesson-level
 			foreach (var (moduleId, lessonId, quizDto) in pendingLessonQuizzes)
 			{
-				var payload = ToQuizCourseInsertEvent(
+				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
 					currentUser.Email,
 					quizDto
 				);
@@ -865,8 +751,8 @@ namespace Course.Infrastructure.Implements
 
 
 			// Clear cache after successful creation
-			await ClearGetAllCacheAsync();
-			await ClearCourseTagsCacheAsync();
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
 			response.Response = course.CourseId.ToString();
 			response.Success = true;
@@ -925,7 +811,7 @@ namespace Course.Infrastructure.Implements
 				var newSlug = dto.Slug.Trim();
 				if (newSlug != existingCourse.Slug)
 				{
-					existingCourse.Slug = await EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
+					existingCourse.Slug = await _slugService.EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
 				}
 			}
 
@@ -964,8 +850,8 @@ namespace Course.Infrastructure.Implements
 
 
 			// 8. Clear cache after successful update
-			await ClearGetAllCacheAsync();
-			await ClearCourseTagsCacheAsync();
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
 			// 9. Return updated course detail
 			response.Success = true;
@@ -1030,8 +916,8 @@ namespace Course.Infrastructure.Implements
 			}, ct);
 
 			// 5. Clear cache after successful update
-			await ClearGetAllCacheAsync();
-			await ClearCourseTagsCacheAsync();
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
 			// 6. Return response
 			response.Success = true;
@@ -1081,470 +967,9 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
-
+		#endregion
 
 		#region Private Helper Methods
-
-		/// <summary>
-		/// Generate cache key for GetAllAsync method based on pagination and query parameters
-		/// </summary>
-		/// <param name="pagination"></param>
-		/// <param name="query"></param>
-		/// <returns></returns>
-		private static string GenerateCacheKeyForGetAll(PaginationRequest pagination, CourseQuery? query)
-		{
-			var keyParts = new List<string> { "Courses:GetAll" };
-
-			// Add pagination parameters
-			keyParts.Add($"PageIndex:{pagination.PageIndex}");
-			keyParts.Add($"PageSize:{pagination.PageSize}");
-
-			// Add query parameters if present
-			if (query is not null)
-			{
-				if (!string.IsNullOrWhiteSpace(query.Search))
-					keyParts.Add($"Search:{query.Search.Trim().ToLowerInvariant()}");
-
-				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
-					keyParts.Add($"SubjectCode:{query.SubjectCode.Trim().ToLowerInvariant()}");
-
-				if (query.IsActive.HasValue)
-					keyParts.Add($"IsActive:{query.IsActive.Value}");
-
-				if (query.LectureId.HasValue)
-					keyParts.Add($"TeacherId:{query.LectureId.Value}");
-
-				keyParts.Add($"SortBy:{query.SortBy}");
-			}
-
-			return string.Join(":", keyParts);
-		}
-
-		/// <summary>
-		/// Clear cache for GetAllAsync method when course data changes
-		/// </summary>
-		/// <returns></returns>
-		private async Task ClearGetAllCacheAsync()
-		{
-			// Get all cache keys that start with "Courses:GetAll"
-			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
-			var keys = server.Keys(pattern: "Courses:GetAll*");
-
-			if (keys.Any())
-			{
-				await _cache.KeyDeleteAsync(keys.ToArray());
-			}
-		}
-
-		/// <summary>
-		/// Clear cache for GetCourseTagsAsync method when tag data changes
-		/// </summary>
-		/// <returns></returns>
-		private async Task ClearCourseTagsCacheAsync()
-		{
-			// Get all cache keys that start with "CourseTags:"
-			var server = _cache.Multiplexer.GetServer(_cache.Multiplexer.GetEndPoints().FirstOrDefault()!);
-			var keys = server.Keys(pattern: "CourseTags:*");
-
-			if (keys.Any())
-			{
-				await _cache.KeyDeleteAsync(keys.ToArray());
-			}
-		}
-
-		/// <summary>
-		/// Generate slug from title
-		/// </summary>
-		/// <param name="input"></param>
-		/// <returns></returns>
-		private static string ToSlug(string input)
-		{
-			if (string.IsNullOrWhiteSpace(input)) return Guid.NewGuid().ToString("n")[..8];
-			var s = input.ToLowerInvariant().Trim();
-			s = System.Text.RegularExpressions.Regex.Replace(s, @"\s+", "-");
-			s = System.Text.RegularExpressions.Regex.Replace(s, @"[^a-z0-9\-]", "");
-			s = System.Text.RegularExpressions.Regex.Replace(s, "-{2,}", "-").Trim('-');
-			return string.IsNullOrWhiteSpace(s) ? Guid.NewGuid().ToString("n")[..8] : s;
-		}
-
-		/// <summary>
-		/// Generate a unique slug by appending a random suffix if necessary
-		/// </summary>
-		/// <param name="title"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		private async Task<string> GenerateUniqueSlugAsync(string title, CancellationToken ct)
-		{
-			var baseSlug = ToSlug(title);
-			var slug = baseSlug;
-
-			while (await _courseRepository.Find(c => c.Slug == slug).AnyAsync(ct))
-			{
-				// lấy 6 ký tự ngẫu nhiên từ Guid
-				var suffix = Guid.NewGuid().ToString("N")[..6];
-				slug = $"{baseSlug}-{suffix}";
-			}
-
-			return slug;
-		}
-
-		// Đảm bảo slug unique khi UPDATE (bỏ qua chính course hiện tại).
-		// Nếu allowRandomSuffix=true, khi trùng sẽ gắn thêm -xxxxxx (6 hex) để tránh loop nhiều lần.
-		private async Task<string> EnsureUniqueSlugForUpdateAsync(Guid courseId, string candidate, CancellationToken ct, bool allowRandomSuffix = false)
-		{
-			var slug = ToSlug(candidate);
-
-			// Nếu slug đã thuộc về chính course này -> ok
-			var ownedByCurrent = await _courseRepository
-				.Find(c => c.CourseId == courseId && c.Slug == slug)
-				.AnyAsync(ct);
-			if (ownedByCurrent) return slug;
-
-			var exists = await _courseRepository
-				.Find(c => c.Slug == slug && c.CourseId != courseId)
-				.AnyAsync(ct);
-
-			if (!exists) return slug;
-
-			if (allowRandomSuffix)
-			{
-				var suffix = Guid.NewGuid().ToString("N")[..6];
-				return await EnsureUniqueSlugForUpdateAsync(courseId, $"{slug}-{suffix}", ct, allowRandomSuffix: false);
-			}
-			else
-			{
-				// fallback: tăng dần -1, -2 ... (hiếm khi cần)
-				var baseSlug = slug;
-				var i = 1;
-				while (await _courseRepository.Find(c => c.Slug == slug && c.CourseId != courseId).AnyAsync(ct))
-				{
-					slug = $"{baseSlug}-{i}";
-					i++;
-				}
-				return slug;
-			}
-		}
-
-		/// <summary>
-		/// Map CourseEntity -> CourseDetailDto
-		/// </summary>
-		/// <param name="e"></param>
-		/// <returns></returns>
-		private static CourseDetailForGuestDto MapCourseDetailForGuest(CourseEntity e)
-		{
-			var modules = e.Modules
-				.OrderBy(m => m.PositionIndex)
-				.Select(m => new ModuleDetailDto<GuestLessonDetailDto>(
-					m.ModuleId,
-					m.ModuleName,
-					m.Description,
-					m.PositionIndex,
-					m.IsActive,
-					m.IsCore,
-					m.DurationMinutes,
-					m.DurationHours,
-					m.Level,
-					m.ModuleObjectives
-						.OrderBy(o => o.PositionIndex)
-						.Select(o => new ModuleObjectiveDto(
-							o.ObjectiveId,
-							o.Content,
-							o.PositionIndex,
-							o.IsActive
-						)).ToList(),
-					m.Lessons
-						.OrderBy(l => l.PositionIndex)
-						.Select(l => new GuestLessonDetailDto(
-							l.LessonId,
-							l.Title,
-							l.PositionIndex,
-							l.IsActive))
-						.ToList()
-				)).ToList();
-
-			// Comments
-			var comments = e.CourseComments
-							.OrderBy(c => c.CreatedAt)
-							.Select(c => new CourseCommentDto(
-								c.CommentId,
-								c.UserId,
-								c.Content,
-								c.ParentCommentId,
-								c.CreatedAt,
-								c.IsActive
-							)).ToList();
-
-			// Tags
-			var tags = e.CourseTags
-				.Select(t => new CourseTagDto(
-					t.TagId,
-					t.Tag?.TagName ?? string.Empty
-				)).ToList();
-
-			// Ratings + thống kê
-			var ratings = e.CourseRatings
-				.OrderByDescending(r => r.CreatedAt)
-				.Select(r => new CourseRatingDto(
-					r.RatingId,
-					r.UserId,
-					r.Rating,
-					r.CreatedAt
-				)).ToList();
-
-			var ratingsCount = ratings.Count;
-			var ratingsAverage = ratingsCount > 0
-				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
-				: 0.0;
-
-			return new CourseDetailForGuestDto(
-				e.CourseId,
-				e.TeacherId,
-				e.SubjectId,
-				e.Subject?.SubjectCode ?? string.Empty,
-				e.Title ?? string.Empty,
-				e.ShortDescription,
-				e.Description,
-				e.Slug,
-				e.CourseImageUrl,
-				e.LearnerCount,
-				e.DurationMinutes,
-				e.DurationHours,
-				e.Level,
-				e.Price,
-				e.DealPrice,
-				e.IsActive,
-				e.CreatedAt,
-				e.UpdatedAt,
-				e.CourseObjectives
-					.OrderBy(o => o.PositionIndex)
-					.Select(o => new CourseObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
-					.ToList(),
-				e.CourseRequirements
-					.OrderBy(r => r.PositionIndex)
-					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
-					.ToList(),
-				modules,
-				comments,
-				tags,
-				ratings,
-				ratingsCount,
-				//ratingsAverage
-				5.0
-			);
-		}
-
-		/// <summary>
-		/// Map CourseEntity -> CourseDetailDto
-		/// </summary>
-		/// <param name="e"></param>
-		/// <returns></returns>
-		private static CourseDetailForLectureDto MapCourseDetailForLecture(
-			CourseEntity e,
-			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId,     // moduleId -> quizId
-			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId,     // lessonId -> quizId
-			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId         // quizId -> QuizOutDto
-		)
-		{
-			var modules = e.Modules
-			.Where(m => m.IsActive)
-			.OrderBy(m => m.PositionIndex)
-			.Select(m =>
-			{
-				// Lấy quiz cho module (nếu có)
-				QuizOutDto? moduleQuiz = null;
-				if (moduleQuizIdByModuleId is not null &&
-					moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid) &&
-					quizByQuizId is not null &&
-					quizByQuizId.TryGetValue(qid, out var qdto))
-					{
-						moduleQuiz = qdto;
-					}
-
-				var lessons = m.Lessons
-					.Where(l => l.IsActive)
-					.OrderBy(l => l.PositionIndex)
-					.Select(l =>
-					{
-						QuizOutDto? lessonQuiz = null;
-						if (lessonQuizIdByLessonId is not null &&
-							lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid) &&
-							quizByQuizId is not null &&
-							quizByQuizId.TryGetValue(lqid, out var lqdto))
-							{
-								lessonQuiz = lqdto;
-							}
-
-						return new LectureLessonDetailDto(
-							l.LessonId,
-							l.Title,
-							l.VideoUrl,
-							l.VideoDurationSec,
-							l.PositionIndex,
-							l.IsActive,
-							lessonQuiz // NEW
-						);
-					})
-					.ToList();
-
-				return new ModuleDetailForLectureDto(
-					m.ModuleId,
-					m.ModuleName,
-					m.Description,
-					m.PositionIndex,
-					m.IsActive,
-					m.IsCore,
-					m.DurationMinutes,
-					m.DurationHours,
-					m.Level,
-					m.ModuleObjectives.Where(o => o.IsActive)
-						.OrderBy(o => o.PositionIndex)
-						.Select(o => new ModuleObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
-						.ToList(),
-					m.ModuleDiscussions.Where(d => d.IsActive)
-						.Select(d => new ModuleDiscussionDetailDto(d.DiscussionId, d.Title, d.Description, d.DiscussionQuestion, d.CreatedAt, d.UpdatedAt))
-						.ToList(),
-					m.ModuleMaterials.Where(mat => mat.IsActive)
-						.Select(mat => new ModuleMaterialDetailDto(mat.MaterialId, mat.Title, mat.Description, mat.FileUrl, mat.CreatedAt, mat.UpdatedAt))
-						.ToList(),
-					lessons,
-					moduleQuiz // NEW
-				);
-			})
-			.ToList();
-
-			// Comments
-			var comments = e.CourseComments
-							.OrderBy(c => c.CreatedAt)
-							.Select(c => new CourseCommentDto(
-								c.CommentId,
-								c.UserId,
-								c.Content,
-								c.ParentCommentId,
-								c.CreatedAt,
-								c.IsActive
-							)).ToList();
-
-			// Tags
-			var tags = e.CourseTags
-				.Select(t => new CourseTagDto(
-					t.TagId,
-					t.Tag?.TagName ?? string.Empty
-				)).ToList();
-
-			// Ratings + thống kê
-			var ratings = e.CourseRatings
-				.OrderByDescending(r => r.CreatedAt)
-				.Select(r => new CourseRatingDto(
-					r.RatingId,
-					r.UserId,
-					r.Rating,
-					r.CreatedAt
-				)).ToList();
-
-			var ratingsCount = ratings.Count;
-			var ratingsAverage = ratingsCount > 0
-				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
-				: 0.0;
-
-			return new CourseDetailForLectureDto(
-				e.CourseId,
-				e.TeacherId,
-				e.SubjectId,
-				e.Subject?.SubjectCode ?? string.Empty,
-				e.Title ?? string.Empty,
-				e.ShortDescription,
-				e.Description,
-				e.Slug,
-				e.CourseImageUrl,
-				e.LearnerCount,
-				e.Modules.SelectMany(m => m.Lessons)
-					.OrderBy(l => l.PositionIndex)
-					.FirstOrDefault()?.VideoUrl ?? string.Empty,
-				e.Modules.SelectMany(m => m.Lessons)
-				.OrderBy(l => l.PositionIndex)
-					.FirstOrDefault()?.VideoDurationSec ?? 0,
-				e.DurationMinutes,
-				e.DurationHours,
-				e.Level,
-				e.Price,
-				e.DealPrice,
-				e.IsActive,
-				e.CreatedAt,
-				e.UpdatedAt,
-				e.CourseObjectives
-					.OrderBy(o => o.PositionIndex)
-					.Select(o => new CourseObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
-					.ToList(),
-				e.CourseRequirements
-					.OrderBy(r => r.PositionIndex)
-					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
-					.ToList(),
-				modules,
-				comments,
-				tags,
-				ratings,
-				ratingsCount,
-				//ratingsAverage
-				5.0
-			);
-		}
-
-		private static QuizOutDto ToQuizOutDto(QuizCourseSelectEventResponseEntity q)
-		{
-			return new QuizOutDto(
-				new QuizSettingsOutDto(
-					q.DurationMinutes,
-					q.PassingScorePercentage,
-					q.ShuffleQuestions,
-					q.ShowResultsImmediately,
-					q.AllowRetake
-				),
-				q.Questions.Select(qq => new QuizQuestionOutDto(
-					qq.QuestionId,
-					qq.QuestionText,
-					qq.Explanation,
-					qq.QuestionType,
-					qq.Answers.Select(a => new QuizAnswerOutDto(a.AnswerId, a.AnswerText)).ToList()
-				)).ToList()
-			);
-		}
-
-		private async Task<QuizOutDto?> FetchQuizAsync(Guid quizId, CancellationToken ct)
-		{
-			var res = await _quizSelectClient.GetResponse<QuizCourseSelectEventResponse>(
-				new QuizCourseSelectEvent { QuizId = quizId }, ct);
-
-			if (!res.Message.Success || res.Message.Response is null)
-				return null;
-
-			return ToQuizOutDto(res.Message.Response);
-		}
-
-		/// <summary>
-		/// Map CourseEntity -> CourseDto
-		/// </summary>
-		/// <param name="e"></param>
-		/// <returns></returns>
-		private static CourseDto MapToDto(CourseEntity e) => new(
-			CourseId: e.CourseId,
-			TeacherId: e.TeacherId,
-			SubjectId: e.SubjectId,
-			SubjectCode: e.Subject?.SubjectCode ?? string.Empty,
-			Title: e.Title ?? string.Empty,
-			ShortDescription: e.ShortDescription,
-			Description: e.Description,
-			Slug: e.Slug,
-			CourseImageUrl: e.CourseImageUrl,
-			LearnerCount: e.LearnerCount,
-			DurationMinutes: e.DurationMinutes,
-			DurationHours: e.DurationHours,
-			Level: e.Level,
-			Price: e.Price,
-			DealPrice: e.DealPrice,
-			IsActive: e.IsActive,
-			CreatedAt: e.CreatedAt,
-			UpdatedAt: e.UpdatedAt
-		);
 
 		/// <summary>
 		/// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
@@ -1775,10 +1200,7 @@ namespace Course.Infrastructure.Implements
 		/// <param name="ct"></param>
 		/// <returns></returns>
 		/// <exception cref="ValidationException"></exception>
-		private async Task UpdateCourseTagsAsync(
-			CourseEntity course,
-			List<UpdateCourseTagDto>? courseTags,
-			CancellationToken ct = default)
+		private async Task UpdateCourseTagsAsync(CourseEntity course, List<UpdateCourseTagDto>? courseTags, CancellationToken ct = default)
 		{
 			// Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
 			if (courseTags is null || courseTags.Count == 0)
@@ -1845,7 +1267,6 @@ namespace Course.Infrastructure.Implements
 				}
 			}
 		}
-
 
 		/// <summary>
 		/// Validate PositionIndex uniqueness across all modules in course
@@ -2307,37 +1728,6 @@ namespace Course.Infrastructure.Implements
 				}
 			}
 			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Convert CreateQuizDto to QuizCourseInsertEvent for publishing to message bus
-		/// </summary>
-		/// <param name="dto"></param>
-		/// <returns></returns>
-		private static QuizCourseInsertEvent ToQuizCourseInsertEvent(
-			string userEmail,
-			CreateQuizDto q)
-		{
-			return new QuizCourseInsertEvent
-			{
-				UserEmail = userEmail,
-				DurationMinutes = q.QuizSettings.DurationMinutes,
-				PassingScorePercentage = q.QuizSettings.PassingScorePercentage,
-				ShuffleQuestions = q.QuizSettings.ShuffleQuestions,
-				ShowResultsImmediately = q.QuizSettings.ShowResultsImmediately,
-				AllowRetake = q.QuizSettings.AllowRetake,
-				Questions = q.Questions.Select(qq => new BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents.Questions
-				{
-					QuestionText = qq.QuestionText,
-					QuestionType = (short)qq.QuestionType, // 1 & 3 theo bạn yêu cầu
-					Explanation = qq.Explanation,
-					Answers = qq.Options.Select(a => new BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents.Answers
-					{
-						AnswerText = a.Text,
-						IsCorrect = a.IsCorrect
-					}).ToList()
-				}).ToList()
-			};
 		}
 
 		/// <summary>

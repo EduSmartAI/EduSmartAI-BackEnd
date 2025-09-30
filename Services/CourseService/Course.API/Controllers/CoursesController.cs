@@ -1,11 +1,7 @@
-﻿using BaseService.API.BaseControllers;
-using BaseService.Common.Utils.Const;
-using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
-using Course.Application.Courses.Commands.EnrollCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
-using Course.Application.Courses.Queries.CheckEnrollment;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
@@ -13,12 +9,6 @@ using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
-using MediatR;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using NLog;
-using OpenIddict.Validation.AspNetCore;
-using Swashbuckle.AspNetCore.Annotations;
 
 namespace Course.API.Controllers
 {
@@ -27,6 +17,8 @@ namespace Course.API.Controllers
 	public class CoursesController(ISender sender) : ControllerBase
 	{
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
+		#region Controllers for Courses Service (Role based: Lecturer, Guest)
 
 		/// <summary>
 		/// Get list of courses with pagination and optional filtering
@@ -247,48 +239,6 @@ namespace Course.API.Controllers
 		}
 
 		/// <summary>
-		/// Check if current user is enrolled in a course
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <returns></returns>
-		[HttpGet("{courseId}/enrollment")]
-		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Check if current user is enrolled in a course",
-			Description = "Check if the authenticated user is enrolled in the specified course"
-		)]
-		public async Task<CheckEnrollmentResponse> CheckEnrollment([FromRoute] Guid courseId)
-		{
-			var query = new CheckEnrollmentQuery(courseId);
-
-			return await ApiControllerHelper.HandleRequest<CheckEnrollmentQuery, CheckEnrollmentResponse, bool>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new CheckEnrollmentResponse()
-			);
-		}
-
-		[HttpPost("{courseId:guid}/enrollment")]
-		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Enroll the current user in a course",
-			Description = "Enroll the authenticated user in the specified course"
-		)]
-		public async Task<EnrollInCourseResponse> EnrollInCourse([FromRoute] Guid courseId)
-		{
-			var request = new EnrollInCourseCommand(courseId);
-			return await ApiControllerHelper.HandleRequest<EnrollInCourseCommand, EnrollInCourseResponse, string>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new EnrollInCourseResponse()
-			);
-		}
-
-		/// <summary>
 		/// Get all course tags
 		/// </summary>
 		/// <returns></returns>
@@ -310,5 +260,7 @@ namespace Course.API.Controllers
 				new GetCourseTagsResponse()
 			);
 		}
+
+		#endregion
 	}
 }

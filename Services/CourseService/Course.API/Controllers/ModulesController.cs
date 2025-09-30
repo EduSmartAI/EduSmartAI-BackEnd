@@ -1,12 +1,4 @@
-﻿using BaseService.API.BaseControllers;
-using BaseService.Common.Utils.Const;
-using Course.Application.Courses.Commands.UpdateModule;
-using MediatR;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using NLog;
-using OpenIddict.Validation.AspNetCore;
-using Swashbuckle.AspNetCore.Annotations;
+﻿using Course.Application.Courses.Commands.UpdateModule;
 
 namespace Course.API.Controllers
 {

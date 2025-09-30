@@ -8,21 +8,21 @@ public static class ConstantEnum
         Lecturer = 2,
         Admin = 3,
     }
-
+    
     public enum TestType
     {
         Survey = 1,
         Quiz = 2,
         Exam = 3,
     }
-
+    
     public enum PaymentStatus
     {
         Pending = 1,
         Paid = 2,
         Failed = 3,
     }
-
+    
     public enum PaymentMethod
     {
         Cash = 1,
@@ -36,14 +36,14 @@ public static class ConstantEnum
         TrueFalse = 2,
         SingleChoice = 3,
     }
-
+    
     public enum TechnologyType
     {
         ProgrammingLanguage = 1,
         Framework = 2,
         Database = 3,
     }
-
+    
     public enum LearningGoalType
     {
         None = 1,
@@ -70,4 +70,17 @@ public static class ConstantEnum
         Internal = 2,
         External = 3
     }
+
+    public enum LessonStatus
+    {
+        NotStarted = 0,
+        InProgress = 1,
+        Completed = 2
+	}
+
+	public enum CourseStatus
+	{
+		InProgress = 1,
+		Completed = 2
+	}
 }
