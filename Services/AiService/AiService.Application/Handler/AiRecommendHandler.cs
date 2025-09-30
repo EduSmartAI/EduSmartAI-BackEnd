@@ -23,7 +23,7 @@ namespace AiService.Application.Handler
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
              await _requestPublishEndpoint.Publish(
-                new InsertLearningPathEventLearningPathEvent(
+                new InsertLearningPathEvent(
                     LearningPathId: request.LearningPathId,
                     PathName: "Lộ trình " + request.CareerGoal,
                     StudentId: request.IdentityEntity!.UserId,

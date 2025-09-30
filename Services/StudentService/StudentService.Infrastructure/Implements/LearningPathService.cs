@@ -54,7 +54,7 @@ public class LearningPathService : ILearningPathService
                 StudentId = request.StudentId,
             };
             
-            await _learningPathCommandRepository.AddAsync(learningPath, request.CurrentUserEmail);
+            await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             for (int i = 0; i < 20; i++)

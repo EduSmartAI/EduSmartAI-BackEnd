@@ -12,6 +12,4 @@ public class LearningPathInsertCommand : ICommand<LearningGoalInsertResponse>
     public string StudentEmail { get; set; }
     
     public string PathName { get; set; }
-    
-    public string CurrentUserEmail { get; set; }
 }

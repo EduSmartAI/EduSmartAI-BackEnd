@@ -5,9 +5,9 @@ using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Consumers
 {
-    public class InsertLearningPathConsumer(ILearningPathService _service) : IConsumer<InsertLearningPathEventLearningPathEvent>
+    public class InsertLearningPathConsumer(ILearningPathService service) : IConsumer<InsertLearningPathEvent>
     {
-        public async Task Consume(ConsumeContext<InsertLearningPathEventLearningPathEvent> context)
+        public async Task Consume(ConsumeContext<InsertLearningPathEvent> context)
         {
             var evt = context.Message;
 
@@ -19,7 +19,7 @@ namespace StudentService.Application.Consumers
                 PathName = evt.PathName,
             };
 
-            await _service.InsertLearningPathAsync(request, context.CancellationToken);
+            await service.InsertLearningPathAsync(request, context.CancellationToken);
         }
     }
 }
