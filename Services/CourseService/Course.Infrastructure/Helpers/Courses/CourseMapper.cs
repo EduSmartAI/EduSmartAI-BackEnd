@@ -126,7 +126,11 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// </summary>
 		/// <param name="e"></param>
 		/// <returns></returns>
-		public CourseDetailForLectureDto MapCourseDetailForLecture(CourseEntity e, IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId)
+		public CourseDetailForLectureDto MapCourseDetailForLecture(
+			CourseEntity e, 
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, 
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, 
+			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId)
 		{
 			var modules = e.Modules
 			.Where(m => m.IsActive)
@@ -284,7 +288,15 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// <param name="courseProgress"></param>
 		/// <param name="preferCoreForCourse"></param>
 		/// <returns></returns>
-		public CourseDetailForStudentDto MapCourseDetailForStudent(CourseEntity e, IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId, IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId, IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById, CourseProgressSnap? courseProgress, bool preferCoreForCourse)
+		public CourseDetailForStudentDto MapCourseDetailForStudent(
+			CourseEntity e, 
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, 
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, 
+			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId, 
+			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId, 
+			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById, 
+			CourseProgressSnap? courseProgress, 
+			bool preferCoreForCourse)
 		{
 			// MODULES
 			var modules = e.Modules
@@ -336,11 +348,17 @@ namespace Course.Infrastructure.Helpers.Courses
 						.ToList();
 
 					// MODULE PROGRESS (dùng snapshot nếu có; fallback tự tính)
-					int lessonsTotal = lessons.Count;
-					int lessonsCompleted = lessons.Count(x => x.IsCompleted);
-					decimal percent = lessonsTotal == 0 ? 0 : Math.Round(lessonsCompleted * 100m / lessonsTotal, 2);
+					var lessonsTotal = lessons.Count;
+					var lessonsCompleted = lessons.Count(x => x.IsCompleted);
+					var percent = lessonsTotal == 0 ? 0 : Math.Round(lessonsCompleted * 100m / lessonsTotal, 2);
 
-					short status = lessonsCompleted == 0 ? (short)LessonStatus.NotStarted : (lessonsCompleted == lessonsTotal ? (short)LessonStatus.Completed : (short)LessonStatus.InProgress);
+					var status = lessonsCompleted switch
+					{
+						0 => (short)LessonStatus.NotStarted,
+						var c when c == lessonsTotal => (short)LessonStatus.Completed,
+						_ => (short)LessonStatus.InProgress
+					};
+
 					DateTime? startedAt = null, completedAt = null;
 
 					if (moduleProgressById.TryGetValue(m.ModuleId, out var mp))
@@ -404,7 +422,12 @@ namespace Course.Infrastructure.Helpers.Courses
 				courseTotalLessons = coreModules.Sum(m => m.Progress.LessonsTotal);
 				courseCompletedLessons = coreModules.Sum(m => m.Progress.LessonsCompleted);
 				coursePercent = courseTotalLessons == 0 ? 0 : Math.Round(courseCompletedLessons * 100m / courseTotalLessons, 2);
-				courseStatus = courseCompletedLessons == 0 ? (short)0 : (courseCompletedLessons == courseTotalLessons ? (short)CourseStatus.Completed : (short)CourseStatus.InProgress);
+				courseStatus = courseCompletedLessons switch
+				{
+					0 => (short)CourseStatus.NotStarted,
+					var c when c == courseTotalLessons => (short)CourseStatus.Completed,
+					_ => (short)CourseStatus.InProgress
+				};
 			}
 
 			// Comments, Tags, Ratings giống lecture

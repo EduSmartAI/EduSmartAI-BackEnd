@@ -73,7 +73,9 @@ public static class ConstantEnum
 
 	public enum CourseStatus
 	{
-		InProgress = 1,
-		Completed = 2
+		NotStarted = 0, // Ng??i h?c ch?a m? lesson nào trong course
+		InProgress = 1, // Ng??i h?c ?ã b?t ??u ít nh?t m?t lesson
+		Completed = 2,
+		Archived = 3 // không còn active ?? h?c m?i, nh?ng ng??i h?c c? v?n th?y trong profile
 	}
 }
