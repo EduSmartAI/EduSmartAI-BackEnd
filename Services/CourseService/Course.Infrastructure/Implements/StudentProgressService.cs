@@ -2,14 +2,16 @@
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
-using Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
+using Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
+using Course.Infrastructure.Helpers.StudentLessonProgress;
 using static BaseService.Common.Utils.Const.ConstantEnum;
+using static Course.Infrastructure.Helpers.StudentLessonProgress.LessonProgressPolicy;
 
 namespace Course.Infrastructure.Implements
 {
@@ -433,8 +435,6 @@ namespace Course.Infrastructure.Implements
 			}
 			var videoMax = lesson.VideoDurationSec ?? int.MaxValue;
 
-
-
 			// 2) Tìm progress hiện có
 			var progress = await _userLessonProgress
 				.Find(x => x.UserId == userId && x.LessonId == lessonId, isTracking: true, ct)
@@ -443,22 +443,16 @@ namespace Course.Infrastructure.Implements
 			// 3) Nếu chưa có → tạo mới
 			if (progress is null)
 			{
-				var incomingStatus = dto.Status ?? (short)LessonStatus.InProgress;
-				var clampedPos = Math.Clamp(dto.LastPositionSec ?? 0, 0, videoMax);
-				var delta = Math.Max(0, Math.Min(dto.WatchedDeltaSec ?? 0, MaxDeltaPerTick));
-
 				progress = new UserLessonProgress
 				{
 					UserId = userId,
 					LessonId = lessonId,
-					Status = incomingStatus == (short)LessonStatus.Completed
-								? (short)LessonStatus.Completed
-								: (short)LessonStatus.InProgress,
-					LastPositionSec = clampedPos,
-					DurationWatchedSec = delta,  // tích lũy từ tick đầu
+					Status = (short)LessonStatus.InProgress,
+					LastPositionSec = 0,
+					DurationWatchedSec = 0,
 					CreatedAt = now,
 					UpdatedAt = now,
-					CompletedAt = incomingStatus == (short)LessonStatus.Completed ? now : null
+					CompletedAt = null
 				};
 
 				await unitOfWork.BeginTransactionAsync(async () =>
@@ -473,9 +467,15 @@ namespace Course.Infrastructure.Implements
 
 				await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
+				var result = new UserLessonProgressEntity(
+					progress.LessonId, 
+					progress.Status,
+					progress.LastPositionSec ?? 0, 
+					progress.DurationWatchedSec, 
+					progress.CompletedAt);
+
 				response.Success = true;
-				response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
-									  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+				response.Response = result;
 				response.SetMessage(MessageId.I00000, "Ghi tiến độ lần đầu thành công.");
 				return response;
 			}
@@ -508,14 +508,20 @@ namespace Course.Infrastructure.Implements
 
 				await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
+				var result = new UserLessonProgressEntity(
+					progress.LessonId,
+					progress.Status,
+					progress.LastPositionSec ?? 0,
+					progress.DurationWatchedSec,
+					progress.CompletedAt);
+
 				response.Success = true;
-				response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
-									  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+				response.Response = result;
 				response.SetMessage(MessageId.I00001, "Bài đã hoàn thành — cập nhật thành công.");
 				return response;
 			}
 
-			// 4.b) Chưa Completed: cập nhật đơn điệu + xử lý trạng thái
+			// 4.b) Chưa Completed: cập nhật đơn điệu + tự xét Completed
 			if (dto.LastPositionSec.HasValue)
 			{
 				var clamped = Math.Clamp(dto.LastPositionSec.Value, 0, videoMax);
@@ -526,19 +532,16 @@ namespace Course.Infrastructure.Implements
 				progress.DurationWatchedSec += Math.Min(d2, MaxDeltaPerTick);
 			}
 
-			if (dto.Status.HasValue)
+			// Auto-complete sau khi đã cập nhật vị trí/thời gian
+			if (ShouldCompleteSimple(videoMax, progress.LastPositionSec))
 			{
-				var incoming = dto.Status.Value;
-				if (incoming == (short)LessonStatus.Completed)
-				{
-					progress.Status = (short)LessonStatus.Completed;
-					if (!progress.CompletedAt.HasValue) progress.CompletedAt = now;
-				}
-				else
-				{
-					// NotStarted/InProgress -> InProgress (không revert về NotStarted)
-					progress.Status = (short)LessonStatus.InProgress;
-				}
+				progress.Status = (short)LessonStatus.Completed;
+				progress.CompletedAt ??= now;
+			}
+			else
+			{
+				// nếu chưa đủ ngưỡng, luôn để InProgress
+				progress.Status = (short)LessonStatus.InProgress;
 			}
 
 			progress.UpdatedAt = now;
@@ -555,9 +558,15 @@ namespace Course.Infrastructure.Implements
 
 			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
+			var updated = new UserLessonProgressEntity(
+				progress.LessonId,
+				progress.Status,
+				progress.LastPositionSec ?? 0,
+				progress.DurationWatchedSec,
+				progress.CompletedAt);
+
 			response.Success = true;
-			response.Response = new UserLessonProgressEntity(progress.LessonId, progress.Status,
-								  progress.LastPositionSec ?? 0, progress.DurationWatchedSec, progress.CompletedAt);
+			response.Response = updated;
 			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ thành công.");
 			return response;
 		}

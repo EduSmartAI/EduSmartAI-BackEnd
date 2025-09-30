@@ -464,13 +464,13 @@ namespace Course.Infrastructure.Helpers.Courses
 				e.Slug,
 				e.CourseImageUrl,
 				e.LearnerCount,
-				firstLesson?.VideoUrl ?? string.Empty,
-				firstLesson?.VideoDurationSec ?? 0,
+				//firstLesson?.VideoUrl ?? string.Empty,
+				//firstLesson?.VideoDurationSec ?? 0,
 				e.DurationMinutes,
 				e.DurationHours,
 				e.Level,
-				e.Price,
-				e.DealPrice,
+				//e.Price,
+				//e.DealPrice,
 				e.IsActive,
 				e.CreatedAt,
 				e.UpdatedAt,
@@ -484,9 +484,9 @@ namespace Course.Infrastructure.Helpers.Courses
 				//ratingsAverage
 				5.0,
 				// Progress course
-				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt),
+				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt)
 				// Continue hint – set ở ngoài
-				continueHint
+				//continueHint
 			);
 		}
 

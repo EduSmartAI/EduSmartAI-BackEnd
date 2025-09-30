@@ -1,6 +1,6 @@
 ﻿using Course.Application.DTOs.UserLessonProgressDTO;
 
-namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgress
+namespace Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress
 {
 	public record UpsertUserLessonProgressCommand(Guid LessonId, UpsertUserLessonProgressDto UserLessonProgress) : ICommand<UpsertUserLessonProgressResponse>;
 
@@ -10,10 +10,10 @@ namespace Course.Application.UserLessonProgresses.Commands.CreateUserLessonProgr
 	}
 
 	public record UserLessonProgressEntity(
-		Guid LessonId, 
-		short Status, 
-		int LastPositionSec, 
-		int DurationWatchedSec, 
+		Guid LessonId,
+		short Status,
+		int LastPositionSec,
+		int DurationWatchedSec,
 		DateTime? CompletedAt
 	);
 }

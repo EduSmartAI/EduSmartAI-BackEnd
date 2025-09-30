@@ -1,6 +1,6 @@
 ﻿using Course.Application.DTOs.QuizDTO;
 
-namespace Course.Application.Interfaces.Helpers
+namespace Course.Application.Interfaces.Helpers.Courses
 {
 	public interface IQuizGateway
 	{

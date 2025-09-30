@@ -3,7 +3,7 @@ global using BaseService.Application.Interfaces.Repositories;
 global using BaseService.Common.Utils.Const;
 global using BuildingBlocks.Pagination;
 global using Course.Application.Interfaces;
-global using Course.Application.Interfaces.Helpers;
+global using Course.Application.Interfaces.Helpers.Courses;
 global using Course.Domain.Models;
 global using FluentValidation;
 global using MassTransit;

@@ -4,7 +4,7 @@ using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.QuizDTO;
 
-namespace Course.Application.Interfaces.Helpers
+namespace Course.Application.Interfaces.Helpers.Courses
 {
 	public interface ICourseMapper
 	{

@@ -1,4 +1,4 @@
-﻿namespace Course.Application.Interfaces.Helpers
+﻿namespace Course.Application.Interfaces.Helpers.Courses
 {
 	public interface ISlugService
 	{
