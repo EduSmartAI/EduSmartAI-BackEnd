@@ -21,6 +21,7 @@ public static class MessagingExtensions
             x.AddConsumer<StudentMajorRecommendConsumer>();
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             // x.AddConsumer<ExternalMajorCourseConsumer>();
+            
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -30,6 +31,14 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
+                
+                // Add timeout and retry configuration
+                cfg.UseMessageRetry(r => r.Exponential(5,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(30),
+                    TimeSpan.FromSeconds(5)));
+
+                cfg.UseInMemoryOutbox();
             });
         });
 

@@ -10,6 +10,7 @@ namespace StudentService.Application.Consumers
         public async Task Consume(ConsumeContext<InsertLearningPathEvent> context)
         {
             var evt = context.Message;
+            Console.WriteLine("InsertLearningPathConsumer received event for LearningPathId: " + evt.LearningPathId);
 
             var request = new LearningPathInsertCommand
             {

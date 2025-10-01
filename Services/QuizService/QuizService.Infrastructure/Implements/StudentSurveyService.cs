@@ -208,17 +208,17 @@ public class StudentSurveyService : IStudentSurveyService
     private async Task<bool> ValidateStudentSurveyStatusAsync(StudentSurveyInsertCommand request, Guid studentId,
         StudentSurveyInsertResponse response, CancellationToken cancellationToken)
     {
-        // Check student has already taken the survey
-        var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
-        var studentQuizExist = await _studentQuizCommandRepository
-            .FirstOrDefaultAsync(x => surveyIdsRequest.Contains(x.QuizId)
-                                      && x.StudentId == studentId
-                                      && x.IsActive, cancellationToken);
-        if (studentQuizExist != null)
-        {
-            response.SetMessage(MessageId.I00000, "Khảo sát đã được điền");
-            return false;
-        }
+        // // Check student has already taken the survey
+        // var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
+        // var studentQuizExist = await _studentQuizCommandRepository
+        //     .FirstOrDefaultAsync(x => surveyIdsRequest.Contains(x.QuizId)
+        //                               && x.StudentId == studentId
+        //                               && x.IsActive, cancellationToken);
+        // if (studentQuizExist != null)
+        // {
+        //     response.SetMessage(MessageId.I00000, "Khảo sát đã được điền");
+        //     return false;
+        // }
 
         return true;
     }

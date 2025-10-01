@@ -6,7 +6,4 @@
         Guid StudentId,
         string CurrentUserEmail
     );
-    public sealed record InsertLearningPathResponseEvent(
-        bool Success
-    );
 }

@@ -22,20 +22,24 @@ namespace AiService.Application.Handler
         }
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
-             await _requestPublishEndpoint.Publish(
-                new InsertLearningPathEvent(
+            try
+            {
+                var insertLearningPathEvent = new InsertLearningPathEvent(
                     LearningPathId: request.LearningPathId,
                     PathName: "Lộ trình " + request.CareerGoal,
                     StudentId: request.IdentityEntity!.UserId,
                     CurrentUserEmail: request.IdentityEntity.Email
-                ), cancellationToken);
+                );
+                
+                await _requestPublishEndpoint.Publish(insertLearningPathEvent, cancellationToken);
+                
+                Console.WriteLine($"[PUBLISHER] Successfully published InsertLearningPathEvent for LearningPathId: {request.LearningPathId}");
 
-            // AI recommend major
-            var result = await _advisorService.EvaluateAsync(request, cancellationToken);
-            var matched = result.Matched;
-            var hasMatched = matched.Count > 0;
+                // AI recommend major
+                var result = await _advisorService.EvaluateAsync(request, cancellationToken);
+                var matched = result.Matched;
+                var hasMatched = matched.Count > 0;
 
-            if (hasMatched)
                 if (hasMatched)
                 {
                     // Publish message internal
@@ -51,7 +55,7 @@ namespace AiService.Application.Handler
                         new InternalMajorEvent(
                             LearningPathId: request.LearningPathId,
                             LimitTime: request.ExternalLimitTime,
-                            CurrentUserEmail:request.IdentityEntity.Email,
+                            CurrentUserEmail: request.IdentityEntity.Email,
                             Majors: majors,
                             SemesterId: request.SemesterId
                         ),
@@ -59,43 +63,61 @@ namespace AiService.Application.Handler
                     );
                 }
 
-            if ((result.ExternalSuggestions?.Count ?? 0) > 0)
-            {
-                var externalMajors = result.ExternalSuggestions!
-                    .Where(s => !string.IsNullOrWhiteSpace(s.MajorCode))
-                    .Select(s => new ExternalMajorItem(
-                        MajorCode: s.MajorCode!.Trim().ToUpperInvariant(),
-                        Reason: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim(),
-                        Description: string.IsNullOrWhiteSpace(s.Description) ? "—" : s.Description!.Trim(),
-                        WhyForYou: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim()
-                    ))
-                    .GroupBy(x => x.MajorCode, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .Take(3)
-                    .ToList();
-
-                if (externalMajors.Count > 0)
+                if ((result.ExternalSuggestions?.Count ?? 0) > 0)
                 {
-                    foreach (var m in externalMajors)
+                    var externalMajors = result.ExternalSuggestions!
+                        .Where(s => !string.IsNullOrWhiteSpace(s.MajorCode))
+                        .Select(s => new ExternalMajorItem(
+                            MajorCode: s.MajorCode!.Trim().ToUpperInvariant(),
+                            Reason: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim(),
+                            Description: string.IsNullOrWhiteSpace(s.Description) ? "—" : s.Description!.Trim(),
+                            WhyForYou: string.IsNullOrWhiteSpace(s.WhyForYou) ? "—" : s.WhyForYou!.Trim()
+                        ))
+                        .GroupBy(x => x.MajorCode, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .Take(3)
+                        .ToList();
+
+                    if (externalMajors.Count > 0)
                     {
-                        var extReq = new AiExternalCourseRequest
+                        foreach (var m in externalMajors)
                         {
-                            GoalMajor = m.MajorCode,
-                            LearningPathId = request.LearningPathId.ToString(),
-                            CurrentUserEmail = request.IdentityEntity.Email,
-                            MajorCode = m.MajorCode,
-                            Reason = m.Reason
-                        };
-                        await _mediator.Send(extReq, cancellationToken);
+                            try
+                            {
+                                var extReq = new AiExternalCourseRequest
+                                {
+                                    GoalMajor = m.MajorCode,
+                                    LearningPathId = request.LearningPathId.ToString(),
+                                    CurrentUserEmail = request.IdentityEntity.Email,
+                                    MajorCode = m.MajorCode,
+                                    Reason = m.Reason
+                                };
+                                await _mediator.Send(extReq, cancellationToken);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Failed to process external major {m.MajorCode}: {ex.Message}");
+                            }
+                        }
                     }
                 }
+
+                return new AiEvaluateResponse
+                {
+                    Success = true,
+                    Message = "Generate successfully",
+                    Response = result
+                };
             }
-            return new AiEvaluateResponse
+            catch (Exception ex)
             {
-                Success = true,
-                Message = "Generate successfully",
-                Response = result
-            };
+                Console.WriteLine($"Error in AiRecommendHandler: {ex.Message}");
+                return new AiEvaluateResponse
+                {
+                    Success = false,
+                    Message = "Generate failed: " + ex.Message
+                };
+            }
         }
     }
 }
