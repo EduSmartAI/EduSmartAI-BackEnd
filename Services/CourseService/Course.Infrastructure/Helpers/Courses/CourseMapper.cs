@@ -244,12 +244,7 @@ namespace Course.Infrastructure.Helpers.Courses
 				e.Slug,
 				e.CourseImageUrl,
 				e.LearnerCount,
-				e.Modules.SelectMany(m => m.Lessons)
-					.OrderBy(l => l.PositionIndex)
-					.FirstOrDefault()?.VideoUrl ?? string.Empty,
-				e.Modules.SelectMany(m => m.Lessons)
-				.OrderBy(l => l.PositionIndex)
-					.FirstOrDefault()?.VideoDurationSec ?? 0,
+				e.CourseIntroVideoUrl ?? string.Empty,
 				e.DurationMinutes,
 				e.DurationHours,
 				e.Level,
@@ -266,9 +261,13 @@ namespace Course.Infrastructure.Helpers.Courses
 					.OrderBy(r => r.PositionIndex)
 					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
 					.ToList(),
+				e.CourseAudiences
+					.OrderBy(a => a.PositionIndex)
+					.Select(a => new CourseAudienceDto(a.AudienceId, a.Content, a.PositionIndex, a.IsActive))
+					.ToList(),
+				tags,
 				modules,
 				comments,
-				tags,
 				ratings,
 				ratingsCount,
 				//ratingsAverage

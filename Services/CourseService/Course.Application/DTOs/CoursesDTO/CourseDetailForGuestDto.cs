@@ -32,8 +32,4 @@ namespace Course.Application.DTOs.CoursesDTO
 		int RatingsCount,
 		double RatingsAverage
 	);
-
-	public record CourseObjectiveDto(Guid ObjectiveId, string Content, int PositionIndex, bool IsActive);
-	public record CourseRequirementDto(Guid RequirementId, string Content, int PositionIndex, bool IsActive);
-
 }

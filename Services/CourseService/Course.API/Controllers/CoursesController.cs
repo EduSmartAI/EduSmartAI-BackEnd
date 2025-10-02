@@ -53,7 +53,6 @@ namespace Course.API.Controllers
 			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
 		)]
 		public async Task<GetCoursesByTeacherIdResponse> GetCoursesByTeacherId(
-			//[FromRoute] Guid teacherId,
 			[FromQuery] GetCoursesByLectureQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse, PaginatedResult<CourseDto>>(
