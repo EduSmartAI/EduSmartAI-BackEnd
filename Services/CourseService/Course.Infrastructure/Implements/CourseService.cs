@@ -289,7 +289,7 @@ namespace Course.Infrastructure.Implements
 			if (cached is not null)
 			{
 				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học (cached) cho giảng viên");
 				response.Response = cached;
 				response.ModulesCount = cached.Modules.Count;
 				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
@@ -305,6 +305,7 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.CourseComments.Where(c => c.IsActive))
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
+				.Include(x => x.CourseAudiences.Where(ca => ca.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
