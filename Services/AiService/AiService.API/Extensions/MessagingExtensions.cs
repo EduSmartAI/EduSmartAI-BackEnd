@@ -2,6 +2,7 @@ using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using MassTransit;
 
 namespace AiService.API.Extensions;
@@ -21,7 +22,7 @@ public static class MessagingExtensions
             x.AddConsumer<StudentMajorRecommendConsumer>();
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             // x.AddConsumer<ExternalMajorCourseConsumer>();
-            
+
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -31,7 +32,7 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
-                
+                cfg.Message<InsertLearningPathEvent>(m => m.SetEntityName("insert-learning-path-event"));
                 // Add timeout and retry configuration
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),

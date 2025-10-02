@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
@@ -46,7 +47,12 @@ public static class MessagingExtensions
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
                     TimeSpan.FromSeconds(5)));
+                cfg.Message<InsertLearningPathEvent>(m => m.SetEntityName("insert-learning-path-event"));
 
+                cfg.ReceiveEndpoint("student.insert-learning-path", e =>
+                {
+                    e.ConfigureConsumer<InsertLearningPathConsumer>(context);
+                });
                 cfg.UseInMemoryOutbox();
             });
 
