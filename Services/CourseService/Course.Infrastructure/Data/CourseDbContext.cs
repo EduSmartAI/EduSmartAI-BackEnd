@@ -282,6 +282,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.ToTable("course_ratings");
 
+            entity.HasIndex(e => e.IsActive, "idx_course_ratings_is_active");
+
             entity.HasIndex(e => e.CourseId, "idx_ratings_course");
 
             entity.HasIndex(e => e.UserId, "idx_ratings_user");
@@ -295,10 +297,19 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.Rating).HasColumnName("rating");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
             entity.Property(e => e.UserId).HasColumnName("user_id");
 
             entity.HasOne(d => d.Course).WithMany(p => p.CourseRatings)
@@ -437,6 +448,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.ToTable("course_tags");
 
+            entity.HasIndex(e => e.IsActive, "idx_course_tags_is_active");
+
             entity.HasIndex(e => e.TagId, "idx_course_tags_tag");
 
             entity.Property(e => e.CourseId).HasColumnName("course_id");
@@ -444,6 +457,18 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
 
             entity.HasOne(d => d.Course).WithMany(p => p.CourseTags)
                 .HasForeignKey(d => d.CourseId)
@@ -508,6 +533,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.ToTable("lesson_quizzes");
 
+            entity.HasIndex(e => e.IsActive, "idx_lesson_quizzes_is_active");
+
             entity.HasIndex(e => e.QuizId, "uq_lesson_quizzes_quiz").IsUnique();
 
             entity.Property(e => e.LessonId)
@@ -516,10 +543,19 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.QuizId).HasColumnName("quiz_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
 
             entity.HasOne(d => d.Lesson).WithOne(p => p.LessonQuiz)
                 .HasForeignKey<LessonQuiz>(d => d.LessonId)
@@ -758,6 +794,8 @@ public partial class CourseDbContext : AppDbContext
 
             entity.ToTable("module_quizzes");
 
+            entity.HasIndex(e => e.IsActive, "idx_module_quizzes_is_active");
+
             entity.HasIndex(e => e.QuizId, "uq_module_quizzes_quiz").IsUnique();
 
             entity.Property(e => e.ModuleId)
@@ -766,10 +804,19 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.QuizId).HasColumnName("quiz_id");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
 
             entity.HasOne(d => d.Module).WithOne(p => p.ModuleQuiz)
                 .HasForeignKey<ModuleQuiz>(d => d.ModuleId)

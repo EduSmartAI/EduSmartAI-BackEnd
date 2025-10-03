@@ -456,7 +456,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Create course with modules + lessons
+		/// Create course with modules + lessons + quizzes (atomic) and related data (objectives, requirements, tags, audiences)
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <param name="ct"></param>
@@ -508,9 +508,6 @@ namespace Course.Infrastructure.Implements
 						CourseId = course.CourseId,
 						Content = obj.Content,
 						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx,
-						IsActive = true,
-						CreatedBy = currentUser.Email,
-						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -528,9 +525,6 @@ namespace Course.Infrastructure.Implements
 						CourseId = course.CourseId,
 						Content = req.Content,
 						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
-						IsActive = true,
-						CreatedBy = currentUser.Email,
-						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -573,9 +567,6 @@ namespace Course.Infrastructure.Implements
 						CourseId = course.CourseId,
 						Content = aud.Content,
 						PositionIndex = pos,
-						IsActive = aud.IsActive,
-						CreatedBy = currentUser.Email,
-						UpdatedBy = currentUser.Email
 					});
 				}
 			}
@@ -596,9 +587,6 @@ namespace Course.Infrastructure.Implements
 						IsCore = m.IsCore,
 						DurationMinutes = m.DurationMinutes,
 						Level = m.Level,
-						IsActive = true,
-						CreatedBy = currentUser.Email,
-						UpdatedBy = currentUser.Email
 					};
 
 					// Module Objectives (optional)
@@ -614,9 +602,6 @@ namespace Course.Infrastructure.Implements
 								ModuleId = module.ModuleId,
 								Content = mo.Content,
 								PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
-								IsActive = true,
-								CreatedBy = currentUser.Email,
-								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -634,9 +619,6 @@ namespace Course.Infrastructure.Implements
 								VideoUrl = l.VideoUrl,
 								VideoDurationSec = l.VideoDurationSec,
 								PositionIndex = l.PositionIndex,
-								IsActive = true,
-								CreatedBy = currentUser.Email,
-								UpdatedBy = currentUser.Email
 							};
 
 							module.Lessons.Add(lesson);
@@ -658,9 +640,6 @@ namespace Course.Infrastructure.Implements
 								Title = d.Title?.Trim(),
 								Description = d.Description,
 								DiscussionQuestion = d.DiscussionQuestion,
-								IsActive = true,
-								CreatedBy = currentUser.Email,
-								UpdatedBy = currentUser.Email
 							});
 						}
 					}
@@ -677,7 +656,6 @@ namespace Course.Infrastructure.Implements
 								Title = mat.Title?.Trim(),
 								Description = mat.Description,
 								FileUrl = mat.FileUrl,
-								IsActive = true
 							});
 						}
 					}
@@ -693,7 +671,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.BeginTransactionAsync(async () =>
 						{
 							await _courseRepository.AddAsync(course, currentUser.Email);
-							await unitOfWork.SaveChangesAsync(ct);
+							await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 						}, ct);
@@ -720,7 +698,7 @@ namespace Course.Infrastructure.Implements
 					throw new InvalidOperationException("QuizId is empty.");
 
 				await _moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
-				await unitOfWork.SaveChangesAsync(ct);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
 
 			}
@@ -743,7 +721,7 @@ namespace Course.Infrastructure.Implements
 					throw new InvalidOperationException("QuizId is empty.");
 
 				await _lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
-				await unitOfWork.SaveChangesAsync(ct);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
 			}
 
@@ -831,7 +809,7 @@ namespace Course.Infrastructure.Implements
 				await unitOfWork.BeginTransactionAsync(async () =>
 				{
 					_courseRepository.Update(existingCourse, currentUser.Email);
-					await unitOfWork.SaveChangesAsync(ct);
+					await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 					return true;
 				}, ct);
 			}
@@ -886,21 +864,11 @@ namespace Course.Infrastructure.Implements
 
 			if (existingCourse is null)
 			{
-				response.Message = $"Course {courseId} not found";
+				response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
 				return response;
 			}
 
-			var currentUser = _identityService.GetCurrentUser();
-
-			if (currentUser is null)
-			{
-				currentUser = new IdentityEntity
-				{
-					UserId = Guid.Empty,
-					FullName = "system",
-					Email = "system"
-				};
-			}
+			var currentUser = _identityService.GetCurrentUser()!;
 
 			// 3. Update modules based on payload
 			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.Email);
@@ -909,7 +877,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
 				_courseRepository.Update(existingCourse, currentUser.Email);
-				await unitOfWork.SaveChangesAsync(ct);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 				return true;
 			}, ct);
 
@@ -1260,7 +1228,6 @@ namespace Course.Infrastructure.Implements
 					{
 						CourseId = course.CourseId,
 						TagId = tagId,
-						CreatedAt = now
 					});
 				}
 			}
@@ -1402,14 +1369,9 @@ namespace Course.Infrastructure.Implements
 				ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty,
 				Description = moduleDto.Description,
 				PositionIndex = moduleDto.PositionIndex,
-				IsActive = moduleDto.IsActive,
 				IsCore = moduleDto.IsCore,
 				DurationMinutes = moduleDto.DurationMinutes,
 				Level = moduleDto.Level,
-				CreatedAt = now,
-				UpdatedAt = now,
-				CreatedBy = actor,
-				UpdatedBy = actor
 			};
 
 			// Add ModuleObjectives
@@ -1422,11 +1384,6 @@ namespace Course.Infrastructure.Implements
 						ModuleId = newModule.ModuleId,
 						Content = objDto.Content,
 						PositionIndex = objDto.PositionIndex,
-						IsActive = objDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					});
 				}
 			}
@@ -1443,11 +1400,6 @@ namespace Course.Infrastructure.Implements
 						VideoUrl = lessonDto.VideoUrl,
 						VideoDurationSec = lessonDto.VideoDurationSec,
 						PositionIndex = lessonDto.PositionIndex,
-						IsActive = lessonDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					});
 				}
 			}
@@ -1463,11 +1415,6 @@ namespace Course.Infrastructure.Implements
 						Title = disDto.Title,
 						Description = disDto.Description,
 						DiscussionQuestion = disDto.DiscussionQuestion,
-						IsActive = true,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					});
 				}
 			}
@@ -1483,11 +1430,6 @@ namespace Course.Infrastructure.Implements
 						Title = matDto.Title,
 						Description = matDto.Description,
 						FileUrl = matDto.FileUrl,
-						IsActive = true,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					});
 				}
 			}
@@ -1540,11 +1482,6 @@ namespace Course.Infrastructure.Implements
 						ModuleId = module.ModuleId,
 						Content = objDto.Content,
 						PositionIndex = objDto.PositionIndex,
-						IsActive = objDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					};
 					module.ModuleObjectives.Add(newObjective);
 				}
@@ -1600,11 +1537,6 @@ namespace Course.Infrastructure.Implements
 						VideoUrl = lessonDto.VideoUrl,
 						VideoDurationSec = lessonDto.VideoDurationSec,
 						PositionIndex = lessonDto.PositionIndex,
-						IsActive = lessonDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					};
 					module.Lessons.Add(newLesson);
 				}
@@ -1658,11 +1590,6 @@ namespace Course.Infrastructure.Implements
 						Title = disDto.Title,
 						Description = disDto.Description,
 						DiscussionQuestion = disDto.DiscussionQuestion,
-						IsActive = disDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					};
 					module.ModuleDiscussions.Add(newDiscussion);
 				}
@@ -1716,11 +1643,6 @@ namespace Course.Infrastructure.Implements
 						Title = matDto.Title,
 						Description = matDto.Description,
 						FileUrl = matDto.FileUrl,
-						IsActive = matDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
 					};
 					module.ModuleMaterials.Add(newMaterial);
 				}
