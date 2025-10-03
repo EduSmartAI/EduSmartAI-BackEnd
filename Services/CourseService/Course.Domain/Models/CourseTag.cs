@@ -13,6 +13,14 @@ public partial class CourseTag
 
     public DateTime CreatedAt { get; set; }
 
+    public bool IsActive { get; set; }
+
+    public string CreatedBy { get; set; }
+
+    public string UpdatedBy { get; set; }
+
+    public DateTime UpdatedAt { get; set; }
+
     public virtual Course Course { get; set; }
 
     public virtual Tag Tag { get; set; }

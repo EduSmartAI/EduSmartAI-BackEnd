@@ -19,5 +19,11 @@ public partial class CourseRating
 
     public DateTime UpdatedAt { get; set; }
 
+    public bool IsActive { get; set; }
+
+    public string CreatedBy { get; set; }
+
+    public string UpdatedBy { get; set; }
+
     public virtual Course Course { get; set; }
 }
