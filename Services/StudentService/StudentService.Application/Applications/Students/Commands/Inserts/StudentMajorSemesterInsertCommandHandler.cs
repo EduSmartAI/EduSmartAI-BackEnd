@@ -1,5 +1,5 @@
 using BuildingBlocks.CQRS;
-using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MediatR;
 using StudentService.Application.Interfaces;
 

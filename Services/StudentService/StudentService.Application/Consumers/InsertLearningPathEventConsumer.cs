@@ -5,12 +5,11 @@ using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Consumers
 {
-    public class InsertLearningPathConsumer(ILearningPathService service) : IConsumer<InsertLearningPathEvent>
+    public class InsertLearningPathEventConsumer(ILearningPathService service) : IConsumer<InsertLearningPathEvent>
     {
         public async Task Consume(ConsumeContext<InsertLearningPathEvent> context)
         {
             var evt = context.Message;
-            Console.WriteLine("InsertLearningPathConsumer received event for LearningPathId: " + evt.LearningPathId);
 
             var request = new LearningPathInsertCommand
             {

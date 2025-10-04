@@ -18,16 +18,22 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             student.MajorName = message.Student.MajorName;
             student.SemesterId = message.Student.SemesterId;
             student.SemesterName = message.Student.SemesterName;
-            student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };        
+            if (message.StudentLearningGoal != null)
+            {
+                student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };        
+            }
         }
         unitOfWork.Store(student);
-        
-        foreach (var tech in message.StudentTechnologies)
-        {
-            unitOfWork.Store(tech);
-        }
 
-        unitOfWork.Store(message.StudentLearningGoal);
+        if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
+        {
+            foreach (var tech in message.StudentTechnologies)
+            {
+                unitOfWork.Store(tech);
+            }
+
+            unitOfWork.Store(message.StudentLearningGoal);
+        }
 
         await unitOfWork.SessionSaveChangesAsync();
     }

@@ -17,9 +17,6 @@ public class TestService : ITestService
     private readonly IQueryRepository<TestCollection> _queryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IQuizService _quizService;
-    private readonly IQuestionService _questionService;
-    private readonly IAnswerService _answerService;
     private readonly IRequestClient<SubjectSelectsEvent> _requestSubjectSelectClient;
 
     /// <summary>
@@ -29,22 +26,16 @@ public class TestService : ITestService
     /// <param name="queryRepository"></param>
     /// <param name="identityService"></param>
     /// <param name="unitOfWork"></param>
-    /// <param name="quizService"></param>
-    /// <param name="questionService"></param>
-    /// <param name="answerService"></param>
     /// <param name="requestSubjectSelectClient"></param>
-    public TestService(ICommandRepository<Test> commandRepository, IQueryRepository<TestCollection> queryRepository,
-        IIdentityService identityService, IUnitOfWork unitOfWork, IQuizService quizService,
-        IQuestionService questionService, IAnswerService answerService,
+    public TestService(ICommandRepository<Test> commandRepository,
+        IQueryRepository<TestCollection> queryRepository,
+        IIdentityService identityService, IUnitOfWork unitOfWork,
         IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
-        _quizService = quizService;
-        _questionService = questionService;
-        _answerService = answerService;
         _requestSubjectSelectClient = requestSubjectSelectClient;
     }
 
@@ -135,6 +126,14 @@ public class TestService : ITestService
                     out var name) ? name : string.Empty;
 
                 _unitOfWork.Store(QuizCollection.FromWriteModel(quiz, subjectName));
+                foreach (var question in quiz.Questions)
+                {
+                    _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
+                    foreach (var answer in question.Answers)
+                    {
+                        _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
+                    }
+                }
             }
             
             await _unitOfWork.SessionSaveChangesAsync();

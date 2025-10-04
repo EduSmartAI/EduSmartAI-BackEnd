@@ -2,7 +2,8 @@ using System.Text.Json;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
-using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
+using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Interfaces;
@@ -178,29 +179,40 @@ public class StudentService : IStudentService
             studentExist.MajorId = request.MajorId;
             studentExist.SemesterId = request.SemesterId;
             _studentRepository.Update(studentExist);
+            
+            // Check StudentTechnology exist
+            List<StudentTechnologyCollection> newStudentTechnologyCollections = new List<StudentTechnologyCollection>();
+            var existingStudentTechnologies = await _studentTechnologyRepository
+                .Find(st => st.StudentId == request.StudentId && request.TechnologyIds.Contains(st.TechnologyId) && st.IsActive).ToListAsync(cancellationToken: cancellationToken);
+            if (!existingStudentTechnologies.Any())
+            {
+                // Insert technologies
+                var newStudentTechnologies = request.TechnologyIds
+                    .Select(techId => new StudentTechnology
+                    {
+                        StudentId = request.StudentId,
+                        TechnologyId = techId
+                    }).ToList();
 
-            // Insert technologies
-            var newStudentTechnologies = request.TechnologyIds
-                .Select(techId => new StudentTechnology
+                await _studentTechnologyRepository.AddRangeAsync(newStudentTechnologies);
+                newStudentTechnologyCollections.AddRange(newStudentTechnologies.Select(x => StudentTechnologyCollection.FromWriteModel(x)).ToList());
+            }
+           
+            StudentLearningGoalCollection newStudentLearningGoalCollection = null;
+            var studentLearningGoalExist = await _studentLearningGoalRepository
+                .FirstOrDefaultAsync(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId && slg.IsActive, cancellationToken);
+            if (studentLearningGoalExist == null)
+            {
+                // Insert learning goal
+                var newStudentLearningGoal = new StudentLearningGoal
                 {
                     StudentId = request.StudentId,
-                    TechnologyId = techId
-                }).ToList();
-
-            await _studentTechnologyRepository.AddRangeAsync(newStudentTechnologies);
-
-            // Insert learning goal
-            var newStudentLearningGoal = new StudentLearningGoal
-            {
-                StudentId = request.StudentId,
-                GoalId = request.LearningGoalId
-            };
-            await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
+                    GoalId = request.LearningGoalId
+                };
+                await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
+                newStudentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(newStudentLearningGoal, learningGoal:existingGoal);
+            }
             
-            
-            var studentTechnologyCollections = newStudentTechnologies.Select(x => StudentTechnologyCollection.FromWriteModel(x)).ToList();
-            var studentLearningGoalCollections = StudentLearningGoalCollection.FromWriteModel(newStudentLearningGoal, learningGoal:existingGoal);
-
             // Save event to Outbox
             var @event = new StudentInformationUpdatedEvent
             {
@@ -212,8 +224,8 @@ public class StudentService : IStudentService
                     SemesterId = request.SemesterId,
                     SemesterName = request.SemesterName
                 },
-                StudentTechnologies = studentTechnologyCollections,            
-                StudentLearningGoal = studentLearningGoalCollections,
+                StudentTechnologies = newStudentTechnologyCollections,            
+                StudentLearningGoal = newStudentLearningGoalCollection,
             };
             
             var outboxMessage = new OutboxMessage

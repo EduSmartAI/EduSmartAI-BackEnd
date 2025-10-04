@@ -7,6 +7,7 @@ using Course.Infrastructure.Helpers.Courses;
 using Course.Infrastructure.Implements;
 using JasperFx;
 using Marten;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -88,6 +89,14 @@ namespace Course.Infrastructure
 			});
 
 			return services;
+		}
+		
+		public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
+		{
+			using var scope = app.Services.CreateScope();
+			var db = scope.ServiceProvider.GetRequiredService<CourseDbContext>();
+			await db.Database.EnsureCreatedAsync();
+			return app;
 		}
 	}
 }
