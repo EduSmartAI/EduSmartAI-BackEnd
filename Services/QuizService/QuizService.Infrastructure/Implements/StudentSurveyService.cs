@@ -5,8 +5,8 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
-using BuildingBlocks.Messaging.Events.QuizService.StudentMajorOrientationEvents;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.StudentSurveys.Commands;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Application.Applications.StudentSurveys.Queries;
@@ -80,9 +80,8 @@ public class StudentSurveyService : IStudentSurveyService
         // Get current user
         var currentUser = _identityService.GetCurrentUser();
 
-        // Validate if the student has already taken the survey
-        if (!await ValidateStudentSurveyStatusAsync(request, currentUser!.UserId, response, cancellationToken))
-            return response;
+        // Validate if the student has already taken the survey -> if yes, deactivate old entries
+        await ValidateStudentSurveyStatusAsync(request, currentUser!.UserId, currentUser.Email, cancellationToken);
 
         // Validate questions and answers
         if (!ValidateQuestionsAndAnswers(request, surveyExist, response)) return response;
@@ -119,43 +118,27 @@ public class StudentSurveyService : IStudentSurveyService
                 return false;
             }
             
-            // Get study time from HABIT survey
-            var surveyHabit = surveyExist.First(x => x.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
-            
-            // Get student's answers for the habit survey
-            var studentSurveyHabit = request.StudentSurveys.First(x => x.SurveyId == surveyHabit.QuizId);
-
-            // Get selected answer IDs
-            var selectedAnswerIds = studentSurveyHabit.Answers.Select(a => a.AnswerId).ToList();
-            
-            // Build StudentQuizAnswerCollection for selected answers
-            var studentQuizAnswers = surveyHabit.Questions
-                .SelectMany(q => q.Answers)
-                .Where(a => selectedAnswerIds.Contains(a.AnswerId))
-                .Select(a => new StudentQuizAnswerCollection
-                {
-                    AnswerId = a.AnswerId,
-                    Answer = a
-                })
-                .ToList();
-
-            int limitTime = GetStudentStudyTime(studentQuizAnswers);
-
-            
-            // If LearningGoalType == None → Analyze interest survey
-            if (request.StudentInformation.LearningGoal.LearningGoalType == (short)ConstantEnum.LearningGoalType.None)
+            // Prepare outbox message for StudentMajorSemesterInformationEvent
+            var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
             {
-                if (!await HandleLearningGoalNoneAsync(request, surveyExist, currentUser, courseInfoResponse,
-                        outboxMessages, response, limitTime, cancellationToken))
-                    return false;
-            }
-            else
-            {
-                if (!await HandleLearningGoalOtherAsync(request, currentUser, courseInfoResponse, outboxMessages,
-                        response, cancellationToken))
-                    return false;
-            }
+                StudentId = currentUser.UserId,
+                MajorId = request.StudentInformation.MajorId,
+                SemesterId = request.StudentInformation.SemesterId,
+                MajorName = courseInfoResponse.Message.Response.MajorName,
+                SemesterName = courseInfoResponse.Message.Response.SemesterName,
+                ProgramingLanguages = request.StudentInformation.Technologies.Select(x => x.TechnologyId).ToList(),
+                LearningGoalId = request.StudentInformation.LearningGoal.LearningGoalId,
+            };
 
+            // Add outbox message
+            outboxMessages.Add(new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = nameof(StudentMajorSemesterInformationEvent),
+                Content = JsonSerializer.Serialize(majorSemesterInfoInsertEvent),
+                OccurredOnUtc = DateTime.UtcNow,
+            });
+            
             await _outboxService.AddRangeAsync(outboxMessages);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
@@ -167,6 +150,46 @@ public class StudentSurveyService : IStudentSurveyService
 
         return response;
     }
+    
+    /*
+     * // Get study time from HABIT survey
+       var surveyHabit = surveyExist.First(x => x.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+       
+       // Get student's answers for the habit survey
+       var studentSurveyHabit = request.StudentSurveys.First(x => x.SurveyId == surveyHabit.QuizId);
+
+       // Get selected answer IDs
+       var selectedAnswerIds = studentSurveyHabit.Answers.Select(a => a.AnswerId).ToList();
+       
+       // Build StudentQuizAnswerCollection for selected answers
+       var studentQuizAnswers = surveyHabit.Questions
+           .SelectMany(q => q.Answers)
+           .Where(a => selectedAnswerIds.Contains(a.AnswerId))
+           .Select(a => new StudentQuizAnswerCollection
+           {
+               AnswerId = a.AnswerId,
+               Answer = a
+           })
+           .ToList();
+
+       int limitTime = GetStudentStudyTime(studentQuizAnswers);
+
+       
+       // If LearningGoalType == None → Analyze interest survey
+       if (request.StudentInformation.LearningGoal.LearningGoalType == (short)ConstantEnum.LearningGoalType.None)
+       {
+           if (!await HandleLearningGoalNoneAsync(request, surveyExist, currentUser, courseInfoResponse,
+                   outboxMessages, response, limitTime, cancellationToken))
+               return false;
+       }
+       else
+       {
+           if (!await HandleLearningGoalOtherAsync(request, currentUser, courseInfoResponse, outboxMessages,
+                   response, cancellationToken))
+               return false;
+       }
+
+     */
 
     #region Private Methods
 
@@ -205,22 +228,29 @@ public class StudentSurveyService : IStudentSurveyService
         return Task.FromResult(true);
     }
 
-    private async Task<bool> ValidateStudentSurveyStatusAsync(StudentSurveyInsertCommand request, Guid studentId,
-        StudentSurveyInsertResponse response, CancellationToken cancellationToken)
+    private async Task ValidateStudentSurveyStatusAsync(StudentSurveyInsertCommand request, Guid studentId, string email, CancellationToken cancellationToken)
     {
         // // Check student has already taken the survey
-        // var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
-        // var studentQuizExist = await _studentQuizCommandRepository
-        //     .FirstOrDefaultAsync(x => surveyIdsRequest.Contains(x.QuizId)
-        //                               && x.StudentId == studentId
-        //                               && x.IsActive, cancellationToken);
-        // if (studentQuizExist != null)
-        // {
-        //     response.SetMessage(MessageId.I00000, "Khảo sát đã được điền");
-        //     return false;
-        // }
+        var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
+        var studentQuizExists = await _studentQuizCommandRepository
+            .Find(x => surveyIdsRequest.Contains(x.QuizId)
+                                      && x.StudentId == studentId
+                                      && x.IsActive)
+            .ToListAsync(cancellationToken: cancellationToken);
+        if (studentQuizExists.Any())
+        {
+            _studentQuizCommandRepository.UpdateRange(studentQuizExists);
+            await _unitOfWork.SaveChangesAsync(email, cancellationToken, true);
+        }
 
-        return true;
+        // Delete old StudentQuizCollection for the deactivated StudentQuiz
+        foreach (var studentQuiz in studentQuizExists)
+        {
+            var studentQuizCollection = await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.QuizId == studentQuiz.QuizId && x.IsActive);
+            
+            _unitOfWork.Delete(studentQuizCollection!); 
+        }
+        await _unitOfWork.SessionSaveChangesAsync();
     }
 
     private bool ValidateQuestionsAndAnswers(StudentSurveyInsertCommand request, List<QuizCollection> surveyExist, StudentSurveyInsertResponse response)
@@ -349,21 +379,20 @@ public class StudentSurveyService : IStudentSurveyService
         };
 
         // Send request to AiService and get response
-        // var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(studentInterestAnalysisEvent, cancellationToken);
-        // if (!aiAnalysisResponse.Message.Success)
-        // {
-        //     response.MessageId = aiAnalysisResponse.Message.MessageId;
-        //     response.Message = aiAnalysisResponse.Message.Message;
-        //     return false;
-        // }
+        var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(studentInterestAnalysisEvent, cancellationToken);
+        if (!aiAnalysisResponse.Message.Success)
+        {
+            response.MessageId = aiAnalysisResponse.Message.MessageId;
+            response.Message = aiAnalysisResponse.Message.Message;
+            return false;
+        }
 
         var learningPathId = Guid.NewGuid();
 
         // Use AI analysis result to determine major orientation
         var studentMajorOrientationEvent = new StudentMajorOrientationEvent
         {
-            // LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal,
-            LearningGoal = "Thiết kế và phát triển phần mềm với chuyên môn về UI/UX và phân tích dữ liệu",
+            LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal,
             Frameworks = request.StudentInformation.Technologies
                 .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.Framework)
                 .Select(x => x.TechnologyName).ToList(),
@@ -371,7 +400,7 @@ public class StudentSurveyService : IStudentSurveyService
                 .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.ProgrammingLanguage)
                 .Select(x => x.TechnologyName).ToList(),
             IdentityEntity =
-                new BuildingBlocks.Messaging.Events.QuizService.StudentMajorOrientationEvents.IdentityEntity
+                new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
                 {
                     UserId = currentUser.UserId,
                     Email = currentUser.Email,
@@ -384,13 +413,13 @@ public class StudentSurveyService : IStudentSurveyService
         await _publishEndpoint.Publish(studentMajorOrientationEvent, cancellationToken);
         
         // Add outbox message
-        // outboxMessages.Add(new OutboxMessage
-        // {
-        //     Id = Guid.NewGuid(),
-        //     Type = nameof(StudentMajorSemesterInformationEvent),
-        //     Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
-        //     OccurredOnUtc = DateTime.UtcNow,
-        // });
+        outboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = nameof(StudentMajorSemesterInformationEvent),
+            Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
+            OccurredOnUtc = DateTime.UtcNow,
+        });
 
         // Prepare outbox message for StudentMajorSemesterInformationEvent
         var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
@@ -415,7 +444,6 @@ public class StudentSurveyService : IStudentSurveyService
 
         // True
         response.SetMessage(MessageId.I00001, "Ghi nhận câu trả lời của sinh viên và đang phân tích định hướng nghề nghiệp");
-        response.Response = learningPathId;
         response.Success = true;
         return true;
     }

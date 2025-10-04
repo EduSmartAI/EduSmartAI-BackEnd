@@ -1,4 +1,4 @@
-namespace BuildingBlocks.Messaging.Events.QuizService.StudentMajorOrientationEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService;
 
 public class StudentMajorOrientationEvent
 {

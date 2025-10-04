@@ -15,6 +15,7 @@ using Course.Domain.Enum;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using NLog;
+using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace Course.Infrastructure.Implements
 {

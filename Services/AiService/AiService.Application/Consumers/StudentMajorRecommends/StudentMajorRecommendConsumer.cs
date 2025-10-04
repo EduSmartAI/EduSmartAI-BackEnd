@@ -1,5 +1,5 @@
 using AiService.Application.Features.AiEvaluate;
-using BuildingBlocks.Messaging.Events.QuizService.StudentMajorOrientationEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using MediatR;
 using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
