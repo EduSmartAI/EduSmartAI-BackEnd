@@ -2,7 +2,6 @@ using AiService.API.Extensions;
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
-using QuizService.API.Extensions;
 
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);

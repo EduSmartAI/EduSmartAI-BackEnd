@@ -8,7 +8,7 @@ namespace AiService.Infrastructure.Implements
 {
     public class MajorService : IMajorService
     {
-        ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
+        private readonly ICommandRepository<MajorEmbedding> _majorEmbeddingRepository;
         public MajorService(ICommandRepository<MajorEmbedding> majorEmbeddingRepository)
         {
             _majorEmbeddingRepository = majorEmbeddingRepository;

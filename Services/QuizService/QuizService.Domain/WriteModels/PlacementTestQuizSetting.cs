@@ -8,10 +8,6 @@ public partial class PlacementTestQuizSetting
     public Guid QuizId { get; set; }
 
     public Guid SubjectCode { get; set; }
-    
-    public string Title { get; set; } = null!;
-    
-    public string? Description { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -22,6 +18,10 @@ public partial class PlacementTestQuizSetting
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public string? Title { get; set; }
+
+    public string? Description { get; set; }
 
     public virtual Quiz Quiz { get; set; } = null!;
 }

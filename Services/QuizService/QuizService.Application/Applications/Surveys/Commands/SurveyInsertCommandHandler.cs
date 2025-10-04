@@ -5,13 +5,13 @@ namespace QuizService.Application.Applications.Surveys.Commands;
 
 public class SurveyInsertCommandHandler : ICommandHandler<SurveyInsertCommand, SurveyInsertResponse>
 {
-    private readonly IQuizService _quizService;
+    private readonly IQuizSurveyService _quizService;
 
     /// <summary>
     /// Constructor
     /// </summary>
     /// <param name="quizService"></param>
-    public SurveyInsertCommandHandler(IQuizService quizService)
+    public SurveyInsertCommandHandler(IQuizSurveyService quizService)
     {
         _quizService = quizService;
     }

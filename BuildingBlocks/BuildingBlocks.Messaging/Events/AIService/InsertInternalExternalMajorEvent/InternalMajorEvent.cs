@@ -2,12 +2,13 @@
 {
     public sealed record InternalMajorEvent(
         Guid LearningPathId,
-        IReadOnlyList<InternalMajorItem> Majors
-    );
-
+        string LimitTime,
+        string CurrentUserEmail,
+        IReadOnlyList<InternalMajorItem> Majors,
+        Guid SemesterId);
+        
     public sealed record InternalMajorItem(
         string MajorCode,
-        string Reason,
-        int SupportScore
+        string Reason
     );
 }

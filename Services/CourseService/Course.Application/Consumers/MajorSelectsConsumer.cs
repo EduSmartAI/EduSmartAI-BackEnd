@@ -9,7 +9,10 @@ public class MajorSelectsConsumer(IMediator mediator) : IConsumer<MajorSelectsEv
     {
         var evt = context.Message;
         
-        var command = new MajorSelectsQuery();
+        var command = new MajorSelectsQuery
+        {
+            MajorCodes = evt.MajorCodes
+        };
         
         var response = await mediator.Send(command);
         

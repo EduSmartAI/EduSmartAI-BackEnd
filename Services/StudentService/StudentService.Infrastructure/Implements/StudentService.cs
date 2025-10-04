@@ -196,30 +196,10 @@ public class StudentService : IStudentService
                 GoalId = request.LearningGoalId
             };
             await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
-
-            // Insert orientations
-            var newStudentOrientations = request.StudentMajorOrientation.MajorInternals
-                .Select(m => new StudentOrientation
-                {
-                    StudentId = request.StudentId,
-                    Technology = m.MajorName,
-                    ReasonRecommend = m.Reason,
-                    RecommendType = (short) ConstantEnum.OrientationRecommendType.Internal
-                })
-                .Concat(request.StudentMajorOrientation.MajorExternals.Select(m => new StudentOrientation
-                {
-                    StudentId = request.StudentId,
-                    Technology = m.MajorName,
-                    ReasonRecommend = m.Reason,
-                    RecommendType = (short) ConstantEnum.OrientationRecommendType.External
-                }))
-                .ToList();
+            
             
             var studentTechnologyCollections = newStudentTechnologies.Select(x => StudentTechnologyCollection.FromWriteModel(x)).ToList();
             var studentLearningGoalCollections = StudentLearningGoalCollection.FromWriteModel(newStudentLearningGoal, learningGoal:existingGoal);
-            var studentOrientationCollections = newStudentOrientations.Select(x => StudentOrientationCollection.FromWriteModel(x)).ToList();
-            
-            await _studentOrientationRepository.AddRangeAsync(newStudentOrientations);
 
             // Save event to Outbox
             var @event = new StudentInformationUpdatedEvent
@@ -234,7 +214,6 @@ public class StudentService : IStudentService
                 },
                 StudentTechnologies = studentTechnologyCollections,            
                 StudentLearningGoal = studentLearningGoalCollections,
-                StudentOrientations = studentOrientationCollections,
             };
             
             var outboxMessage = new OutboxMessage

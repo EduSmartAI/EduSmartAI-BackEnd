@@ -19,9 +19,11 @@ public sealed class AnswerCollection
 
     public bool IsActive { get; set; }
 
+    public List<AnswerRuleCollection>? AnswerRule { get; set; }
+
     public static AnswerCollection FromWriteModel(Answer model)
     {
-        return new AnswerCollection
+        var result = new AnswerCollection
         {
             AnswerId = model.AnswerId,
             QuestionId = model.QuestionId,
@@ -33,5 +35,11 @@ public sealed class AnswerCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
+
+        if (model.AnswerRules != null || model.AnswerRules.Any())
+        {
+            result.AnswerRule = model.AnswerRules.Select(AnswerRuleCollection.FromWriteModel).ToList();
+        }
+        return result;
     }
 }

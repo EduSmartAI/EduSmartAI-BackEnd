@@ -5,13 +5,13 @@ namespace QuizService.Application.Applications.Surveys.Queries;
 
 public class SurveySelectsQueryHandler : IQueryHandler<SurveySelectsQuery, SurveySelectsResponse>
 {
-    private readonly IQuizService _quizService;
+    private readonly IQuizSurveyService _quizService;
 
     /// <summary>
     /// Constructor
     /// </summary>
     /// <param name="quizService"></param>
-    public SurveySelectsQueryHandler(IQuizService quizService)
+    public SurveySelectsQueryHandler(IQuizSurveyService quizService)
     {
         _quizService = quizService;
     }

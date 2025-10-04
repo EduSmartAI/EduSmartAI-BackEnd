@@ -1,6 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-
 namespace StudentService.Domain.WriteModels;
 
 public partial class LearningPathCourse
@@ -9,7 +6,7 @@ public partial class LearningPathCourse
 
     public Guid LearningPathMajorId { get; set; }
 
-    public Guid CourseId { get; set; }
+    public Guid? InternalCourseId { get; set; }
 
     public int? Position { get; set; }
 
@@ -22,6 +19,20 @@ public partial class LearningPathCourse
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public string? StepName { get; set; }
+
+    public string? ExternalCourseLink { get; set; }
+
+    public string? ExternalCourseReason { get; set; }
+
+    public decimal? ExternalCourseRating { get; set; }
+
+    public string? ExternalCourseLevel { get; set; }
+
+    public string? ExternalCourseDuration { get; set; }
+
+    public string? ExternalCourseProvider { get; set; }
 
     public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }

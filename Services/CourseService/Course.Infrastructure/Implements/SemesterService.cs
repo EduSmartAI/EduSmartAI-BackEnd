@@ -12,8 +12,8 @@ public class SemesterService(ICommandRepository<Semester> commandRepository) : I
     /// <param name="id"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<string> SelectSemesterAsync(Guid id, CancellationToken cancellationToken)
-        => await commandRepository.FirstOrDefaultAsync(x => x.SemesterId == id, cancellationToken).Select(x => x.SemesterName);
+    public async Task<Semester?> SelectSemesterAsync(Guid id, CancellationToken cancellationToken)
+        => await commandRepository.FirstOrDefaultAsync(x => x.SemesterId == id, cancellationToken);
     
     /// <summary>
     /// Select all semesters
