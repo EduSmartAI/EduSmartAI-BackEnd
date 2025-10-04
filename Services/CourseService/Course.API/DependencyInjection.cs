@@ -11,6 +11,7 @@ namespace Course.API
 			services.AddControllers();
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
+			services.AddSwaggerServices();
 			services.AddCorsServices();
 			services.AddMessagingServices();
 			services.AddAuthenticationServices();
