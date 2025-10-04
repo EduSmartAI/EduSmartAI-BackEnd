@@ -1,4 +1,4 @@
-using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using MediatR;
 using StudentService.Application.Applications.Students.Commands.Inserts;
@@ -22,7 +22,6 @@ public class StudentInformationInsertConsumer(IMediator mediator) : IConsumer<St
             LearningGoalId = evt.LearningGoalId,
         };
         
-        var response = await mediator.Send(command);
-        await context.RespondAsync(response);
+        await mediator.Send(command);
     }
 }

@@ -20,7 +20,7 @@ builder.Services
 	.AddApiServices();
 
 var app = builder.Build();
-
+await app.EnsureDatabaseCreatedAsync();
 app.UseApiServices();
 
 app.Run();

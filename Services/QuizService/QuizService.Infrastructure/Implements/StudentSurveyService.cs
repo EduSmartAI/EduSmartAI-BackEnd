@@ -4,7 +4,6 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
-using BuildingBlocks.Messaging.Events.QuizService.StudentInformationInsertEvents;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.StudentSurveys.Commands;
@@ -118,7 +117,6 @@ public class StudentSurveyService : IStudentSurveyService
                 return false;
             }
             
-            // Prepare outbox message for StudentMajorSemesterInformationEvent
             var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
             {
                 StudentId = currentUser.UserId,
@@ -443,7 +441,7 @@ public class StudentSurveyService : IStudentSurveyService
         });
 
         // True
-        response.SetMessage(MessageId.I00001, "Ghi nhận câu trả lời của sinh viên và đang phân tích định hướng nghề nghiệp");
+        response.SetMessage(MessageId.I00001, "Ghi nhận câu trả lời của sinh viên");
         response.Success = true;
         return true;
     }

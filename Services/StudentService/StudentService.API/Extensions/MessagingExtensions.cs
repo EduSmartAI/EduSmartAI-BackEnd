@@ -1,3 +1,4 @@
+using System.Reflection;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
@@ -30,9 +31,8 @@ public static class MessagingExtensions
             x.AddConsumer<ExternalTechnologySelectsConsumer>();
             x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
             x.AddConsumer<StudentInformationUpdatedEventConsumer>();
-            x.AddConsumer<InsertLearningPathConsumer>();
+            x.AddConsumer<InsertLearningPathEventConsumer>();
             x.AddConsumer<InsertMajorExternalCourseConsumer>();
-
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -51,7 +51,7 @@ public static class MessagingExtensions
 
                 cfg.ReceiveEndpoint("student.insert-learning-path", e =>
                 {
-                    e.ConfigureConsumer<InsertLearningPathConsumer>(context);
+                    e.ConfigureConsumer<InsertLearningPathEventConsumer>(context);
                 });
                 cfg.UseInMemoryOutbox();
             });
