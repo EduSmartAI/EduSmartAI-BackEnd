@@ -1,12 +1,17 @@
+using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
+using MassTransit;
 using QuizService.Application.Applications.StudentTests.Commands;
 using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -17,30 +22,30 @@ public class StudentTestService : IStudentTestService
     private readonly IQueryRepository<StudentTestCollection> _studentTestQueryRepository;
     private readonly IQueryRepository<TestCollection> _testQueryRepository;
     private readonly IQueryRepository<QuestionCollection> _questionQueryRepository;
+    private readonly ICommandRepository<OutboxMessage> _outboxRepository;
+    private readonly IQueryRepository<StudentQuizCollection> _studentQuizCollectionRepository;
+    private readonly IRequestClient<StudentInterestSurveyAnalysisEvent> _requestStudentInterestAnalysisClient;
+    private readonly IRequestClient<StudentInformationSelectsEvent> _requestStudentInformationSelectsClient;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
 
     /// <summary>
     /// Constructor
     /// </summary>
-    /// <param name="studentTestRepository"></param>
-    /// <param name="studentTestQueryRepository"></param>
-    /// <param name="identityService"></param>
-    /// <param name="unitOfWork"></param>
-    /// <param name="testQueryRepository"></param>
-    /// <param name="questionQueryRepository"></param>
-    /// <param name="studentQuizRepository"></param>
-    public StudentTestService(ICommandRepository<StudentTest> studentTestRepository, IQueryRepository<StudentTestCollection> studentTestQueryRepository,
-        IIdentityService identityService, IUnitOfWork unitOfWork, IQueryRepository<TestCollection> testQueryRepository, 
-        IQueryRepository<QuestionCollection> questionQueryRepository, ICommandRepository<StudentQuiz> studentQuizRepository)
+    /// <param name="deps"></param>
+    public StudentTestService(StudentTestServiceDependencies deps)
     {
-        _studentTestRepository = studentTestRepository;
-        _studentTestQueryRepository = studentTestQueryRepository;
-        _identityService = identityService;
-        _unitOfWork = unitOfWork;
-        _testQueryRepository = testQueryRepository;
-        _questionQueryRepository = questionQueryRepository;
-        _studentQuizRepository = studentQuizRepository;
+        _studentQuizCollectionRepository = deps.StudentQuizCollectionRepository;
+        _studentTestRepository = deps.StudentTestRepository;
+        _studentQuizRepository = deps.StudentQuizRepository;
+        _studentTestQueryRepository = deps.StudentTestQueryRepository;
+        _testQueryRepository = deps.TestQueryRepository;
+        _questionQueryRepository = deps.QuestionQueryRepository;
+        _outboxRepository = deps.OutboxRepository;
+        _requestStudentInterestAnalysisClient = deps.RequestStudentInterestAnalysisClient;
+        _requestStudentInformationSelectsClient = deps.RequestStudentInformationSelectsClient;
+        _identityService = deps.IdentityService;
+        _unitOfWork = deps.UnitOfWork;
     }
 
     /// <summary>
@@ -119,11 +124,6 @@ public class StudentTestService : IStudentTestService
                 {
                     QuestionId = a.QuestionId,
                     AnswerId = a.AnswerId,
-                    CreatedAt = currentTime,
-                    CreatedBy = currentUser.Email,
-                    UpdatedAt = currentTime,
-                    UpdatedBy = currentUser.Email,
-                    IsActive = true
                 }).ToList()
             };
             
@@ -134,11 +134,11 @@ public class StudentTestService : IStudentTestService
                 QuizId = x,
                 QuizType = (short) ConstantEnum.TestType.Quiz,
             }).ToList();
-            await _studentQuizRepository.AddRangeAsync(studentQuizzes, currentUser.Email);
+            await _studentQuizRepository.AddRangeAsync(studentQuizzes);
             
             // Save to database
-            await _studentTestRepository.AddAsync(studentTest, currentUser.Email);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            await _studentTestRepository.AddAsync(studentTest);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             
             var studentQuizCollections = new List<StudentQuizCollection>();
             
@@ -184,9 +184,70 @@ public class StudentTestService : IStudentTestService
             _unitOfWork.Store(studentTestCollection);
             await _unitOfWork.SessionSaveChangesAsync();
             
+            // Calculate score 
+            var studentLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList());
+            
+            // Send message to StudentService to get student information
+            var studentInformationSelectsEvent = new StudentInformationSelectsEvent
+            {
+                StudentId = currentUser.UserId
+            };
+            
+            // Get technologies from StudentService
+            var informationResponse = await _requestStudentInformationSelectsClient.GetResponse<StudentInformationSelectsEventResponse>(studentInformationSelectsEvent, cancellationToken);
+            
+            // Get StudentSurvey from cache
+            var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(CacheKey.StudentSurvey(currentUser.UserId),
+                async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId),
+                TimeSpan.FromMinutes(10));
+            
+            var learningPathId = Guid.NewGuid();
+            
+            // Find HABIT survey from student quiz collections
+            var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+
+            // Get selected answer IDs
+            var selectedAnswerIds = surveyHabit.Quiz.Questions
+                .SelectMany(q => q.Answers)
+                .Select(a => a.AnswerId)
+                .ToList();
+       
+            // Build StudentQuizAnswerCollection for selected answers
+            var studentQuizAnswers = surveyHabit.Quiz.Questions
+                .SelectMany(q => q.Answers)
+                .Where(a => selectedAnswerIds.Contains(a.AnswerId))
+                .Select(a => new StudentQuizAnswerCollection
+                {
+                    AnswerId = a.AnswerId,
+                    Answer = a
+                })
+                .ToList();
+
+            int limitTime = GetStudentStudyTime(studentQuizAnswers);
+            
+            var prepareStudentLearningProfileForAiRequest = new StudentLearningProfileContext
+            {
+                StudentQuizCollections = studentSurveys,
+                CurrentUser = currentUser,
+                InformationResponse = informationResponse.Message,
+                Response = response,
+                LearningPathId = learningPathId,
+                LimitTime = limitTime,
+                StudentLevel = (short)studentLevel
+            };
+            
+            // Publish Message to AIService
+            var studentMajorOrientationEvent = await PrepareStudentLearningProfileForAiAsync(prepareStudentLearningProfileForAiRequest, cancellationToken);
+            if (!studentMajorOrientationEvent.Success)
+            {
+                response.MessageId = studentMajorOrientationEvent.MessageId;
+                response.Message = studentMajorOrientationEvent.Message;
+                return false;
+            }
+            
             // True
             response.Success = true;
-            response.Response = studentTest.StudentTestId;
+            response.Response = learningPathId;
             response.SetMessage(MessageId.I00001, "Thêm bài kiểm tra của học sinh");
             return true;
         }, cancellationToken);
@@ -316,4 +377,286 @@ public class StudentTestService : IStudentTestService
         response.SetMessage(MessageId.I00001, "Lấy thông tin bài kiểm tra của học sinh");
         return response;
     }
+
+    /// <summary>
+    /// Determine student level based on test performance across difficulty levels
+    /// </summary>
+    /// <param name="studentAnswers">Student's answers</param>
+    /// <param name="quizzes">List of quizzes in the test</param>
+    /// <returns>Student level (1-5): 1=Beginner, 2=Elementary, 3=Intermediate, 4=Advanced, 5=Expert</returns>
+    private int DetermineStudentLevel(List<StudentAnswerCollection> studentAnswers, List<QuizCollection> quizzes)
+    {
+        var difficultyPerformance = new Dictionary<int, (int correct, int total)>();
+        
+        for (int i = 1; i <= 3; i++)
+        {
+            difficultyPerformance[i] = (0, 0);
+        }
+
+        var allQuestions = quizzes.SelectMany(q => q.Questions).ToList();
+
+        foreach (var question in allQuestions)
+        {
+            if (!question.DifficultyLevel.HasValue || question.DifficultyLevel.Value < 1 || question.DifficultyLevel.Value > 3)
+                continue;
+
+            int level = question.DifficultyLevel.Value;
+            var performance = difficultyPerformance[level];
+
+            // Get ALL student answers for this question
+            var studentAnswersForQuestion = studentAnswers
+                .Where(sa => sa.QuestionId == question.QuestionId)
+                .Select(sa => sa.AnswerId)
+                .ToList();
+            
+            if (studentAnswersForQuestion.Any())
+            {
+                // Get all correct answer IDs
+                var correctAnswerIds = question.Answers
+                    .Where(a => a.IsCorrect)
+                    .Select(a => a.AnswerId)
+                    .ToHashSet();
+
+                // Check if student selected exactly the correct answers
+                bool isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count && studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                
+                if (isCorrect)
+                {
+                    performance.correct++;
+                }
+                performance.total++;
+            }
+
+            difficultyPerformance[level] = performance;
+        }
+
+        // Simplified logic: Find highest level with >= 70% accuracy
+        int studentLevel = 1;
+        
+        for (int level = 3; level >= 1; level--)
+        {
+            var (correct, total) = difficultyPerformance[level];
+            
+            if (total == 0) continue;
+            
+            double accuracy = (double)correct / total;
+            
+            if (accuracy >= 0.7)
+            {
+                studentLevel = level;
+                break;
+            }
+        }
+
+        return studentLevel;
+    }
+    
+    /// <summary>
+    /// Prepare student learning profile for AI analysis and send message to AiService
+    /// </summary>
+    /// <param name="context"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    private async Task<StudentTestInsertResponse> PrepareStudentLearningProfileForAiAsync(StudentLearningProfileContext context, CancellationToken cancellationToken)
+    {
+        var studentMajorOrientationEvent = new StudentMajorOrientationEvent();
+
+        if (context.InformationResponse.Response.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
+        {
+            // Find INTEREST survey from student quiz collections
+            var interestSurvey = context.StudentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST))!;
+
+            // Get selected answer IDs from student's answers
+            var selectedAnswerIds = interestSurvey.StudentQuizAnswers
+                .Select(a => a.AnswerId)
+                .ToHashSet();
+
+            // Prepare questions and student answers for AI analysis
+            var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
+            {
+                QuestionId = question.QuestionId,
+                QuestionText = question.QuestionText,
+                StudentAnswers = question.Answers
+                    .Where(a => selectedAnswerIds.Contains(a.AnswerId))
+                    .Select(a => a.AnswerText)
+                    .ToList()
+            }).Where(q => q.StudentAnswers.Any()).ToList();
+
+            // Set message to AI service for analysis
+            var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
+            {
+                StudentId = context.CurrentUser.UserId,
+                Questions = interestQuestions
+            };
+
+            // Send request to AiService and get response (you need to inject IRequestClient)
+            var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(studentInterestAnalysisEvent, cancellationToken);
+            if (!aiAnalysisResponse.Message.Success)
+            {
+                context.Response.SetMessage(MessageId.E99999);
+                return context.Response;
+            }
+            
+            // Set learning goal from AI analysis result
+            studentMajorOrientationEvent.LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal;
+        }
+        else
+        {
+            studentMajorOrientationEvent.LearningGoal = context.InformationResponse.Response.LearningGoalName;
+        }
+        
+        // Extract frameworks and languages from technologies response
+        var frameworks = context.InformationResponse.Response.Technologies
+            .Where(x => x.TechnologyType == (short) ConstantEnum.TechnologyType.Framework)
+            .Select(x => x.TechnologyName)
+            .ToList();
+
+        var languages = context.InformationResponse.Response.Technologies
+            .Where(x => x.TechnologyType == (short ) ConstantEnum.TechnologyType.ProgrammingLanguage)
+            .Select(x => x.TechnologyName)
+            .ToList();
+
+        // Use AI analysis result to determine major orientation
+        studentMajorOrientationEvent.Frameworks = frameworks;
+        studentMajorOrientationEvent.Languages = languages;
+        studentMajorOrientationEvent.IdentityEntity = new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
+        {
+            UserId = context.CurrentUser.UserId,
+            Email = context.CurrentUser.Email,
+        };
+        studentMajorOrientationEvent.LimitTime = $"{context.LimitTime} Giờ";
+        studentMajorOrientationEvent.LearningPathId = context.LearningPathId;
+        studentMajorOrientationEvent.SemesterId = context.InformationResponse.Response.SemesterId;
+        studentMajorOrientationEvent.StudentLevel = context.StudentLevel;
+
+        var outboxMessage = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = nameof(StudentMajorOrientationEvent),
+            Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
+            OccurredOnUtc = DateTime.UtcNow,
+        };
+
+        await _outboxRepository.AddAsync(outboxMessage);
+        await _unitOfWork.SaveChangesAsync(context.CurrentUser.Email, cancellationToken);
+
+        context.Response.Success = true;
+        context.Response.SetMessage(MessageId.I00001, "Chuẩn bị hồ sơ học tập của sinh viên cho AI");
+        return context.Response;
+    }
+    
+    /// <summary>
+    /// Get student study time from survey answers
+    /// </summary>
+    /// <param name="studentQuizAnswers"></param>
+    /// <returns></returns>
+    private int GetStudentStudyTime(IEnumerable<StudentQuizAnswerCollection> studentQuizAnswers)
+    {
+        var answerRules = studentQuizAnswers
+            .SelectMany(a => a.Answer!.AnswerRule!)
+            .ToList();
+
+        int? hourPerDay = null;
+        int? hourPerWeek = null;
+        int? daysPerWeek = null;
+        int? months = null;
+
+        foreach (var rule in answerRules)
+        {
+            var avg = (rule.NumericMin ?? 0) + (rule.NumericMax ?? rule.NumericMin ?? 0);
+            avg /= ((rule.NumericMin.HasValue && rule.NumericMax.HasValue) ? 2 : 1);
+
+            if (Enum.TryParse<ConstantEnum.AnswerRuleUnit>(rule.Unit, out var unit))
+            {
+                switch (unit)
+                {
+                    case ConstantEnum.AnswerRuleUnit.HourPerDay:
+                        hourPerDay = avg;
+                        break;
+                    case ConstantEnum.AnswerRuleUnit.HourPerWeek:
+                        hourPerWeek = avg;
+                        break;
+                    case ConstantEnum.AnswerRuleUnit.Days:
+                        daysPerWeek = avg;
+                        break;
+                    case ConstantEnum.AnswerRuleUnit.Months:
+                        months = avg;
+                        break;
+                }
+            }
+        }
+
+        int totalMinutes = 0;
+
+        if (hourPerDay.HasValue && daysPerWeek.HasValue && months.HasValue)
+        {
+            totalMinutes = hourPerDay.Value * 60 * daysPerWeek.Value * 4 * months.Value;
+        }
+        else if (hourPerWeek.HasValue && months.HasValue)
+        {
+            totalMinutes = hourPerWeek.Value * 60 * 4 * months.Value;
+        }
+        else if (hourPerDay.HasValue && months.HasValue)
+        {
+            totalMinutes = hourPerDay.Value * 60 * 7 * 4 * months.Value;
+        }
+        else if (hourPerDay.HasValue && daysPerWeek.HasValue)
+        {
+            totalMinutes = hourPerDay.Value * 60 * daysPerWeek.Value * 4;
+        }
+
+        int totalHours = totalMinutes / 60;
+        return totalHours;
+    }
+}
+
+public class StudentTestServiceDependencies
+{
+    public StudentTestServiceDependencies(
+        ICommandRepository<StudentTest> studentTestRepository,
+        ICommandRepository<StudentQuiz> studentQuizRepository,
+        IQueryRepository<StudentTestCollection> studentTestQueryRepository,
+        IQueryRepository<TestCollection> testQueryRepository,
+        IQueryRepository<QuestionCollection> questionQueryRepository,
+        IQueryRepository<StudentQuizCollection> studentQuizCollectionRepository,
+        ICommandRepository<OutboxMessage> outboxRepository,
+        IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient,
+        IRequestClient<StudentInformationSelectsEvent> requestStudentInformationSelectsClient,
+        IIdentityService identityService,
+        IUnitOfWork unitOfWork)
+    {
+        StudentTestRepository = studentTestRepository;
+        StudentQuizRepository = studentQuizRepository;
+        StudentTestQueryRepository = studentTestQueryRepository;
+        TestQueryRepository = testQueryRepository;
+        QuestionQueryRepository = questionQueryRepository;
+        StudentQuizCollectionRepository = studentQuizCollectionRepository;
+        OutboxRepository = outboxRepository;
+        RequestStudentInterestAnalysisClient = requestStudentInterestAnalysisClient;
+        RequestStudentInformationSelectsClient = requestStudentInformationSelectsClient;
+        IdentityService = identityService;
+        UnitOfWork = unitOfWork;
+    }
+
+    public ICommandRepository<StudentTest> StudentTestRepository { get; }
+    public ICommandRepository<StudentQuiz> StudentQuizRepository { get; }
+    public IQueryRepository<StudentTestCollection> StudentTestQueryRepository { get; }
+    public IQueryRepository<TestCollection> TestQueryRepository { get; }
+    public IQueryRepository<QuestionCollection> QuestionQueryRepository { get; }
+    public IQueryRepository<StudentQuizCollection> StudentQuizCollectionRepository { get; }
+    public ICommandRepository<OutboxMessage> OutboxRepository { get; }
+    public IRequestClient<StudentInterestSurveyAnalysisEvent> RequestStudentInterestAnalysisClient { get; }
+    public IRequestClient<StudentInformationSelectsEvent> RequestStudentInformationSelectsClient { get; }
+    public IIdentityService IdentityService { get; }
+    public IUnitOfWork UnitOfWork { get; }
+}
+public class StudentLearningProfileContext
+{
+    public List<StudentQuizCollection> StudentQuizCollections { get; init; } = null!;
+    public IdentityEntity CurrentUser { get; init; } = null!;
+    public StudentInformationSelectsEventResponse InformationResponse { get; init; } = null!;
+    public StudentTestInsertResponse Response { get; init; } = null!;
+    public Guid LearningPathId { get; init; }
+    public int LimitTime { get; init; }
+    public short StudentLevel { get; init; }
 }

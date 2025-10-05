@@ -39,7 +39,8 @@ public static class RepositoryExtensions
         services.AddScoped<IQueryRepository<StudentLearningGoalCollection>, QueryRepository<StudentLearningGoalCollection>>();
         services.AddScoped<IQueryRepository<TechnologyCollection>, QueryRepository<TechnologyCollection>>();
         services.AddScoped<IQueryRepository<StudentOrientationCollection>, QueryRepository<StudentOrientationCollection>>();
-
+        services.AddScoped<IQueryRepository<StudentTechnologyCollection>, QueryRepository<StudentTechnologyCollection>>();
+        
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
         services.AddScoped<ILearningGoalService, LearningGoalService>();

@@ -31,7 +31,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 #region Application build and middleware pipeline
 
 var app = builder.Build();
-//await app.EnsureDatabaseCreatedAsync();
+await app.EnsureDatabaseCreatedAsync();
 
 if (app.Environment.IsDevelopment())
 {

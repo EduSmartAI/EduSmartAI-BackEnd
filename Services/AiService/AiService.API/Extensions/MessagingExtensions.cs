@@ -32,7 +32,8 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
-                cfg.Message<InsertLearningPathEvent>(m => m.SetEntityName("insert-learning-path-event"));
+                // Removed custom entity name to use default naming convention
+                
                 // Add timeout and retry configuration
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),

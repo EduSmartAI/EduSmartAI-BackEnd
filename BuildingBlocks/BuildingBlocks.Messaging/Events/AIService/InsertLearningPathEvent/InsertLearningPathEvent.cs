@@ -1,4 +1,6 @@
-﻿namespace BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent
+﻿using BaseService.Common.ApiEntities;
+
+namespace BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent
 {
     public sealed record InsertLearningPathEvent
     {
@@ -42,6 +44,10 @@
         public string? ExternalCourseProvider { get; set; }
 
     }
-    
+
+    public record InsertLearningPathEventResponse : AbstractApiResponse<string>
+    {
+        public override string Response { get; set; }
+    }
     
 }

@@ -12,17 +12,20 @@ namespace AiService.Application.Handler
     {
         private readonly IAdvisorService _advisorService;
         private readonly IPublishEndpoint _requestPublishEndpoint;
+        private readonly IRequestClient<InsertLearningPathEvent> _requestClientInsertLearningPath;
         private readonly IMediator _mediator;
-        public AiRecommendHandler(IAdvisorService advisorService, IPublishEndpoint requestPublishEndpoint, IMediator mediator)
+        public AiRecommendHandler(IAdvisorService advisorService, IPublishEndpoint requestPublishEndpoint, IMediator mediator, IRequestClient<InsertLearningPathEvent> requestClientInsertLearningPath)
         {
             _advisorService = advisorService;
             _requestPublishEndpoint = requestPublishEndpoint;
             _mediator = mediator;
+            _requestClientInsertLearningPath = requestClientInsertLearningPath;
         }
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
             try
             {
+                // Send message to StudentService to insert learning path
                 var insertLearningPathEvent = new InsertLearningPathEvent
                 {
                     LearningPathId = request.LearningPathId,
@@ -31,6 +34,12 @@ namespace AiService.Application.Handler
                     CurrentUserEmail = request.IdentityEntity.Email
                 };
 
+                var insertLearningPathResponse = await _requestClientInsertLearningPath.GetResponse<InsertLearningPathEventResponse>(insertLearningPathEvent, cancellationToken);
+                if (!insertLearningPathResponse.Message.Success)
+                {
+                    throw new Exception(insertLearningPathResponse.Message.Message);
+                }
+                
                 var learningPathMajors = new List<InsertLearningPathMajor>();
                 var learningPathCourses = new List<InsertLearningPathCourse>();
                 
@@ -50,16 +59,15 @@ namespace AiService.Application.Handler
                         ))
                         .ToList();
 
-                    await _requestPublishEndpoint.Publish(
-                        new InternalMajorEvent(
-                            LearningPathId: request.LearningPathId,
-                            LimitTime: request.ExternalLimitTime,
-                            CurrentUserEmail: request.IdentityEntity.Email,
-                            Majors: majors,
-                            SemesterId: request.SemesterId
-                        ),
-                        cancellationToken
+                    var internalMajorEvent = new InternalMajorEvent(
+                        LearningPathId: request.LearningPathId,
+                        StudentLevel: request.StudentLevel,
+                        LimitTime: request.ExternalLimitTime,
+                        CurrentUserEmail: request.IdentityEntity.Email,
+                        Majors: majors,
+                        SemesterId: request.SemesterId
                     );
+                    await _requestPublishEndpoint.Publish(internalMajorEvent, cancellationToken);
                 }
 
                 if ((result.ExternalSuggestions?.Count ?? 0) > 0)

@@ -8,6 +8,4 @@ public interface IStudentSurveyService
     Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request, CancellationToken cancellationToken);
     
     Task<StudentSurveySelectResponse> SelectStudentSurveyAsync(StudentSurveySelectQuery request);
-    
-    Task<StudentStudyTimeResponse> GetStudentStudyTimeAsync(StudentStudyTimeRequest request, CancellationToken contextCancellationToken);
 }
