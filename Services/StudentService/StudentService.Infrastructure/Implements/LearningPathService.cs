@@ -177,11 +177,13 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = x.MajorCode,
                     Reason = x.Reason,
-                    Type = request.MajorType,
+                    Type = x.MajorCode == "SE" 
+                        ? (short) ConstantEnum.LearningPathMajor.Basic 
+                        : request.MajorType,
                     LearningPathCourses = matchedCourses?.CourseCodeIds
                         .Select(courseId => new LearningPathCourse
                         {
-                            LearningPathCourseId = Guid.NewGuid(), // Add this line to generate ID
+                            LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = courseId
                         }).ToList() ?? new List<LearningPathCourse>()
                 };

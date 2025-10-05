@@ -953,37 +953,46 @@ namespace Course.Infrastructure.Implements
 			var response = new CoursesSelectEventResponse { Success = false };
 
 			// 1. Validate semester exists
-			var semesterExists = await _semesterRepository
+			var semester = await _semesterRepository
 				.Find(s => s.SemesterId == request.SemesterId)
-				.AnyAsync(cancellationToken: ct);
+				.Select(s => new { s.SemesterId, s.SemesterNumber })
+				.FirstOrDefaultAsync(cancellationToken: ct);
 
-			if (!semesterExists)
+			if (semester == null)
 			{
 				response.SetMessage(MessageId.E00000, "Semester not found");
 				return response;
 			}
 
-			// 2. Query courses by MajorCodes and StudentLevel
+			// 2. Determine which major codes to query
+			var majorCodesToQuery = request.MajorCodes.ToList();
+    
+			// If semester < 4 and "SE" not in majorCodes, add "SE"
+			if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
+			{
+				majorCodesToQuery.Add("SE");
+			}
+
 			var coursesData = await _courseRepository
 				.Find(
 					predicate: c => 
 						c.Subject.SyllabusSubjects.Any(ss =>
-							request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode)) && 
+							majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) && 
 						c.Level == request.StudentLevel &&
-						c.IsActive == true,
+						c.IsActive,
 					includes: c => c.Subject
 				)
 				.Select(c => new 
 				{
 					c.CourseId,
 					MajorCodes = c.Subject.SyllabusSubjects
-						.Where(ss => request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode))
+						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
 						.Select(ss => ss.Syllabus.Major.MajorCode)
 						.Distinct()
 				})
 				.ToListAsync(cancellationToken: ct);
 
-			// 3. Flatten và group by major
+			// 4. Flatten và group by major
 			var groupedCourses = coursesData
 				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
 				.GroupBy(x => x.MajorCode)
