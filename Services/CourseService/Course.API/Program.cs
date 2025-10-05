@@ -6,14 +6,6 @@ using Course.Infrastructure;
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);
 
-//builder.Services.AddMediatR(x =>
-//{
-//	x.RegisterServicesFromAssemblyContaining<CourseMajorSemesterSelectQueryHandler>();
-//	x.RegisterServicesFromAssemblyContaining<SemesterSelectsQueryHandler>();
-//	x.RegisterServicesFromAssemblyContaining<MajorSelectsQueryHandler>();
-//	x.RegisterServicesFromAssemblyContaining<SubjectSelectsQueryHandler>();
-//});
-
 builder.Services
 	.AddInfrastructure(builder.Configuration)
 	.AddApplication()
