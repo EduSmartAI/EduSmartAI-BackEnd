@@ -8,6 +8,7 @@ public class CoursesSelectEvent{
     public Guid SemesterId { get; set; }
     
     public int LimitTime { get; set; }
+    public short StudentLevel { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>

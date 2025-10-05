@@ -22,6 +22,7 @@ namespace Course.API.Extensions
 				x.AddConsumer<SemesterSelectsConsumer>();
 				x.AddConsumer<MajorSelectsConsumer>();
 				x.AddConsumer<SubjectSelectsConsumer>();
+				x.AddConsumer<CoursesSelectConsumer>();
 
 				x.UsingRabbitMq((context, cfg) =>
 				{

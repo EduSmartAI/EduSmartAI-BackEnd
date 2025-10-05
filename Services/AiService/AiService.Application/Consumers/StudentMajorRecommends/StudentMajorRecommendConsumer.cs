@@ -25,6 +25,7 @@ public class StudentMajorRecommendConsumer(IMediator mediator) : IConsumer<Stude
             ExternalLimitTime = evt.LimitTime,
             LearningPathId = evt.LearningPathId,
             SemesterId = evt.SemesterId,
+            StudentLevel = evt.StudentLevel,
         };
         
         await mediator.Send(request, context.CancellationToken);

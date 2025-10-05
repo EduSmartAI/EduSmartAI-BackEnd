@@ -2,6 +2,7 @@
 {
     public sealed record InternalMajorEvent(
         Guid LearningPathId,
+        short StudentLevel,
         string LimitTime,
         string CurrentUserEmail,
         IReadOnlyList<InternalMajorItem> Majors,

@@ -941,53 +941,65 @@ namespace Course.Infrastructure.Implements
 		/// <param name="request"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(CoursesSelectEvent request, CancellationToken ct = default)
+		/// <summary>
+		/// Get course selects response QuizService
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
+			CoursesSelectEvent request, CancellationToken ct = default)
 		{
 			var response = new CoursesSelectEventResponse { Success = false };
 
-			// // 1. Get Semester Number from SemesterId
-			// var startSemester = await _semesterRepository
-			// 	.Find(s => s.SemesterId == request.SemesterId)
-			// 	.Select(s => s!.SemesterNumber)
-			// 	.FirstOrDefaultAsync(cancellationToken: ct);
-			//
-			// // 2. Get all SemesterIds from startSemester to the latest
-			// var semesterIds = await _semesterRepository
-			// 	.Find(s => s.SemesterNumber >= startSemester)
-			// 	.Select(s => s!.SemesterId)
-			// 	.ToListAsync(cancellationToken: ct);
-			//
-			// // 3. Select Courses matching MajorCodes + SemesterIds
-			// var coursesQuery = _semesterRepository.Find(
-			// 	predicate: c => c.SyllabusSubjects.Any(ss =>
-			// 		semesterIds.Contains(ss.SemesterId) &&
-			// 		request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode)),
-			// 	includes: c => c.SyllabusSubjects
-			// );
-			//
-			// // 4. Apply soft limit (~10% more) to avoid long processing time
-			// var softLimit = (int) (request.LimitTime * 1.1);
-			//
-			// // 5. Group by MajorCode and select CourseIds
-			// var groupedCourses = await coursesQuery
-			// 	.Take(softLimit)
-			// 	.GroupBy(c => c.SyllabusSubjects
-			// 		.Select(ss => ss.Syllabus.Major.MajorCode)
-			// 		.FirstOrDefault())
-			// 	.Select(g => new CoursesSelectEventResponseEntity
-			// 	{
-			// 		MajorCode = g.Key!,
-			// 		CourseCodeIds = g.Select(c => c!..CourseId).ToList()
-			// 	})
-			// 	.ToListAsync(cancellationToken: ct);
+			// 1. Validate semester exists
+			var semesterExists = await _semesterRepository
+				.Find(s => s.SemesterId == request.SemesterId)
+				.AnyAsync(cancellationToken: ct);
 
-			// 6. Build response
+			if (!semesterExists)
+			{
+				response.SetMessage(MessageId.E00000, "Semester not found");
+				return response;
+			}
+
+			// 2. Query courses by MajorCodes and StudentLevel
+			var coursesData = await _courseRepository
+				.Find(
+					predicate: c => 
+						c.Subject.SyllabusSubjects.Any(ss =>
+							request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode)) && 
+						c.Level == request.StudentLevel &&
+						c.IsActive == true,
+					includes: c => c.Subject
+				)
+				.Select(c => new 
+				{
+					c.CourseId,
+					MajorCodes = c.Subject.SyllabusSubjects
+						.Where(ss => request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode))
+						.Select(ss => ss.Syllabus.Major.MajorCode)
+						.Distinct()
+				})
+				.ToListAsync(cancellationToken: ct);
+
+			// 3. Flatten và group by major
+			var groupedCourses = coursesData
+				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
+				.GroupBy(x => x.MajorCode)
+				.Select(g => new CoursesSelectEventResponseEntity
+				{
+					MajorCode = g.Key,
+					CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
+				})
+				.ToList();
+
+			// 4. Build response
 			response.Success = true;
-			//response.Response = groupedCourses;
-			response.SetMessage(MessageId.I00001, "Lấy dữ liệu select thành công");
+			response.Response = groupedCourses;
+			response.SetMessage(MessageId.I00001);
 			return response;
 		}
-
 		#endregion
 
 		#region Private Helper Methods
