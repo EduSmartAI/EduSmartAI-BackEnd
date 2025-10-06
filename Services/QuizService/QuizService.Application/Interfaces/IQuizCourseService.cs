@@ -8,4 +8,8 @@ public interface IQuizCourseService
     Task<QuizCourseInsertResponse> InsertQuizCourseAsync(QuizCourseInsertCommand request);
     
     Task<QuizCourseSelectQueryResponse> SelectCourseQuiz(QuizCourseSelectQuery request);
+    
+    Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourseAsync(StudentQuizCourseInsertCommand request, CancellationToken cancellationToken);
+    
+    Task<StudentCourseQuizSelectResponse> SelectStudentCourseQuizAsync(StudentCourseQuizSelectQuery request);
 }

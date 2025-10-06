@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
 using StudentService.API;
 using StudentService.API.Extensions;
-using StudentService.Infrastructure.Contexts;
 
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);

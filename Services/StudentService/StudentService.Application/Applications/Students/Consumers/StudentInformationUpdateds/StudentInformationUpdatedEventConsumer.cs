@@ -31,7 +31,10 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             {
                 unitOfWork.Store(tech);
             }
+        }
 
+        if (message.StudentLearningGoal != null)
+        {
             unitOfWork.Store(message.StudentLearningGoal);
         }
 

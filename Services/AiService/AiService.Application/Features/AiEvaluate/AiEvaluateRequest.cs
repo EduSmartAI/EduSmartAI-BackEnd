@@ -15,5 +15,7 @@ namespace AiService.Application.Features.AiEvaluate
         public IdentityEntity IdentityEntity { get; set; }
         public Guid LearningPathId { get; set; }
         public Guid SemesterId { get; set; }
+        
+        public short StudentLevel { get; set; }
     }
 }

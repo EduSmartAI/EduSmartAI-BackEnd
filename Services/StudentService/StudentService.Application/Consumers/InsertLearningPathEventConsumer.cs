@@ -18,8 +18,15 @@ namespace StudentService.Application.Consumers
                 StudentId = evt.StudentId,
                 PathName = evt.PathName,
             };
-
-            await service.InsertLearningPathAsync(request, context.CancellationToken);
+    
+            var response = await service.InsertLearningPathAsync(request, context.CancellationToken);
+            var messageResponse = new InsertLearningPathEventResponse
+            {
+                Success = response.Success,
+                Message = response.Message,
+            };
+            
+            await context.RespondAsync(messageResponse);
         }
     }
 }

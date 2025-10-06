@@ -52,4 +52,45 @@ public interface IUnitOfWork : IDisposable
     /// <param name="key"></param>
     /// <returns></returns>
     Task CacheRemoveAsync(string key);
+    
+    /// <summary>
+    /// Set a value in Redis cache with optional expiration
+    /// </summary>
+    /// <param name="key">Cache key</param>
+    /// <param name="value">Value to cache (will be serialized to JSON)</param>
+    /// <param name="expiration">Optional expiration time</param>
+    /// <typeparam name="T">Type of value</typeparam>
+    /// <returns></returns>
+    Task CacheSetAsync<T>(string key, T value, TimeSpan? expiration = null);
+    
+    /// <summary>
+    /// Set a string value in Redis cache with optional expiration
+    /// </summary>
+    /// <param name="key">Cache key</param>
+    /// <param name="value">String value to cache</param>
+    /// <param name="expiration">Optional expiration time</param>
+    /// <returns></returns>
+    Task CacheSetStringAsync(string key, string value, TimeSpan? expiration = null);
+    
+    /// <summary>
+    /// Get a value from Redis cache
+    /// </summary>
+    /// <param name="key">Cache key</param>
+    /// <typeparam name="T">Type of value</typeparam>
+    /// <returns>Cached value or default if not found</returns>
+    Task<T?> CacheGetAsync<T>(string key) where T : class;
+    
+    /// <summary>
+    /// Get a string value from Redis cache
+    /// </summary>
+    /// <param name="key">Cache key</param>
+    /// <returns>Cached string value or null if not found</returns>
+    Task<string?> CacheGetStringAsync(string key);
+    
+    /// <summary>
+    /// Check if a key exists in Redis cache
+    /// </summary>
+    /// <param name="key">Cache key</param>
+    /// <returns>True if key exists, false otherwise</returns>
+    Task<bool> CacheExistsAsync(string key);
 }

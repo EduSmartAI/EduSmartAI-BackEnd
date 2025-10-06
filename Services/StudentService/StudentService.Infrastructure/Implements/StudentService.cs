@@ -3,6 +3,7 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using MassTransit.Initializers;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
@@ -17,9 +18,9 @@ public class StudentService : IStudentService
     private readonly ICommandRepository<Student> _studentRepository;
     private readonly ICommandRepository<StudentTechnology> _studentTechnologyRepository;
     private readonly IQueryRepository<TechnologyCollection> _technologyQueryRepository;
+    private readonly IQueryRepository<StudentTechnologyCollection> _studentTechnologyQueryRepository;
     private readonly ICommandRepository<StudentLearningGoal> _studentLearningGoalRepository;
     private readonly IQueryRepository<StudentCollection> _studentQueryRepository;
-    private readonly ICommandRepository<StudentOrientation> _studentOrientationRepository;
     private readonly ICommandRepository<OutboxMessage> _outboxService;
     private readonly IQueryRepository<LearningGoalCollection> _learningGoalQueryRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -32,25 +33,26 @@ public class StudentService : IStudentService
     /// <param name="unitOfWork"></param>
     /// <param name="studentTechnologyRepository"></param>
     /// <param name="studentLearningGoalRepository"></param>
-    /// <param name="studentOrientationRepository"></param>
     /// <param name="learningGoalQueryRepository"></param>
     /// <param name="outboxService"></param>
     public StudentService(IQueryRepository<StudentCollection> studentQueryRepository,
         ICommandRepository<Student> studentRepository, IUnitOfWork unitOfWork,
         ICommandRepository<StudentTechnology> studentTechnologyRepository,
         ICommandRepository<StudentLearningGoal> studentLearningGoalRepository,
-        ICommandRepository<StudentOrientation> studentOrientationRepository, IQueryRepository<LearningGoalCollection> learningGoalQueryRepository, 
-        ICommandRepository<OutboxMessage> outboxService, IQueryRepository<TechnologyCollection> technologyQueryRepository)
+        IQueryRepository<LearningGoalCollection> learningGoalQueryRepository, 
+        ICommandRepository<OutboxMessage> outboxService, 
+        IQueryRepository<TechnologyCollection> technologyQueryRepository,
+        IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository)
     {
         _studentQueryRepository = studentQueryRepository;
         _studentRepository = studentRepository;
         _unitOfWork = unitOfWork;
         _studentTechnologyRepository = studentTechnologyRepository;
         _studentLearningGoalRepository = studentLearningGoalRepository;
-        _studentOrientationRepository = studentOrientationRepository;
         _learningGoalQueryRepository = learningGoalQueryRepository;
         _outboxService = outboxService;
         _technologyQueryRepository = technologyQueryRepository;
+        _studentTechnologyQueryRepository = studentTechnologyQueryRepository;
     }
 
     /// <summary>
@@ -193,9 +195,15 @@ public class StudentService : IStudentService
                         StudentId = request.StudentId,
                         TechnologyId = techId
                     }).ToList();
-
+                
                 await _studentTechnologyRepository.AddRangeAsync(newStudentTechnologies);
-                newStudentTechnologyCollections.AddRange(newStudentTechnologies.Select(x => StudentTechnologyCollection.FromWriteModel(x)).ToList());
+                
+                // Map to collection with technology info
+                newStudentTechnologyCollections.AddRange(newStudentTechnologies.Select(x =>
+                {
+                    var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == x.TechnologyId);
+                    return StudentTechnologyCollection.FromWriteModel(x, tech);
+                }).ToList());
             }
            
             StudentLearningGoalCollection newStudentLearningGoalCollection = null;
@@ -246,6 +254,39 @@ public class StudentService : IStudentService
             return true;
         }, cancellationToken);
 
+        return response;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentInformationSelectsEventResponse> GetStudentInformationSelectsAsync(StudentInformationSelectsEvent request, CancellationToken cancellationToken = default)
+    {
+        var response = new StudentInformationSelectsEventResponse { Success = false };
+        
+        var studentTechnologiesCollections = await _studentTechnologyQueryRepository.ToListAsync(x => x.StudentId == request.StudentId);
+
+        var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
+
+        var studentInfo = new StudentInformationSelectsEventResponseEntity
+        {
+            SemesterId = studentCollection!.SemesterId ?? Guid.Empty,
+            LearningGoalName = studentCollection.LearningGoals.Select(x => x.Goal!.GoalName).FirstOrDefault()!,
+            LearningGoalType = studentCollection.LearningGoals.Select(x => x.Goal!.LearningGoalType).FirstOrDefault(),
+            Technologies = studentTechnologiesCollections.Select(x => new StudentTechnologySelectsEventResponseEntity
+            {
+                TechnologyName = x.Technology.TechnologyName,
+                TechnologyType = x.Technology.TechnologyType,
+            }).ToList(),
+        };
+        
+        // Set response
+        response.Response = studentInfo;
+        response.Success = true;
+        response.SetMessage(MessageId.I00001);
         return response;
     }
 }

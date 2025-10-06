@@ -12,7 +12,6 @@ using QuizService.Application.Applications.StudentSurveys.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
-using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -22,8 +21,6 @@ public class StudentSurveyService : IStudentSurveyService
     private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
     private readonly IQueryRepository<QuizCollection> _quizQueryRepository;
     private readonly IRequestClient<CourseMajorSemesterSelectEvent> _requestCourseMajorSemesterClient;
-    private readonly IRequestClient<StudentInterestSurveyAnalysisEvent> _requestStudentInterestAnalysisClient;
-    private readonly IPublishEndpoint _publishEndpoint;
     private readonly ICommandRepository<OutboxMessage> _outboxService;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
@@ -54,9 +51,7 @@ public class StudentSurveyService : IStudentSurveyService
         _unitOfWork = unitOfWork;
         _quizQueryRepository = quizQueryRepository;
         _requestCourseMajorSemesterClient = requestCourseMajorSemesterClient;
-        _requestStudentInterestAnalysisClient = requestStudentInterestAnalysisClient;
         _outboxService = outboxService;
-        _publishEndpoint = publishEndpoint;
     }
 
     /// <summary>
@@ -100,7 +95,7 @@ public class StudentSurveyService : IStudentSurveyService
             var outboxMessages = new List<OutboxMessage>();
 
             // Outbox for StudentQuizCollectionInsertEvent
-            outboxMessages.Add(BuildOutboxForSurveyCollection(studentQuizzes, surveyExist, allQuestions, allAnswers));
+           var studentQuizCollections = BuildOutboxForSurveyCollection(studentQuizzes, surveyExist, allQuestions, allAnswers, outboxMessages);
 
             // Get course, major, semester info from CourseService
             var courseInfoResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
@@ -139,6 +134,23 @@ public class StudentSurveyService : IStudentSurveyService
             
             await _outboxService.AddRangeAsync(outboxMessages);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Remove old related cache
+            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentMajorSemesterInformation(currentUser.UserId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentSurvey(currentUser.UserId));
+            
+            // Add new related cache
+            await _unitOfWork.CacheSetAsync(
+                CacheKey.StudentMajorSemesterInformation(currentUser.UserId),
+                majorSemesterInfoInsertEvent,
+                TimeSpan.FromMinutes(5)
+            );
+            
+            await _unitOfWork.CacheSetStringAsync(
+                CacheKey.StudentSurvey(currentUser.UserId),
+                JsonSerializer.Serialize(studentQuizCollections),
+                TimeSpan.FromMinutes(5)
+            );
 
             // True
             response.Success = true;
@@ -148,47 +160,6 @@ public class StudentSurveyService : IStudentSurveyService
 
         return response;
     }
-    
-    /*
-     * // Get study time from HABIT survey
-       var surveyHabit = surveyExist.First(x => x.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
-       
-       // Get student's answers for the habit survey
-       var studentSurveyHabit = request.StudentSurveys.First(x => x.SurveyId == surveyHabit.QuizId);
-
-       // Get selected answer IDs
-       var selectedAnswerIds = studentSurveyHabit.Answers.Select(a => a.AnswerId).ToList();
-       
-       // Build StudentQuizAnswerCollection for selected answers
-       var studentQuizAnswers = surveyHabit.Questions
-           .SelectMany(q => q.Answers)
-           .Where(a => selectedAnswerIds.Contains(a.AnswerId))
-           .Select(a => new StudentQuizAnswerCollection
-           {
-               AnswerId = a.AnswerId,
-               Answer = a
-           })
-           .ToList();
-
-       int limitTime = GetStudentStudyTime(studentQuizAnswers);
-
-       
-       // If LearningGoalType == None → Analyze interest survey
-       if (request.StudentInformation.LearningGoal.LearningGoalType == (short)ConstantEnum.LearningGoalType.None)
-       {
-           if (!await HandleLearningGoalNoneAsync(request, surveyExist, currentUser, courseInfoResponse,
-                   outboxMessages, response, limitTime, cancellationToken))
-               return false;
-       }
-       else
-       {
-           if (!await HandleLearningGoalOtherAsync(request, currentUser, courseInfoResponse, outboxMessages,
-                   response, cancellationToken))
-               return false;
-       }
-
-     */
-
     #region Private Methods
 
     private async Task<List<QuizCollection>?> ValidateSurveyExistenceAsync(StudentSurveyInsertCommand request,
@@ -292,8 +263,11 @@ public class StudentSurveyService : IStudentSurveyService
         }).ToList();
     }
 
-    private OutboxMessage BuildOutboxForSurveyCollection(List<StudentQuiz> studentQuizzes,
-        List<QuizCollection> surveyExist, List<QuestionCollection> allQuestions, List<AnswerCollection> allAnswers)
+    private List<StudentQuizCollection> BuildOutboxForSurveyCollection(List<StudentQuiz> studentQuizzes, 
+        List<QuizCollection> surveyExist,
+        List<QuestionCollection> allQuestions,
+        List<AnswerCollection> allAnswers,
+        List<OutboxMessage> outboxMessages)
     {
         // Map to StudentQuizCollection for the event
         var studentQuizCollections = studentQuizzes.Select(studentQuiz =>
@@ -335,169 +309,16 @@ public class StudentSurveyService : IStudentSurveyService
         };
 
         // Return outbox message
-        return new OutboxMessage
+        outboxMessages.Add(new OutboxMessage
         {
             Id = Guid.NewGuid(),
             Type = nameof(StudentQuizCollectionInsertEvent),
             Content = JsonSerializer.Serialize(studentQuizInsertEvent),
             OccurredOnUtc = DateTime.UtcNow,
-        };
-    }
-
-    private async Task<bool> HandleLearningGoalNoneAsync(StudentSurveyInsertCommand request,
-        List<QuizCollection> surveyExist,
-        IdentityEntity currentUser,
-        Response<CourseMajorSemesterSelectEventResponse> courseInfoResponse,
-        List<OutboxMessage> outboxMessages,
-        StudentSurveyInsertResponse response,
-        int limitTime,
-        CancellationToken cancellationToken)
-    {
-        // Analyze interest survey
-        var surveyInterest = surveyExist.First(x => x.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
-        // Get student's answers for the interest survey
-        var studentSurveyInterest = request.StudentSurveys.First(x => x.SurveyId == surveyInterest.QuizId);
-        // Get selected answer IDs
-        var selectedAnswerIds = studentSurveyInterest.Answers.Select(a => a.AnswerId).ToList();
-
-        // Prepare questions and student answers for AI analysis
-        var interestQuestions = surveyInterest.Questions.Select(question => new StudentInterestQuestion
-        {
-            QuestionId = question.QuestionId,
-            QuestionText = question.QuestionText,
-            StudentAnswers = question.Answers.Where(a => selectedAnswerIds.Contains(a.AnswerId))
-                .Select(a => a.AnswerText).ToList()
-        }).Where(q => q.StudentAnswers.Any()).ToList();
-
-        // Set message to AI service for analysis
-        var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
-        {
-            StudentId = currentUser.UserId,
-            Questions = interestQuestions
-        };
-
-        // Send request to AiService and get response
-        var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(studentInterestAnalysisEvent, cancellationToken);
-        if (!aiAnalysisResponse.Message.Success)
-        {
-            response.MessageId = aiAnalysisResponse.Message.MessageId;
-            response.Message = aiAnalysisResponse.Message.Message;
-            return false;
-        }
-
-        var learningPathId = Guid.NewGuid();
-
-        // Use AI analysis result to determine major orientation
-        var studentMajorOrientationEvent = new StudentMajorOrientationEvent
-        {
-            LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal,
-            Frameworks = request.StudentInformation.Technologies
-                .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.Framework)
-                .Select(x => x.TechnologyName).ToList(),
-            Languages = request.StudentInformation.Technologies
-                .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.ProgrammingLanguage)
-                .Select(x => x.TechnologyName).ToList(),
-            IdentityEntity =
-                new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
-                {
-                    UserId = currentUser.UserId,
-                    Email = currentUser.Email,
-                },
-            LimitTime = $"{limitTime} Giờ",
-            LearningPathId = learningPathId,
-            SemesterId = request.StudentInformation.SemesterId,
-        };
-
-        await _publishEndpoint.Publish(studentMajorOrientationEvent, cancellationToken);
+        });
         
-        // Add outbox message
-        outboxMessages.Add(new OutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            Type = nameof(StudentMajorSemesterInformationEvent),
-            Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
-            OccurredOnUtc = DateTime.UtcNow,
-        });
-
-        // Prepare outbox message for StudentMajorSemesterInformationEvent
-        var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
-        {
-            StudentId = currentUser.UserId,
-            MajorId = request.StudentInformation.MajorId,
-            SemesterId = request.StudentInformation.SemesterId,
-            MajorName = courseInfoResponse.Message.Response.MajorName,
-            SemesterName = courseInfoResponse.Message.Response.SemesterName,
-            ProgramingLanguages = request.StudentInformation.Technologies.Select(x => x.TechnologyId).ToList(),
-            LearningGoalId = request.StudentInformation.LearningGoal.LearningGoalId,
-        };
-
-        // Add outbox message
-        outboxMessages.Add(new OutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            Type = nameof(StudentMajorSemesterInformationEvent),
-            Content = JsonSerializer.Serialize(majorSemesterInfoInsertEvent),
-            OccurredOnUtc = DateTime.UtcNow,
-        });
-
-        // True
-        response.SetMessage(MessageId.I00001, "Ghi nhận câu trả lời của sinh viên");
-        response.Success = true;
-        return true;
+        return studentQuizCollections;
     }
-
-    private async Task<bool> HandleLearningGoalOtherAsync(StudentSurveyInsertCommand request,
-        IdentityEntity currentUser, Response<CourseMajorSemesterSelectEventResponse> courseInfoResponse,
-        List<OutboxMessage> outboxMessages, StudentSurveyInsertResponse response, CancellationToken cancellationToken)
-    {
-        // Get learning goal type name
-        var learningGoalTypeValue = request.StudentInformation.LearningGoal.LearningGoalType;
-        var learningGoalTypeName = Enum.GetName(typeof(ConstantEnum.LearningGoalType), learningGoalTypeValue)!;
-
-        // Determine major orientation based on learning goal and technologies
-        var studentMajorOrientationEvent = new StudentMajorOrientationEvent
-        {
-            LearningGoal = learningGoalTypeName,
-            Frameworks = request.StudentInformation.Technologies
-                .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.Framework)
-                .Select(x => x.TechnologyName).ToList(),
-            Languages = request.StudentInformation.Technologies
-                .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.ProgrammingLanguage)
-                .Select(x => x.TechnologyName).ToList(),
-        };
-
-        outboxMessages.Add(new OutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            Type = nameof(StudentMajorOrientationEvent),
-            Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
-            OccurredOnUtc = DateTime.UtcNow,
-        });
-
-        // Prepare outbox message for StudentMajorSemesterInformationEvent
-        var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
-        {
-            StudentId = currentUser.UserId,
-            MajorId = request.StudentInformation.MajorId,
-            SemesterId = request.StudentInformation.SemesterId,
-            MajorName = courseInfoResponse.Message.Response.MajorName,
-            SemesterName = courseInfoResponse.Message.Response.SemesterName,
-            ProgramingLanguages = request.StudentInformation.Technologies.Select(x => x.TechnologyId).ToList(),
-            LearningGoalId = request.StudentInformation.LearningGoal.LearningGoalId,
-        };
-
-        // Add outbox message
-        outboxMessages.Add(new OutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            Type = nameof(StudentMajorSemesterInformationEvent),
-            Content = JsonSerializer.Serialize(majorSemesterInfoInsertEvent),
-            OccurredOnUtc = DateTime.UtcNow,
-        });
-
-        return true;
-    }
-
     #endregion
 
     /// <summary>
@@ -549,93 +370,6 @@ public class StudentSurveyService : IStudentSurveyService
         response.Success = true;
         response.Response = studentSurveyResponse;
         response.SetMessage(MessageId.I00001, "Lấy khảo sát của sinh viên");
-        return response;
-    }
-
-    /// <summary>
-    /// Get student study time from survey
-    /// </summary>
-    /// <param name="request"></param>
-    /// <param name="contextCancellationToken"></param>
-    /// <returns></returns>
-    public async Task<StudentStudyTimeResponse> GetStudentStudyTimeAsync(StudentStudyTimeRequest request, CancellationToken contextCancellationToken)
-    {
-        var response = new StudentStudyTimeResponse { Success = false };
-
-        var studentSurvey = await _studentQuizQueryRepository
-            .FirstOrDefaultAsync(x => x.StudentId == request.StudentId
-                                      && x.QuizType == (short) ConstantEnum.TestType.Survey);
-
-        if (studentSurvey == null)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy khảo sát");
-            return response;
-        }
-
-        var answerRules = studentSurvey.StudentQuizAnswers
-            .SelectMany(a => a.Answer!.AnswerRule!)
-            .ToList();
-
-        int? hourPerDay = null;
-        int? hourPerWeek = null;
-        int? daysPerWeek = null;
-        int? months = null;
-
-        foreach (var rule in answerRules)
-        {
-            var avg = (rule.NumericMin ?? 0) + (rule.NumericMax ?? rule.NumericMin ?? 0);
-            avg /= ((rule.NumericMin.HasValue && rule.NumericMax.HasValue) ? 2 : 1);
-
-            if (Enum.TryParse<ConstantEnum.AnswerRuleUnit>(rule.Unit, out var unit))
-            {
-                switch (unit)
-                {
-                    case ConstantEnum.AnswerRuleUnit.HourPerDay:
-                        hourPerDay = avg;
-                        break;
-
-                    case ConstantEnum.AnswerRuleUnit.HourPerWeek:
-                        hourPerWeek = avg;
-                        break;
-
-                    case ConstantEnum.AnswerRuleUnit.Days:
-                        daysPerWeek = avg;
-                        break;
-
-                    case ConstantEnum.AnswerRuleUnit.Months:
-                        months = avg;
-                        break;
-                }
-            }
-        }
-
-        // Calculate total study time in minutes
-        int totalMinutes = 0;
-
-        // If have hour/day, days/week and months
-        if (hourPerDay.HasValue && daysPerWeek.HasValue && months.HasValue)
-        {
-            totalMinutes = hourPerDay.Value * 60 * daysPerWeek.Value * 4 * months.Value;
-        }
-        // If only have hour/week and months (Consider it 4 weeks/month)
-        else if (hourPerWeek.HasValue && months.HasValue)
-        {
-            totalMinutes = hourPerWeek.Value * 60 * 4 * months.Value;
-        }
-        // If only have hour/day and months (Consider it 7 days/week)
-        else if (hourPerDay.HasValue && months.HasValue)
-        {
-            totalMinutes = hourPerDay.Value * 60 * 7 * 4 * months.Value;
-        }
-        // If only have hour/week and days/week (Consider it 4 weeks/month)
-        else if (hourPerDay.HasValue && daysPerWeek.HasValue)
-        {
-            totalMinutes = hourPerDay.Value * 60 * daysPerWeek.Value * 4;
-        }
-
-        response.Success = true;
-        response.Response = totalMinutes;
-        response.SetMessage(MessageId.I00001, "Lấy thời gian học tập của sinh viên");
         return response;
     }
     

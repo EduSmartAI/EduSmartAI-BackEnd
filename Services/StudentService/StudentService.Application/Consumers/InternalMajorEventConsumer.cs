@@ -6,7 +6,7 @@ using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Consumers;
 
-public class InternalMajorConsumer(ILearningPathService learningPathService) : IConsumer<InternalMajorEvent>
+public class InternalMajorEventConsumer(ILearningPathService learningPathService) : IConsumer<InternalMajorEvent>
 {
     public async Task Consume(ConsumeContext<InternalMajorEvent> context)
     {
@@ -26,7 +26,9 @@ public class InternalMajorConsumer(ILearningPathService learningPathService) : I
                 Reason = x.Reason,
             }).ToList(),
             LimitTime = limitTimeNumber,
-            CurrentUserEmail = evt.CurrentUserEmail
+            StudentLevel = evt.StudentLevel,
+            CurrentUserEmail = evt.CurrentUserEmail,
+            SemesterId = evt.SemesterId,
         };
 
         // Insert internal majors using the learning path service

@@ -15,6 +15,8 @@ public class StudentMajorOrientationEvent
     public Guid LearningPathId { get; set; }
     
     public Guid SemesterId { get; set; }
+    
+    public short StudentLevel { get; set; }
 }
 
 public class IdentityEntity

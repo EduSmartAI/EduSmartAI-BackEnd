@@ -4,6 +4,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
@@ -33,6 +34,8 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationUpdatedEventConsumer>();
             x.AddConsumer<InsertLearningPathEventConsumer>();
             x.AddConsumer<InsertMajorExternalCourseConsumer>();
+            x.AddConsumer<StudentInformationSelectsEventConsumer>();
+            x.AddConsumer<InternalMajorEventConsumer>();
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -47,18 +50,13 @@ public static class MessagingExtensions
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
                     TimeSpan.FromSeconds(5)));
-                cfg.Message<InsertLearningPathEvent>(m => m.SetEntityName("insert-learning-path-event"));
-
-                cfg.ReceiveEndpoint("student.insert-learning-path", e =>
-                {
-                    e.ConfigureConsumer<InsertLearningPathEventConsumer>(context);
-                });
                 cfg.UseInMemoryOutbox();
             });
 
             x.AddRequestClient<UserInsertEvent>();
             x.AddRequestClient<UserLoginEvent>();
             x.AddRequestClient<UpdateExternalMajorEvent>();
+            x.AddRequestClient<CoursesSelectEvent>();
         });
 
         return services;
