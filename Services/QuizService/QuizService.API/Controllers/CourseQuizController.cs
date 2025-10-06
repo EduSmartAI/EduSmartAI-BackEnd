@@ -39,7 +39,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     )]
     public async Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourse(StudentQuizCourseInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<StudentQuizCourseInsertCommand, StudentQuizCourseInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<StudentQuizCourseInsertCommand, StudentQuizCourseInsertResponse, Guid?>(
             request,
             _logger,
             ModelState,

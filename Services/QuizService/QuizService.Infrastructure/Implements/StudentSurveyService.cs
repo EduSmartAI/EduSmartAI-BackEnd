@@ -277,6 +277,7 @@ public class StudentSurveyService : IStudentSurveyService
             return new StudentQuizCollection
             {
                 StudentQuizId = studentQuiz.StudentQuizId,
+                QuizType = studentQuiz.QuizType,
                 StudentId = studentQuiz.StudentId,
                 QuizId = studentQuiz.QuizId,
                 IsActive = studentQuiz.IsActive,

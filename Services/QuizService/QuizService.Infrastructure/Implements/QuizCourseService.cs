@@ -198,7 +198,35 @@ public class QuizCourseService : IQuizCourseService
             // Publish event to read model
             var studentQuizCourseInsertEvent = new StudentQuizCourseInsertEvent
             {
-                StudentQuiz = StudentQuizCollection.FromWriteModel(newStudentQuiz, quizCollectionExist)
+                StudentQuiz = new StudentQuizCollection
+                {
+                    StudentQuizId = newStudentQuiz.StudentQuizId,
+                    StudentId = newStudentQuiz.StudentId,
+                    QuizType = newStudentQuiz.QuizType,
+                    QuizId = newStudentQuiz.QuizId,
+                    IsActive = newStudentQuiz.IsActive,
+                    CreatedAt = newStudentQuiz.CreatedAt,
+                    UpdatedAt = newStudentQuiz.UpdatedAt,
+                    CreatedBy = newStudentQuiz.CreatedBy,
+                    UpdatedBy = newStudentQuiz.UpdatedBy,
+                    Quiz = quizCollectionExist,
+                    StudentQuizAnswers = newStudentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
+                    {
+                        StudentQuizAnswerId = x.StudentQuizAnswerId,
+                        StudentQuizId = x.StudentQuizId,
+                        QuestionId = x.QuestionId,
+                        AnswerId = x.AnswerId,
+                        IsActive = x.IsActive,
+                        CreatedAt = x.CreatedAt,
+                        UpdatedAt = x.UpdatedAt,
+                        CreatedBy = x.CreatedBy,
+                        UpdatedBy = x.UpdatedBy,
+                        Question = quizCollectionExist.Questions.FirstOrDefault(q => q.QuestionId == x.QuestionId),
+                        Answer = quizCollectionExist.Questions
+                            .SelectMany(q => q.Answers)
+                            .FirstOrDefault(a => a.AnswerId == x.AnswerId)
+                    }).ToList()
+                }
             };
 
             var outboxMessage = new OutboxMessage
@@ -214,6 +242,7 @@ public class QuizCourseService : IQuizCourseService
 
             // True
             response.Success = true;
+            response.Response = newStudentQuiz.StudentQuizId;
             response.SetMessage(MessageId.I00001, "Lưu kết quả làm bài course");
             return true;
         }, cancellationToken);
@@ -226,14 +255,14 @@ public class QuizCourseService : IQuizCourseService
 
         var currentUser = _identityService.GetCurrentUser();
         
-        var cacheKey = CacheKey.StudentQuizCourse(currentUser!.UserId, request.QuizId);
+        var cacheKey = CacheKey.StudentQuizCourse(currentUser!.UserId, request.StudentQuizCourseId);
 
         // Get student quiz from cache or database
         var studentCourseQuiz = await _studentQuizQueryRepository.GetOrSetAsync(
             cacheKey,
             async () =>
             {
-                return await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.QuizId == request.QuizId && x.StudentId == currentUser.UserId && x.IsActive);
+                return await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.StudentQuizId == request.StudentQuizCourseId && x.StudentId == currentUser.UserId && x.IsActive);
             },
             TimeSpan.FromMinutes(10)
         );

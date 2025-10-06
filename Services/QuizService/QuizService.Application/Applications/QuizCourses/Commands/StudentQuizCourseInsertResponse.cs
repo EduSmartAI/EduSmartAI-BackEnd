@@ -2,7 +2,7 @@ using BaseService.Common.ApiEntities;
 
 namespace QuizService.Application.Applications.QuizCourses.Commands;
 
-public record StudentQuizCourseInsertResponse : AbstractApiResponse<string>
+public record StudentQuizCourseInsertResponse : AbstractApiResponse<Guid?>
 {
-    public override string Response { get; set; }
+    public override Guid? Response { get; set; }
 }
