@@ -1,7 +1,7 @@
 ﻿using BuildingBlocks.Messaging.Events.QuizService;
-using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -22,6 +22,8 @@ namespace Course.Application.Interfaces
 
 		Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default);
 
+		Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default);
+
 		Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default);
 
 		Task<GetCourseBySlugForGuestResponse> GetCourseBySlugForGuestAsync(string Slug, CancellationToken ct = default);
@@ -31,7 +33,7 @@ namespace Course.Application.Interfaces
 		Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default);
 
 		Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default);
-		
+
 		Task<CoursesSelectEventResponse> GetCourseSelectsAsync(CoursesSelectEvent request, CancellationToken ct = default);
 	}
 }

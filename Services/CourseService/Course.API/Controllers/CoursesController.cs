@@ -1,5 +1,6 @@
 ﻿using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -234,6 +235,29 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request with { CourseId = courseId }),
 				new UpdateCourseModulesResponse()
+			);
+		}
+
+		/// <summary>
+		/// Delete a course by ID
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
+		[HttpDelete("{courseId}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Delete a course by ID",
+			Description = "Delete a specific course by its ID. Only the lecturer who created the course can delete it."
+		)]
+		public async Task<DeleteCourseResponse> DeleteCourse([FromRoute] Guid courseId)
+		{
+			var command = new DeleteCourseCommand(courseId);
+			return await ApiControllerHelper.HandleRequest<DeleteCourseCommand, DeleteCourseResponse, bool>(
+				command,
+				_logger,
+				ModelState,
+				async () => await sender.Send(command),
+				new DeleteCourseResponse()
 			);
 		}
 

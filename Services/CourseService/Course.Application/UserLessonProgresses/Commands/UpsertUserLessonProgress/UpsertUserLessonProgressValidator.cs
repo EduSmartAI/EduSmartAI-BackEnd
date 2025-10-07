@@ -1,6 +1,4 @@
-﻿using FluentValidation;
-
-namespace Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress
+﻿namespace Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress
 {
 	public class UpsertUserLessonProgressValidator : AbstractValidator<UpsertUserLessonProgressCommand>
 	{
