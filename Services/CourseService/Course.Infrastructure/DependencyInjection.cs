@@ -1,7 +1,6 @@
 ﻿using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
-using Course.Application.Interfaces.Helpers.Courses;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Helpers.Courses;

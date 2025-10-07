@@ -1,6 +1,7 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -891,6 +892,55 @@ namespace Course.Infrastructure.Implements
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Cập nhật các module của khóa học");
 
+			return response;
+		}
+
+		/// <summary>
+		/// Delete course by setting IsActive = false (soft delete)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new DeleteCourseResponse() { Success = false };
+
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingCourse is null)
+			{
+				response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
+				return response;
+			}
+
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			// Only the teacher who created the course can delete it
+			if (existingCourse.TeacherId != currentUser.UserId)
+			{
+				response.SetMessage(MessageId.E00000, "Bạn không có quyền xóa khóa học này.");
+				return response;
+			}
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				// Soft delete by setting IsActive = false
+				// Set needLogicalDelete = true to soft delete
+				_courseRepository.Update(existingCourse, currentUser.Email, true);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct, true);
+				return true;
+			}, ct);
+
+			// 5. Clear cache after successful update
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
+
+			response.Response = true;
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Xóa khóa học thành công");
 			return response;
 		}
 
