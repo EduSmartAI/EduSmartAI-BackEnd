@@ -731,6 +731,9 @@ namespace Course.Infrastructure.Implements
 
 			// Clear cache after successful creation
 			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 			await _courseCache.ClearCourseTagsCacheAsync();
 
 			response.Response = course.CourseId.ToString();
@@ -830,6 +833,9 @@ namespace Course.Infrastructure.Implements
 
 			// 8. Clear cache after successful update
 			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 			await _courseCache.ClearCourseTagsCacheAsync();
 
 			// 9. Return updated course detail
@@ -886,6 +892,9 @@ namespace Course.Infrastructure.Implements
 
 			// 5. Clear cache after successful update
 			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 			await _courseCache.ClearCourseTagsCacheAsync();
 
 			// 6. Return response
@@ -936,6 +945,9 @@ namespace Course.Infrastructure.Implements
 
 			// 5. Clear cache after successful update
 			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 			await _courseCache.ClearCourseTagsCacheAsync();
 
 			response.Response = true;
