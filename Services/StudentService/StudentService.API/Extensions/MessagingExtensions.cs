@@ -34,8 +34,11 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationUpdatedEventConsumer>();
             x.AddConsumer<InsertLearningPathEventConsumer>();
             x.AddConsumer<InsertMajorExternalCourseConsumer>();
+            x.AddConsumer<InsertBatchMajorExternalCourseConsumer>();
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
+            x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
+            
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -56,6 +59,7 @@ public static class MessagingExtensions
             x.AddRequestClient<UserInsertEvent>();
             x.AddRequestClient<UserLoginEvent>();
             x.AddRequestClient<UpdateExternalMajorEvent>();
+            x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<CoursesSelectEvent>();
         });
 

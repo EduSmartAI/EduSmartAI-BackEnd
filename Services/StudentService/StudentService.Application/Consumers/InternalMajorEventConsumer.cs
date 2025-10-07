@@ -1,5 +1,6 @@
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using MassTransit;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Interfaces;
@@ -32,8 +33,13 @@ public class InternalMajorEventConsumer(ILearningPathService learningPathService
         };
 
         // Insert internal majors using the learning path service
-        await learningPathService.InsertLearningPathMajorAsync(request);
-        
-        
+        var learningPathMajorInternalInsertResponse = await learningPathService.InsertLearningPathMajorAsync(request);
+
+        await context.RespondAsync(new InsertLearningPathEventResponse
+        {
+            Success = learningPathMajorInternalInsertResponse.Success,
+            Message = learningPathMajorInternalInsertResponse.Message,
+            MessageId = learningPathMajorInternalInsertResponse.MessageId
+        });
     }
 }

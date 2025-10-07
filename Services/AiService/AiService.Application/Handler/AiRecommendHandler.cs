@@ -1,6 +1,6 @@
 ﻿using AiService.Application.Features.AiEvaluate;
-using AiService.Application.Features.AiExternalCourse;
 using AiService.Application.Interfaces;
+using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using MassTransit;
@@ -13,14 +13,18 @@ namespace AiService.Application.Handler
         private readonly IAdvisorService _advisorService;
         private readonly IPublishEndpoint _requestPublishEndpoint;
         private readonly IRequestClient<InsertLearningPathEvent> _requestClientInsertLearningPath;
+        private readonly IRequestClient<InternalMajorEvent> _requestClientInternalMajor;
         private readonly IMediator _mediator;
-        public AiRecommendHandler(IAdvisorService advisorService, IPublishEndpoint requestPublishEndpoint, IMediator mediator, IRequestClient<InsertLearningPathEvent> requestClientInsertLearningPath)
+        
+        public AiRecommendHandler(IAdvisorService advisorService, IPublishEndpoint requestPublishEndpoint, IMediator mediator, IRequestClient<InsertLearningPathEvent> requestClientInsertLearningPath, IRequestClient<InternalMajorEvent> requestClientInternalMajor)
         {
             _advisorService = advisorService;
             _requestPublishEndpoint = requestPublishEndpoint;
             _mediator = mediator;
             _requestClientInsertLearningPath = requestClientInsertLearningPath;
+            _requestClientInternalMajor = requestClientInternalMajor;
         }
+        
         public async Task<AiEvaluateResponse> Handle(AiEvaluateRequest request, CancellationToken cancellationToken)
         {
             try
@@ -40,13 +44,13 @@ namespace AiService.Application.Handler
                     throw new Exception(insertLearningPathResponse.Message.Message);
                 }
                 
-                var learningPathMajors = new List<InsertLearningPathMajor>();
-                var learningPathCourses = new List<InsertLearningPathCourse>();
-                
                 // AI recommend major
                 var result = await _advisorService.EvaluateAsync(request, cancellationToken);
                 var matched = result.Matched;
                 var hasMatched = matched.Count > 0;
+
+                Task<Response<InternalMajorEventResponse>>? internalInsertTask = Task.FromResult<Response<InternalMajorEventResponse>?>(null);
+                Task<AiBatchExternalRecommendResponse>? externalInsertTask = Task.FromResult<AiBatchExternalRecommendResponse?>(null);
 
                 if (hasMatched)
                 {
@@ -67,9 +71,11 @@ namespace AiService.Application.Handler
                         Majors: majors,
                         SemesterId: request.SemesterId
                     );
-                    await _requestPublishEndpoint.Publish(internalMajorEvent, cancellationToken);
+                    internalInsertTask = _requestClientInternalMajor.GetResponse<InternalMajorEventResponse>(internalMajorEvent, cancellationToken);
+                    
                 }
 
+                // Process external majors in batch instead of loop
                 if ((result.ExternalSuggestions?.Count ?? 0) > 0)
                 {
                     var externalMajors = result.ExternalSuggestions!
@@ -87,28 +93,38 @@ namespace AiService.Application.Handler
 
                     if (externalMajors.Count > 0)
                     {
-                        foreach (var m in externalMajors)
+                        // Use batch processing instead of foreach loop
+                        var batchRequest = new AiBatchExternalRecommendRequest
                         {
-                            try
+                            LearningPathId = request.LearningPathId.ToString(),
+                            CurrentUserEmail = request.IdentityEntity.Email,
+                            Majors = externalMajors.Select(m => new ExternalMajorRequestItem
                             {
-                                var extReq = new AiExternalCourseRequest
-                                {
-                                    GoalMajor = m.MajorCode,
-                                    LearningPathId = request.LearningPathId.ToString(),
-                                    CurrentUserEmail = request.IdentityEntity.Email,
-                                    MajorCode = m.MajorCode,
-                                    Reason = m.Reason
-                                };
-                                await _mediator.Send(extReq, cancellationToken);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Failed to process external major {m.MajorCode}: {ex.Message}");
-                            }
-                        }
+                                MajorCode = m.MajorCode,
+                                Reason = m.Reason
+                            }).ToList()
+                        };
+                        
+                        externalInsertTask = _mediator.Send(batchRequest, cancellationToken);
                     }
                 }
+                
+                await Task.WhenAll(internalInsertTask!, externalInsertTask!);
 
+                var internalResult = (await internalInsertTask!)!.Message;
+                var externalResult = await externalInsertTask!;
+
+                if (internalResult.Success && externalResult.Success)
+                {
+                    var learningPathUpdateStatusEvent = new LearningPathUpdateStatusEvent
+                    {
+                        LearningPathId = request.LearningPathId,
+                    };
+
+                    await _requestPublishEndpoint.Publish(learningPathUpdateStatusEvent, cancellationToken);
+                }
+                
+                
                 return new AiEvaluateResponse
                 {
                     Success = true,

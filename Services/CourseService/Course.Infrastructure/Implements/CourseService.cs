@@ -1036,12 +1036,11 @@ namespace Course.Infrastructure.Implements
 			}
 
 			var coursesData = await _courseRepository
-				.Find(
-					predicate: c => 
-						c.Subject.SyllabusSubjects.Any(ss =>
-							majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) && 
-						c.Level == request.StudentLevel &&
-						c.IsActive,
+				.Find(c => c.Subject.SyllabusSubjects.Any(
+					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) && 
+				      // c.Level == request.StudentLevel &&
+				      c.IsActive,
+						
 					includes: c => c.Subject
 				)
 				.Select(c => new 
