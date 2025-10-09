@@ -17,6 +17,7 @@ builder.Services.AddRepositoryServices();
 builder.Services.AddMessagingServices();
 builder.Services.AddSwaggerServices();
 builder.Services.AddCorsServices();
+builder.Services.AddApplicationMapster();
 
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();

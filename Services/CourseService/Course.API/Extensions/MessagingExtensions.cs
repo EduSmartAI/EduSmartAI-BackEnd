@@ -2,44 +2,46 @@
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using Course.Application.Consumers;
+using Course.Application.Consumers.GetInfoInternalCourse;
 using MassTransit;
 
 namespace Course.API.Extensions
 {
-	public static class MessagingExtensions
-	{
-		public static IServiceCollection AddMessagingServices(this IServiceCollection services)
-		{
-			EnvLoader.Load();
+    public static class MessagingExtensions
+    {
+        public static IServiceCollection AddMessagingServices(this IServiceCollection services)
+        {
+            EnvLoader.Load();
 
-			var rabbitMqHost = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqHost);
-			var rabbitMqUsername = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqUsername);
-			var rabbitMqPassword = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqPassword);
+            var rabbitMqHost = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqHost);
+            var rabbitMqUsername = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqUsername);
+            var rabbitMqPassword = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqPassword);
 
-			services.AddMassTransit(x =>
-			{
-				x.AddConsumer<CourseMajorSemesterSelectEventConsumer>();
-				x.AddConsumer<SemesterSelectsConsumer>();
-				x.AddConsumer<MajorSelectsConsumer>();
-				x.AddConsumer<SubjectSelectsConsumer>();
-				x.AddConsumer<CoursesSelectConsumer>();
+            services.AddMassTransit(x =>
+            {
+                x.AddConsumer<CourseMajorSemesterSelectEventConsumer>();
+                x.AddConsumer<SemesterSelectsConsumer>();
+                x.AddConsumer<MajorSelectsConsumer>();
+                x.AddConsumer<SubjectSelectsConsumer>();
+                x.AddConsumer<CoursesSelectConsumer>();
+                x.AddConsumer<GetInfoInternalCourseConsumer>();
 
-				x.UsingRabbitMq((context, cfg) =>
-				{
-					cfg.Host(rabbitMqHost, "/", h =>
-					{
-						h.Username(rabbitMqUsername!);
-						h.Password(rabbitMqPassword!);
-					});
+                x.UsingRabbitMq((context, cfg) =>
+                {
+                    cfg.Host(rabbitMqHost, "/", h =>
+                    {
+                        h.Username(rabbitMqUsername!);
+                        h.Password(rabbitMqPassword!);
+                    });
 
-					cfg.ConfigureEndpoints(context);
-				});
+                    cfg.ConfigureEndpoints(context);
+                });
 
-				x.AddRequestClient<QuizCourseInsertEvent>();
-				x.AddRequestClient<QuizCourseSelectEvent>();
-			});
+                x.AddRequestClient<QuizCourseInsertEvent>();
+                x.AddRequestClient<QuizCourseSelectEvent>();
+            });
 
-			return services;
-		}
-	}
+            return services;
+        }
+    }
 }

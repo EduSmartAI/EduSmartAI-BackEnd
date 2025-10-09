@@ -20,4 +20,8 @@
       <Folder Include="Applications\Technologies\Queries\" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Mapster" Version="7.4.0" />
+    </ItemGroup>
+
 </Project>
