@@ -8,6 +8,7 @@ using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPaths.Commands.InsertInternal;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers
 {
@@ -34,6 +35,10 @@ namespace StudentService.API.Controllers
         /// <returns></returns>
         [HttpGet]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Lấy Learning Path",
+            Description = "Trả về Learning Path theo tham số query. Cần xác thực Bearer."
+        )]
         public async Task<LearningPathSelectResponse> GetLearningPathById([FromQuery] LearningPathSelectsQuery request)
         {
             return await ApiControllerHelper.HandleRequest<LearningPathSelectsQuery, LearningPathSelectResponse, LearningPathSelectDto>(
@@ -47,6 +52,9 @@ namespace StudentService.API.Controllers
                 new LearningPathSelectResponse());
         }
         [HttpPost]
+        [SwaggerOperation(
+            Summary = "Thêm Learning Path (internal, Basic), dùng để dump data cho collection và database để đồng bộ"
+        )]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         public async Task<InsertInternalLearningPathResponse> InsertInternalLearningPath(InsertInternalLearningPathCommand request)
         {

@@ -9,8 +9,8 @@ using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPaths.Commands.InsertInternal;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
-using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertBatchLearningPathsMajor;
+using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
@@ -69,7 +69,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short) ConstantEnum.LearningPathStatus.InProgress,
+                Status = (short)ConstantEnum.LearningPathStatus.InProgress,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -193,11 +193,11 @@ public class LearningPathService : ILearningPathService
                 StudentLevel = request.StudentLevel
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
-            
+
             // Check if response contains "SE" major
             var hasSeInResponse = courseSelectEvent.Message.Response.Any(r => r.MajorCode == "SE");
             var hasSeInRequest = request.Majors.Any(m => m.MajorCode == "SE");
-            
+
             // Insert new learning path major from request
             var learningPathMajors = request.Majors.Select(x =>
             {
@@ -212,8 +212,8 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = x.MajorCode,
                     Reason = x.Reason,
-                    Type = x.MajorCode == "SE" 
-                        ? (short) ConstantEnum.LearningPathMajor.Basic 
+                    Type = x.MajorCode == "SE"
+                        ? (short)ConstantEnum.LearningPathMajor.Basic
                         : request.MajorType,
                     LearningPathCourses = matchedCourses?.CourseCodeIds
                         .Select(courseId => new LearningPathCourse
@@ -223,19 +223,19 @@ public class LearningPathService : ILearningPathService
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
-            
+
             // If SE exists in response but not in request, add it automatically with Type = Basic
             if (hasSeInResponse && !hasSeInRequest)
             {
                 var seCourses = courseSelectEvent.Message.Response.FirstOrDefault(r => r.MajorCode == "SE");
-                
+
                 var seMajor = new LearningPathMajor
                 {
                     LearningPathMajorId = Guid.NewGuid(),
                     PathId = request.LearningPathId,
                     MajorCode = "SE",
                     Reason = "Chuyên ngành cơ bản cho các sinh viên dưới kỳ 4 theo học Software Engineering",
-                    Type = (short) ConstantEnum.LearningPathMajor.Basic,
+                    Type = (short)ConstantEnum.LearningPathMajor.Basic,
                     LearningPathCourses = seCourses!.CourseCodeIds
                         .Select(courseId => new LearningPathCourse
                         {
@@ -243,10 +243,10 @@ public class LearningPathService : ILearningPathService
                             InternalCourseId = courseId
                         }).ToList()
                 };
-                
+
                 learningPathMajors.Add(seMajor);
             }
-            
+
             // Insert majors first
             await _learningPathMajorCommandRepository.AddRangeAsync(learningPathMajors);
 
@@ -314,7 +314,7 @@ public class LearningPathService : ILearningPathService
                     PathId = request.PathId,
                     MajorCode = majorItem.MajorCode.Trim(),
                     Reason = majorItem.Reason,
-                    Type = (short) ConstantEnum.LearningPathMajor.External,
+                    Type = (short)ConstantEnum.LearningPathMajor.External,
                 };
 
                 allMajors.Add(major);
@@ -387,12 +387,12 @@ public class LearningPathService : ILearningPathService
         {
             throw new Exception($"Lộ trình học tập không tồn tại");
         }
-        
-        learningPath.Status = (short) ConstantEnum.LearningPathStatus.Completed;
-        
+
+        learningPath.Status = (short)ConstantEnum.LearningPathStatus.Completed;
+
         _learningPathCommandRepository.Update(learningPath);
         await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, contextCancellationToken);
-        
+
         _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
         await _unitOfWork.SessionSaveChangesAsync();
 
@@ -408,12 +408,18 @@ public class LearningPathService : ILearningPathService
         LearningPathSelectsQuery query, CancellationToken cancellationToken = default)
     {
         var res = new LearningPathSelectResponse { Success = false };
-
-        var cacheKey = $"learning_path:select:{query.LearningPathId:D}";
+        var currentUserId = _identityService.GetCurrentUser()!.UserId;
+        if (query.LearningPathId == Guid.Empty)
+        {
+            res.SetMessage(MessageId.E00000, "Thiếu hoặc sai LearningPathId.");
+            return res;
+        }
+        var lpId = query.LearningPathId.ToString("D");
+        var cacheKey = $"learning_path:select:{currentUserId}:{lpId}";
         var readModel = await _learningPathQueryRepository.GetOrSetAsync(
             cacheKey,
             async () => await _learningPathQueryRepository.FirstOrDefaultAsync(
-                x => x.PathId == query.LearningPathId && x.IsActive
+                x => x.PathId == query.LearningPathId && x.StudentId == currentUserId && x.IsActive
             ),
             expiry: TimeSpan.FromMinutes(1)
         );
