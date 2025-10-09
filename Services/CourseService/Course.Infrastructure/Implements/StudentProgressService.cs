@@ -135,6 +135,10 @@ namespace Course.Infrastructure.Implements
 				return true;
 			}, ct);
 
+			// Clear relevant caches
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+			await _courseCache.ClearEnrollmentStatusCacheAsync(userId: currentUser.UserId, courseId: courseId);
+
 			// Respond success
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học thành công");
@@ -152,7 +156,6 @@ namespace Course.Infrastructure.Implements
 		{
 			var response = new GetDetailsProgressByCourseIdForStudentResponse() { Success = false };
 
-			// Lấy userId từ token (soft FK, không join bảng Users)
 			var currentUser = _identityService.GetCurrentUser()!;
 			var userId = currentUser.UserId;
 

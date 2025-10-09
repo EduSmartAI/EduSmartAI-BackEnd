@@ -1,4 +1,6 @@
-﻿namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
+﻿using BaseService.Common.ApiEntities;
+
+namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
 {
     public sealed record InternalMajorEvent(
         Guid LearningPathId,
@@ -12,4 +14,9 @@
         string MajorCode,
         string Reason
     );
+    
+    public record InternalMajorEventResponse : AbstractApiResponse<string>
+    {
+        public override string Response { get; set; }
+    }
 }

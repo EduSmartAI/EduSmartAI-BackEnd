@@ -31,6 +31,7 @@ public static class RepositoryExtensions
         {
             cfg.RegisterServicesFromAssemblyContaining<AiRecommendHandler>();
             cfg.RegisterServicesFromAssemblyContaining<AiExternalRecommendHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<AiBatchExternalRecommendHandler>();
         });
         return services;
     }

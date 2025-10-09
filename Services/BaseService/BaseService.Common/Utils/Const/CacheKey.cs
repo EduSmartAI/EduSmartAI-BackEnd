@@ -10,4 +10,7 @@ public static class CacheKey
     
     public static string StudentSurvey(Guid studentSurveyId)
         => $"studentSurvey:{studentSurveyId}";
+
+    public static string StudentQuizCourse(Guid studentId, Guid quizId)
+        => $"studentQuizCourse:{studentId}-{quizId}";
 }

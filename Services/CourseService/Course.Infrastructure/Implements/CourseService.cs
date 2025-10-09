@@ -2,6 +2,7 @@
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -731,9 +732,12 @@ namespace Course.Infrastructure.Implements
             }
 
 
-            // Clear cache after successful creation
-            await _courseCache.ClearGetAllCacheAsync();
-            await _courseCache.ClearCourseTagsCacheAsync();
+			// Clear cache after successful creation
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
             response.Response = course.CourseId.ToString();
             response.Success = true;
@@ -830,9 +834,12 @@ namespace Course.Infrastructure.Implements
             }
 
 
-            // 8. Clear cache after successful update
-            await _courseCache.ClearGetAllCacheAsync();
-            await _courseCache.ClearCourseTagsCacheAsync();
+			// 8. Clear cache after successful update
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
             // 9. Return updated course detail
             response.Success = true;
@@ -886,16 +893,71 @@ namespace Course.Infrastructure.Implements
                 return true;
             }, ct);
 
-            // 5. Clear cache after successful update
-            await _courseCache.ClearGetAllCacheAsync();
-            await _courseCache.ClearCourseTagsCacheAsync();
+			// 5. Clear cache after successful update
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
 
             // 6. Return response
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Cập nhật các module của khóa học");
 
-            return response;
-        }
+			return response;
+		}
+
+		/// <summary>
+		/// Delete course by setting IsActive = false (soft delete)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		/// <exception cref="NotImplementedException"></exception>
+		public async Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new DeleteCourseResponse() { Success = false };
+
+			var existingCourse = await _courseRepository
+				.Find(x => x.CourseId == courseId, isTracking: true, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingCourse is null)
+			{
+				response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
+				return response;
+			}
+
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			// Only the teacher who created the course can delete it
+			if (existingCourse.TeacherId != currentUser.UserId)
+			{
+				response.SetMessage(MessageId.E00000, "Bạn không có quyền xóa khóa học này.");
+				return response;
+			}
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				// Soft delete by setting IsActive = false
+				// Set needLogicalDelete = true to soft delete
+				_courseRepository.Update(existingCourse, currentUser.Email, true);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct, true);
+				return true;
+			}, ct);
+
+			// 5. Clear cache after successful update
+			await _courseCache.ClearGetAllCacheAsync();
+			await _courseCache.ClearCourseDetailForGuestCacheAsync();
+			await _courseCache.ClearCourseDetailForLectureCacheAsync();
+			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+			await _courseCache.ClearCourseTagsCacheAsync();
+
+			response.Response = true;
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Xóa khóa học thành công");
+			return response;
+		}
 
         /// <summary>
         /// Get all course tags
@@ -955,47 +1017,55 @@ namespace Course.Infrastructure.Implements
         {
             var response = new CoursesSelectEventResponse { Success = false };
 
-            // 1. Validate semester exists
-            var semesterExists = await _semesterRepository
-                .Find(s => s.SemesterId == request.SemesterId)
-                .AnyAsync(cancellationToken: ct);
+			// 1. Validate semester exists
+			var semester = await _semesterRepository
+				.Find(s => s.SemesterId == request.SemesterId)
+				.Select(s => new { s.SemesterId, s.SemesterNumber })
+				.FirstOrDefaultAsync(cancellationToken: ct);
 
-            if (!semesterExists)
-            {
-                response.SetMessage(MessageId.E00000, "Semester not found");
-                return response;
-            }
+			if (semester == null)
+			{
+				response.SetMessage(MessageId.E00000, "Semester not found");
+				return response;
+			}
 
-            // 2. Query courses by MajorCodes and StudentLevel
-            var coursesData = await _courseRepository
-                .Find(
-                    predicate: c =>
-                        c.Subject.SyllabusSubjects.Any(ss =>
-                            request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode)) &&
-                        c.Level == request.StudentLevel &&
-                        c.IsActive == true,
-                    includes: c => c.Subject
-                )
-                .Select(c => new
-                {
-                    c.CourseId,
-                    MajorCodes = c.Subject.SyllabusSubjects
-                        .Where(ss => request.MajorCodes.Contains(ss.Syllabus.Major.MajorCode))
-                        .Select(ss => ss.Syllabus.Major.MajorCode)
-                        .Distinct()
-                })
-                .ToListAsync(cancellationToken: ct);
+			// 2. Determine which major codes to query
+			var majorCodesToQuery = request.MajorCodes.ToList();
+    
+			// If semester < 4 and "SE" not in majorCodes, add "SE"
+			if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
+			{
+				majorCodesToQuery.Add("SE");
+			}
 
-            // 3. Flatten và group by major
-            var groupedCourses = coursesData
-                .SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
-                .GroupBy(x => x.MajorCode)
-                .Select(g => new CoursesSelectEventResponseEntity
-                {
-                    MajorCode = g.Key,
-                    CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
-                })
-                .ToList();
+			var coursesData = await _courseRepository
+				.Find(c => c.Subject.SyllabusSubjects.Any(
+					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) && 
+				      // c.Level == request.StudentLevel &&
+				      c.IsActive,
+						
+					includes: c => c.Subject
+				)
+				.Select(c => new 
+				{
+					c.CourseId,
+					MajorCodes = c.Subject.SyllabusSubjects
+						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
+						.Select(ss => ss.Syllabus.Major.MajorCode)
+						.Distinct()
+				})
+				.ToListAsync(cancellationToken: ct);
+
+			// 4. Flatten và group by major
+			var groupedCourses = coursesData
+				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
+				.GroupBy(x => x.MajorCode)
+				.Select(g => new CoursesSelectEventResponseEntity
+				{
+					MajorCode = g.Key,
+					CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
+				})
+				.ToList();
 
             // 4. Build response
             response.Success = true;

@@ -73,6 +73,12 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e5!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentMajorOrientationEvent for StudentId: {e5.IdentityEntity.UserId}");
                             break;
+                        case nameof(StudentQuizCourseInsertEvent):
+                            logging.InfoLog("Processing StudentQuizCourseInsertEvent");
+                            var e6 = JsonSerializer.Deserialize<StudentQuizCourseInsertEvent>(e.Content);
+                            await publishEndpoint.Publish(e6!, stoppingToken);
+                            logging.InfoLog($"Successfully published StudentQuizCourseInsertEvent for QuizId: {e6.StudentQuiz.QuizId}");
+                            break;
                         default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;

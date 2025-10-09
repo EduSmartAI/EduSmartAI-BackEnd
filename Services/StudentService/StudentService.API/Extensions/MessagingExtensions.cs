@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
@@ -32,8 +33,11 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationUpdatedEventConsumer>();
             x.AddConsumer<InsertLearningPathEventConsumer>();
             x.AddConsumer<InsertMajorExternalCourseConsumer>();
+            x.AddConsumer<InsertBatchMajorExternalCourseConsumer>();
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
+            x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
+            
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -63,6 +67,8 @@ public static class MessagingExtensions
 
             x.AddRequestClient<UserInsertEvent>();
             x.AddRequestClient<UserLoginEvent>();
+            x.AddRequestClient<UpdateExternalMajorEvent>();
+            x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<CoursesSelectEvent>();
             x.AddRequestClient<GetInfoInternalCourseEvents>();
         });

@@ -198,7 +198,7 @@ public class StudentTestService : IStudentTestService
             
             // Get StudentSurvey from cache
             var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(CacheKey.StudentSurvey(currentUser.UserId),
-                async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId),
+                async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
                 TimeSpan.FromMinutes(10));
             
             var learningPathId = Guid.NewGuid();

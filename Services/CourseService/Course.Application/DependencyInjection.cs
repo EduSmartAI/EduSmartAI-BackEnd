@@ -1,5 +1,4 @@
 ﻿using BuildingBlocks.Behaviors;
-using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Course.Application

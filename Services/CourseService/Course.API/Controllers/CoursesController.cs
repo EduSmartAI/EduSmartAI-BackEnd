@@ -1,5 +1,7 @@
-﻿using BuildingBlocks.Pagination;
+﻿using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -9,12 +11,13 @@ using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
+using Course.Application.Interfaces;
 
 namespace Course.API.Controllers
 {
 	[Route("api/v1/[controller]")]
 	[ApiController]
-	public class CoursesController(ISender sender) : ControllerBase
+	public class CoursesController(ISender sender, ICourseService courseService) : ControllerBase
 	{
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
@@ -28,17 +31,19 @@ namespace Course.API.Controllers
 		[HttpGet]
 		[SwaggerOperation(
 			Summary = "Get list of courses with pagination and optional filtering",
-			Description = "Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
+			Description =
+				"Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
 		)]
 		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
 		{
-			return await ApiControllerHelper.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new GetCoursesResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetCoursesResponse()
+				);
 		}
 
 		/// <summary>
@@ -47,7 +52,8 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpGet("lecture")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get list of courses for lecture",
 			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
@@ -55,13 +61,14 @@ namespace Course.API.Controllers
 		public async Task<GetCoursesByTeacherIdResponse> GetCoursesByTeacherId(
 			[FromQuery] GetCoursesByLectureQuery request)
 		{
-			return await ApiControllerHelper.HandleRequest<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse, PaginatedResult<CourseDto>>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new GetCoursesByTeacherIdResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse, PaginatedResult<CourseDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetCoursesByTeacherIdResponse()
+				);
 		}
 
 		/// <summary>
@@ -72,19 +79,21 @@ namespace Course.API.Controllers
 		[HttpGet("{id:guid}")]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for guest users",
-			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to guest users."
+			Description =
+				"Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to guest users."
 		)]
 		public async Task<GetCourseByIdForGuestResponse> ProcessRequestById(Guid id)
 		{
 			var query = new GetCourseByIdForGuestQuery(id);
 
-			return await ApiControllerHelper.HandleRequest<GetCourseByIdForGuestQuery, GetCourseByIdForGuestResponse, CourseDetailForGuestDto>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new GetCourseByIdForGuestResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseByIdForGuestQuery, GetCourseByIdForGuestResponse, CourseDetailForGuestDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseByIdForGuestResponse()
+				);
 		}
 
 		/// <summary>
@@ -93,21 +102,25 @@ namespace Course.API.Controllers
 		/// <param name="id"></param>
 		/// <returns></returns>
 		[HttpGet("auth/{id:guid}")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get course details by ID for lectures",
-			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to lectures."
+			Description =
+				"Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to lectures."
 		)]
 		public async Task<GetCourseByIdForLectureResponse> ProcessRequestByIdAuth(Guid id)
 		{
 			var query = new GetCourseByIdForLectureQuery(id);
-			return await ApiControllerHelper.HandleRequest<GetCourseByIdForLectureQuery, GetCourseByIdForLectureResponse, CourseDetailForLectureDto>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new GetCourseByIdForLectureResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseByIdForLectureQuery, GetCourseByIdForLectureResponse,
+					CourseDetailForLectureDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseByIdForLectureResponse()
+				);
 		}
 
 		/// <summary>
@@ -118,18 +131,20 @@ namespace Course.API.Controllers
 		[HttpGet("slug/{slug}")]
 		[SwaggerOperation(
 			Summary = "Get course details by slug for guest users",
-			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to guest users."
+			Description =
+				"Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to guest users."
 		)]
 		public async Task<GetCourseBySlugForGuestResponse> ProcessRequestBySlug(string slug)
 		{
 			var query = new GetCourseBySlugForGuestQuery(slug);
-			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForGuestQuery, GetCourseBySlugForGuestResponse, CourseDetailForGuestDto>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new GetCourseBySlugForGuestResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseBySlugForGuestQuery, GetCourseBySlugForGuestResponse, CourseDetailForGuestDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseBySlugForGuestResponse()
+				);
 		}
 
 		/// <summary>
@@ -138,21 +153,25 @@ namespace Course.API.Controllers
 		/// <param name="slug"></param>
 		/// <returns></returns>
 		[HttpGet("auth/slug/{slug}")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get course details by slug for lectures",
-			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to lectures."
+			Description =
+				"Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to lectures."
 		)]
 		public async Task<GetCourseBySlugForLectureResponse> ProcessRequestBySlugAuth(string slug)
 		{
 			var query = new GetCourseBySlugForLectureQuery(slug);
-			return await ApiControllerHelper.HandleRequest<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse, CourseDetailForLectureDto>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new GetCourseBySlugForLectureResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse,
+					CourseDetailForLectureDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseBySlugForLectureResponse()
+				);
 		}
 
 		/// <summary>
@@ -161,10 +180,12 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPost]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Create a new course",
-			Description = "Create a new course with its modules, lessons, and tags. Course tags are optional and can be used to categorize courses."
+			Description =
+				"Create a new course with its modules, lessons, and tags. Course tags are optional and can be used to categorize courses."
 		)]
 		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
 		{
@@ -184,12 +205,14 @@ namespace Course.API.Controllers
 		/// <param name="request"></param>
 		/// <returns></returns>
 		[HttpPut("{id:guid}")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Update an existing course",
 			Description = "Update an existing course (only course details, not modules or lessons)"
 		)]
-		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id, [FromBody] UpdateCourseCommand request)
+		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id,
+			[FromBody] UpdateCourseCommand request)
 		{
 			var response = new UpdateCourseResponse();
 
@@ -219,7 +242,8 @@ namespace Course.API.Controllers
 		/// <param name="ct"></param>
 		/// <returns></returns>
 		[HttpPut("{courseId}/modules")]
-		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Update multiple modules in a course",
 			Description = "Update multiple modules in a course with its Objectives and Lessons"
@@ -228,12 +252,36 @@ namespace Course.API.Controllers
 			[FromRoute] Guid courseId,
 			[FromBody] UpdateCourseModulesCommand request)
 		{
-			return await ApiControllerHelper.HandleRequest<UpdateCourseModulesCommand, UpdateCourseModulesResponse, string>(
-				request with { CourseId = courseId },
+			return await ApiControllerHelper
+				.HandleRequest<UpdateCourseModulesCommand, UpdateCourseModulesResponse, string>(
+					request with { CourseId = courseId },
+					_logger,
+					ModelState,
+					async () => await sender.Send(request with { CourseId = courseId }),
+					new UpdateCourseModulesResponse()
+				);
+		}
+
+		/// <summary>
+		/// Delete a course by ID
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
+		[HttpDelete("{courseId}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Delete a course by ID",
+			Description = "Delete a specific course by its ID. Only the lecturer who created the course can delete it."
+		)]
+		public async Task<DeleteCourseResponse> DeleteCourse([FromRoute] Guid courseId)
+		{
+			var command = new DeleteCourseCommand(courseId);
+			return await ApiControllerHelper.HandleRequest<DeleteCourseCommand, DeleteCourseResponse, bool>(
+				command,
 				_logger,
 				ModelState,
-				async () => await sender.Send(request with { CourseId = courseId }),
-				new UpdateCourseModulesResponse()
+				async () => await sender.Send(command),
+				new DeleteCourseResponse()
 			);
 		}
 
@@ -251,15 +299,39 @@ namespace Course.API.Controllers
 		{
 			var query = new GetCourseTagsQuery();
 
-			return await ApiControllerHelper.HandleRequest<GetCourseTagsQuery, GetCourseTagsResponse, List<CourseTagDetailsDto>>(
-				query,
-				_logger,
-				ModelState,
-				async () => await sender.Send(query),
-				new GetCourseTagsResponse()
-			);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseTagsQuery, GetCourseTagsResponse, List<CourseTagDetailsDto>>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseTagsResponse()
+				);
 		}
 
 		#endregion
+
+		[HttpPost("event/courses/test")]
+		public async Task<CoursesSelectEventResponse> GetCoursesForEvent(CoursesSelectEvent request)
+		{
+			var response = new CoursesSelectEventResponse { Success = false };
+			try
+			{
+				request.SemesterId = Guid.Parse("af62ee21-2a58-48ea-a76e-400bb2426e82");
+				request.StudentLevel = 3;
+				request.LimitTime = 15000;
+				request.MajorCodes = new List<string> { "SE", ".NET" };
+
+				return await courseService.GetCourseSelectsAsync(request);
+			}
+			catch (Exception ex)
+			{
+				response.Success = false;
+				response.SetMessage("An error occurred while processing the request.");
+				_logger.Error(ex, "Error in GetCoursesForEvent: {Message}", ex.Message);
+			}
+
+			return response;
+		}
 	}
 }

@@ -2,6 +2,7 @@
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
 using Course.Application.Courses.Queries.GetCourseById;
@@ -20,7 +21,9 @@ namespace Course.Application.Interfaces
 
         Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default);
 
-        Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default);
+		Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default);
+
+		Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default);
 
         Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default);
 

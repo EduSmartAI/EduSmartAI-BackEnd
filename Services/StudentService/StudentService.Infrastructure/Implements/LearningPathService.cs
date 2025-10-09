@@ -10,6 +10,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.InsertInter
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
+using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertBatchLearningPathsMajor;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
@@ -68,6 +69,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
+                Status = (short) ConstantEnum.LearningPathStatus.InProgress,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -179,7 +181,7 @@ public class LearningPathService : ILearningPathService
                 x => x.PathId == request.LearningPathId && x.IsActive, cancellationToken: cancellationToken);
             if (learningPath == null)
             {
-                throw new Exception("Lộ trình học tập không tồn tại");
+                throw new Exception($"Lộ trình học tập không tồn tại");
             }
 
             // Send message to CourseService to get courses response
@@ -191,8 +193,12 @@ public class LearningPathService : ILearningPathService
                 StudentLevel = request.StudentLevel
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
-
-            // Insert new learning path major
+            
+            // Check if response contains "SE" major
+            var hasSeInResponse = courseSelectEvent.Message.Response.Any(r => r.MajorCode == "SE");
+            var hasSeInRequest = request.Majors.Any(m => m.MajorCode == "SE");
+            
+            // Insert new learning path major from request
             var learningPathMajors = request.Majors.Select(x =>
             {
                 var matchedCourses = courseSelectEvent
@@ -206,16 +212,41 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = x.MajorCode,
                     Reason = x.Reason,
-                    Type = request.MajorType,
+                    Type = x.MajorCode == "SE" 
+                        ? (short) ConstantEnum.LearningPathMajor.Basic 
+                        : request.MajorType,
                     LearningPathCourses = matchedCourses?.CourseCodeIds
                         .Select(courseId => new LearningPathCourse
                         {
-                            LearningPathCourseId = Guid.NewGuid(), // Add this line to generate ID
-                            InternalCourseId = courseId
+                            LearningPathCourseId = Guid.NewGuid(),
+                            InternalCourseId = courseId,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
-
+            
+            // If SE exists in response but not in request, add it automatically with Type = Basic
+            if (hasSeInResponse && !hasSeInRequest)
+            {
+                var seCourses = courseSelectEvent.Message.Response.FirstOrDefault(r => r.MajorCode == "SE");
+                
+                var seMajor = new LearningPathMajor
+                {
+                    LearningPathMajorId = Guid.NewGuid(),
+                    PathId = request.LearningPathId,
+                    MajorCode = "SE",
+                    Reason = "Chuyên ngành cơ bản cho các sinh viên dưới kỳ 4 theo học Software Engineering",
+                    Type = (short) ConstantEnum.LearningPathMajor.Basic,
+                    LearningPathCourses = seCourses!.CourseCodeIds
+                        .Select(courseId => new LearningPathCourse
+                        {
+                            LearningPathCourseId = Guid.NewGuid(),
+                            InternalCourseId = courseId
+                        }).ToList()
+                };
+                
+                learningPathMajors.Add(seMajor);
+            }
+            
             // Insert majors first
             await _learningPathMajorCommandRepository.AddRangeAsync(learningPathMajors);
 
@@ -248,6 +279,124 @@ public class LearningPathService : ILearningPathService
         }, cancellationToken);
 
         return response;
+    }
+
+    /// <summary>
+    /// Insert batch learning path majors with courses (External majors)
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<InsertBatchLearningPathsMajorResponse> InsertBatchLearningPathMajorCourseAsync(
+        InsertBatchLearningPathsMajorCommand request, CancellationToken cancellationToken)
+    {
+        var response = new InsertBatchLearningPathsMajorResponse { Success = false };
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            var learningPath = await _learningPathCommandRepository.FirstOrDefaultAsync(
+                x => x.PathId == request.PathId && x.IsActive, cancellationToken: cancellationToken);
+            if (learningPath == null)
+            {
+                response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
+                return false;
+            }
+
+            var allMajors = new List<LearningPathMajor>();
+            var allCourses = new List<LearningPathCourse>();
+
+            // Process each major
+            foreach (var majorItem in request.Majors)
+            {
+                var major = new LearningPathMajor
+                {
+                    LearningPathMajorId = Guid.NewGuid(),
+                    PathId = request.PathId,
+                    MajorCode = majorItem.MajorCode.Trim(),
+                    Reason = majorItem.Reason,
+                    Type = (short) ConstantEnum.LearningPathMajor.External,
+                };
+
+                allMajors.Add(major);
+
+                // Process courses for this major
+                if (majorItem.Steps != null && majorItem.Steps.Any())
+                {
+                    foreach (var step in majorItem.Steps)
+                    {
+                        var stepOrder = step.Order > 0 ? step.Order : (int?)null;
+                        var courses = step.SuggestedCourses;
+
+                        foreach (var sc in courses)
+                        {
+                            var course = new LearningPathCourse
+                            {
+                                LearningPathCourseId = Guid.NewGuid(),
+                                LearningPathMajorId = major.LearningPathMajorId,
+                                Position = stepOrder,
+                                StepName = step.Title,
+                                ExternalCourseLink = sc.Link,
+                                ExternalCourseReason = sc.Reason,
+                                ExternalCourseDuration = sc.Duration,
+                                ExternalCourseLevel = sc.Level,
+                                ExternalCourseProvider = sc.Provider
+                            };
+
+                            allCourses.Add(course);
+                        }
+                    }
+                }
+            }
+
+            // Insert all majors at once
+            if (allMajors.Any())
+            {
+                await _learningPathMajorCommandRepository.AddRangeAsync(allMajors);
+            }
+
+            // Insert all courses at once
+            if (allCourses.Any())
+            {
+                await _learningPathCourseCommandRepository.AddRangeAsync(allCourses);
+            }
+
+            await _unitOfWork.SaveChangesAsync(request.CurrentUserEmail!, cancellationToken);
+
+            // Update read-model / cache
+            foreach (var major in allMajors)
+            {
+                _unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(major));
+            }
+            await _unitOfWork.SessionSaveChangesAsync();
+            await _unitOfWork.CacheRemoveAsync($"learning_path:{request.PathId}");
+            await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{request.PathId}");
+
+            response.Success = true;
+            response.Response = $"Đã thêm {allMajors.Count} chuyên ngành với {allCourses.Count} khóa học";
+            response.SetMessage(MessageId.I00001, "Thêm hàng loạt chuyên ngành và khóa học vào lộ trình");
+            return true;
+        }, cancellationToken);
+
+        return response;
+    }
+
+    public async Task<bool> UpdateLearningPathStatusAsync(Guid learningPathId, CancellationToken contextCancellationToken)
+    {
+        var learningPath = await _learningPathCommandRepository.FirstOrDefaultAsync(x => x.PathId == learningPathId && x.IsActive, cancellationToken: contextCancellationToken);
+        if (learningPath == null)
+        {
+            throw new Exception($"Lộ trình học tập không tồn tại");
+        }
+        
+        learningPath.Status = (short) ConstantEnum.LearningPathStatus.Completed;
+        
+        _learningPathCommandRepository.Update(learningPath);
+        await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, contextCancellationToken);
+        
+        _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
+        await _unitOfWork.SessionSaveChangesAsync();
+
+        return true;
     }
     /// <summary>
     /// Get Learning Path By Id
