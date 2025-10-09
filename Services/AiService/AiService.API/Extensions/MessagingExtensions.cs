@@ -5,6 +5,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using MassTransit;
 
 namespace AiService.API.Extensions;
@@ -42,9 +43,10 @@ public static class MessagingExtensions
 
                 cfg.UseInMemoryOutbox();
             });
+            x.AddRequestClient<InsertLearningPathEvent>(new Uri("queue:student-service.insert-learning-path"));
+            x.AddRequestClient<UpdateExternalMajorEvent>(new Uri("queue:student-service.update-external-major"));
             
             // Add request clients
-            x.AddRequestClient<UpdateExternalMajorEvent>();
             x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<InternalMajorEvent>(TimeSpan.FromSeconds(170));
             x.AddRequestClient<UpdateBatchExternalMajorEvent>(TimeSpan.FromSeconds(230));

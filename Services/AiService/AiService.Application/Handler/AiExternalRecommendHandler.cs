@@ -1,11 +1,11 @@
 ﻿using AiService.Application.Features.AiExternalCourse;
 using AiService.Application.Interfaces;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using BaseService.Common.Utils.Const;
 
 namespace AiService.Application.Handler
 {
@@ -24,13 +24,13 @@ namespace AiService.Application.Handler
         /// <exception cref="Exception"></exception>
         public async Task<AiExternalCourseResponse> Handle(AiExternalCourseRequest request, CancellationToken cancellationToken)
         {
-            var aiExternalCourseResponse = new AiExternalCourseResponse {Success = false};
+            var aiExternalCourseResponse = new AiExternalCourseResponse { Success = false };
 
             try
             {
                 var result = await advisorService.AskAsync(request.GoalMajor, 80, true, cancellationToken);
                 logger.LogInformation("Advisor result json: {Json}", JsonSerializer.Serialize(result));
-                
+
                 var steps = result.Roadmap?.Steps
                    ?.Select((s, idx) => new StepExternalMajorItem(
                        Order: idx + 1,
@@ -54,12 +54,12 @@ namespace AiService.Application.Handler
                         CurrentUserEmail: request.CurrentUserEmail,
                         MajorCode: request.MajorCode,
                         Reason: request.Reason,
-                        Steps: steps);
+                        Steps: steps ?? []);
 
                 var response = await requestClient.GetResponse<UpdateExternalMajorEventResponse>(@event, cancellationToken);
                 if (!response.Message.Success)
                 {
-                    aiExternalCourseResponse.SetMessage(MessageId.E00000, "Uploaded failed"); 
+                    aiExternalCourseResponse.SetMessage(MessageId.E00000, "Uploaded failed");
                     return aiExternalCourseResponse;
                 }
 
