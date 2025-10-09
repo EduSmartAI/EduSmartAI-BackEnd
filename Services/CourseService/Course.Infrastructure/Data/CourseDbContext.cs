@@ -1221,6 +1221,40 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.PercentCompleted).HasColumnName("percent_completed");
             entity.Property(e => e.UserId).HasColumnName("user_id");
         });
+        modelBuilder.Entity<VMajorSemesterSubjectCourses>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_major_semester_subject_courses");
+
+            entity.Property(e => e.MajorCode).HasColumnName("major_code");
+            entity.Property(e => e.SemesterNumber).HasColumnName("semester_number");
+            entity.Property(e => e.SemesterCode).HasColumnName("semester_code");
+            entity.Property(e => e.SemesterName).HasColumnName("semester_name");
+            entity.Property(e => e.SubjectCode).HasColumnName("subject_code");
+            entity.Property(e => e.SubjectName).HasColumnName("subject_name");
+
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CourseTitle).HasColumnName("course_title");
+            entity.Property(e => e.Level).HasColumnName("level");
+
+            entity.Property(e => e.Price)
+                .HasPrecision(10, 2)
+                .HasColumnName("price");
+            entity.Property(e => e.DealPrice)
+                .HasPrecision(10, 2)
+                .HasColumnName("deal_price");
+
+            entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
+            entity.Property(e => e.Slug).HasColumnName("slug");
+            entity.Property(e => e.CourseImageUrl).HasColumnName("course_image_url");
+            entity.Property(e => e.LearnerCount).HasColumnName("learner_count");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+
+            entity.Property(e => e.DurationHours)
+                .HasPrecision(8, 2)
+                .HasColumnName("duration_hours");
+        });
 
         OnModelCreatingPartial(modelBuilder);
     }

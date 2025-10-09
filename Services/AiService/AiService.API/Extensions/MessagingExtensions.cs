@@ -3,6 +3,7 @@ using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using MassTransit;
 
 namespace AiService.API.Extensions;
@@ -33,7 +34,7 @@ public static class MessagingExtensions
 
                 cfg.ConfigureEndpoints(context);
                 // Removed custom entity name to use default naming convention
-                
+
                 // Add timeout and retry configuration
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
@@ -42,6 +43,8 @@ public static class MessagingExtensions
 
                 cfg.UseInMemoryOutbox();
             });
+            x.AddRequestClient<InsertLearningPathEvent>(new Uri("queue:student-service.insert-learning-path"));
+            x.AddRequestClient<UpdateExternalMajorEvent>(new Uri("queue:student-service.update-external-major"));
         });
 
         return services;

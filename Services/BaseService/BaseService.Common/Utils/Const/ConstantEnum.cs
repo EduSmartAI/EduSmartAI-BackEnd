@@ -8,21 +8,21 @@ public static class ConstantEnum
         Lecturer = 2,
         Admin = 3,
     }
-    
+
     public enum TestType
     {
         Survey = 1,
         Quiz = 2,
         Exam = 3,
     }
-    
+
     public enum PaymentStatus
     {
         Pending = 1,
         Paid = 2,
         Failed = 3,
     }
-    
+
     public enum PaymentMethod
     {
         Cash = 1,
@@ -36,14 +36,14 @@ public static class ConstantEnum
         TrueFalse = 2,
         SingleChoice = 3,
     }
-    
+
     public enum TechnologyType
     {
         ProgrammingLanguage = 1,
         Framework = 2,
         Database = 3,
     }
-    
+
     public enum LearningGoalType
     {
         None = 0,
@@ -78,13 +78,21 @@ public static class ConstantEnum
         NotStarted = 0,
         InProgress = 1,
         Completed = 2
-	}
+    }
 
-	public enum CourseStatus
-	{
-		NotStarted = 0, // Ng??i h?c ch?a m? lesson nào trong course
-		InProgress = 1, // Ng??i h?c ?ã b?t ??u ít nh?t m?t lesson
-		Completed = 2,
-		Archived = 3 // không còn active ?? h?c m?i, nh?ng ng??i h?c c? v?n th?y trong profile
-	}
+    public enum CourseStatus
+    {
+        NotStarted = 0, // Ng??i h?c ch?a m? lesson nào trong course
+        InProgress = 1, // Ng??i h?c ?ã b?t ??u ít nh?t m?t lesson
+        Completed = 2,
+        Archived = 3 // không còn active ?? h?c m?i, nh?ng ng??i h?c c? v?n th?y trong profile
+    }
+
+    public enum LearningPathStatus
+    {
+        Choosing = 0, // In Choosing status for choosing external and internal
+        InProgress = 1, // Studying course status
+        Completed = 2, // Complete Learning Path
+        Closed = 3, // Close Learning Path to change other learning Path
+    }
 }

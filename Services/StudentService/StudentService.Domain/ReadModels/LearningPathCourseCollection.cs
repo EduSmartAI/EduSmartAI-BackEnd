@@ -3,7 +3,11 @@ namespace StudentService.Domain.ReadModels;
 public class LearningPathCourseCollection
 {
     public Guid LearningPathCourseId { get; set; }
+
+    public Guid LearningPathMajorId { get; set; }
+
     public Guid? InternalCourseId { get; set; }
+
     public int? Position { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -15,12 +19,26 @@ public class LearningPathCourseCollection
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
     public string? StepName { get; set; }
+
+    public string? ExternalCourseLink { get; set; }
+
+    public string? ExternalCourseReason { get; set; }
+
+    public decimal? ExternalCourseRating { get; set; }
+
+    public string? ExternalCourseLevel { get; set; }
+
+    public string? ExternalCourseDuration { get; set; }
+
+    public string? ExternalCourseProvider { get; set; }
     public static LearningPathCourseCollection FromWriteModel(WriteModels.LearningPathCourse model)
     {
         return new LearningPathCourseCollection
         {
             LearningPathCourseId = model.LearningPathCourseId,
+            LearningPathMajorId = model.LearningPathMajorId,
             InternalCourseId = model.InternalCourseId,
             Position = model.Position,
             CreatedAt = model.CreatedAt,
@@ -28,7 +46,13 @@ public class LearningPathCourseCollection
             CreatedBy = model.CreatedBy,
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive,
-            StepName = model.StepName
+            StepName = model.StepName,
+            ExternalCourseLink = model.ExternalCourseLink,
+            ExternalCourseReason = model.ExternalCourseReason,
+            ExternalCourseRating = model.ExternalCourseRating,
+            ExternalCourseLevel = model.ExternalCourseLevel,
+            ExternalCourseDuration = model.ExternalCourseDuration,
+            ExternalCourseProvider = model.ExternalCourseProvider
         };
     }
 
