@@ -95,4 +95,68 @@ public static class ConstantEnum
         Completed = 2, // Complete Learning Path
         Closed = 3, // Close Learning Path to change other learning Path
     }
+
+    public enum UserBehaviourActionType
+    {
+        // Course actions
+        ViewCourse = 1,
+        EnrollCourse = 2,
+        CompleteCourse = 3,
+        PauseCourse = 4,
+        
+        // Lesson actions
+        ViewLesson = 10,
+        StartLesson = 11,
+        CompleteLesson = 12,
+        PauseLesson = 13,
+        ResumeLesson = 14,
+        SkipLesson = 15,
+        
+        // Video actions
+        PlayVideo = 20,
+        PauseVideo = 21,
+        SeekVideo = 22,
+        CompleteVideo = 23,
+        
+        // Quiz/Test actions
+        StartQuiz = 30,
+        SubmitQuiz = 31,
+        ViewQuizResult = 32,
+        RetakeQuiz = 33,
+        
+        // Learning path actions
+        ViewLearningPath = 40,
+        StartLearningPath = 41,
+        CompleteLearningPath = 42,
+        
+        // Search & Navigation
+        Search = 50,
+        ClickSearchResult = 51,
+        Navigate = 52,
+        
+        // Content interaction
+        Like = 60,
+        Unlike = 61,
+        Bookmark = 62,
+        RemoveBookmark = 63,
+        Share = 64,
+        Comment = 65,
+        
+        // System actions
+        Login = 70,
+        Logout = 71,
+        UpdateProfile = 72,
+    }
+
+    public enum UserBehaviourTargetType
+    {
+        Course = 1,
+        Lesson = 2,
+        Quiz = 4,
+        Test = 5,
+        LearningPath = 6,
+        SearchQuery = 7,
+        Profile = 8,
+        Other = 99,
+    }
 }

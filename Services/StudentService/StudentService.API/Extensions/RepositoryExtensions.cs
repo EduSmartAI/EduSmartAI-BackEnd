@@ -8,6 +8,7 @@ using StudentService.Application.Applications.LearningGoals.Commands;
 using StudentService.Application.Applications.LearningGoals.Queries;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Technologies.Commands;
+using StudentService.Application.Applications.UserBehaviours.Commands;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
@@ -33,6 +34,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<LearningPath>, CommandRepository<LearningPath>>();
         services.AddScoped<ICommandRepository<LearningPathMajor>, CommandRepository<LearningPathMajor>>();
         services.AddScoped<ICommandRepository<LearningPathCourse>, CommandRepository<LearningPathCourse>>();
+        services.AddScoped<ICommandRepository<UserBehaviour>, CommandRepository<UserBehaviour>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();
@@ -41,12 +43,14 @@ public static class RepositoryExtensions
         services.AddScoped<IQueryRepository<StudentOrientationCollection>, QueryRepository<StudentOrientationCollection>>();
         services.AddScoped<IQueryRepository<StudentTechnologyCollection>, QueryRepository<StudentTechnologyCollection>>();
         services.AddScoped<IQueryRepository<LearningPathCollection>, QueryRepository<LearningPathCollection>>();
+        services.AddScoped<IQueryRepository<UserBehaviourCollection>, QueryRepository<UserBehaviourCollection>>();
 
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
         services.AddScoped<ILearningGoalService, LearningGoalService>();
         services.AddScoped<ITechnologyService, TechnologyService>();
         services.AddScoped<ILearningPathService, LearningPathService>();
+        services.AddScoped<IUserBehaviourService, UserBehaviourService>();
 
         // MediatR configuration
         services.AddMediatR(cfg =>
@@ -57,6 +61,7 @@ public static class RepositoryExtensions
             cfg.RegisterServicesFromAssemblyContaining<TechnologyInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<StudentMajorSemesterInsertCommandHandler>();
             cfg.RegisterServicesFromAssemblyContaining<TechnologySelectsQueryHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<UserBehaviourInsertCommandHandler>();
         });
         return services;
     }
