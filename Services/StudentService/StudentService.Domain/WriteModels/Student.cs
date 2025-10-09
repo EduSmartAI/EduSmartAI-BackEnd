@@ -37,6 +37,8 @@ public partial class Student
 
     public Guid? SemesterId { get; set; }
 
+    public virtual ICollection<AiEvaluation> AiEvaluations { get; set; } = new List<AiEvaluation>();
+
     public virtual ICollection<LearningPath> LearningPaths { get; set; } = new List<LearningPath>();
 
     public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
@@ -44,4 +46,6 @@ public partial class Student
     public virtual ICollection<StudentOrientation> StudentOrientations { get; set; } = new List<StudentOrientation>();
 
     public virtual ICollection<StudentTechnology> StudentTechnologies { get; set; } = new List<StudentTechnology>();
+
+    public virtual ICollection<UserBehaviour> UserBehaviours { get; set; } = new List<UserBehaviour>();
 }

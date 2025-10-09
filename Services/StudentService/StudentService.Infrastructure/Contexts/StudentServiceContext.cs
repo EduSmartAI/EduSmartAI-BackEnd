@@ -6,10 +6,13 @@ namespace StudentService.Infrastructure.Contexts;
 
 public partial class StudentServiceContext : AppDbContext
 {
+
     public StudentServiceContext(DbContextOptions<StudentServiceContext> options)
         : base(options)
     {
     }
+
+    public virtual DbSet<AiEvaluation> AiEvaluations { get; set; }
 
     public virtual DbSet<LearningGoal> LearningGoals { get; set; }
 
@@ -31,9 +34,60 @@ public partial class StudentServiceContext : AppDbContext
 
     public virtual DbSet<Technology> Technologies { get; set; }
 
+    public virtual DbSet<UserBehaviour> UserBehaviours { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("pgcrypto");
+
+        modelBuilder.Entity<AiEvaluation>(entity =>
+        {
+            entity.HasKey(e => e.EvaluationId).HasName("ai_evaluations_pkey");
+
+            entity.ToTable("ai_evaluations");
+
+            entity.HasIndex(e => e.AttemptId, "ai_evaluations_attempt_id_key").IsUnique();
+
+            entity.HasIndex(e => e.CreatedAt, "idx_ai_eval_created").IsDescending();
+
+            entity.HasIndex(e => new { e.UserId, e.CourseId, e.Scope, e.ScopeId }, "idx_ai_eval_user_course_scope");
+
+            entity.Property(e => e.EvaluationId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("evaluation_id");
+            entity.Property(e => e.Actions)
+                .HasColumnType("jsonb")
+                .HasColumnName("actions");
+            entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
+            entity.Property(e => e.Confidence)
+                .HasPrecision(3, 2)
+                .HasColumnName("confidence");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Improvements)
+                .HasColumnType("jsonb")
+                .HasColumnName("improvements");
+            entity.Property(e => e.Model).HasColumnName("model");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+            entity.Property(e => e.RubricVersion).HasColumnName("rubric_version");
+            entity.Property(e => e.Scope).HasColumnName("scope");
+            entity.Property(e => e.ScopeId).HasColumnName("scope_id");
+            entity.Property(e => e.Score100).HasColumnName("score_100");
+            entity.Property(e => e.SkillGaps)
+                .HasColumnType("jsonb")
+                .HasColumnName("skill_gaps");
+            entity.Property(e => e.Strengths)
+                .HasColumnType("jsonb")
+                .HasColumnName("strengths");
+            entity.Property(e => e.Summary).HasColumnName("summary");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.User).WithMany(p => p.AiEvaluations)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("ai_evaluations_user_id_fkey");
+        });
 
         modelBuilder.Entity<LearningGoal>(entity =>
         {
@@ -118,6 +172,24 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("created_by");
+            entity.Property(e => e.ExternalCourseDuration)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_duration");
+            entity.Property(e => e.ExternalCourseLevel)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_level");
+            entity.Property(e => e.ExternalCourseLink)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_link");
+            entity.Property(e => e.ExternalCourseProvider)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_provider");
+            entity.Property(e => e.ExternalCourseRating)
+                .HasPrecision(3, 2)
+                .HasColumnName("external_course_rating");
+            entity.Property(e => e.ExternalCourseReason)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_reason");
             entity.Property(e => e.InternalCourseId).HasColumnName("internal_course_id");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
@@ -134,24 +206,6 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("updated_by");
-            entity.Property(e => e.ExternalCourseLink)
-                .HasMaxLength(255)
-                .HasColumnName("external_course_link");
-            entity.Property(e => e.ExternalCourseReason)
-                .HasMaxLength(255)
-                .HasColumnName("external_course_reason");
-            entity.Property(e => e.ExternalCourseRating)
-                .HasColumnType("numeric(3, 2)")
-                .HasColumnName("external_course_rating");
-            entity.Property(e => e.ExternalCourseLevel)
-                .HasMaxLength(255)
-                .HasColumnName("external_course_level");
-            entity.Property(e => e.ExternalCourseDuration)
-                .HasMaxLength(255)
-                .HasColumnName("external_course_duration");
-            entity.Property(e => e.ExternalCourseProvider)
-                .HasMaxLength(255)
-                .HasColumnName("external_course_provider");
 
             entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathCourses)
                 .HasForeignKey(d => d.LearningPathMajorId)
@@ -197,7 +251,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasForeignKey(d => d.PathId)
                 .HasConstraintName("fk_lpm_path");
         });
-
+        
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -394,6 +448,54 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+        });
+
+        modelBuilder.Entity<UserBehaviour>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("user_behaviours_pkey");
+
+            entity.ToTable("user_behaviours");
+
+            entity.HasIndex(e => e.ActionType, "idx_user_behaviours_action_type");
+
+            entity.HasIndex(e => e.CreatedAt, "idx_user_behaviours_created_at").IsDescending();
+
+            entity.HasIndex(e => e.StudentId, "idx_user_behaviours_user_id");
+
+            entity.Property(e => e.Id)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("id");
+            entity.Property(e => e.ActionType)
+                .HasMaxLength(50)
+                .HasColumnName("action_type");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.Metadata)
+                .HasColumnType("jsonb")
+                .HasColumnName("metadata");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.TargetId).HasColumnName("target_id");
+            entity.Property(e => e.TargetType)
+                .HasMaxLength(30)
+                .HasColumnName("target_type");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Student).WithMany(p => p.UserBehaviours)
+                .HasForeignKey(d => d.StudentId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("fk_user_behaviour_user");
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -1,0 +1,43 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace StudentService.Domain.WriteModels;
+
+public partial class AiEvaluation
+{
+    public Guid EvaluationId { get; set; }
+
+    public Guid AttemptId { get; set; }
+
+    public Guid UserId { get; set; }
+
+    public Guid CourseId { get; set; }
+
+    public short Scope { get; set; }
+
+    public Guid ScopeId { get; set; }
+
+    public Guid QuizId { get; set; }
+
+    public short Score100 { get; set; }
+
+    public string? Summary { get; set; }
+
+    public string Strengths { get; set; } = null!;
+
+    public string Improvements { get; set; } = null!;
+
+    public string Actions { get; set; } = null!;
+
+    public string SkillGaps { get; set; } = null!;
+
+    public string Model { get; set; } = null!;
+
+    public string RubricVersion { get; set; } = null!;
+
+    public decimal Confidence { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public virtual Student User { get; set; } = null!;
+}
