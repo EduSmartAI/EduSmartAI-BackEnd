@@ -1,5 +1,6 @@
 ﻿using AiService.Application.Interfaces;
 using AiService.Infrastructure.Implements;
+using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -20,10 +21,11 @@ namespace AiService.API.Extensions
         public static IServiceCollection AddAiServices(this IServiceCollection services, IConfiguration config)
         {
             // Bind + ENV fallback
+            EnvLoader.Load();
             services.Configure<AiOptions>(opt =>
             {
                 config.GetSection("AI").Bind(opt);
-                opt.ApiKey ??= Environment.GetEnvironmentVariable(ConstEnv.OpenAIKey);
+                opt.ApiKey = Environment.GetEnvironmentVariable(ConstEnv.OpenAIKey);
 
                 var envChat = Environment.GetEnvironmentVariable(ConstEnv.ChatModel);
                 var envEmb = Environment.GetEnvironmentVariable(ConstEnv.EmbedModel);
