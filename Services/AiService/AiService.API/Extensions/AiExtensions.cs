@@ -26,6 +26,7 @@ namespace AiService.API.Extensions
             {
                 config.GetSection("AI").Bind(opt);
                 opt.ApiKey = Environment.GetEnvironmentVariable(ConstEnv.OpenAIKey);
+                Console.WriteLine("OpenAIKey: " + (string.IsNullOrWhiteSpace(opt.ApiKey) ? "Not Set" : opt.ApiKey));
 
                 var envChat = Environment.GetEnvironmentVariable(ConstEnv.ChatModel);
                 var envEmb = Environment.GetEnvironmentVariable(ConstEnv.EmbedModel);
