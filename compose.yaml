@@ -244,6 +244,10 @@
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHAT_MODEL=${CHAT_MODEL}
+      - EMBED_MODEL=${EMBED_MODEL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
     networks:
       - edusmartai-network
     
