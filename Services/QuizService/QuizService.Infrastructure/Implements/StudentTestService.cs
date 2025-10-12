@@ -197,7 +197,8 @@ public class StudentTestService : IStudentTestService
             var informationResponse = await _requestStudentInformationSelectsClient.GetResponse<StudentInformationSelectsEventResponse>(studentInformationSelectsEvent, cancellationToken);
             
             // Get StudentSurvey from cache
-            var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(CacheKey.StudentSurvey(currentUser.UserId),
+            var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
+                CacheKey.StudentSurvey(currentUser.UserId),
                 async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
                 TimeSpan.FromMinutes(10));
             

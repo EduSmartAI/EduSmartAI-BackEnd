@@ -34,8 +34,8 @@ public class InternalMajorEventConsumer(ILearningPathService learningPathService
 
         // Insert internal majors using the learning path service
         var learningPathMajorInternalInsertResponse = await learningPathService.InsertLearningPathMajorAsync(request);
-
-        await context.RespondAsync(new InsertLearningPathEventResponse
+        
+        await context.RespondAsync(new InternalMajorEventResponse
         {
             Success = learningPathMajorInternalInsertResponse.Success,
             Message = learningPathMajorInternalInsertResponse.Message,

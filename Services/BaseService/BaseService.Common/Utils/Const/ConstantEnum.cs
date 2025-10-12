@@ -90,10 +90,10 @@ public static class ConstantEnum
 
 	public enum LearningPathStatus
     {
-        Choosing = 0, // In Choosing status for choosing external and internal
-        InProgress = 1, // Studying course status
-        Completed = 2, // Complete Learning Path
-        Closed = 3, // Close Learning Path to change other learning Path
+        Choosing = 0,
+        InProgress = 1,
+        Completed = 2,
+        Closed = 3,
     }
 
     public enum UserBehaviourActionType

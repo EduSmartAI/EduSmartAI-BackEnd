@@ -1,5 +1,5 @@
 using StudentService.Application.Applications.LearningPaths.Commands;
-using StudentService.Application.Applications.LearningPaths.Commands.InsertInternal;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
@@ -18,6 +18,8 @@ public interface ILearningPathService
     Task<InsertBatchLearningPathsMajorResponse> InsertBatchLearningPathMajorCourseAsync(InsertBatchLearningPathsMajorCommand request, CancellationToken cancellationToken);
     
     Task<bool> UpdateLearningPathStatusAsync(Guid learningPathId, CancellationToken contextCancellationToken);
+    
     Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, CancellationToken cancellationToken = default);
-    Task<InsertInternalLearningPathResponse> InsertInternalMajorAndCourse(InsertInternalLearningPathCommand request, CancellationToken cancellationToken);
+    
+    Task<LearningPathCourseUpdateResponse> UpdateLearningPathCoursesAsync(LearningPathCourseUpdateCommand request, CancellationToken cancellationToken);
 }

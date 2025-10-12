@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
-using StudentService.Application.Applications.LearningPaths.Commands.InsertInternal;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using Swashbuckle.AspNetCore.Annotations;
@@ -51,14 +51,21 @@ namespace StudentService.API.Controllers
                 _httpContextAccessor,
                 new LearningPathSelectResponse());
         }
-        [HttpPost]
-        [SwaggerOperation(
-            Summary = "Thêm Learning Path (internal, Basic), dùng để dump data cho collection và database để đồng bộ"
-        )]
+
+        /// <summary>
+        /// Update selected courses in learning path
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPut("[action]")]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-        public async Task<InsertInternalLearningPathResponse> InsertInternalLearningPath(InsertInternalLearningPathCommand request)
+        [SwaggerOperation(
+            Summary = "Cập nhật các khóa học được chọn trong lộ trình học tập",
+            Description = "API này cho phép sinh viên chọn các khóa học mong muốn."
+        )]
+        public async Task<LearningPathCourseUpdateResponse> UpdateLearningPathCourses([FromBody] LearningPathCourseUpdateCommand request)
         {
-            return await ApiControllerHelper.HandleRequest<InsertInternalLearningPathCommand, InsertInternalLearningPathResponse, string>(
+            return await ApiControllerHelper.HandleRequest<LearningPathCourseUpdateCommand, LearningPathCourseUpdateResponse, string>(
                 request,
                 _logger,
                 ModelState,
@@ -66,7 +73,7 @@ namespace StudentService.API.Controllers
                 _identityService,
                 _identityEntity,
                 _httpContextAccessor,
-                new InsertInternalLearningPathResponse());
+                new LearningPathCourseUpdateResponse());
         }
     }
 }

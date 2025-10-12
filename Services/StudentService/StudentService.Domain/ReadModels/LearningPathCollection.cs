@@ -12,8 +12,7 @@ public class LearningPathCollection
     public Guid? StudentId { get; set; }
     public short Status { get; set; }
 
-    public virtual ICollection<LearningPathMajorCollection> LearningPathMajors { get; set; }
-        = new List<LearningPathMajorCollection>();
+    public List<LearningPathMajorCollection> LearningPathMajors { get; set; }
 
     public static LearningPathCollection FromWriteModel(WriteModels.LearningPath model)
     {

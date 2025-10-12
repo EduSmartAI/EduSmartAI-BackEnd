@@ -49,8 +49,8 @@ namespace AiService.Application.Handler
                 var matched = result.Matched;
                 var hasMatched = matched.Count > 0;
 
-                Task<Response<InternalMajorEventResponse>>? internalInsertTask = Task.FromResult<Response<InternalMajorEventResponse>?>(null);
-                Task<AiBatchExternalRecommendResponse>? externalInsertTask = Task.FromResult<AiBatchExternalRecommendResponse?>(null);
+                Task<Response<InternalMajorEventResponse>>? internalInsertTask = null;
+                Task<AiBatchExternalRecommendResponse>? externalInsertTask = null;
 
                 if (hasMatched)
                 {
@@ -108,10 +108,18 @@ namespace AiService.Application.Handler
                         externalInsertTask = _mediator.Send(batchRequest, cancellationToken);
                     }
                 }
-                
-                await Task.WhenAll(internalInsertTask!, externalInsertTask!);
+                var tasksToWait = new List<Task>();
+                if (internalInsertTask != null) 
+                    tasksToWait.Add(internalInsertTask);
+                if (externalInsertTask != null) 
+                    tasksToWait.Add(externalInsertTask);
 
-                var internalResult = (await internalInsertTask!)!.Message;
+                if (tasksToWait.Any())
+                {
+                    await Task.WhenAll(tasksToWait);
+                }
+
+                var internalResult = (await internalInsertTask!).Message;
                 var externalResult = await externalInsertTask!;
 
                 if (internalResult.Success && externalResult.Success)
