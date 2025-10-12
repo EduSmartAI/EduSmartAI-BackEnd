@@ -24,4 +24,6 @@ public partial class VMajorSemesterSubjectCourses
     public int? LearnerCount { get; set; }
     public bool? IsActive { get; set; }
     public decimal? DurationHours { get; set; }
+    public string Description { get; set; }
+    public string ShortDescription { get; set; }
 }
