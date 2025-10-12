@@ -72,6 +72,7 @@ public partial class CourseDbContext : AppDbContext
     public virtual DbSet<VUserCourseProgress> VUserCourseProgresses { get; set; }
 
     public virtual DbSet<VUserModuleProgress> VUserModuleProgresses { get; set; }
+    public virtual DbSet<VMajorSemesterSubjectCourses> VMajorSemesterSubjectCoursess { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1254,6 +1255,8 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.DurationHours)
                 .HasPrecision(8, 2)
                 .HasColumnName("duration_hours");
+            entity.Property(e => e.Description).HasColumnName("description");
+            entity.Property(e => e.ShortDescription).HasColumnName("short_description");
         });
 
         OnModelCreatingPartial(modelBuilder);

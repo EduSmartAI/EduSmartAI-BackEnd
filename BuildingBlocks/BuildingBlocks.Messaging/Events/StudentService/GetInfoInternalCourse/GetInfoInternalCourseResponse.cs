@@ -25,5 +25,7 @@ namespace BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse
         public int? LearnerCount { get; init; }
         public bool? IsActive { get; init; }
         public decimal? DurationHours { get; init; }
+        public string Description { get; set; }
+        public string ShortDescription { get; set; }
     }
 }

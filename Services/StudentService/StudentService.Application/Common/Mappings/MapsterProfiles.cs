@@ -13,13 +13,18 @@ namespace StudentService.Application.Common.Mappings
             // Course -> CourseItemDto
             config.NewConfig<LearningPathCourseCollection, CourseItemDto>()
                 .Map(d => d.CourseId, s => s.InternalCourseId.HasValue ? s.InternalCourseId.Value.ToString() : null)
+                .Map(d => d.SubjectCode, _ => null as string)
                 .Map(d => d.SemesterPosition, s => s.Position.HasValue ? s.Position.Value : 0);
 
             // Enrich CourseItemDto from (Course + Info)
             config.NewConfig<(LearningPathCourseCollection c, InternalCourseInfoDto? info), CourseItemDto>()
                 .Map(d => d.CourseId, s => s.c.InternalCourseId.HasValue ? s.c.InternalCourseId.Value.ToString() : null)
                 .Map(d => d.SemesterPosition, s => s.info != null ? (int)s.info.SemesterNumber : 0)
+                .Map(d => d.Description, s => s.info != null ? s.info.Description : string.Empty)
+                .Map(d => d.ShortDescription, s => s.info != null ? s.info.ShortDescription : string.Empty)
+                .Map(d => d.Title, s => s.info != null ? s.info.SubjectName : null)
                 .Map(d => d.Slug, s => s.info != null ? s.info.Slug : null)
+                .Map(d => d.SubjectCode, s => s.info != null ? s.info.SubjectCode : null)
                 .Map(d => d.CourseImageUrl, s => s.info != null ? s.info.CourseImageUrl : null)
                 .Map(d => d.LearnerCount, s => s.info != null ? s.info.LearnerCount : 0)
                 .Map(d => d.DurationMinutes, s => s.info != null ? s.info.DurationMinutes : 0)

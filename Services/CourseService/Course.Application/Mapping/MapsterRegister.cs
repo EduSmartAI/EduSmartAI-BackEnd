@@ -37,6 +37,8 @@ namespace Course.Application.Mapping
                 .Map(d => d.SemesterNumber, s => s.SemesterNumber)
                 .Map(d => d.SemesterCode, s => s.SemesterCode)
                 .Map(d => d.SemesterName, s => s.SemesterName)
+                .Map(d => d.Description, s => s.Description)
+                .Map(d => d.ShortDescription, s => s.ShortDescription)
                 .IgnoreNullValues(true);
         }
     }
