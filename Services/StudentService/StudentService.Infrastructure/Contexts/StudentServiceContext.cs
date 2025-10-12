@@ -56,6 +56,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("evaluation_id");
             entity.Property(e => e.Actions)
+                .IsRequired()
                 .HasColumnType("jsonb")
                 .HasColumnName("actions");
             entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
@@ -67,18 +68,25 @@ public partial class StudentServiceContext : AppDbContext
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
             entity.Property(e => e.Improvements)
+                .IsRequired()
                 .HasColumnType("jsonb")
                 .HasColumnName("improvements");
-            entity.Property(e => e.Model).HasColumnName("model");
+            entity.Property(e => e.Model)
+                .IsRequired()
+                .HasColumnName("model");
             entity.Property(e => e.QuizId).HasColumnName("quiz_id");
-            entity.Property(e => e.RubricVersion).HasColumnName("rubric_version");
+            entity.Property(e => e.RubricVersion)
+                .IsRequired()
+                .HasColumnName("rubric_version");
             entity.Property(e => e.Scope).HasColumnName("scope");
             entity.Property(e => e.ScopeId).HasColumnName("scope_id");
             entity.Property(e => e.Score100).HasColumnName("score_100");
             entity.Property(e => e.SkillGaps)
+                .IsRequired()
                 .HasColumnType("jsonb")
                 .HasColumnName("skill_gaps");
             entity.Property(e => e.Strengths)
+                .IsRequired()
                 .HasColumnType("jsonb")
                 .HasColumnName("strengths");
             entity.Property(e => e.Summary).HasColumnName("summary");
@@ -498,8 +506,8 @@ public partial class StudentServiceContext : AppDbContext
                 .HasConstraintName("fk_user_behaviour_user");
         });
 
-        OnModelCreatingPartial(modelBuilder);
+        //OnModelCreatingPartial(modelBuilder);
     }
 
-    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+    //partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }

@@ -80,15 +80,15 @@ public static class ConstantEnum
         Completed = 2
     }
 
-    public enum CourseStatus
-    {
-        NotStarted = 0, // Ng??i h?c ch?a m? lesson n�o trong course
-        InProgress = 1, // Ng??i h?c ?� b?t ??u �t nh?t m?t lesson
-        Completed = 2,
-        Archived = 3 // kh�ng c�n active ?? h?c m?i, nh?ng ng??i h?c c? v?n th?y trong profile
-    }
+	public enum CourseStatus
+	{
+		NotStarted = 0, // Nguoi hoc chua mo lesson nao trong course
+		InProgress = 1, // Nguoi hoc da bat dau it nhat mot lesson
+		Completed = 2,
+		Archived = 3 // khong con active de hoc moi, nhung nguoi hoc cu van thay trong profile
+	}
 
-    public enum LearningPathStatus
+	public enum LearningPathStatus
     {
         Choosing = 0, // In Choosing status for choosing external and internal
         InProgress = 1, // Studying course status
@@ -159,4 +159,6 @@ public static class ConstantEnum
         Profile = 8,
         Other = 99,
     }
+
+	public enum QuizScope { Lesson = 1, Module = 2 }
 }

@@ -13,7 +13,6 @@ namespace Course.Application.DTOs.CoursesDTO
 		string? Description,
 		string? Slug,
 		string? CourseImageUrl,
-		//string Status,
 		int LearnerCount,
 		int? DurationMinutes,
 		decimal? DurationHours,

@@ -1,10 +1,10 @@
+using AiService.Application.Consumers.AiQuizEvaluates;
 using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
-using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using MassTransit;
 
@@ -24,6 +24,7 @@ public static class MessagingExtensions
         {
             x.AddConsumer<StudentMajorRecommendConsumer>();
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
+            x.AddConsumer<QuizEvaluableCreatedEventConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {

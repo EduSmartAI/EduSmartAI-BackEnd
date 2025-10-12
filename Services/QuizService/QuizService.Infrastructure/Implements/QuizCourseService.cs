@@ -2,13 +2,19 @@ using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.QuizService;
+using FluentValidation;
+using MassTransit;
 using MassTransit.Initializers;
+using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.QuizCourses.Commands;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.QuizCourses.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using System.Text.Json;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -20,7 +26,8 @@ public class QuizCourseService : IQuizCourseService
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICommandRepository<StudentQuiz> _studentQuizCommandRepository;
-    private readonly IQueryRepository<StudentQuizCollection>_studentQuizQueryRepository;
+	private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
+	private readonly IPublishEndpoint _quizEvaluableCreatedEventClient;
 
     /// <summary>
     /// Constructor
@@ -29,7 +36,7 @@ public class QuizCourseService : IQuizCourseService
     /// <param name="quizQueryRepository"></param>
     /// <param name="unitOfWork"></param>
     /// <param name="outboxCommandRepository"></param>
-    public QuizCourseService(ICommandRepository<Quiz> quizCommandRepository, IQueryRepository<QuizCollection> quizQueryRepository, IUnitOfWork unitOfWork, ICommandRepository<OutboxMessage> outboxCommandRepository, IIdentityService identityService, ICommandRepository<StudentQuiz> studentQuizCommandRepository, IQueryRepository<StudentQuizCollection> studentQuizQueryRepository)
+	public QuizCourseService(ICommandRepository<Quiz> quizCommandRepository, IQueryRepository<QuizCollection> quizQueryRepository, IUnitOfWork unitOfWork, ICommandRepository<OutboxMessage> outboxCommandRepository, IIdentityService identityService, ICommandRepository<StudentQuiz> studentQuizCommandRepository, IQueryRepository<StudentQuizCollection> studentQuizQueryRepository, IPublishEndpoint quizEvaluableCreatedEventClient)
     {
         _quizCommandRepository = quizCommandRepository;
         _quizQueryRepository = quizQueryRepository;
@@ -38,6 +45,7 @@ public class QuizCourseService : IQuizCourseService
         _identityService = identityService;
         _studentQuizCommandRepository = studentQuizCommandRepository;
         _studentQuizQueryRepository = studentQuizQueryRepository;
+		_quizEvaluableCreatedEventClient = quizEvaluableCreatedEventClient;
     }
 
     /// <summary>
@@ -54,7 +62,7 @@ public class QuizCourseService : IQuizCourseService
         {
             var newQuiz = new Quiz
             { 
-                QuizType = (short) ConstantEnum.TestType.Exam,
+				QuizType = (short)ConstantEnum.TestType.Exam,
                 CourseQuizSetting = new CourseQuizSetting
                 {
                     DurationMinutes = request.DurationMinutes,
@@ -118,7 +126,7 @@ public class QuizCourseService : IQuizCourseService
 
         var quizSelect = await _quizQueryRepository.GetOrSetAsync(
             cacheKey,
-            async () => await _quizQueryRepository.FirstOrDefaultAsync(q => q.QuizId == request.QuizId && q.QuizType == (short) ConstantEnum.TestType.Exam && q.IsActive),
+			async () => await _quizQueryRepository.FirstOrDefaultAsync(q => q.QuizId == request.QuizId && q.QuizType == (short)ConstantEnum.TestType.Exam && q.IsActive),
             TimeSpan.FromMinutes(10))
             .Select(x => new QuizCourseSelectQueryResponseEntity
             {
@@ -155,101 +163,237 @@ public class QuizCourseService : IQuizCourseService
         return response;
     }
 
-    /// <summary>
-    /// Insert student quiz course
-    /// </summary>
-    /// <param name="request"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    public async Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourseAsync(StudentQuizCourseInsertCommand request, CancellationToken cancellationToken)
-    {
-        var response = new StudentQuizCourseInsertResponse { Success = false };
+	/// <summary>
+	/// Insert student quiz course
+	/// </summary>
+	/// <param name="request"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
+	public async Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourseAsync(StudentQuizCourseInsertCommand request, CancellationToken cancellationToken)
+	{
+		var response = new StudentQuizCourseInsertResponse { Success = false };
 
-        var currentUser = _identityService.GetCurrentUser();
+		var currentUser = _identityService.GetCurrentUser();
 
-        // Begin transaction
-        await _unitOfWork.BeginTransactionAsync(async () =>
-        {
-            // Check quiz exist
-            var quizCollectionExist = await _quizQueryRepository.FirstOrDefaultAsync(q =>
-                q.QuizId == request.QuizId && q.QuizType == (short)ConstantEnum.TestType.Exam && q.IsActive);
-            if (quizCollectionExist == null)
-            {
-                response.SetMessage(MessageId.E00000, "Bài kiểm tra không tồn tại");
-                return false;
-            }
+		// Begin transaction
+		await _unitOfWork.BeginTransactionAsync(async () =>
+		{
+			// Check quiz exist
+			var quizCollectionExist = await _quizQueryRepository.FirstOrDefaultAsync(q =>
+				q.QuizId == request.QuizId && q.QuizType == (short)ConstantEnum.TestType.Exam && q.IsActive);
+			if (quizCollectionExist == null)
+			{
+				response.SetMessage(MessageId.E00000, "Bài kiểm tra không tồn tại");
+				return false;
+			}
 
-            // Insert new StudentQuiz
-            var newStudentQuiz = new StudentQuiz
-            {
-                QuizId = request.QuizId,
-                StudentId = currentUser!.UserId,
-                QuizType = (short)ConstantEnum.TestType.Exam,
-                StudentQuizAnswers = request.StudentQuizAnswers.Select(ans => new StudentQuizAnswer
-                {
-                    QuestionId = ans.QuestionId,
-                    AnswerId = ans.AnswerId,
-                }).ToList()
-            };
+			// Insert new StudentQuiz
+			var newStudentQuiz = new StudentQuiz
+			{
+				QuizId = request.QuizId,
+				StudentId = currentUser!.UserId,
+				QuizType = (short)ConstantEnum.TestType.Exam,
+				StudentQuizAnswers = request.StudentQuizAnswers.Select(ans => new StudentQuizAnswer
+				{
+					QuestionId = ans.QuestionId,
+					AnswerId = ans.AnswerId,
+				}).ToList()
+			};
 
-            await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+			await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
+			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
-            // Publish event to read model
-            var studentQuizCourseInsertEvent = new StudentQuizCourseInsertEvent
-            {
-                StudentQuiz = new StudentQuizCollection
-                {
-                    StudentQuizId = newStudentQuiz.StudentQuizId,
-                    StudentId = newStudentQuiz.StudentId,
-                    QuizType = newStudentQuiz.QuizType,
-                    QuizId = newStudentQuiz.QuizId,
-                    IsActive = newStudentQuiz.IsActive,
-                    CreatedAt = newStudentQuiz.CreatedAt,
-                    UpdatedAt = newStudentQuiz.UpdatedAt,
-                    CreatedBy = newStudentQuiz.CreatedBy,
-                    UpdatedBy = newStudentQuiz.UpdatedBy,
-                    Quiz = quizCollectionExist,
-                    StudentQuizAnswers = newStudentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
-                    {
-                        StudentQuizAnswerId = x.StudentQuizAnswerId,
-                        StudentQuizId = x.StudentQuizId,
-                        QuestionId = x.QuestionId,
-                        AnswerId = x.AnswerId,
-                        IsActive = x.IsActive,
-                        CreatedAt = x.CreatedAt,
-                        UpdatedAt = x.UpdatedAt,
-                        CreatedBy = x.CreatedBy,
-                        UpdatedBy = x.UpdatedBy,
-                        Question = quizCollectionExist.Questions.FirstOrDefault(q => q.QuestionId == x.QuestionId),
-                        Answer = quizCollectionExist.Questions
-                            .SelectMany(q => q.Answers)
-                            .FirstOrDefault(a => a.AnswerId == x.AnswerId)
-                    }).ToList()
-                }
-            };
+			// Publish event to read model
+			var studentQuizCourseInsertEvent = new StudentQuizCourseInsertEvent
+			{
+				StudentQuiz = new StudentQuizCollection
+				{
+					StudentQuizId = newStudentQuiz.StudentQuizId,
+					StudentId = newStudentQuiz.StudentId,
+					QuizType = newStudentQuiz.QuizType,
+					QuizId = newStudentQuiz.QuizId,
+					IsActive = newStudentQuiz.IsActive,
+					CreatedAt = newStudentQuiz.CreatedAt,
+					UpdatedAt = newStudentQuiz.UpdatedAt,
+					CreatedBy = newStudentQuiz.CreatedBy,
+					UpdatedBy = newStudentQuiz.UpdatedBy,
+					Quiz = quizCollectionExist,
+					StudentQuizAnswers = newStudentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
+					{
+						StudentQuizAnswerId = x.StudentQuizAnswerId,
+						StudentQuizId = x.StudentQuizId,
+						QuestionId = x.QuestionId,
+						AnswerId = x.AnswerId,
+						IsActive = x.IsActive,
+						CreatedAt = x.CreatedAt,
+						UpdatedAt = x.UpdatedAt,
+						CreatedBy = x.CreatedBy,
+						UpdatedBy = x.UpdatedBy,
+						Question = quizCollectionExist.Questions.FirstOrDefault(q => q.QuestionId == x.QuestionId),
+						Answer = quizCollectionExist.Questions
+							.SelectMany(q => q.Answers)
+							.FirstOrDefault(a => a.AnswerId == x.AnswerId)
+					}).ToList()
+				}
+			};
 
-            var outboxMessage = new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                Type = nameof(StudentQuizCourseInsertEvent),
-                Content = JsonSerializer.Serialize(studentQuizCourseInsertEvent),
-                OccurredOnUtc = DateTime.UtcNow,
-            };
+			var outboxMessage = new OutboxMessage
+			{
+				Id = Guid.NewGuid(),
+				Type = nameof(StudentQuizCourseInsertEvent),
+				Content = JsonSerializer.Serialize(studentQuizCourseInsertEvent),
+				OccurredOnUtc = DateTime.UtcNow,
+			};
 
-            await _outboxCommandRepository.AddAsync(outboxMessage);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+			await _outboxCommandRepository.AddAsync(outboxMessage);
+			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
-            // True
-            response.Success = true;
-            response.Response = newStudentQuiz.StudentQuizId;
-            response.SetMessage(MessageId.I00001, "Lưu kết quả làm bài course");
-            return true;
-        }, cancellationToken);
-        return response;
-    }
 
-    public async Task<StudentCourseQuizSelectResponse> SelectStudentCourseQuizAsync(StudentCourseQuizSelectQuery request)
+
+			// Load quiz with questions and answers
+			var quiz = await GetQuizWithDetailsAsync(request.QuizId, cancellationToken);
+
+			if (quiz is null)
+			{
+				response.SetMessage(MessageId.E00000, "Không tải được chi tiết bài kiểm tra");
+				return false;
+			}
+			// Prepare QuizEvaluableCreatedEvent
+			var (scope, scopeId) = ValidateAndResolveScope(request);
+			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers);
+			var courseId = request.CourseId;
+
+			// Prepare event
+			var evt = new QuizEvaluableCreatedEvent(
+				EventId: Guid.NewGuid(),
+				AttemptId: newStudentQuiz.StudentQuizId,
+				QuizId: request.QuizId,
+				Scope: scope,
+				ScopeId: scopeId,
+				CourseId: courseId,
+				UserId: currentUser!.UserId,
+				TotalQuestions: total,
+				TotalCorrectAnswers: correct,
+				Questions: details.Select(d => new QuestionResult(
+					d.QuestionId, d.QuestionText, d.QuestionType, d.Explanation,
+					d.Answers.Select(a => new AnswerResult(a.AnswerId, a.AnswerText, a.IsCorrectAnswer, a.SelectedByStudent)).ToList()
+				)).ToList(),
+				OccurredAtUtc: DateTime.UtcNow
+			);
+
+			// Publish event
+			await _quizEvaluableCreatedEventClient.Publish(evt, cancellationToken);
+
+
+			// True
+			response.Success = true;
+			response.Response = newStudentQuiz.StudentQuizId;
+			response.SetMessage(MessageId.I00001, "Lưu kết quả làm bài course");
+			return true;
+		}, cancellationToken);
+		return response;
+	}
+
+	/// <summary>
+	/// Validate and resolve scope from request
+	/// </summary>
+	/// <param name="req"></param>
+	/// <returns></returns>
+	/// <exception cref="ValidationException"></exception>
+	private static (QuizScope scope, Guid scopeId) ValidateAndResolveScope(StudentQuizCourseInsertCommand req)
+	{
+		var hasModule = req.ModuleId.HasValue;
+		var hasLesson = req.LessonId.HasValue;
+		if (hasModule == hasLesson) // cả 2 hoặc cả 0
+			throw new ValidationException("Phải truyền đúng 1 trong ModuleId hoặc LessonId.");
+
+		return hasModule
+			? (QuizScope.Module, req.ModuleId!.Value)
+			: (QuizScope.Lesson, req.LessonId!.Value);
+	}
+
+	/// <summary>
+	/// Check if the question is answered correctly
+	/// </summary>
+	/// <param name="q"></param>
+	/// <param name="chosen"></param>
+	/// <returns></returns>
+	private static bool IsQuestionCorrect(Question q, IEnumerable<StudentQuizAnswer> chosen)
+	{
+		var correct = q.Answers.Where(a => a.IsCorrect)
+							   .Select(a => a.AnswerId)
+							   .OrderBy(x => x)
+							   .ToArray();
+
+		var picked = chosen.Where(a => a.QuestionId == q.QuestionId)
+						   .Select(a => a.AnswerId)
+						   .Distinct()
+						   .OrderBy(x => x)
+						   .ToArray();
+
+		return correct.SequenceEqual(picked);
+	}
+
+	/// <summary>
+	/// Get quiz with questions and answers
+	/// </summary>
+	/// <param name="quizId"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	private async Task<Quiz?> GetQuizWithDetailsAsync(Guid quizId, CancellationToken ct)
+	{
+		var query = _quizCommandRepository.Find(
+			predicate: q => q.QuizId == quizId && q.IsActive,
+			isTracking: false,
+			cancellationToken: ct
+		);
+
+		// EF Core: Include + ThenInclude + filtered include (Where)
+		var quiz = await query
+			.Include(q => q.Questions.Where(x => x.IsActive))
+				.ThenInclude(q => q.Answers)
+			.AsSplitQuery() // khuyến nghị: tránh Cartesian explosion
+			.FirstOrDefaultAsync(ct);
+
+		return quiz;
+	}
+
+	/// <summary>
+	/// Summarize the attempt result
+	/// </summary>
+	/// <param name="attempt"></param>
+	/// <returns></returns>
+	private static (int total, int correct, List<QuestionsCourseResultSelectResponseEntity> details) ComputeAttemptResult(Quiz quiz, IEnumerable<StudentQuizAnswer> chosen)
+	{
+		var details = new List<QuestionsCourseResultSelectResponseEntity>();
+		int total = quiz.Questions.Count(q => q.IsActive);
+		int correct = 0;
+
+		foreach (var q in quiz.Questions.Where(q => q.IsActive))
+		{
+			var ans = q.Answers.Select(a => new StudentQuizCourseAnswerDetailResponse
+			{
+				AnswerId = a.AnswerId,
+				AnswerText = a.AnswerText,
+				IsCorrectAnswer = a.IsCorrect,
+				SelectedByStudent = chosen.Any(sa => sa.QuestionId == q.QuestionId && sa.AnswerId == a.AnswerId)
+			}).ToList();
+
+			if (IsQuestionCorrect(q, chosen)) correct++;
+
+			details.Add(new QuestionsCourseResultSelectResponseEntity
+			{
+				QuestionId = q.QuestionId,
+				QuestionText = q.QuestionText,
+				QuestionType = q.QuestionType,
+				Explanation = q.Explanation,
+				Answers = ans
+			});
+		}
+		return (total, correct, details);
+	}
+
+	public async Task<StudentCourseQuizSelectResponse> SelectStudentCourseQuizAsync(StudentCourseQuizSelectQuery request)
     {
         var response = new StudentCourseQuizSelectResponse { Success = false };
 

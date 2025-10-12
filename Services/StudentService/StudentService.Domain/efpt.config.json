@@ -1,0 +1,89 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "StudentServiceDBContext",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "WriteModels",
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "StudentService.Domain",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 2,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "public.ai_evaluations",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.learning_goals",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.learning_path_courses",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.learning_path_majors",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.learning_paths",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.outbox_messages",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_learning_goals",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_orientations",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_technologies",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.students",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.technologies",
+         "ObjectType": 0
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": true,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": false,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}

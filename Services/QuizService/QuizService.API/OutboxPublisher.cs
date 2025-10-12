@@ -79,7 +79,7 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e6!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentQuizCourseInsertEvent for QuizId: {e6.StudentQuiz.QuizId}");
                             break;
-                        default:
+						default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;
                     }
