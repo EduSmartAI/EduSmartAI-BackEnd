@@ -8,7 +8,6 @@
 		string? Description,
 		string? Slug,
 		string? CourseImageUrl,
-		//string Status,
 		int? DurationMinutes,
 		short? Level,
 		decimal Price,

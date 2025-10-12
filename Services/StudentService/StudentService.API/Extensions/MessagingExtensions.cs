@@ -37,8 +37,9 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
-            
-            x.UsingRabbitMq((context, cfg) =>
+			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+
+			x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
                 {

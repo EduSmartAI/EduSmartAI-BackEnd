@@ -1,4 +1,5 @@
 using AiService.API.Extensions;
+using AiService.Infrastructure;
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi;
@@ -10,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 
 // Configure services using extension methods
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddDatabaseServices();
 builder.Services.AddAuthenticationServices();
 builder.Services.AddRepositoryServices();

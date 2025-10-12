@@ -70,4 +70,5 @@ public static class ConstEnv
 
     public const string EmbedModel = "EMBED_MODEL";
 
+    public const string GroqApiKey = "GROQ_API_KEY";
 }
