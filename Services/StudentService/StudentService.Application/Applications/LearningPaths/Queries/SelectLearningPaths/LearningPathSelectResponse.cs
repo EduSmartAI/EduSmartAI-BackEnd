@@ -75,6 +75,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     {
         public string? CourseId { get; set; }
         public int SemesterPosition { get; set; }
+        public string SubjectCode { get; set; } = string.Empty;
         public string? Title { get; set; }
         public string? ShortDescription { get; set; }
         public string? Description { get; set; }
