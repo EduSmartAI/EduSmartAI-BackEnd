@@ -1,6 +1,5 @@
-using System.ComponentModel.DataAnnotations;
 using BuildingBlocks.CQRS;
-using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
+using System.ComponentModel.DataAnnotations;
 
 namespace StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 

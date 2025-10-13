@@ -9,8 +9,8 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
 
     public record LearningPathSelectDto
     {
-        public BasicLearningPathDto BasicLearningPath { get; set; } = new();
         public int Status { get; set; }
+        public BasicLearningPathDto BasicLearningPath { get; set; } = new();
         public List<InternalLearningPathDto> InternalLearningPath { get; set; } = [];
         public List<ExternalLearningPathDto> ExternalLearningPath { get; set; } = [];
     }
@@ -34,6 +34,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public string? MajorId { get; set; }
         public string? MajorCode { get; set; }
         public string? Reason { get; set; }
+        public int? PositionIndex { get; set; }
         public List<CourseItemDto> MajorCourse { get; set; } = [];
     }
 

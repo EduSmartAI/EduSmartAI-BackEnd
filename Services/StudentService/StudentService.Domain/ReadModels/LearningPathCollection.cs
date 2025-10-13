@@ -28,6 +28,7 @@ public class LearningPathCollection
             StudentId = model.StudentId,
             Status = model.Status,
             LearningPathMajors = (model.LearningPathMajors ?? new List<WriteModels.LearningPathMajor>())
+                .OrderBy(m => m.PositionIndex ?? int.MaxValue)
                 .Select(LearningPathMajorCollection.FromWriteModel)
                 .ToList()
         };
