@@ -439,8 +439,7 @@ public class LearningPathService : ILearningPathService
     /// <param name="query"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<LearningPathSelectResponse> GetLearningPathById(
-        LearningPathSelectsQuery query, CancellationToken cancellationToken = default)
+    public async Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, CancellationToken cancellationToken = default)
     {
         var res = new LearningPathSelectResponse { Success = false };
         var currentUserId = _identityService.GetCurrentUser()!.UserId;

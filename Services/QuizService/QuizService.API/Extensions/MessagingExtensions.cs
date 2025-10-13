@@ -24,6 +24,8 @@ public static class MessagingExtensions
 			x.AddConsumer<QuizCourseInsertConsumer>();
 			x.AddConsumer<StudentQuizCourseInsertEventConsumer>();
             
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "quiz", includeNamespace: false));
+
 			x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>

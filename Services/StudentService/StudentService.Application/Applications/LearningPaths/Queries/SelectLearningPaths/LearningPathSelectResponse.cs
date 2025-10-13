@@ -4,7 +4,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
 {
     public record LearningPathSelectResponse : AbstractApiResponse<LearningPathSelectDto>
     {
-        public override LearningPathSelectDto Response { get; set; } = new LearningPathSelectDto();
+        public override LearningPathSelectDto Response { get; set; }
     }
 
     public record LearningPathSelectDto

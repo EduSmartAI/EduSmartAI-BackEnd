@@ -16,6 +16,7 @@ public static class MessagingExtensions
         
         services.AddMassTransit(x =>
         {
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "payment", includeNamespace: false));
 
             x.UsingRabbitMq((context, cfg) =>
             {

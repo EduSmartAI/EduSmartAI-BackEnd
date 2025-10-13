@@ -21,6 +21,8 @@ public static class MessagingExtensions
             x.AddConsumer<SendKeyEventConsumer>();
             x.AddConsumer<UploadVideoRequestedConsumer>();
 
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "utility", includeNamespace: false));
+
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>

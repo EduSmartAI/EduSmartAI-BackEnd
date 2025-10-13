@@ -71,6 +71,8 @@ namespace StudentService.Application.Common.Mappings
 
             // LearningPath -> LearningPathSelectDto
             config.NewConfig<LearningPathCollection, LearningPathSelectDto>()
+                // Status
+                .Map(d => d.Status, s => s.Status)
                 // Basic
                 .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto
                 {

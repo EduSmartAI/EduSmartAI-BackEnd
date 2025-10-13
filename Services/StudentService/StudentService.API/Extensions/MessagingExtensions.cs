@@ -39,7 +39,9 @@ public static class MessagingExtensions
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
 			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
 
-			x.UsingRabbitMq((context, cfg) =>
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
+
+            x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
                 {
@@ -48,17 +50,7 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
-
-                cfg.ReceiveEndpoint("student-service.insert-learning-path", e =>
-                {
-                    e.ConfigureConsumer<InsertLearningPathEventConsumer>(context);
-                });
-
-                cfg.ReceiveEndpoint("student-service.update-external-major", e =>
-                {
-                    e.ConfigureConsumer<InsertMajorExternalCourseConsumer>(context);
-                });
-
+                
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),

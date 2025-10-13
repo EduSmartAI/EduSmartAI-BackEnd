@@ -26,6 +26,8 @@ namespace Course.API.Extensions
                 x.AddConsumer<CoursesSelectConsumer>();
                 x.AddConsumer<GetInfoInternalCourseConsumer>();
 
+                x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
+
                 x.UsingRabbitMq((context, cfg) =>
                 {
                     cfg.Host(rabbitMqHost, "/", h =>

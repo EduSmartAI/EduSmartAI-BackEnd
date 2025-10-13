@@ -26,6 +26,8 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             x.AddConsumer<QuizEvaluableCreatedEventConsumer>();
 
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
+
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -36,7 +38,6 @@ public static class MessagingExtensions
 
                 cfg.ConfigureEndpoints(context);
                 
-                // Add timeout and retry configuration
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
@@ -44,13 +45,11 @@ public static class MessagingExtensions
 
                 cfg.UseInMemoryOutbox();
             });
-            x.AddRequestClient<InsertLearningPathEvent>(new Uri("queue:student-service.insert-learning-path"));
-            x.AddRequestClient<UpdateExternalMajorEvent>(new Uri("queue:student-service.update-external-major"));
             
-            // Add request clients
-            x.AddRequestClient<UpdateBatchExternalMajorEvent>();
-            x.AddRequestClient<InternalMajorEvent>(TimeSpan.FromSeconds(170));
+            x.AddRequestClient<InsertLearningPathEvent>(TimeSpan.FromSeconds(60));
+            x.AddRequestClient<UpdateExternalMajorEvent>(TimeSpan.FromSeconds(60));
             x.AddRequestClient<UpdateBatchExternalMajorEvent>(TimeSpan.FromSeconds(230));
+            x.AddRequestClient<InternalMajorEvent>(TimeSpan.FromSeconds(170));
         });
 
         return services;

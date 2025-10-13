@@ -18,6 +18,8 @@ public static class MessagingExtensions
         
         services.AddMassTransit(x =>
         {
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "auth", includeNamespace: false));
+
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
