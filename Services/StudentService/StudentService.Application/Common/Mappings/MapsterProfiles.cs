@@ -1,6 +1,7 @@
 ﻿using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Mapster;
+using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Domain.ReadModels;
 
@@ -93,6 +94,13 @@ namespace StudentService.Application.Common.Mappings
                         .Where(m => m.Type == (short)ConstantEnum.LearningPathMajor.External)
                         .Select(m => m.Adapt<ExternalLearningPathDto>(config))
                         .ToList());
+
+            // LearningPath list → LearningPathSelectAllDto
+            config.NewConfig<LearningPathCollection, LearningPathSelectAllDto>()
+                  .Map(d => d.PathId, s => s.PathId)
+                  .Map(d => d.PathName, s => s.PathName)
+                  .Map(d => d.CreatedAt, s => s.CreatedAt)
+                  .Map(d => d.Status, s => s.Status);
         }
     }
 }
