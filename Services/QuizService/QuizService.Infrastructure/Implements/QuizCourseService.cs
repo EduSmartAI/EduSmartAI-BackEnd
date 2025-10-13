@@ -405,7 +405,7 @@ public class QuizCourseService : IQuizCourseService
             cacheKey,
             async () =>
             {
-                return await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.StudentQuizId == request.StudentQuizCourseId && x.StudentId == currentUser.UserId && x.IsActive);
+                return await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.StudentQuizId == request.StudentQuizCourseId && x.IsActive);
             },
             TimeSpan.FromMinutes(10)
         );
@@ -413,6 +413,12 @@ public class QuizCourseService : IQuizCourseService
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy kết quả làm bài kiểm tra");
             return response;
+        }
+
+        if (studentCourseQuiz.StudentId != currentUser.UserId)
+        {
+	        response.SetMessage(MessageId.I00000, "Bạn không có quyền xem kết quả làm bài kiểm tra này");
+	        return response;
         }
         
         var questionResults = new List<QuestionsCourseResultSelectResponseEntity>();

@@ -55,13 +55,13 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost("[action]")]
+    [HttpGet("[action]")]
     [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Hiển thị bài kiểm tra course cho sinh viên",
         Description = "Cần cấp quyền Student cho API"
     )]
-    public async Task<StudentCourseQuizSelectResponse> SelectStudentQuizCourse(StudentCourseQuizSelectQuery request)
+    public async Task<StudentCourseQuizSelectResponse> SelectStudentQuizCourse([FromQuery] StudentCourseQuizSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<StudentCourseQuizSelectQuery, StudentCourseQuizSelectResponse, StudentCourseQuizSelectResponseEntity>(
             request,
