@@ -258,6 +258,7 @@ public partial class StudentServiceContext : AppDbContext
             entity.HasOne(d => d.Path).WithMany(p => p.LearningPathMajors)
                 .HasForeignKey(d => d.PathId)
                 .HasConstraintName("fk_lpm_path");
+            entity.Property(e => e.PositionIndex).HasColumnName("position_index");
         });
         
         modelBuilder.Entity<OutboxMessage>(entity =>

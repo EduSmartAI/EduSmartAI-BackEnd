@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using Swashbuckle.AspNetCore.Annotations;
@@ -51,7 +53,6 @@ namespace StudentService.API.Controllers
                 _httpContextAccessor,
                 new LearningPathSelectResponse());
         }
-
         /// <summary>
         /// Update selected courses in learning path
         /// </summary>
@@ -74,6 +75,52 @@ namespace StudentService.API.Controllers
                 _identityEntity,
                 _httpContextAccessor,
                 new LearningPathCourseUpdateResponse());
+        }
+        /// <summary>
+        /// Choosing major
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("choose-major")]
+        [SwaggerOperation(
+            Summary = "Pick lộ trình chuyên ngành phù hợp",
+            Description = ""
+        )]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<UpdateStatusLearningPathResponse> UpdateStatusLearningPathById(UpdateStatusLearningPathCommand request)
+        {
+            return await ApiControllerHelper.HandleRequest<UpdateStatusLearningPathCommand, UpdateStatusLearningPathResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new UpdateStatusLearningPathResponse());
+        }
+        /// <summary>
+        /// Sync data from write-model to read-model
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("Sync-data-readmodel")]
+        [SwaggerOperation(
+            Summary = "Đồng bộ dữ liệu từ write-model sang read-model (BACKEND)",
+            Description = "Dùng để đồng bộ dữ liệu từ write-model khi chỉnh data, chỉ dùng cho Backend"
+        )]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<UpdateReadModelLearningPathResponse> UpdateStatusLearningPathReadModelById(UpdateReadModelLearningPathCommand request)
+        {
+            return await ApiControllerHelper.HandleRequest<UpdateReadModelLearningPathCommand, UpdateReadModelLearningPathResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new UpdateReadModelLearningPathResponse());
         }
     }
 }

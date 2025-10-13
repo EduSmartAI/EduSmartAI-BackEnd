@@ -14,6 +14,7 @@ public class LearningPathMajorCollection
 
     /// <summary>1: Internal, 2: External</summary>
     public short Type { get; set; }
+    public int? PositionIndex { get; set; }
 
     public virtual ICollection<LearningPathCourseCollection> LearningPathCourses { get; set; }
         = new List<LearningPathCourseCollection>();
@@ -32,6 +33,7 @@ public class LearningPathMajorCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive,
             Type = model.Type,
+            PositionIndex = model.PositionIndex,
             LearningPathCourses = (model.LearningPathCourses ?? new List<WriteModels.LearningPathCourse>())
                 .Select(LearningPathCourseCollection.FromWriteModel)
                 .ToList()

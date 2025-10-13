@@ -94,6 +94,7 @@ public static class ConstantEnum
         InProgress = 1,
         Completed = 2,
         Closed = 3,
+        Paused = 4 // Pause Learning Path
     }
 
     public enum UserBehaviourActionType

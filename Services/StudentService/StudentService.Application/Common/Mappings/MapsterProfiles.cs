@@ -40,6 +40,7 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.MajorId, s => s.LearningPathMajorId.ToString())
                 .Map(d => d.MajorCode, s => s.MajorCode)
                 .Map(d => d.Reason, s => s.Reason)
+                .Map(d => d.PositionIndex, s => s.PositionIndex)
                 .Map(d => d.MajorCourse, _ => new List<CourseItemDto>());
 
             // Major External -> ExternalLearningPathDto
