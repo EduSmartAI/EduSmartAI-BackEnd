@@ -81,7 +81,7 @@ namespace StudentService.API.Controllers
         /// </summary>
         /// <param name="request"></param>
         /// <returns></returns>
-        [HttpPost("choose-major")]
+        [HttpPut("choose-major")]
         [SwaggerOperation(
             Summary = "Pick lộ trình chuyên ngành phù hợp",
             Description = ""
