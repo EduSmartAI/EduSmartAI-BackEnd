@@ -46,8 +46,8 @@ public partial class AIServiceDbContext : AppDbContext
         {
             entity.HasKey(e => e.MajorCode).HasName("major_embeddings_pkey");
 
-            entity.ToTable("major_embeddings");
-
+            entity.ToTable("major_embeddings", "public");
+            
             entity.Property(e => e.MajorCode)
                 .HasMaxLength(64)
                 .HasColumnName("major_code");
