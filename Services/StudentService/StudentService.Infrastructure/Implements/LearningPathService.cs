@@ -81,7 +81,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short)ConstantEnum.LearningPathStatus.InProgress,
+                Status = (short)ConstantEnum.LearningPathStatus.Generating,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -626,10 +626,10 @@ public class LearningPathService : ILearningPathService
             var deactivatedCount = coursesToDeactivate.Count;
             var activatedCount = request.SelectedCourseIds.Count;
 
-            // 8. Update learning path status to InProgress (user has made their choice)
+            // 8. Update learning path status to Choosing (user has made their choice)
             if (learningPath.Status == (short)ConstantEnum.LearningPathStatus.Choosing)
             {
-                learningPath.Status = (short)ConstantEnum.LearningPathStatus.InProgress;
+                learningPath.Status = (short)ConstantEnum.LearningPathStatus.Generating;
                 _learningPathCommandRepository.Update(learningPath);
 
                 // Save learning path status update
@@ -726,7 +726,7 @@ public class LearningPathService : ILearningPathService
             }
 
             // Update write-model
-            learningPath.Status = (short)ConstantEnum.LearningPathStatus.InProgress;
+            learningPath.Status = (short)ConstantEnum.LearningPathStatus.Generating;
             _learningPathCommandRepository.Update(learningPath, currentUserEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -743,7 +743,7 @@ public class LearningPathService : ILearningPathService
             // Update lpRead: status + embed list
             if (lpRead != null)
             {
-                lpRead.Status = (short)ConstantEnum.LearningPathStatus.InProgress;
+                lpRead.Status = (short)ConstantEnum.LearningPathStatus.Generating;
                 lpRead.LearningPathMajors = freshMajors
                    .OfType<LearningPathMajor>()
                    .OrderBy(m => m.PositionIndex ?? int.MaxValue)

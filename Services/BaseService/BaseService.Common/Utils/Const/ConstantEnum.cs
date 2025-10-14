@@ -90,11 +90,12 @@ public static class ConstantEnum
 
 	public enum LearningPathStatus
     {
-        Choosing = 0,
-        InProgress = 1,
-        Completed = 2,
-        Closed = 3,
-        Paused = 4 // Pause Learning Path
+        Generating = 0,
+        Choosing = 1,
+        InProgress = 2,
+        Completed = 3,
+        Closed = 4,
+        Paused = 5
     }
 
     public enum UserBehaviourActionType
