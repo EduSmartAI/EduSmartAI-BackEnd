@@ -136,7 +136,7 @@ namespace StudentService.API.Controllers
             Summary = "Lấy tất cả Learning Path",
             Description = "Trả về Learning Path đang có. Cần xác thực Bearer."
         )]
-        public async Task<SelectAllLearningPathResponse> GetAllLearningPath(SelectAllLearningPathQuery request)
+        public async Task<SelectAllLearningPathResponse> GetAllLearningPath([FromQuery] SelectAllLearningPathQuery request)
         {
             return await ApiControllerHelper.HandleRequest<SelectAllLearningPathQuery, SelectAllLearningPathResponse, PaginatedResult<LearningPathSelectAllDto>>(
                 request,
