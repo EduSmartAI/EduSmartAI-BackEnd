@@ -18,7 +18,8 @@
 		decimal? DealPrice,
 		bool IsActive,
 		DateTime CreatedAt,
-		DateTime UpdatedAt
+		DateTime UpdatedAt,
+		List<CourseTagDto> Tags
 	);
 
 }

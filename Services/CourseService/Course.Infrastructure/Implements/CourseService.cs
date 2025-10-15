@@ -138,19 +138,23 @@ namespace Course.Infrastructure.Implements
             var pageNumber = pagination.PageIndex + 1;
             var pageSize = pagination.PageSize;
 
-            var page = await _courseRepository.PagedAsync(
-                pageNumber: pageNumber,
-                pageSize: pageSize,
-                predicate: predicate,
-                orderBy: orderBy,
-                orderByDescending: orderByDescending,
-                cancellationToken: ct,
-                x => x.Subject
+			var page = await _courseRepository.PagedAsync(
+            	pageNumber: pageNumber,
+            	pageSize: pageSize,
+            	predicate: predicate,
+            	orderBy: orderBy,
+            	orderByDescending: orderByDescending,
+            	cancellationToken: ct,
+            	include: q => q
+            		.Include(x => x.Subject)
+            		.Include(x => x.CourseTags)
+            			.ThenInclude(ct => ct.Tag)
             // includes: nếu cần eager load, thêm tại đây: x => x.Subject, x => x.Modules ...
             );
 
-            // Map entity -> DTO
-            var items = page.Items.Select(_courseMapper.ToDto).ToList();
+
+			// Map entity -> DTO
+			var items = page.Items.Select(_courseMapper.ToDto).ToList();
 
             var result = new PaginatedResult<CourseDto>(
                 pageIndex: pagination.PageIndex,
@@ -1073,6 +1077,75 @@ namespace Course.Infrastructure.Implements
             response.SetMessage(MessageId.I00001);
             return response;
         }
+
+		/// <summary>
+		/// Get all view course by list of CourseIds
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(GetInfoInternalCourseEvents request, CancellationToken ct = default)
+        {
+            var resp = new GetInfoInternalCourseResponse { Success = false };
+
+            try
+            {
+                if (request?.CourseIds == null || request.CourseIds.Count == 0)
+                {
+                    resp.Success = true;
+                    resp.Message = "Không có CourseId nào được cung cấp.";
+                    resp.Response = Array.Empty<InternalCourseInfoDto>();
+                    return resp;
+                }
+
+                var idSet = request.CourseIds.ToHashSet();
+
+                // 1) Lấy dữ liệu từ VIEW (AsNoTracking)
+                var rows = await _viewCourseRepo.Find(
+                        v => v.CourseId.HasValue && idSet.Contains(v.CourseId.Value),
+                        isTracking: false,
+                        cancellationToken: ct
+                    )
+                    .ToListAsync(ct);
+
+                var representatives = rows
+                    .Where(r => r?.CourseId != null)
+                    .GroupBy(r => r!.CourseId!.Value)
+                    .Select(g => g
+                        .OrderBy(x => x!.SemesterNumber)
+                        .ThenBy(x => x!.SubjectCode)
+                        .First()!
+                    )
+                    .ToList();
+
+                // 3) Mapster: VIEW -> DTO
+                var mapped = representatives.Adapt<List<InternalCourseInfoDto>>();
+
+                // 4) Giữ đúng thứ tự như input CourseIds (chú ý Guid? -> Guid)
+                var order = request.CourseIds
+                    .Select((id, idx) => new { id, idx })
+                    .ToDictionary(x => x.id, x => x.idx);
+
+                var ordered = mapped
+                    .OrderBy(i =>
+                    {
+                        int idx;
+                        return i.CourseId.HasValue && order.TryGetValue(i.CourseId.Value, out idx)
+                            ? idx
+                            : int.MaxValue;
+                    })
+                    .ToList();
+
+                resp.Response = ordered;
+                resp.Success = true;
+                resp.Message = $"Tìm thấy {ordered.Count}/{idSet.Count} khóa học.";
+                return resp;
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+        }
         #endregion
 
         #region Private Helper Methods
@@ -1816,67 +1889,6 @@ namespace Course.Infrastructure.Implements
         }
 
         #endregion
-        public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(GetInfoInternalCourseEvents request, CancellationToken ct = default)
-        {
-            var resp = new GetInfoInternalCourseResponse { Success = false };
-
-            try
-            {
-                if (request?.CourseIds == null || request.CourseIds.Count == 0)
-                {
-                    resp.Success = true;
-                    resp.Message = "Không có CourseId nào được cung cấp.";
-                    resp.Response = Array.Empty<InternalCourseInfoDto>();
-                    return resp;
-                }
-
-                var idSet = request.CourseIds.ToHashSet();
-
-                // 1) Lấy dữ liệu từ VIEW (AsNoTracking)
-                var rows = await _viewCourseRepo.Find(
-                        v => v.CourseId.HasValue && idSet.Contains(v.CourseId.Value),
-                        isTracking: false,
-                        cancellationToken: ct
-                    )
-                    .ToListAsync(ct);
-
-                var representatives = rows
-                    .Where(r => r?.CourseId != null)
-                    .GroupBy(r => r!.CourseId!.Value)
-                    .Select(g => g
-                        .OrderBy(x => x!.SemesterNumber)
-                        .ThenBy(x => x!.SubjectCode)
-                        .First()!
-                    )
-                    .ToList();
-
-                // 3) Mapster: VIEW -> DTO
-                var mapped = representatives.Adapt<List<InternalCourseInfoDto>>();
-
-                // 4) Giữ đúng thứ tự như input CourseIds (chú ý Guid? -> Guid)
-                var order = request.CourseIds
-                    .Select((id, idx) => new { id, idx })
-                    .ToDictionary(x => x.id, x => x.idx);
-
-                var ordered = mapped
-                    .OrderBy(i =>
-                    {
-                        int idx;
-                        return i.CourseId.HasValue && order.TryGetValue(i.CourseId.Value, out idx)
-                            ? idx
-                            : int.MaxValue;
-                    })
-                    .ToList();
-
-                resp.Response = ordered;
-                resp.Success = true;
-                resp.Message = $"Tìm thấy {ordered.Count}/{idSet.Count} khóa học.";
-                return resp;
-            }
-            catch (Exception ex)
-            {
-                return null;
-            }
-        }
+        
     }
 }
