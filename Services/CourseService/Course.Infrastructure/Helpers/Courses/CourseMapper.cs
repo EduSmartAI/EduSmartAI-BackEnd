@@ -512,7 +512,11 @@ namespace Course.Infrastructure.Helpers.Courses
 			DealPrice: e.DealPrice,
 			IsActive: e.IsActive,
 			CreatedAt: e.CreatedAt,
-			UpdatedAt: e.UpdatedAt
+			UpdatedAt: e.UpdatedAt,
+			Tags: e.CourseTags.Select(t => new CourseTagDto(
+				t.TagId,
+				t.Tag?.TagName ?? string.Empty
+			)).ToList()
 		);
 
 		/// <summary>

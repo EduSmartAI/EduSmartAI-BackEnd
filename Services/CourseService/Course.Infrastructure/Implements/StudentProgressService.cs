@@ -9,7 +9,6 @@ using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourse
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
-using Course.Infrastructure.Helpers.StudentLessonProgress;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 using static Course.Infrastructure.Helpers.StudentLessonProgress.LessonProgressPolicy;
 
