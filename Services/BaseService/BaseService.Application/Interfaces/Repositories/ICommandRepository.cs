@@ -40,7 +40,19 @@ public interface ICommandRepository<TEntity> where TEntity : class
         CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[]? includes);
 
-    Task<PagedResult<TEntity>> PagedAsync<TKey>(
+	/// <summary>
+	/// Get paged entities with include support.
+	/// </summary>
+	/// <typeparam name="TKey"></typeparam>
+	/// <param name="pageNumber"></param>
+	/// <param name="pageSize"></param>
+	/// <param name="predicate"></param>
+	/// <param name="orderBy"></param>
+	/// <param name="orderByDescending"></param>
+	/// <param name="cancellationToken"></param>
+	/// <param name="include"></param>
+	/// <returns></returns>
+	Task<PagedResult<TEntity>> PagedAsync<TKey>(
         int? pageNumber,
         int? pageSize,
         Expression<Func<TEntity, bool>>? predicate = null,
