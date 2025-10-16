@@ -95,7 +95,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     }
     
     /// <summary>
-    /// Add new questions to existing quiz
+    /// Add new questions to existing course quiz
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -105,7 +105,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
         Summary = "Thêm câu hỏi mới vào bài kiểm tra",
         Description = "Cần cấp quyền Teacher cho API"
     )]
-    public async Task<QuizCourseAddQuestionsResponse> InsertQuestionsToQuiz([FromBody] QuizCourseAddQuestionsCommand request)
+    public async Task<QuizCourseAddQuestionsResponse> InsertQuestionsToQuizCourse([FromBody] QuizCourseAddQuestionsCommand request)
     {
         return await ApiControllerHelper.HandleRequest<QuizCourseAddQuestionsCommand, QuizCourseAddQuestionsResponse, string>(
             request,
@@ -129,7 +129,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
         Summary = "Xóa câu hỏi khỏi bài kiểm tra",
         Description = "Cần cấp quyền Teacher cho API. Xóa mềm (soft delete) - set IsActive = false"
     )]
-    public async Task<QuizCourseDeleteQuestionsResponse> DeleteQuestionsFromQuiz([FromBody] QuizCourseDeleteQuestionsCommand request)
+    public async Task<QuizCourseDeleteQuestionsResponse> DeleteQuestionsFromQuizCourse([FromBody] QuizCourseDeleteQuestionsCommand request)
     {
         return await ApiControllerHelper.HandleRequest<QuizCourseDeleteQuestionsCommand, QuizCourseDeleteQuestionsResponse, string>(
             request,
