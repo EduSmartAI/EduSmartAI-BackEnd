@@ -1,9 +1,9 @@
-using System.Linq.Expressions;
 using BaseService.Application.Common;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Infrastructure.Contexts;
 using Microsoft.EntityFrameworkCore;
-using Shared.Application.Common;
+using Microsoft.EntityFrameworkCore.Query;
+using System.Linq.Expressions;
 
 namespace BaseService.Infrastructure.Repositories;
 
@@ -71,15 +71,61 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
 
     }
 
-    /// <summary>
-    /// Get IQueryable for the entity.
-    /// </summary>
-    /// <param name="predicate"></param>
-    /// <param name="isTracking"></param>
-    /// <param name="cancellationToken"></param>
-    /// <param name="includes"></param>
-    /// <returns></returns>
-    public IQueryable<TEntity?> Find(Expression<Func<TEntity, bool>>? predicate = null, bool isTracking = false,
+	/// <summary>
+	/// Get paged entities with include support.
+	/// </summary>
+	/// <typeparam name="TKey"></typeparam>
+	/// <param name="pageNumber"></param>
+	/// <param name="pageSize"></param>
+	/// <param name="predicate"></param>
+	/// <param name="orderBy"></param>
+	/// <param name="orderByDescending"></param>
+	/// <param name="cancellationToken"></param>
+	/// <param name="include"></param>
+	/// <returns></returns>
+	public async Task<PagedResult<TEntity>> PagedAsync<TKey>(
+	    int? pageNumber,
+	    int? pageSize,
+	    Expression<Func<TEntity, bool>>? predicate = null,
+	    Expression<Func<TEntity, TKey>>? orderBy = null,
+	    bool orderByDescending = false,
+	    CancellationToken cancellationToken = default,
+	    Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object>>? include = null)
+	{
+		IQueryable<TEntity> query = DbSet.AsNoTracking();
+
+		if (include != null) query = include(query);
+		if (predicate != null) query = query.Where(predicate);
+		// sort
+		if (orderBy != null) query = orderByDescending ? query.OrderByDescending(orderBy) : query.OrderBy(orderBy);
+
+		int validPageNumber = Math.Max(1, pageNumber ?? 1);
+		int validPageSize = Math.Max(1, pageSize ?? 10);
+
+		var totalCount = await query.CountAsync(cancellationToken);
+		var items = await query
+			.Skip((validPageNumber - 1) * validPageSize)
+			.Take(validPageSize)
+			.ToListAsync(cancellationToken);
+
+		return new PagedResult<TEntity>
+		{
+			Items = items,
+			TotalCount = totalCount,
+			PageNumber = validPageNumber,
+			PageSize = validPageSize
+		};
+	}
+
+	/// <summary>
+	/// Get IQueryable for the entity.
+	/// </summary>
+	/// <param name="predicate"></param>
+	/// <param name="isTracking"></param>
+	/// <param name="cancellationToken"></param>
+	/// <param name="includes"></param>
+	/// <returns></returns>
+	public IQueryable<TEntity?> Find(Expression<Func<TEntity, bool>>? predicate = null, bool isTracking = false,
         CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[] includes)
     {

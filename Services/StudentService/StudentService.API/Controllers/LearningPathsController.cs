@@ -1,5 +1,7 @@
 ﻿using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Common.Utils.Const;
+using BuildingBlocks.Pagination;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +11,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateCours
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -59,7 +62,7 @@ namespace StudentService.API.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPut("[action]")]
-        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         [SwaggerOperation(
             Summary = "Cập nhật các khóa học được chọn trong lộ trình học tập",
             Description = "API này cho phép sinh viên chọn các khóa học mong muốn."
@@ -86,7 +89,7 @@ namespace StudentService.API.Controllers
             Summary = "Pick lộ trình chuyên ngành phù hợp",
             Description = ""
         )]
-        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         public async Task<UpdateStatusLearningPathResponse> UpdateStatusLearningPathById(UpdateStatusLearningPathCommand request)
         {
             return await ApiControllerHelper.HandleRequest<UpdateStatusLearningPathCommand, UpdateStatusLearningPathResponse, string>(
@@ -121,6 +124,29 @@ namespace StudentService.API.Controllers
                 _identityEntity,
                 _httpContextAccessor,
                 new UpdateReadModelLearningPathResponse());
+        }
+        /// <summary>
+        /// Get all learning path controller
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpGet("get-all")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Lấy tất cả Learning Path",
+            Description = "Trả về Learning Path đang có. Cần xác thực Bearer."
+        )]
+        public async Task<SelectAllLearningPathResponse> GetAllLearningPath([FromQuery] SelectAllLearningPathQuery request)
+        {
+            return await ApiControllerHelper.HandleRequest<SelectAllLearningPathQuery, SelectAllLearningPathResponse, PaginatedResult<LearningPathSelectAllDto>>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new SelectAllLearningPathResponse());
         }
     }
 }

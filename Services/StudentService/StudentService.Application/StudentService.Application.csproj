@@ -15,7 +15,6 @@
 
     <ItemGroup>
       <Folder Include="Applications\LearningPathsMajor\Queries\" />
-      <Folder Include="Applications\LearningPaths\Queries\" />
       <Folder Include="Applications\Semesters\" />
       <Folder Include="Applications\Technologies\Queries\" />
     </ItemGroup>

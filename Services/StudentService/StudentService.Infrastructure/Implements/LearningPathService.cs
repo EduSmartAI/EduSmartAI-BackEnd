@@ -3,6 +3,7 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Pagination;
 using MapsterMapper;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateCours
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertBatchLearningPathsMajor;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertLearningPathsMajor;
@@ -79,7 +81,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short)ConstantEnum.LearningPathStatus.InProgress,
+                Status = (short)ConstantEnum.LearningPathStatus.Generating,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -422,7 +424,7 @@ public class LearningPathService : ILearningPathService
             throw new Exception($"Lộ trình học tập không tồn tại");
         }
 
-        learningPath.Status = (short)ConstantEnum.LearningPathStatus.Completed;
+        learningPath.Status = (short)ConstantEnum.LearningPathStatus.Choosing;
 
         _learningPathCommandRepository.Update(learningPath);
         await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, contextCancellationToken);
@@ -624,10 +626,10 @@ public class LearningPathService : ILearningPathService
             var deactivatedCount = coursesToDeactivate.Count;
             var activatedCount = request.SelectedCourseIds.Count;
 
-            // 8. Update learning path status to InProgress (user has made their choice)
+            // 8. Update learning path status to Choosing (user has made their choice)
             if (learningPath.Status == (short)ConstantEnum.LearningPathStatus.Choosing)
             {
-                learningPath.Status = (short)ConstantEnum.LearningPathStatus.InProgress;
+                learningPath.Status = (short)ConstantEnum.LearningPathStatus.Generating;
                 _learningPathCommandRepository.Update(learningPath);
 
                 // Save learning path status update
@@ -787,36 +789,65 @@ public class LearningPathService : ILearningPathService
             return res;
         }
 
-        // Gọi đúng chữ ký FirstOrDefaultAsync chỉ có predicate (KHÔNG truyền cancellationToken)
+        // 1) Lấy write-model gốc
         var lpWrite = await _learningPathCommandRepository.FirstOrDefaultAsync(
             x => x.PathId == request.LearningPathId && x.IsActive
         );
-
         if (lpWrite == null)
         {
             res.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại.");
             return res;
         }
 
-        // Lấy majors, sau đó .OfType<LearningPathMajor>() để bỏ null và ép kiểu non-nullable
-        var majorsQuery = _learningPathMajorCommandRepository.Find(
-            m => m.PathId == request.LearningPathId,
-            isTracking: false,
-            cancellationToken: cancellationToken,
-            m => m.LearningPathCourses
-        );
+        // 2) Lấy majors + courses từ write-model
+        var majorsWrite = await _learningPathMajorCommandRepository
+            .Find(m => m.PathId == request.LearningPathId,
+                  isTracking: false,
+                  cancellationToken: cancellationToken,
+                  m => m.LearningPathCourses)
+            .ToListAsync(cancellationToken);
 
-        var majorsWrite = (await majorsQuery.ToListAsync(cancellationToken))
-            .OfType<LearningPathMajor>()   // loại bỏ mọi phần tử null, chuyển về non-nullable
-            .ToList();
+        majorsWrite = majorsWrite.OfType<LearningPathMajor>().ToList();
         lpWrite.LearningPathMajors = majorsWrite;
 
-        // Map sang read-model tổng
-        var lpReadNew = LearningPathCollection.FromWriteModel(lpWrite);
+        // 3) Lấy document read-model hiện có (giữ nguyên identity doc)
+        var lpRead = await _learningPathQueryRepository.FirstOrDefaultAsync(
+            x => x.PathId == request.LearningPathId
+        );
 
-        // Ghi vào read-store
-        _unitOfWork.Store(lpReadNew);
+        // Chuẩn bị danh sách major read-model đã sort
+        var majorsRead = majorsWrite
+            .OrderBy(m => m.PositionIndex ?? int.MaxValue)
+            .Select(LearningPathMajorCollection.FromWriteModel)
+            .ToList();
 
+        if (lpRead != null)
+        {
+            // 4a) UPDATE IN-PLACE: cập nhật thẳng object đang có
+            lpRead.PathName = lpWrite.PathName;
+            lpRead.CreatedAt = lpWrite.CreatedAt;
+            lpRead.UpdatedAt = lpWrite.UpdatedAt;
+            lpRead.CreatedBy = lpWrite.CreatedBy;
+            lpRead.UpdatedBy = lpWrite.UpdatedBy;
+            lpRead.IsActive = lpWrite.IsActive;
+            lpRead.StudentId = lpWrite.StudentId;
+            lpRead.Status = lpWrite.Status;
+            lpRead.LearningPathMajors = majorsRead;
+
+            _unitOfWork.Store(lpRead); // upsert đúng document hiện tại
+        }
+        else
+        {
+            // 4b) Không có thì map mới từ write-model (fallback)
+            var lpReadNew = LearningPathCollection.FromWriteModel(lpWrite);
+            // Bảo đảm majors đã sort theo PositionIndex
+            lpReadNew.LearningPathMajors = majorsRead;
+
+            _unitOfWork.Store(lpReadNew);
+        }
+
+        // (Tuỳ nhu cầu) Nếu không cần query majors rời rạc thì có thể bỏ store từng major để tránh duplicate.
+        // Giữ nguyên như cũ nếu app đang đọc theo collection majors riêng.
         foreach (var m in majorsWrite)
         {
             _unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(m));
@@ -824,14 +855,71 @@ public class LearningPathService : ILearningPathService
 
         await _unitOfWork.SessionSaveChangesAsync();
 
-        // Xoá cache liên quan
+        // 5) Xoá cache liên quan (bổ sung xoá key 'select' theo cách GetLearningPathById đang dùng)
         var lpIdStr = request.LearningPathId.ToString("D");
         await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
         await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
 
+        var currentUserId = _identityService.GetCurrentUser()?.UserId;
+        if (currentUserId != null)
+        {
+            await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUserId}:{lpIdStr}");
+        }
+
         res.Success = true;
         res.Response = lpIdStr;
         res.SetMessage(MessageId.I00001, "Đồng bộ lại read-model cho LearningPath thành công.");
+        return res;
+    }
+    /// <summary>
+    /// Get All LearningPath
+    /// </summary>
+    /// <param name="query"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<SelectAllLearningPathResponse> GetAllLearningPath(SelectAllLearningPathQuery query, CancellationToken cancellationToken = default)
+    {
+        var res = new SelectAllLearningPathResponse { Success = false };
+
+        var currentUser = _identityService.GetCurrentUser();
+        if (currentUser is null)
+        {
+            res.SetMessage(MessageId.E00000, "Không xác định được người dùng hiện tại.");
+            return res;
+        }
+
+        // Pagination: 0-based (request) -> 1-based (repo)
+        var pageIndex0 = query.Pagination?.PageIndex ?? 0;
+        var pageSize = query.Pagination?.PageSize ?? 10;
+        if (pageIndex0 < 0) pageIndex0 = 0;
+        if (pageSize <= 0) pageSize = 10;
+
+        var pageNumber1 = pageIndex0 + 1;
+        var cacheKey = $"learning_path:paged:{currentUser.UserId}:p{pageNumber1}:s{pageSize}";
+
+        var pagedRead = await _learningPathQueryRepository.GetOrSetPagedAsync(
+            cacheKey,
+            async () => await _learningPathQueryRepository.PagedAsync(
+                pageNumber: pageNumber1,
+                pageSize: pageSize,
+                predicate: x => x.IsActive && x.StudentId == currentUser.UserId
+            ),
+            expiry: TimeSpan.FromSeconds(45)
+        );
+
+        // Map to DTO
+        var dtoItems = _mapper.Map<List<LearningPathSelectAllDto>>(pagedRead.Items);
+
+        // Done
+        res.Response = new PaginatedResult<LearningPathSelectAllDto>(
+            pageIndex: pageIndex0,
+            pageSize: pageSize,
+            totalCount: pagedRead.TotalCount,
+            data: dtoItems
+        );
+
+        res.Success = true;
+        res.SetMessage(MessageId.I00000, "Lấy danh sách lộ trình học tập (cache + paging từ repo).");
         return res;
     }
 }

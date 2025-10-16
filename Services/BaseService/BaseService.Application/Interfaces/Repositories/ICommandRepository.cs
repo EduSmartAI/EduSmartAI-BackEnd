@@ -1,6 +1,6 @@
 using System.Linq.Expressions;
 using BaseService.Application.Common;
-using Shared.Application.Common;
+using Microsoft.EntityFrameworkCore.Query;
 
 namespace BaseService.Application.Interfaces.Repositories;
 
@@ -40,12 +40,33 @@ public interface ICommandRepository<TEntity> where TEntity : class
         CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[]? includes);
 
-    /// <summary>
-    /// Add entity to the database.
-    /// </summary>
-    /// <param name="entity"></param>
-    /// <returns></returns>
-    Task AddAsync(TEntity entity, string userEmail);
+	/// <summary>
+	/// Get paged entities with include support.
+	/// </summary>
+	/// <typeparam name="TKey"></typeparam>
+	/// <param name="pageNumber"></param>
+	/// <param name="pageSize"></param>
+	/// <param name="predicate"></param>
+	/// <param name="orderBy"></param>
+	/// <param name="orderByDescending"></param>
+	/// <param name="cancellationToken"></param>
+	/// <param name="include"></param>
+	/// <returns></returns>
+	Task<PagedResult<TEntity>> PagedAsync<TKey>(
+        int? pageNumber,
+        int? pageSize,
+        Expression<Func<TEntity, bool>>? predicate = null,
+        Expression<Func<TEntity, TKey>>? orderBy = null,
+        bool orderByDescending = false,
+        CancellationToken cancellationToken = default,
+        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object>>? include = null);
+
+	/// <summary>
+	/// Add entity to the database.
+	/// </summary>
+	/// <param name="entity"></param>
+	/// <returns></returns>
+	Task AddAsync(TEntity entity, string userEmail);
     
     /// <summary>
     /// Add entity to the database.
