@@ -19,7 +19,7 @@ public static class MessagingExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<StudentQuizCollectionInsertConsumer>();
-            x.AddConsumer<QuizCourseCollectionInsertConsumer>();
+            x.AddConsumer<QuizCourseCollectionUpsertEventConsumer>();
             x.AddConsumer<QuizCourseSelectConsumer>();
 			x.AddConsumer<QuizCourseInsertConsumer>();
 			x.AddConsumer<StudentQuizCourseInsertEventConsumer>();

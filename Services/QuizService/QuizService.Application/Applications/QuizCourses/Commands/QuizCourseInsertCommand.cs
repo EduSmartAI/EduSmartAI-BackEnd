@@ -1,17 +1,12 @@
 using System.ComponentModel.DataAnnotations;
+using BuildingBlocks.CQRS;
 
 namespace QuizService.Application.Applications.QuizCourses.Commands;
 
-public class QuizCourseInsertCommand
+public class QuizCourseInsertCommand : ICommand<QuizCourseInsertResponse>
 {
     [Required(ErrorMessage = "UserEmail is required")]
     public string UserEmail { get; set; } = null!;
-    
-    [Required(ErrorMessage = "Title is required")]
-    public string Title { get; set; }  = null!;
-
-    [Required(ErrorMessage = "Description is required")]
-    public string? Description { get; set; }
     
     [Required(ErrorMessage = "DurationMinutes is required")]
     public int DurationMinutes { get; set; }
@@ -29,10 +24,10 @@ public class QuizCourseInsertCommand
     public bool AllowRetake { get; set; }
     
     [Required(ErrorMessage = "Questions are required")]
-    public List<Questions> Questions { get; set; }
+    public List<QuizCourseQuestionsInsert> Questions { get; set; }
 }
 
-public record Questions
+public record QuizCourseQuestionsInsert
 {
     [Required(ErrorMessage = "QuestionText is required")]
     public string QuestionText { get; set; }
@@ -42,10 +37,10 @@ public record Questions
     public string? Explanation { get; set; } 
     
     [Required(ErrorMessage = "Answers are required")]
-    public List<Answers> Answers { get; set; }
+    public List<QuizCourseAnswersInsert> Answers { get; set; }
 }
 
-public record Answers
+public record QuizCourseAnswersInsert
 {
     [Required(ErrorMessage = "AnswerText is required")]
     public string AnswerText { get; set; }

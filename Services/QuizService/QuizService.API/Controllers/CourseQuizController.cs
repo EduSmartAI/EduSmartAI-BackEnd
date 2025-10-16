@@ -27,6 +27,122 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     private readonly IdentityEntity _identityEntity;
     
     /// <summary>
+    /// Update quiz course
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPut("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Cập nhật bài kiểm tra cho khoá học",
+        Description = "Cần cấp quyền Teacher cho API. Chỉ cập nhật thông tin quiz settings và câu hỏi/câu trả lời hiện có"
+    )]
+    public async Task<QuizCourseUpdateResponse> UpdateQuizCourse([FromBody] QuizCourseUpdateCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseUpdateCommand, QuizCourseUpdateResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseUpdateResponse());
+    }
+    
+    /// <summary>
+    /// Add new course quiz
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("[action]")]
+    [SwaggerOperation(
+        Summary = "API dùng để test thêm mới bài kiểm tra cho khoá học"
+    )]
+    public async Task<QuizCourseInsertResponse> InsertQuizCourse([FromBody] QuizCourseInsertCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseInsertCommand, QuizCourseInsertResponse, QuizCourseInsertResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseInsertResponse());
+    }
+    
+    /// <summary>
+    /// Add new course quiz
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [SwaggerOperation(
+        Summary = "API dùng để test lấy bài kiểm tra cho khoá học"
+    )]
+    public async Task<QuizCourseSelectQueryResponse> SelectQuizCourse([FromQuery] QuizCourseSelectQuery request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseSelectQuery, QuizCourseSelectQueryResponse, QuizCourseSelectQueryResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseSelectQueryResponse());
+    }
+    
+    /// <summary>
+    /// Add new questions to existing quiz
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Thêm câu hỏi mới vào bài kiểm tra",
+        Description = "Cần cấp quyền Teacher cho API"
+    )]
+    public async Task<QuizCourseAddQuestionsResponse> InsertQuestionsToQuiz([FromBody] QuizCourseAddQuestionsCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseAddQuestionsCommand, QuizCourseAddQuestionsResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseAddQuestionsResponse());
+    }
+    
+    /// <summary>
+    /// Delete questions from quiz (soft delete)
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpDelete("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Xóa câu hỏi khỏi bài kiểm tra",
+        Description = "Cần cấp quyền Teacher cho API. Xóa mềm (soft delete) - set IsActive = false"
+    )]
+    public async Task<QuizCourseDeleteQuestionsResponse> DeleteQuestionsFromQuiz([FromBody] QuizCourseDeleteQuestionsCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseDeleteQuestionsCommand, QuizCourseDeleteQuestionsResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseDeleteQuestionsResponse());
+    }
+    
+    /// <summary>
     /// 
     /// </summary>
     /// <param name="request"></param>
