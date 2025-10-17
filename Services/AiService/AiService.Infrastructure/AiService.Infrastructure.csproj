@@ -21,6 +21,7 @@
 		<PackageReference Include="OpenAI" Version="2.4.0" />
 		<PackageReference Include="Pgvector" Version="0.3.2" />
 		<PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.2" />
+		<PackageReference Include="Tavily" Version="1.0.0" />
 	</ItemGroup>
 
     <ItemGroup>

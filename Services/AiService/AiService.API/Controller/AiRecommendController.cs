@@ -1,5 +1,6 @@
 using AiService.Application.Features.AiEvaluate;
 using AiService.Application.Features.AiExternalCourse;
+using AiService.Application.Features.AiSearch;
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
@@ -66,5 +67,24 @@ public class AiRecommendController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new AiExternalCourseResponse());
+    }
+    /// <summary>
+    /// Search improvement document
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("improvement-search-ai")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<AiSearchResponse> GenImprovement(AiSearchRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<AiSearchRequest, AiSearchResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AiSearchResponse());
     }
 }
