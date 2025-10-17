@@ -23,10 +23,10 @@ public class QuizCourseSelectQueryResponseEntity
     
     public int TotalQuestions { get; set; }
     
-    public List<QuestionDetailResponse> Questions { get; set; } = null!;
+    public List<QuizCourseSelectQuestionDetailResponse> Questions { get; set; } = null!;
 }
 
-public record QuestionDetailResponse
+public record QuizCourseSelectQuestionDetailResponse
 {
     public Guid QuestionId { get; set; }
     
@@ -36,10 +36,10 @@ public record QuestionDetailResponse
     
     public short QuestionType { get; set; }
     
-    public List<AnswerDetailResponse> Answers { get; set; } = null!;
+    public List<QuizCourseSelectAnswerDetailResponse> Answers { get; set; } = null!;
 }
 
-public record AnswerDetailResponse
+public record QuizCourseSelectAnswerDetailResponse
 {
     public Guid AnswerId { get; set; }
     

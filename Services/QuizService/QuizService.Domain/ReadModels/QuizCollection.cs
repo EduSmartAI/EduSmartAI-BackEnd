@@ -24,8 +24,7 @@ public sealed class QuizCollection
     
     public SurveyQuizSettingCollection? SurveyQuizSetting { get; set; }
 
-    public ICollection<QuestionCollection> Questions { get; set; } = new List<QuestionCollection>();
-
+    public List<QuestionCollection> Questions { get; set; }
     public static QuizCollection FromWriteModel(Quiz model, SurveyType? surveyType = null)
     {
         var quiz = new QuizCollection

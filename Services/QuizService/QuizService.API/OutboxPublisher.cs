@@ -55,9 +55,9 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e2!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentMajorSemesterInformationEvent for StudentId: {e2}");
                             break;
-                        case nameof(QuizCourseCollectionInsertEvent):
+                        case nameof(QuizCourseCollectionUpsertEvent):
                             logging.InfoLog("Processing QuizCourseCollectionInsertEvent");
-                            var e3 = JsonSerializer.Deserialize<QuizCourseCollectionInsertEvent>(e.Content);
+                            var e3 = JsonSerializer.Deserialize<QuizCourseCollectionUpsertEvent>(e.Content);
                             await publishEndpoint.Publish(e3!, stoppingToken);
                             logging.InfoLog($"Successfully published QuizCourseCollectionInsertEvent for CourseId: {e3.Quiz.QuizId}");
                             break;
@@ -78,6 +78,12 @@ public class OutboxPublisher : BackgroundService
                             var e6 = JsonSerializer.Deserialize<StudentQuizCourseInsertEvent>(e.Content);
                             await publishEndpoint.Publish(e6!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentQuizCourseInsertEvent for QuizId: {e6.StudentQuiz.QuizId}");
+                            break; 
+                        case nameof(QuizEvaluableCreatedEvent):
+                            logging.InfoLog("Processing QuizEvaluableCreatedEvent");
+                            var e8 = JsonSerializer.Deserialize<QuizEvaluableCreatedEvent>(e.Content);
+                            await publishEndpoint.Publish(e8!, stoppingToken);
+                            logging.InfoLog($"Successfully published QuizEvaluableCreatedEvent for QuizId: {e8!.QuizId}");
                             break;
 						default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
@@ -92,7 +98,7 @@ public class OutboxPublisher : BackgroundService
             }
             
             await db.SaveChangesAsync(stoppingToken);
-            await Task.Delay(2000, stoppingToken);
+            await Task.Delay(3000, stoppingToken);
         }
     }
 }

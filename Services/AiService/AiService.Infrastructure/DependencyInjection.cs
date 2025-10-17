@@ -1,10 +1,12 @@
-﻿using AiService.Application.DTOs;
+﻿using AiService.Application.Contracts;
+using AiService.Application.DTOs;
 using AiService.Application.Interfaces;
+using AiService.Infrastructure.Helpers.TranscriptHelpers;
 using AiService.Infrastructure.Implements;
 using BaseService.Common.Utils.Const;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using System.Threading.Channels;
 
 namespace AiService.Infrastructure
 {
@@ -27,6 +29,11 @@ namespace AiService.Infrastructure
 				http.BaseAddress = new Uri(opt.BaseUrl.TrimEnd('/') + "/");
 				http.Timeout = TimeSpan.FromSeconds(30);
 			});
+
+			services.AddSingleton(Channel.CreateUnbounded<TranscribeJob>());
+			services.AddSingleton<ISubtitlePublisher, CloudinarySubtitlePublisher>();
+			services.AddSingleton<ITranscriptionService, GroqTranscriptionService>();
+			services.AddSingleton(cfg);
 
 			return services;
 		}

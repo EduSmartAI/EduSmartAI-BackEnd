@@ -21,13 +21,13 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
             ShowResultsImmediately = evt.ShowResultsImmediately,
             AllowRetake = evt.AllowRetake,
             Questions = evt.Questions
-                .Select(q => new QuizService.Application.Applications.QuizCourses.Commands.Questions
+                .Select(q => new QuizService.Application.Applications.QuizCourses.Commands.QuizCourseQuestionsInsert
                 {
                     QuestionText = q.QuestionText,
                     QuestionType = q.QuestionType,
                     Explanation = q.Explanation,
                     Answers = q.Answers
-                        .Select(a => new QuizService.Application.Applications.QuizCourses.Commands.Answers
+                        .Select(a => new QuizService.Application.Applications.QuizCourses.Commands.QuizCourseAnswersInsert
                         {
                             AnswerText = a.AnswerText,
                             IsCorrect = a.IsCorrect

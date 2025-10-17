@@ -220,7 +220,7 @@ public class StudentTestService : IStudentTestService
                 .Select(a => new StudentQuizAnswerCollection
                 {
                     AnswerId = a.AnswerId,
-                    Answer = a
+                    Answer = a,
                 })
                 .ToList();
 
@@ -554,6 +554,7 @@ public class StudentTestService : IStudentTestService
     private int GetStudentStudyTime(IEnumerable<StudentQuizAnswerCollection> studentQuizAnswers)
     {
         var answerRules = studentQuizAnswers
+            .Where(a => a.Answer?.AnswerRule != null)
             .SelectMany(a => a.Answer!.AnswerRule!)
             .ToList();
 

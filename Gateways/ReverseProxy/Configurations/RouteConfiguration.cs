@@ -63,7 +63,7 @@ public static class RouteConfiguration
                 ],
                 Metadata = new Dictionary<string, string>
                 {
-                    { "AllowedRoles", $"{ConstRole.Admin},{ConstRole.Student}" },
+                    { "AllowedRoles", $"{ConstRole.Admin},{ConstRole.Student},{ConstRole.Lecturer}" },
                     { "Exceptions", "" }
                 }
             },
