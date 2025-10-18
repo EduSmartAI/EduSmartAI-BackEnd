@@ -19,7 +19,7 @@ public class QuizCourseInsertConsumer(IQuizCourseService quizCourseService) : IC
             PassingScorePercentage = evt.PassingScorePercentage,
             ShuffleQuestions = evt.ShuffleQuestions,
             ShowResultsImmediately = evt.ShowResultsImmediately,
-            AllowRetake = evt.AllowRetake,
+            AllowRetake = false,
             Questions = evt.Questions
                 .Select(q => new QuizService.Application.Applications.QuizCourses.Commands.QuizCourseQuestionsInsert
                 {
