@@ -754,5 +754,50 @@ public class QuizCourseService : IQuizCourseService
         response.SetMessage(MessageId.I00001, "Lấy kết quả làm bài kiểm tra trong khoá học của sinh viên");
         return response;
     }
+
+	/// <summary>
+	/// Check student quiz attempt
+	/// </summary>
+	/// <param name="request"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
+	/// <exception cref="NotImplementedException"></exception>
+	public async Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttemptAsync(QuizCourseCheckAttemptCommand request, CancellationToken cancellationToken)
+	{
+		var response = new QuizCourseCheckAttemptResponse { Success = false };
+
+		if (request.QuizId == Guid.Empty)
+		{
+			response.SetMessage(MessageId.E00000, "QuizId không được để trống");
+			return response;
+		}
+
+		var currentUser = _identityService.GetCurrentUser();
+
+		// Check if student has already attempted the quiz
+		var existingAttempt = await _studentQuizCommandRepository
+			.Find(sq => sq.QuizId == request.QuizId &&
+						sq.StudentId == currentUser!.UserId &&
+						sq.IsActive,
+				isTracking: false,
+				cancellationToken: cancellationToken)
+			.FirstOrDefaultAsync(cancellationToken);
+
+		// If no existing attempt, student can take the quiz
+		if (existingAttempt == null)
+		{
+			response.Success = true;
+			response.Response = false;
+			response.SetMessage(MessageId.I00000, "Bạn có thể làm bài kiểm tra này");
+			return response;
+		}
+
+		// If existing attempt found, student has already taken the quiz
+		response.Success = true;
+		response.Response = true;
+		response.SetMessage(MessageId.I00001, "Bạn đã làm bài kiểm tra này");
+
+		return response;
+	}
 }
 

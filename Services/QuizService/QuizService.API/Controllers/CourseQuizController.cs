@@ -190,4 +190,23 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
             new StudentCourseQuizSelectResponse());
     }
 
+    [HttpPost("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Kiểm tra bài kiểm tra course của sinh viên",
+        Description = "Cần cấp quyền Student cho API"
+    )]
+    public async Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttempt([FromBody] QuizCourseCheckAttemptCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<QuizCourseCheckAttemptCommand, QuizCourseCheckAttemptResponse, bool>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new QuizCourseCheckAttemptResponse());
+	}
+
 }

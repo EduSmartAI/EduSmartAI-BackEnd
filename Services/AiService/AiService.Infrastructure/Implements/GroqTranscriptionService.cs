@@ -20,6 +20,19 @@ namespace AiService.Infrastructure.Implements
 		const int ChunkSeconds = 60;
 		const string GroqUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
 		const string Model = "whisper-large-v3-turbo";
+
+		/// <summary>
+		/// Processes a transcription job asynchronously, converting audio from the specified video URL into text.
+		/// </summary>
+		/// <remarks>This method attempts to transcribe audio from the provided video URL. It first tries to process
+		/// the entire audio file. If that fails, it falls back to processing the audio in smaller chunks. The resulting
+		/// transcription, including text, segments, and word-level details, is saved and published if the operation
+		/// succeeds.</remarks>
+		/// <param name="job">The transcription job containing details such as the video URL, language, and lesson ID.</param>
+		/// <param name="ct">A <see cref="CancellationToken"/> to observe while waiting for the task to complete.</param>
+		/// <returns>A <see cref="CreateTranscriptResponse"/> indicating whether the transcription was successful, along with any
+		/// relevant messages.</returns>
+		/// <exception cref="InvalidOperationException">Thrown if the API key is missing or invalid, or if the video URL is not a valid Cloudinary URL.</exception>
 		public async Task<CreateTranscriptResponse> ProcessAsync(TranscribeJob job, CancellationToken ct)
 		{
 			var response = new CreateTranscriptResponse { Success = false };
@@ -28,13 +41,20 @@ namespace AiService.Infrastructure.Implements
 			// Lấy API key từ .env
 			var apiKey = Environment.GetEnvironmentVariable("GROQ_AI_VOICE_TO_TEXT_KEY")?.Trim();
 			if (string.IsNullOrWhiteSpace(apiKey))
-				throw new InvalidOperationException("Groq API key không có. Kiểm tra GroqAI:ApiKey hoặc env.");
+			{
+				response.SetMessage(MessageId.E11006, "Groq API key không có. Kiểm tra GroqAI:ApiKey hoặc env.");
+				return response;
+			}
 
 			http.DefaultRequestHeaders.Authorization =
 				new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
 
+			// Validate url
 			if (!CloudinaryAudio.TryParseVideoUrl(job.VideoUrl!, out var cloud, out var versionedIdNoExt))
-				throw new InvalidOperationException("URL Cloudinary không hợp lệ: " + job.VideoUrl);
+			{
+				response.SetMessage(MessageId.E11006, "URL Cloudinary không hợp lệ: " + job.VideoUrl);
+				return response;
+			}
 
 			// 1) Thử nén 1 phát
 			var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt);
@@ -45,6 +65,8 @@ namespace AiService.Infrastructure.Implements
 
 				response.Success = true;
 				response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
+				response.Response = attempt.result;
+
 				return response;
 			}
 
@@ -94,6 +116,7 @@ namespace AiService.Infrastructure.Implements
 			{
 				response.Success = true;
 				response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
+				response.Response = merged;
 			}
 			else
 			{
