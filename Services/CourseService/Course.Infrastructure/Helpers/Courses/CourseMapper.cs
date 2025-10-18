@@ -444,14 +444,14 @@ namespace Course.Infrastructure.Helpers.Courses
 
 			var ratingsCount = ratings.Count;
 
-			var ratingsAverage = ratingsCount > 0
-				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
-				: 0.0;
+			//var ratingsAverage = ratingsCount > 0
+			//	? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
+			//	: 0.0
 
-			var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault();
+			//var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault()
 
 			// Gợi ý “tiếp tục học”
-			var continueHint = ComputeContinueLesson(modules);
+			//var continueHint = ComputeContinueLesson(modules)
 
 			return new CourseDetailForStudentDto(
 				e.CourseId,
@@ -524,25 +524,25 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// </summary>
 		/// <param name="modules"></param>
 		/// <returns></returns>
-		private static ContinueHintDto? ComputeContinueLesson(List<ModuleDetailForStudentDto> modules)
-		{
-			// Ưu tiên modules core trước, sau đó theo position_index
-			foreach (var m in modules.OrderByDescending(x => x.IsCore).ThenBy(x => x.PositionIndex))
-			{
-				// Tìm bài chưa hoàn thành có position nhỏ nhất
-				var next = m.Lessons.OrderBy(l => l.PositionIndex).FirstOrDefault(l => !l.IsCompleted);
-				if (next is not null)
-				{
-					return new ContinueHintDto(
-						ModuleId: m.ModuleId,
-						ModuleName: m.ModuleName,
-						LessonId: next.LessonId,
-						LessonTitle: next.Title,
-						ResumeSecond: next.LastPositionSec
-					);
-				}
-			}
-			return null;
-		}
+		//private static ContinueHintDto? ComputeContinueLesson(List<ModuleDetailForStudentDto> modules)
+		//{.
+		//	// Ưu tiên modules core trước, sau đó theo position_index
+		//	foreach (var m in modules.OrderByDescending(x => x.IsCore).ThenBy(x => x.PositionIndex))
+		//	{.
+		//		// Tìm bài chưa hoàn thành có position nhỏ nhất
+		//		var next = m.Lessons.OrderBy(l => l.PositionIndex).FirstOrDefault(l => !l.IsCompleted)
+		//		if (next is not null)
+		//		{.
+		//			return new ContinueHintDto(
+		//				ModuleId: m.ModuleId,
+		//				ModuleName: m.ModuleName,
+		//				LessonId: next.LessonId,
+		//				LessonTitle: next.Title,
+		//				ResumeSecond: next.LastPositionSec
+		//			)
+		//		}.
+		//	}.
+		//	return null
+		//}.
 	}
 }

@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using QuizService.Application.Applications.QuizCourses.Commands;
 using QuizService.Application.Applications.QuizCourses.Queries;
 
@@ -18,4 +19,5 @@ public interface IQuizCourseService
     Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourseAsync(StudentQuizCourseInsertCommand request, CancellationToken cancellationToken);
     
     Task<StudentCourseQuizSelectResponse> SelectStudentCourseQuizAsync(StudentCourseQuizSelectQuery request);
+    Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttemptAsync(QuizCourseCheckAttemptCommand request, CancellationToken cancellationToken);
 }

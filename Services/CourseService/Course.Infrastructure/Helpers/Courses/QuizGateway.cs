@@ -19,12 +19,22 @@ namespace Course.Infrastructure.Helpers.Courses
 			if (!res.Message.Success || res.Message.Response is null)
 				return null;
 
-			return ToQuizOutDto(res.Message.Response);
+			return ToQuizOutDto(quizId, res.Message.Response);
 		}
 
-		private static QuizOutDto ToQuizOutDto(QuizCourseSelectEventResponseEntity q)
+
+
+		#region Helpers
+		/// <summary>
+		/// Map QuizCourseSelectEventResponseEntity to QuizOutDto
+		/// </summary>
+		/// <param name="quizId"></param>
+		/// <param name="q"></param>
+		/// <returns></returns>
+		private static QuizOutDto ToQuizOutDto(Guid quizId, QuizCourseSelectEventResponseEntity q)
 		{
 			return new QuizOutDto(
+				quizId,
 				new QuizSettingsOutDto(
 					q.DurationMinutes,
 					q.PassingScorePercentage,
@@ -41,5 +51,6 @@ namespace Course.Infrastructure.Helpers.Courses
 				)).ToList()
 			);
 		}
+		#endregion
 	}
 }

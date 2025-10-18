@@ -701,7 +701,11 @@ namespace Course.Infrastructure.Implements
                 var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
 
                 if (!resp.Message.Success)
-                    throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
+                {
+                    response.SetMessage(MessageId.E99999, $"Tạo quiz cho module {moduleId} không thành công");
+                    //throw new InvalidOperationException ($"{resp.Message.MessageId} : {resp.Message.Message}")
+                    return response;
+                }
 
                 var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
                 if (quizId == Guid.Empty)
@@ -724,7 +728,11 @@ namespace Course.Infrastructure.Implements
                 var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
 
                 if (!resp.Message.Success)
-                    throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}");
+                {
+					response.SetMessage(MessageId.E99999, $"Tạo quiz cho lesson {lessonId} của module {moduleId} không thành công");
+					//throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}")
+                    return response;
+                }
 
                 var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
                 if (quizId == Guid.Empty)
@@ -887,7 +895,7 @@ namespace Course.Infrastructure.Implements
             var currentUser = _identityService.GetCurrentUser()!;
 
             // 3. Update modules based on payload
-            await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules, currentUser.Email);
+            await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules);
 
             // 4. Save changes in transaction
             await unitOfWork.BeginTransactionAsync(async () =>
@@ -1434,7 +1442,6 @@ namespace Course.Infrastructure.Implements
             // 6) Thêm mới những TagId chưa có
             if (toAdd.Count > 0)
             {
-                var now = DateTime.UtcNow;
                 foreach (var tagId in toAdd)
                 {
                     course.CourseTags.Add(new CourseTag
@@ -1504,7 +1511,7 @@ namespace Course.Infrastructure.Implements
         /// <summary>
         /// Internal method to update course modules
         /// </summary>
-        private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules, string actor)
+        private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules)
         {
             // If payload is null or empty, mark all existing modules as inactive
             if (modules is null || modules.Count == 0)
@@ -1532,12 +1539,12 @@ namespace Course.Infrastructure.Implements
                 if (moduleDto.ModuleId.HasValue && existingModules.TryGetValue(moduleDto.ModuleId.Value, out var existingModule))
                 {
                     // Update existing module
-                    await UpdateExistingModuleAsync(existingModule, moduleDto, actor);
+                    await UpdateExistingModuleAsync(existingModule, moduleDto);
                 }
                 else
                 {
                     // Create new module
-                    await CreateNewModuleAsync(course, moduleDto, actor);
+                    await CreateNewModuleAsync(course, moduleDto);
                 }
             }
         }
@@ -1545,7 +1552,7 @@ namespace Course.Infrastructure.Implements
         /// <summary>
         /// Update existing module with its objectives and lessons
         /// </summary>
-        private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto, string actor)
+        private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto)
         {
             // Update basic module properties
             existingModule.ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty;
@@ -1557,25 +1564,23 @@ namespace Course.Infrastructure.Implements
             existingModule.Level = moduleDto.Level;
 
             // Update ModuleObjectives
-            await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives, actor);
+            await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives);
 
             // Update Lessons
-            await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons, actor);
+            await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons);
 
             // Update Discussions
-            await UpdateModuleDiscussionInternalAsync(existingModule, moduleDto.Discussions, actor);
+            await UpdateModuleDiscussionInternalAsync(existingModule, moduleDto.Discussions);
 
             // Update Materials
-            await UpdateModuleMaterialsInternalAsync(existingModule, moduleDto.Materials, actor);
+            await UpdateModuleMaterialsInternalAsync(existingModule, moduleDto.Materials);
         }
 
         /// <summary>
         /// Create new module with its objectives and lessons
         /// </summary>
-        private Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto, string actor)
+        private Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto)
         {
-            var now = DateTime.UtcNow;
-
             var newModule = new Module
             {
                 CourseId = course.CourseId,
@@ -1655,7 +1660,7 @@ namespace Course.Infrastructure.Implements
         /// <summary>
         /// Update ModuleObjectives for existing module
         /// </summary>
-        private Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives, string actor)
+        private Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives)
         {
             if (objectives is null || objectives.Count == 0)
             {
@@ -1667,7 +1672,6 @@ namespace Course.Infrastructure.Implements
                 return Task.CompletedTask;
             }
 
-            var now = DateTime.UtcNow;
             var existingObjectives = module.ModuleObjectives.ToDictionary(o => o.ObjectiveId, o => o);
             var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
 
@@ -1706,7 +1710,7 @@ namespace Course.Infrastructure.Implements
         /// <summary>
         /// Update Lessons for existing module
         /// </summary>
-        private Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons, string actor)
+        private Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons)
         {
             if (lessons is null || lessons.Count == 0)
             {
@@ -1718,7 +1722,6 @@ namespace Course.Infrastructure.Implements
                 return Task.CompletedTask;
             }
 
-            var now = DateTime.UtcNow;
             var existingLessons = module.Lessons.ToDictionary(l => l.LessonId, l => l);
             var payloadLessonIds = lessons.Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
 
@@ -1764,7 +1767,7 @@ namespace Course.Infrastructure.Implements
         /// <param name="discussions"></param>
         /// <param name="actor"></param>
         /// <returns></returns>
-        private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions, string actor)
+        private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions)
         {
             if (discussions is null || discussions.Count == 0)
             {
@@ -1775,7 +1778,6 @@ namespace Course.Infrastructure.Implements
                 }
                 return Task.CompletedTask;
             }
-            var now = DateTime.UtcNow;
             var existingDiscussions = module.ModuleDiscussions.ToDictionary(d => d.DiscussionId, d => d);
             var payloadDiscussionIds = discussions.Where(d => d.DiscussionId.HasValue).Select(d => d.DiscussionId!.Value).ToHashSet();
             // 1. Mark discussions not in payload as inactive (soft delete)
@@ -1817,7 +1819,7 @@ namespace Course.Infrastructure.Implements
         /// <param name="materials"></param>
         /// <param name="actor"></param>
         /// <returns></returns>
-        private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials, string actor)
+        private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials)
         {
             if (materials is null || materials.Count == 0)
             {
@@ -1828,7 +1830,6 @@ namespace Course.Infrastructure.Implements
                 }
                 return Task.CompletedTask;
             }
-            var now = DateTime.UtcNow;
             var existingMaterials = module.ModuleMaterials.ToDictionary(m => m.MaterialId, m => m);
             var payloadMaterialIds = materials.Where(m => m.MaterialId.HasValue).Select(m => m.MaterialId!.Value).ToHashSet();
             // 1. Mark materials not in payload as inactive (soft delete)
