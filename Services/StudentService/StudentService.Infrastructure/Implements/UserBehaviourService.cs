@@ -33,20 +33,15 @@ public class UserBehaviourService : IUserBehaviourService
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             var currentUser = _identityService.GetCurrentUser();
-            if (currentUser == null)
-            {
-                response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
-                return false;
-            }
 
             // Create new user behaviour
             var userBehaviour = new UserBehaviour
             {
                 Id = Guid.NewGuid(),
-                StudentId = currentUser.UserId,
-                ActionType = request.ActionType,
+                StudentId = currentUser!.UserId,
+                ActionType = request.ActionType.ToString(),
                 TargetId = request.TargetId,
-                TargetType = request.TargetType,
+                TargetType = request.TargetType.ToString(),
                 Metadata = request.Metadata
             };
 
