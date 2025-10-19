@@ -1,6 +1,7 @@
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -198,7 +199,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     )]
     public async Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttempt([FromBody] QuizCourseCheckAttemptCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<QuizCourseCheckAttemptCommand, QuizCourseCheckAttemptResponse, bool>(
+        return await ApiControllerHelper.HandleRequest<QuizCourseCheckAttemptCommand, QuizCourseCheckAttemptResponse, QuizCourseCheckAttemptEntity>(
             request,
             _logger,
             ModelState,
