@@ -20,6 +20,8 @@ namespace Course.Application.DTOs.ModulesDTO.ModuleStudentDTO
 		List<ModuleMaterialDetailDto> ModuleMaterialDetails,
 		List<StudentLessonDetailDto> Lessons,
 		QuizOutDto? ModuleQuiz,
+		bool CanAttempt,
+		Guid? StudentQuizId,
 		ModuleProgressDto Progress
 	);
 }

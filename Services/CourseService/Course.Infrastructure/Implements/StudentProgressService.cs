@@ -1,4 +1,5 @@
-﻿using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
+﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
 using Course.Application.DTOs.UserLessonProgressDTO;
@@ -221,6 +222,29 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
+			var attemptTasks = allQuizIds.ToDictionary(
+				id => id,
+				id => _quizGateway.CheckCheckAttemptAsync(id, userId, ct)
+			);
+
+			await Task.WhenAll(attemptTasks.Values);
+
+			var attemptsByQuizId = attemptTasks.ToDictionary(
+				kvp => kvp.Key,
+				kvp =>
+				{
+					var r = kvp.Value.Result;
+					if (r.Success && r.Response is not null)
+						return r.Response;
+
+					return new QuizCourseCheckAttemptEntity
+					{
+						CanAttempt = false,
+						StudentQuizId = null
+					};
+				}
+			);
+
 			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
 			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
@@ -257,11 +281,12 @@ namespace Course.Infrastructure.Implements
 				progressByLessonId,
 				moduleProgressById,
 				courseProgress,
-				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
+				preferCoreForCourse: true, // % course chỉ tính modules IsCore = true
+				attemptsByQuizId
 			);
 
 			// 8) Cache ngắn
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(5));
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromSeconds(5));
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Chi tiết khóa học cho học viên");
@@ -361,6 +386,30 @@ namespace Course.Infrastructure.Implements
 			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
 			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
 
+			var attemptTasks = allQuizIds.ToDictionary(
+				id => id,
+				id => _quizGateway.CheckCheckAttemptAsync(id, userId, ct)
+			);
+
+			await Task.WhenAll(attemptTasks.Values);
+
+			// Guid -> QuizCourseCheckAttemptEntity (fallback safe nếu lỗi)
+			var attemptsByQuizId = attemptTasks.ToDictionary(
+				kvp => kvp.Key,
+				kvp =>
+				{
+					var r = kvp.Value.Result;
+					if (r.Success && r.Response is not null)
+						return r.Response;
+
+					return new QuizCourseCheckAttemptEntity
+					{
+						CanAttempt = false,
+						StudentQuizId = null
+					};
+				}
+			);
+
 			// 4) Tải progress bài học của user (để tick bài đã hoàn thành + resume)
 			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
@@ -397,7 +446,8 @@ namespace Course.Infrastructure.Implements
 				progressByLessonId,
 				moduleProgressById,
 				courseProgress,
-				preferCoreForCourse: true // % course chỉ tính modules IsCore = true
+				preferCoreForCourse: true, // % course chỉ tính modules IsCore = true
+				attemptsByQuizId
 			);
 
 			// 8) Cache ngắn

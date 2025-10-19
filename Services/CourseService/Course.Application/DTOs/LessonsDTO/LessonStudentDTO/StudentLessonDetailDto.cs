@@ -11,6 +11,8 @@ namespace Course.Application.DTOs.LessonsDTO.LessonStudentDTO
 		bool IsActive,
 		bool IsCompleted,   // NEW: tick bài
 		int LastPositionSec,
+		bool CanAttempt,
+		Guid? StudentQuizId,
 		QuizOutDto? LessonQuiz = null
 	);
 }
