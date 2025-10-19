@@ -125,7 +125,7 @@ public class QuizCourseService : IQuizCourseService
     }
 
     /// <summary>
-    /// Update quiz for course - Only updates existing quiz settings and questions/answers
+    /// Update multiple quizzes for course - Updates existing quiz settings and questions/answers
     /// </summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
@@ -139,116 +139,182 @@ public class QuizCourseService : IQuizCourseService
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            // Check if quiz exists
-            var existingQuiz = await _quizCommandRepository
-                .Find(q => q.QuizId == request.QuizId && 
-                           q.QuizType == (short) TestType.Exam &&
-                           q.IsActive, 
-                    isTracking: true,
-                    cancellationToken: cancellationToken,
-                    cq => cq.CourseQuizSetting!)
-                .Include(q => q!.Questions.Where(x => x.IsActive))
-	            .ThenInclude(q => q.Answers.Where(a => a.IsActive))
-                .AsSplitQuery()
-                .FirstOrDefaultAsync(cancellationToken);
+            var updatedQuizIds = new List<Guid>();
+            var failedQuizIds = new List<Guid>();
             
-            if (existingQuiz == null)
+            // Process each quiz in the request
+            foreach (var quizRequest in request.Quizzes)
             {
-                response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra");
-                return false;
-            }
-            
-            // Update quiz settings only if provided
-            if (existingQuiz.CourseQuizSetting != null)
-            {
-                if (request.DurationMinutes.HasValue)
+                try
                 {
-                    existingQuiz.CourseQuizSetting.DurationMinutes = request.DurationMinutes.Value;
-                }
-                if (request.PassingScorePercentage.HasValue)
-                {
-                    existingQuiz.CourseQuizSetting.PassingScorePercentage = request.PassingScorePercentage.Value;
-                }
-                if (request.ShuffleQuestions.HasValue)
-                {
-                    existingQuiz.CourseQuizSetting.ShuffleQuestions = request.ShuffleQuestions.Value;
-                }
-                if (request.ShowResultsImmediately.HasValue)
-                {
-                    existingQuiz.CourseQuizSetting.ShowResultsImmediately = request.ShowResultsImmediately.Value;
-                }
-                if (request.AllowRetake.HasValue)
-                {
-                    existingQuiz.CourseQuizSetting.AllowRetake = request.AllowRetake.Value;
-                }
-            }
-            
-            // Update questions if provided
-            if (request.Questions != null && request.Questions.Any())
-            {
-                foreach (var questionRequest in request.Questions)
-                {
-                    // Find existing question
-                    var existingQuestion = existingQuiz.Questions.FirstOrDefault(q => q.QuestionId == questionRequest.QuestionId && q.IsActive);
-                    if (existingQuestion != null)
+                    // Check if quiz exists
+                    var existingQuiz = await _quizCommandRepository
+                        .Find(q => q.QuizId == quizRequest.QuizId && 
+                                   q.QuizType == (short) TestType.Exam &&
+                                   q.IsActive, 
+                            isTracking: true,
+                            cancellationToken: cancellationToken,
+                            cq => cq.CourseQuizSetting!)
+                        .Include(q => q!.Questions.Where(x => x.IsActive))
+                        .ThenInclude(q => q.Answers.Where(a => a.IsActive))
+                        .AsSplitQuery()
+                        .FirstOrDefaultAsync(cancellationToken);
+                    
+                    if (existingQuiz == null)
                     {
-                        // Update question properties only if provided
-                        if (!string.IsNullOrWhiteSpace(questionRequest.QuestionText))
+                        failedQuizIds.Add(quizRequest.QuizId);
+                        continue;
+                    }
+                    
+                    // Update quiz settings only if provided
+                    if (existingQuiz.CourseQuizSetting != null)
+                    {
+                        if (quizRequest.DurationMinutes.HasValue)
                         {
-                            existingQuestion.QuestionText = questionRequest.QuestionText;
+                            existingQuiz.CourseQuizSetting.DurationMinutes = quizRequest.DurationMinutes.Value;
                         }
-                        if (questionRequest.QuestionType.HasValue)
+                        if (quizRequest.PassingScorePercentage.HasValue)
                         {
-                            existingQuestion.QuestionType = questionRequest.QuestionType.Value;
+                            existingQuiz.CourseQuizSetting.PassingScorePercentage = quizRequest.PassingScorePercentage.Value;
                         }
-                        if (questionRequest.Explanation != null)
+                        if (quizRequest.ShuffleQuestions.HasValue)
                         {
-                            existingQuestion.Explanation = questionRequest.Explanation;
+                            existingQuiz.CourseQuizSetting.ShuffleQuestions = quizRequest.ShuffleQuestions.Value;
                         }
-                        
-                        // Update answers if provided
-                        if (questionRequest.Answers.Any())
+                        if (quizRequest.ShowResultsImmediately.HasValue)
                         {
-                            foreach (var answerRequest in questionRequest.Answers)
+                            existingQuiz.CourseQuizSetting.ShowResultsImmediately = quizRequest.ShowResultsImmediately.Value;
+                        }
+                        if (quizRequest.AllowRetake.HasValue)
+                        {
+                            existingQuiz.CourseQuizSetting.AllowRetake = quizRequest.AllowRetake.Value;
+                        }
+                    }
+                    
+                    // Update questions if provided
+                    if (quizRequest.Questions != null && quizRequest.Questions.Any())
+                    {
+                        foreach (var questionRequest in quizRequest.Questions)
+                        {
+                            // Find existing question
+                            var existingQuestion = existingQuiz.Questions.FirstOrDefault(q => q.QuestionId == questionRequest.QuestionId && q.IsActive);
+                            if (existingQuestion != null)
                             {
-                                // Find existing answer
-                                var existingAnswer = existingQuestion.Answers.FirstOrDefault(a => a.AnswerId == answerRequest.AnswerId && a.IsActive);
-                                if (existingAnswer != null)
+                                // Update question properties only if provided
+                                if (!string.IsNullOrWhiteSpace(questionRequest.QuestionText))
                                 {
-                                    existingAnswer.AnswerText = answerRequest.AnswerText;
-                                    existingAnswer.IsCorrect = answerRequest.IsCorrect;
+                                    existingQuestion.QuestionText = questionRequest.QuestionText;
+                                }
+                                if (questionRequest.QuestionType.HasValue)
+                                {
+                                    existingQuestion.QuestionType = questionRequest.QuestionType.Value;
+                                }
+                                if (questionRequest.Explanation != null)
+                                {
+                                    existingQuestion.Explanation = questionRequest.Explanation;
+                                }
+                                
+                                // Update/Insert answers if provided
+                                if (questionRequest.Answers != null && questionRequest.Answers.Any())
+                                {
+                                    foreach (var answerRequest in questionRequest.Answers)
+                                    {
+                                        // Check if AnswerId has value and is not empty
+                                        if (answerRequest.AnswerId.HasValue && answerRequest.AnswerId.Value != Guid.Empty)
+                                        {
+                                            // Update existing answer
+                                            var existingAnswer = existingQuestion.Answers
+                                                .FirstOrDefault(a => a.AnswerId == answerRequest.AnswerId.Value && a.IsActive);
+                                            
+                                            if (existingAnswer != null)
+                                            {
+                                                existingAnswer.AnswerText = answerRequest.AnswerText;
+                                                existingAnswer.IsCorrect = answerRequest.IsCorrect;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Insert new answer
+                                            var newAnswer = new Answer
+                                            {
+                                                QuestionId = existingQuestion.QuestionId,
+                                                AnswerText = answerRequest.AnswerText,
+                                                IsCorrect = answerRequest.IsCorrect
+                                            };
+                                            existingQuestion.Answers.Add(newAnswer);
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                    
+                    // Mark as updated
+                    updatedQuizIds.Add(quizRequest.QuizId);
+                }
+                catch (Exception ex)
+                {
+                    // Log the error and add to failed list
+                    Console.WriteLine($"❌ Failed to update quiz {quizRequest.QuizId}: {ex.Message}");
+                    failedQuizIds.Add(quizRequest.QuizId);
                 }
             }
             
-            // Save to database
-            _quizCommandRepository.Update(existingQuiz);
+            // Save all changes at once
             await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
             
-            // Publish event to update read model
-            var quizCourseCollectionUpdateEvent = new QuizCourseCollectionUpsertEvent
+            // Check results
+            if (updatedQuizIds.Count == 0)
             {
-                Quiz = QuizCollection.FromWriteModel(existingQuiz)
-            };
+                response.SetMessage(MessageId.E00000, "Không thể cập nhật bất kỳ quiz nào");
+                return false;
+            }
+            
+            // ✅ FIX: Reload quizzes with full data after save to publish correct events
+            foreach (var quizId in updatedQuizIds)
+            {
+                var reloadedQuiz = await _quizCommandRepository
+                    .Find(q => q.QuizId == quizId && q.IsActive, 
+                        isTracking: false,
+                        cancellationToken: cancellationToken)
+                    .Include(q => q.CourseQuizSetting!)
+                    .Include(q => q.Questions.Where(x => x.IsActive))
+                    .ThenInclude(q => q.Answers.Where(a => a.IsActive))
+                    .AsSplitQuery()
+                    .FirstOrDefaultAsync(cancellationToken);
+                
+                if (reloadedQuiz != null)
+                {
+                    // Publish event to update read model
+                    var quizCourseCollectionUpdateEvent = new QuizCourseCollectionUpsertEvent
+                    {
+                        Quiz = QuizCollection.FromWriteModel(reloadedQuiz)
+                    };
 
-            var outboxMessage = new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                Type = nameof(QuizCourseCollectionUpsertEvent),
-                Content = JsonSerializer.Serialize(quizCourseCollectionUpdateEvent),
-                OccurredOnUtc = DateTime.UtcNow,
-            };
+                    var outboxMessage = new OutboxMessage
+                    {
+                        Id = Guid.NewGuid(),
+                        Type = nameof(QuizCourseCollectionUpsertEvent),
+                        Content = JsonSerializer.Serialize(quizCourseCollectionUpdateEvent),
+                        OccurredOnUtc = DateTime.UtcNow,
+                    };
+                    
+                    await _outboxCommandRepository.AddAsync(outboxMessage);
+                }
+            }
             
-            await _outboxCommandRepository.AddAsync(outboxMessage);
+            // Save outbox messages
             await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
             
+            // Build response message
+            var message = $"Đã cập nhật thành công {updatedQuizIds.Count}/{request.Quizzes.Count} quiz";
+            if (failedQuizIds.Any())
+            {
+                message += $". Không tìm thấy hoặc lỗi khi cập nhật: {string.Join(", ", failedQuizIds)}";
+            }
             
-            // True
             response.Success = true;
-            response.SetMessage(MessageId.I00001, "Cập nhật bài kiểm tra cho khoá học");
+            response.SetMessage(MessageId.I00001, message);
             return true;
         }, cancellationToken);
         
