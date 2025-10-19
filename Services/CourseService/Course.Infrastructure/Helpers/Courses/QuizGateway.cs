@@ -11,7 +11,7 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// <param name="quizId"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<QuizOutDto?> FetchQuizAsync(Guid quizId, CancellationToken ct)
+		public async Task<QuizOutDto?> FetchQuizForLectureAsync(Guid quizId, CancellationToken ct)
 		{
 			var res = await _quizSelectClient.GetResponse<QuizCourseSelectEventResponse>(
 				new QuizCourseSelectEvent { QuizId = quizId }, ct);
@@ -19,7 +19,18 @@ namespace Course.Infrastructure.Helpers.Courses
 			if (!res.Message.Success || res.Message.Response is null)
 				return null;
 
-			return ToQuizOutDto(quizId, res.Message.Response);
+			return ToQuizOutForLectureDto(quizId, res.Message.Response);
+		}
+
+		public async Task<QuizOutDto?> FetchQuizForStudentAsync(Guid quizId, CancellationToken ct)
+		{
+			var res = await _quizSelectClient.GetResponse<QuizCourseSelectEventResponse>(
+				new QuizCourseSelectEvent { QuizId = quizId }, ct);
+
+			if (!res.Message.Success || res.Message.Response is null)
+				return null;
+
+			return ToQuizOutForStudentDto(quizId, res.Message.Response);
 		}
 
 
@@ -31,7 +42,7 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// <param name="quizId"></param>
 		/// <param name="q"></param>
 		/// <returns></returns>
-		private static QuizOutDto ToQuizOutDto(Guid quizId, QuizCourseSelectEventResponseEntity q)
+		private static QuizOutDto ToQuizOutForLectureDto(Guid quizId, QuizCourseSelectEventResponseEntity q)
 		{
 			return new QuizOutDto(
 				quizId,
@@ -47,7 +58,28 @@ namespace Course.Infrastructure.Helpers.Courses
 					qq.QuestionText,
 					qq.Explanation,
 					qq.QuestionType,
-					qq.Answers.Select(a => new QuizAnswerOutDto(a.AnswerId, a.AnswerText)).ToList()
+					qq.Answers.Select(a => new QuizAnswerOutDto(a.AnswerId, a.AnswerText, a.IsCorrect)).ToList()
+				)).ToList()
+			);
+		}
+
+		private static QuizOutDto ToQuizOutForStudentDto(Guid quizId, QuizCourseSelectEventResponseEntity q)
+		{
+			return new QuizOutDto(
+				quizId,
+				new QuizSettingsOutDto(
+					q.DurationMinutes,
+					q.PassingScorePercentage,
+					q.ShuffleQuestions,
+					q.ShowResultsImmediately,
+					q.AllowRetake
+				),
+				q.Questions.Select(qq => new QuizQuestionOutDto(
+					qq.QuestionId,
+					qq.QuestionText,
+					qq.Explanation,
+					qq.QuestionType,
+					qq.Answers.Select(a => new QuizAnswerOutDto(a.AnswerId, a.AnswerText, null)).ToList()
 				)).ToList()
 			);
 		}

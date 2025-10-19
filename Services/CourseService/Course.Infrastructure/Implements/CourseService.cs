@@ -348,7 +348,7 @@ namespace Course.Infrastructure.Implements
             var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
                                        .Distinct().ToList();
 
-            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
+            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
             await Task.WhenAll(quizTasks.Values);
 
             var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
@@ -438,7 +438,7 @@ namespace Course.Infrastructure.Implements
             var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
                                        .Distinct().ToList();
 
-            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizAsync(id, ct));
+            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
             await Task.WhenAll(quizTasks.Values);
 
             var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?

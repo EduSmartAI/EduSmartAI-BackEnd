@@ -2,6 +2,7 @@
 {
 	public record QuizAnswerOutDto(
 		Guid AnswerId,
-		string AnswerText
+		string AnswerText,
+		bool? IsCorrect
 	);
 }
