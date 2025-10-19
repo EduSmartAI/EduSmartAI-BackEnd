@@ -1,4 +1,5 @@
 ﻿using BaseService.Common.Settings;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using Course.Application.Consumers;
@@ -41,7 +42,8 @@ namespace Course.API.Extensions
 
                 x.AddRequestClient<QuizCourseInsertEvent>();
                 x.AddRequestClient<QuizCourseSelectEvent>();
-            });
+                x.AddRequestClient<QuizCourseCheckAttemptEvent>();
+			});
 
             return services;
         }

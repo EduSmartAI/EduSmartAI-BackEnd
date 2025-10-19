@@ -1,4 +1,5 @@
-﻿using Course.Application.DTOs.CoursesDTO;
+﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
@@ -295,7 +296,8 @@ namespace Course.Infrastructure.Helpers.Courses
 			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId, 
 			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById, 
 			CourseProgressSnap? courseProgress, 
-			bool preferCoreForCourse)
+			bool preferCoreForCourse,
+			IReadOnlyDictionary<Guid, QuizCourseCheckAttemptEntity> attemptsByQuizId)
 		{
 			// MODULES
 			var modules = e.Modules
@@ -305,12 +307,19 @@ namespace Course.Infrastructure.Helpers.Courses
 				{
 					// Quiz cho module
 					QuizOutDto? moduleQuiz = null;
-					if (moduleQuizIdByModuleId is not null &&
-						moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid) &&
-						quizByQuizId is not null &&
-						quizByQuizId.TryGetValue(qid, out var qdto))
+					bool moduleQuizCanAttempt = false;
+					Guid? moduleStudentQuizId = null;
+
+					if (moduleQuizIdByModuleId is not null && moduleQuizIdByModuleId.TryGetValue(m.ModuleId, out var qid))
 					{
-						moduleQuiz = qdto;
+						if (quizByQuizId is not null && quizByQuizId.TryGetValue(qid, out var qdto))
+							moduleQuiz = qdto;
+
+						if (attemptsByQuizId is not null && attemptsByQuizId.TryGetValue(qid, out var att))
+						{
+							moduleQuizCanAttempt = att.CanAttempt;
+							moduleStudentQuizId = att.StudentQuizId;
+						}
 					}
 
 					// LESSONS + tick
@@ -320,12 +329,19 @@ namespace Course.Infrastructure.Helpers.Courses
 						.Select(l =>
 						{
 							QuizOutDto? lessonQuiz = null;
-							if (lessonQuizIdByLessonId is not null &&
-								lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid) &&
-								quizByQuizId is not null &&
-								quizByQuizId.TryGetValue(lqid, out var lqdto))
+							bool quizCanAttempt = false;
+							Guid? studentQuizId = null;
+
+							if (lessonQuizIdByLessonId is not null && lessonQuizIdByLessonId.TryGetValue(l.LessonId, out var lqid))
 							{
-								lessonQuiz = lqdto;
+								if (quizByQuizId is not null && quizByQuizId.TryGetValue(lqid, out var lqdto))
+									lessonQuiz = lqdto;
+
+								if (attemptsByQuizId is not null && attemptsByQuizId.TryGetValue(lqid, out var att))
+								{
+									quizCanAttempt = att.CanAttempt;
+									studentQuizId = att.StudentQuizId;
+								}
 							}
 
 							var has = progressByLessonId.TryGetValue(l.LessonId, out var lp);
@@ -341,6 +357,8 @@ namespace Course.Infrastructure.Helpers.Courses
 								l.IsActive,
 								isCompleted,
 								lastPos,
+								quizCanAttempt,
+								studentQuizId,
 								lessonQuiz // để FE có thể hiển thị quiz của bài
 							);
 						})
@@ -393,6 +411,8 @@ namespace Course.Infrastructure.Helpers.Courses
 							.ToList(),
 						lessons,
 						moduleQuiz,
+						moduleQuizCanAttempt,
+						moduleStudentQuizId,
 						// progress
 						new ModuleProgressDto(lessonsTotal, lessonsCompleted, percent, status, startedAt, completedAt)
 					);

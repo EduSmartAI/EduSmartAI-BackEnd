@@ -773,12 +773,10 @@ public class QuizCourseService : IQuizCourseService
 			return response;
 		}
 
-		var currentUser = _identityService.GetCurrentUser();
-
 		// Check if student has already attempted the quiz
 		var existingAttempt = await _studentQuizCommandRepository
 			.Find(sq => sq.QuizId == request.QuizId &&
-						sq.StudentId == currentUser!.UserId &&
+						sq.StudentId == request.StudentId &&
 						sq.IsActive,
 				isTracking: false,
 				cancellationToken: cancellationToken)

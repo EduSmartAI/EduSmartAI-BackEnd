@@ -1,4 +1,5 @@
-﻿using Course.Application.DTOs.CoursesDTO;
+﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
@@ -27,7 +28,8 @@ namespace Course.Application.Interfaces.Helpers.Courses
 			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId,   // lessonId -> { Status, LastPositionSec, CompletedAt }
 			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById,   // moduleId -> { LessonsTotal, LessonsCompleted, PercentCompleted, Status, StartedAt, CompletedAt }
 			CourseProgressSnap? courseProgress,                                 // { LessonsTotal, LessonsCompleted, PercentCompleted, Status, StartedAt, CompletedAt }
-			bool preferCoreForCourse
+			bool preferCoreForCourse,
+			IReadOnlyDictionary<Guid, QuizCourseCheckAttemptEntity> attemptsByQuizId
 		);
 	}
 }

@@ -11,7 +11,7 @@ namespace QuizService.Application.Applications.QuizCourses.Consumers
 		{
 			var evt = context.Message;
 
-			var request = new QuizCourseCheckAttemptCommand(evt.QuizId);
+			var request = new QuizCourseCheckAttemptCommand(evt.QuizId, evt.StudentId);
 
 			var response = await _quizCourseService.CheckStudentQuizAttemptAsync(request, context.CancellationToken);
 

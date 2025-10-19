@@ -4,7 +4,7 @@ using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents
 
 namespace QuizService.Application.Applications.QuizCourses.Commands
 {
-	public record QuizCourseCheckAttemptCommand(Guid QuizId) : ICommand<QuizCourseCheckAttemptResponse>;
+	public record QuizCourseCheckAttemptCommand(Guid QuizId, Guid StudentId) : ICommand<QuizCourseCheckAttemptResponse>;
 
 	public record QuizCourseCheckAttemptResponse : AbstractApiResponse<QuizCourseCheckAttemptEntity>
 	{
