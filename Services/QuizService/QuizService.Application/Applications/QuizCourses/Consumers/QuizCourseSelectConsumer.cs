@@ -42,7 +42,8 @@ public class QuizCourseSelectConsumer(IQuizCourseService quizCourseService) : IC
                                 {
                                     AnswerId = a.AnswerId,
                                     AnswerText = a.AnswerText,
-                                }).ToList()
+                                    IsCorrect = a.IsCorrect
+								}).ToList()
                         }).ToList()
                 },
                 DetailErrors = x.DetailErrors,

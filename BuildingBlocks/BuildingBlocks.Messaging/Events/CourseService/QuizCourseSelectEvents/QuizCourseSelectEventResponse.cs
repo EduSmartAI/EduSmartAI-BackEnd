@@ -44,4 +44,5 @@ public record AnswerDetailResponse
     public Guid AnswerId { get; set; }
     
     public string AnswerText { get; set; } = null!;
+    public bool IsCorrect { get; set; }
 }

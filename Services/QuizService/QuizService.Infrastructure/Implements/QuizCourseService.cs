@@ -426,8 +426,9 @@ public class QuizCourseService : IQuizCourseService
                     Answers = q.Answers.Where(a => a.IsActive).Select(a => new QuizCourseSelectAnswerDetailResponse
                     {
                         AnswerId = a.AnswerId,
-                        AnswerText = a.AnswerText
-                    }).ToList()
+                        AnswerText = a.AnswerText,
+                        IsCorrect = a.IsCorrect
+					}).ToList()
                 }).ToList()
             });
         if (quizSelect == null)
@@ -787,14 +788,22 @@ public class QuizCourseService : IQuizCourseService
 		if (existingAttempt == null)
 		{
 			response.Success = true;
-			response.Response = false;
+			response.Response = new BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents.QuizCourseCheckAttemptEntity
+            {
+                CanAttempt = true,
+                StudentQuizId = null
+			};
 			response.SetMessage(MessageId.I00000, "Bạn có thể làm bài kiểm tra này");
 			return response;
 		}
 
 		// If existing attempt found, student has already taken the quiz
 		response.Success = true;
-		response.Response = true;
+		response.Response = new BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents.QuizCourseCheckAttemptEntity
+		{
+			CanAttempt = false,
+			StudentQuizId = existingAttempt.StudentQuizId
+		};
 		response.SetMessage(MessageId.I00001, "Bạn đã làm bài kiểm tra này");
 
 		return response;
