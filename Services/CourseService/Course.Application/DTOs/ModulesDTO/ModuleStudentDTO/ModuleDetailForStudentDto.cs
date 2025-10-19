@@ -21,7 +21,7 @@ namespace Course.Application.DTOs.ModulesDTO.ModuleStudentDTO
 		List<StudentLessonDetailDto> Lessons,
 		QuizOutDto? ModuleQuiz,
 		bool CanAttempt,
-		Guid? StudentQuizId,
+		Guid? StudentQuizResultId,
 		ModuleProgressDto Progress
 	);
 }
