@@ -846,6 +846,7 @@ public class QuizCourseService : IQuizCourseService
 						sq.IsActive,
 				isTracking: false,
 				cancellationToken: cancellationToken)
+            .OrderByDescending(sq => sq.CreatedAt)
 			.FirstOrDefaultAsync(cancellationToken);
 
 		// If no existing attempt, student can take the quiz
