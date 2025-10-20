@@ -630,7 +630,7 @@ public class QuizCourseService : IQuizCourseService
 				OccurredAtUtc: DateTime.UtcNow
 			);
 
-            /*var quizEvaluableCreatedEventOutboxMessage = new OutboxMessage
+            var quizEvaluableCreatedEventOutboxMessage = new OutboxMessage
             {
                 Id = Guid.NewGuid(),
                 Type = nameof(QuizEvaluableCreatedEvent),
@@ -640,12 +640,10 @@ public class QuizCourseService : IQuizCourseService
 
             await _outboxCommandRepository.AddAsync(outboxMessage);
             await _outboxCommandRepository.AddAsync(quizEvaluableCreatedEventOutboxMessage);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);*/
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
-            await _publishEndpoint.Publish(evt, cancellationToken);
-
-			// True
-			response.Success = true;
+            // True
+            response.Success = true;
 			response.Response = newStudentQuiz.StudentQuizId;
 			response.SetMessage(MessageId.I00001, "Lưu kết quả làm bài course");
 			return true;
