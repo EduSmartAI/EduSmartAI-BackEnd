@@ -57,6 +57,10 @@
       {
          "Name": "public.technologies",
          "ObjectType": 0
+      },
+      {
+         "Name": "public.user_behaviours",
+         "ObjectType": 0
       }
    ],
    "UiHint": null,

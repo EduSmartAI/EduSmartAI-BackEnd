@@ -28,6 +28,7 @@ public class QuizCourseService : IQuizCourseService
     private readonly ICommandRepository<Answer> _answerCommandRepository;
     private readonly ICommandRepository<Question> _questionCommandRepository;
 	private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
+	private readonly IPublishEndpoint _publishEndpoint;
 
 	/// <summary>
 	/// Constructor
@@ -46,7 +47,8 @@ public class QuizCourseService : IQuizCourseService
 		ICommandRepository<StudentQuiz> studentQuizCommandRepository, 
 		IQueryRepository<StudentQuizCollection> studentQuizQueryRepository, 
 		ICommandRepository<Answer> answerCommandRepository,
-		ICommandRepository<Question> questionCommandRepository)
+		ICommandRepository<Question> questionCommandRepository,
+		IPublishEndpoint publishEndpoint)
     {
         _quizCommandRepository = quizCommandRepository;
         _quizQueryRepository = quizQueryRepository;
@@ -57,7 +59,8 @@ public class QuizCourseService : IQuizCourseService
         _studentQuizQueryRepository = studentQuizQueryRepository;
         _answerCommandRepository = answerCommandRepository;
         _questionCommandRepository = questionCommandRepository;
-    }
+        _publishEndpoint = publishEndpoint;
+	}
 
     /// <summary>
     /// Insert new quiz for course
@@ -605,6 +608,9 @@ public class QuizCourseService : IQuizCourseService
 			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers);
 			var courseId = request.CourseId;
 
+			// Calculate score
+			var baseScore100 = (short)Math.Clamp((int)Math.Round((double)correct / Math.Max(total, 1) * 100), 0, 100);
+
 			// Prepare event
 			var evt = new QuizEvaluableCreatedEvent(
 				EventId: Guid.NewGuid(),
@@ -616,6 +622,7 @@ public class QuizCourseService : IQuizCourseService
 				UserId: currentUser!.UserId,
 				TotalQuestions: total,
 				TotalCorrectAnswers: correct,
+                Score100Raw: baseScore100,
 				Questions: details.Select(d => new QuestionResult(
 					d.QuestionId, d.QuestionText, d.QuestionType, d.Explanation,
 					d.Answers.Select(a => new AnswerResult(a.AnswerId, a.AnswerText, a.IsCorrectAnswer, a.SelectedByStudent)).ToList()
@@ -623,17 +630,19 @@ public class QuizCourseService : IQuizCourseService
 				OccurredAtUtc: DateTime.UtcNow
 			);
 
-			var quizEvaluableCreatedEventOutboxMessage = new OutboxMessage
-			{
-				Id = Guid.NewGuid(),
-				Type = nameof(QuizEvaluableCreatedEvent),
-				Content = JsonSerializer.Serialize(evt),
-				OccurredOnUtc = DateTime.UtcNow,
-			};
-			
-			await _outboxCommandRepository.AddAsync(outboxMessage);
-			await _outboxCommandRepository.AddAsync(quizEvaluableCreatedEventOutboxMessage);
-			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            /*var quizEvaluableCreatedEventOutboxMessage = new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = nameof(QuizEvaluableCreatedEvent),
+                Content = JsonSerializer.Serialize(evt),
+                OccurredOnUtc = DateTime.UtcNow,
+            };
+
+            await _outboxCommandRepository.AddAsync(outboxMessage);
+            await _outboxCommandRepository.AddAsync(quizEvaluableCreatedEventOutboxMessage);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);*/
+
+            await _publishEndpoint.Publish(evt, cancellationToken);
 
 			// True
 			response.Success = true;

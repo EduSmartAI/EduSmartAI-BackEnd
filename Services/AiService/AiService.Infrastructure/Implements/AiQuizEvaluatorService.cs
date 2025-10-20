@@ -113,6 +113,7 @@ namespace AiService.Infrastructure.Implements
 				ScopeId: evt.ScopeId,
 				QuizId: evt.QuizId,
 				Score100: (short)dto.Score100,
+				Score100Raw: evt.Score100Raw,
 				Summary: dto.Summary,
 				Strengths: dto.Strengths,
 				Improvements: dto.Improvements,

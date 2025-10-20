@@ -41,5 +41,7 @@ public partial class AiEvaluation
 
     public DateTime CreatedAt { get; set; }
 
+    public short? Score100Raw { get; set; }
+
     public virtual Student User { get; set; }
 }

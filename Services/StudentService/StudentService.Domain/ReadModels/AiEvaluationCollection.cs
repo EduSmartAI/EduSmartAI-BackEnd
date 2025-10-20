@@ -38,6 +38,8 @@ namespace StudentService.Domain.ReadModels
 
 		public DateTime CreatedAt { get; set; }
 
+		public short? Score100Raw { get; set; }
+
 		public static AiEvaluationCollection FromWriteModel(AiEvaluation model)
 		{
 			return new AiEvaluationCollection
@@ -57,6 +59,7 @@ namespace StudentService.Domain.ReadModels
 				RubricVersion = model.RubricVersion,
 				Confidence = model.Confidence,
 				CreatedAt = model.CreatedAt,
+				Score100Raw = model.Score100Raw
 			};
 		}
 	}

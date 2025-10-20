@@ -40,64 +40,65 @@ public partial class StudentServiceContext : AppDbContext
     {
         modelBuilder.HasPostgresExtension("pgcrypto");
 
-        modelBuilder.Entity<AiEvaluation>(entity =>
-        {
-            entity.HasKey(e => e.EvaluationId).HasName("ai_evaluations_pkey");
+		modelBuilder.Entity<AiEvaluation>(entity =>
+		{
+			entity.HasKey(e => e.EvaluationId).HasName("ai_evaluations_pkey");
 
-            entity.ToTable("ai_evaluations");
+			entity.ToTable("ai_evaluations");
 
-            entity.HasIndex(e => e.AttemptId, "ai_evaluations_attempt_id_key").IsUnique();
+			entity.HasIndex(e => e.AttemptId, "ai_evaluations_attempt_id_key").IsUnique();
 
-            entity.HasIndex(e => e.CreatedAt, "idx_ai_eval_created").IsDescending();
+			entity.HasIndex(e => e.CreatedAt, "idx_ai_eval_created").IsDescending();
 
-            entity.HasIndex(e => new { e.UserId, e.CourseId, e.Scope, e.ScopeId }, "idx_ai_eval_user_course_scope");
+			entity.HasIndex(e => new { e.UserId, e.CourseId, e.Scope, e.ScopeId }, "idx_ai_eval_user_course_scope");
 
-            entity.Property(e => e.EvaluationId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("evaluation_id");
-            entity.Property(e => e.Actions)
-                .IsRequired()
-                .HasColumnType("jsonb")
-                .HasColumnName("actions");
-            entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
-            entity.Property(e => e.Confidence)
-                .HasPrecision(3, 2)
-                .HasColumnName("confidence");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Improvements)
-                .IsRequired()
-                .HasColumnType("jsonb")
-                .HasColumnName("improvements");
-            entity.Property(e => e.Model)
-                .IsRequired()
-                .HasColumnName("model");
-            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
-            entity.Property(e => e.RubricVersion)
-                .IsRequired()
-                .HasColumnName("rubric_version");
-            entity.Property(e => e.Scope).HasColumnName("scope");
-            entity.Property(e => e.ScopeId).HasColumnName("scope_id");
-            entity.Property(e => e.Score100).HasColumnName("score_100");
-            entity.Property(e => e.SkillGaps)
-                .IsRequired()
-                .HasColumnType("jsonb")
-                .HasColumnName("skill_gaps");
-            entity.Property(e => e.Strengths)
-                .IsRequired()
-                .HasColumnType("jsonb")
-                .HasColumnName("strengths");
-            entity.Property(e => e.Summary).HasColumnName("summary");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+			entity.Property(e => e.EvaluationId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("evaluation_id");
+			entity.Property(e => e.Actions)
+				.IsRequired()
+				.HasColumnType("jsonb")
+				.HasColumnName("actions");
+			entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
+			entity.Property(e => e.Confidence)
+				.HasPrecision(3, 2)
+				.HasColumnName("confidence");
+			entity.Property(e => e.CourseId).HasColumnName("course_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.Improvements)
+				.IsRequired()
+				.HasColumnType("jsonb")
+				.HasColumnName("improvements");
+			entity.Property(e => e.Model)
+				.IsRequired()
+				.HasColumnName("model");
+			entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+			entity.Property(e => e.RubricVersion)
+				.IsRequired()
+				.HasColumnName("rubric_version");
+			entity.Property(e => e.Scope).HasColumnName("scope");
+			entity.Property(e => e.ScopeId).HasColumnName("scope_id");
+			entity.Property(e => e.Score100).HasColumnName("score_100");
+			entity.Property(e => e.Score100Raw).HasColumnName("score_100_raw");
+			entity.Property(e => e.SkillGaps)
+				.IsRequired()
+				.HasColumnType("jsonb")
+				.HasColumnName("skill_gaps");
+			entity.Property(e => e.Strengths)
+				.IsRequired()
+				.HasColumnType("jsonb")
+				.HasColumnName("strengths");
+			entity.Property(e => e.Summary).HasColumnName("summary");
+			entity.Property(e => e.UserId).HasColumnName("user_id");
 
-            entity.HasOne(d => d.User).WithMany(p => p.AiEvaluations)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("ai_evaluations_user_id_fkey");
-        });
+			entity.HasOne(d => d.User).WithMany(p => p.AiEvaluations)
+				.HasForeignKey(d => d.UserId)
+				.HasConstraintName("ai_evaluations_user_id_fkey");
+		});
 
-        modelBuilder.Entity<LearningGoal>(entity =>
+		modelBuilder.Entity<LearningGoal>(entity =>
         {
             entity.HasKey(e => e.GoalId).HasName("learning_goals_pkey");
 

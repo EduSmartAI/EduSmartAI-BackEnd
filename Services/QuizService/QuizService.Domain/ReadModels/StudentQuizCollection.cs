@@ -21,8 +21,20 @@ public class StudentQuizCollection
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
-    
-    public QuizCollection Quiz { get; set; }
+
+	public Guid? CourseId { get; set; }
+
+	public short? Scope { get; set; }
+
+	public Guid? ScopeId { get; set; }
+
+	public short? TotalQuestions { get; set; }
+
+	public short? TotalCorrect { get; set; }
+
+	public short? Score100 { get; set; }
+
+	public QuizCollection Quiz { get; set; }
 
     public virtual ICollection<StudentQuizAnswerCollection> StudentQuizAnswers { get; set; } = new List<StudentQuizAnswerCollection>();
     
@@ -39,7 +51,13 @@ public class StudentQuizCollection
             UpdatedAt = studentQuiz.UpdatedAt,
             CreatedBy = studentQuiz.CreatedBy,
             UpdatedBy = studentQuiz.UpdatedBy,
-            Quiz = quiz
+            CourseId = studentQuiz.CourseId,
+            Scope = studentQuiz.Scope,
+            ScopeId = studentQuiz.ScopeId,
+            TotalQuestions = studentQuiz.TotalQuestions,
+            TotalCorrect = studentQuiz.TotalCorrect,
+            Score100 = studentQuiz.Score100,
+			Quiz = quiz
         };
         foreach (var answer in studentQuiz.StudentQuizAnswers)
         {

@@ -38,6 +38,7 @@ namespace StudentService.Infrastructure.Implements
 				ScopeId = aiEvaluationUpsertEvent.ScopeId,
 				QuizId = aiEvaluationUpsertEvent.QuizId,
 				Score100 = aiEvaluationUpsertEvent.Score100,
+				Score100Raw = aiEvaluationUpsertEvent.Score100Raw,
 				Summary = aiEvaluationUpsertEvent.Summary,
 				Strengths = strengthsJson,
 				Improvements = improvementsJson,
