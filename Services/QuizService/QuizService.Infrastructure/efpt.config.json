@@ -1,6 +1,6 @@
 ﻿{
    "CodeGenerationMode": 4,
-   "ContextClassName": "StudentServiceContext",
+   "ContextClassName": "QuizServiceContext",
    "ContextNamespace": null,
    "FilterSchemas": false,
    "IncludeConnectionString": false,
@@ -8,30 +8,22 @@
    "OutputContextPath": null,
    "OutputPath": "Contexts",
    "PreserveCasingWithRegex": true,
-   "ProjectRootNamespace": "StudentService.Infrastructure",
+   "ProjectRootNamespace": "QuizService.Infrastructure",
    "Schemas": null,
    "SelectedHandlebarsLanguage": 2,
    "SelectedToBeGenerated": 1,
    "T4TemplatePath": null,
    "Tables": [
       {
-         "Name": "public.ai_evaluations",
+         "Name": "public.answer_rules",
          "ObjectType": 0
       },
       {
-         "Name": "public.learning_goals",
+         "Name": "public.answers",
          "ObjectType": 0
       },
       {
-         "Name": "public.learning_path_courses",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_path_majors",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_paths",
+         "Name": "public.course_quiz_settings",
          "ObjectType": 0
       },
       {
@@ -39,27 +31,43 @@
          "ObjectType": 0
       },
       {
-         "Name": "public.student_learning_goals",
+         "Name": "public.placement_test_quiz_settings",
          "ObjectType": 0
       },
       {
-         "Name": "public.student_orientations",
+         "Name": "public.questions",
          "ObjectType": 0
       },
       {
-         "Name": "public.student_technologies",
+         "Name": "public.quizzes",
          "ObjectType": 0
       },
       {
-         "Name": "public.students",
+         "Name": "public.student_answers",
          "ObjectType": 0
       },
       {
-         "Name": "public.technologies",
+         "Name": "public.student_quiz_answers",
          "ObjectType": 0
       },
       {
-         "Name": "public.user_behaviours",
+         "Name": "public.student_quizzes",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_tests",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.survey_quiz_settings",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.survey_types",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.tests",
          "ObjectType": 0
       }
    ],

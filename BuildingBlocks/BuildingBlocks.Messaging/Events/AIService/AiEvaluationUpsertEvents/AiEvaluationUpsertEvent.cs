@@ -1,5 +1,4 @@
-﻿using BaseService.Common.ApiEntities;
-using static BaseService.Common.Utils.Const.ConstantEnum;
+﻿using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace BuildingBlocks.Messaging.Events.AIService.AiEvaluationUpsertEvents
 {
@@ -12,6 +11,7 @@ namespace BuildingBlocks.Messaging.Events.AIService.AiEvaluationUpsertEvents
 		Guid ScopeId,
 		Guid QuizId,
 		short Score100,
+		short Score100Raw,
 		string Summary,
 		IReadOnlyList<string> Strengths,
 		IReadOnlyList<string> Improvements,

@@ -12,6 +12,7 @@ namespace BuildingBlocks.Messaging.Events.QuizService
 		Guid UserId,
 		int TotalQuestions,
 		int TotalCorrectAnswers,
+		short Score100Raw,
 		IReadOnlyList<QuestionResult> Questions,
 		DateTime OccurredAtUtc
 	);

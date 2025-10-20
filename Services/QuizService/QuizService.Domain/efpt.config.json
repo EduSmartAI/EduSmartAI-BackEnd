@@ -1,65 +1,21 @@
 ﻿{
    "CodeGenerationMode": 4,
-   "ContextClassName": "StudentServiceContext",
+   "ContextClassName": "QuizServiceDBContext",
    "ContextNamespace": null,
    "FilterSchemas": false,
    "IncludeConnectionString": false,
    "ModelNamespace": null,
    "OutputContextPath": null,
-   "OutputPath": "Contexts",
+   "OutputPath": "WriteModels",
    "PreserveCasingWithRegex": true,
-   "ProjectRootNamespace": "StudentService.Infrastructure",
+   "ProjectRootNamespace": "QuizService.Domain",
    "Schemas": null,
    "SelectedHandlebarsLanguage": 2,
-   "SelectedToBeGenerated": 1,
+   "SelectedToBeGenerated": 2,
    "T4TemplatePath": null,
    "Tables": [
       {
-         "Name": "public.ai_evaluations",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_goals",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_path_courses",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_path_majors",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.learning_paths",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.outbox_messages",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.student_learning_goals",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.student_orientations",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.student_technologies",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.students",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.technologies",
-         "ObjectType": 0
-      },
-      {
-         "Name": "public.user_behaviours",
+         "Name": "public.student_quizzes",
          "ObjectType": 0
       }
    ],
