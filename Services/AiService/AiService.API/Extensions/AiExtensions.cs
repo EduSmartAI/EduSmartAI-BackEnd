@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Chat;
 using OpenAI.Embeddings;
+using Tavily;
 
 namespace AiService.API.Extensions
 {
@@ -66,6 +67,10 @@ namespace AiService.API.Extensions
                 var root = sp.GetRequiredService<OpenAIClient>();
                 return root.GetAudioClient(o.AudioModel);
             });
+
+            // Tavily
+            services.AddSingleton<TavilyClient>();
+
 
             services.AddScoped<ISurveyAnalysis, SurveyAnalysisService>();
 
