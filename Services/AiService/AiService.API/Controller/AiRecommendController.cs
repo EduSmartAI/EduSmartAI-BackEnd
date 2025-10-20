@@ -42,9 +42,9 @@ public class AiRecommendController : ControllerBase
     /// <returns></returns>
     [HttpPost]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public async Task<AiEvaluateResponse> GetLearningPathAI(AiEvaluateRequest request)
+    public async Task<AiEvaluateResponse> GetLearningPathAI(AiEvaluateTempRequest request)
     {
-        return await ApiControllerHelper.HandleRequest<AiEvaluateRequest, AiEvaluateResponse, EvaluateResult>(
+        return await ApiControllerHelper.HandleRequest<AiEvaluateTempRequest, AiEvaluateResponse, EvaluateResult>(
             request,
             _logger,
             ModelState,
