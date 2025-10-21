@@ -554,6 +554,32 @@ public class QuizCourseService : IQuizCourseService
 			await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
 			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
+			// Load quiz with questions and answers
+			var quiz = await GetQuizWithDetailsAsync(request.QuizId, cancellationToken);
+
+			if (quiz is null)
+			{
+				response.SetMessage(MessageId.E00000, "Không tải được chi tiết bài kiểm tra");
+				return false;
+			}
+			// Prepare QuizEvaluableCreatedEvent
+			var (scope, scopeId) = ValidateAndResolveScope(request);
+			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers);
+			var courseId = request.CourseId;
+
+			// Calculate score
+			var baseScore100 = (short)Math.Clamp((int)Math.Round((double)correct / Math.Max(total, 1) * 100), 0, 100);
+
+			// Update StudentQuiz with result
+            newStudentQuiz.Scope = (short)scope;
+            newStudentQuiz.ScopeId = scopeId;
+			newStudentQuiz.TotalQuestions = (short)total;
+            newStudentQuiz.TotalCorrect = (short)correct;
+            newStudentQuiz.Score100 = baseScore100;
+
+			_studentQuizCommandRepository.Update(newStudentQuiz);
+			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+
 			// Publish event to read model
 			var studentQuizCourseInsertEvent = new StudentQuizCourseInsertEvent
 			{
@@ -568,6 +594,12 @@ public class QuizCourseService : IQuizCourseService
 					UpdatedAt = newStudentQuiz.UpdatedAt,
 					CreatedBy = newStudentQuiz.CreatedBy,
 					UpdatedBy = newStudentQuiz.UpdatedBy,
+					CourseId = newStudentQuiz.CourseId,
+                    Scope = newStudentQuiz.Scope,
+                    ScopeId = newStudentQuiz.ScopeId,
+                    TotalQuestions = newStudentQuiz.TotalQuestions,
+                    TotalCorrect = newStudentQuiz.TotalCorrect,
+                    Score100 = newStudentQuiz.Score100,
 					Quiz = quizCollectionExist,
 					StudentQuizAnswers = newStudentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
 					{
@@ -595,33 +627,6 @@ public class QuizCourseService : IQuizCourseService
 				Content = JsonSerializer.Serialize(studentQuizCourseInsertEvent),
 				OccurredOnUtc = DateTime.UtcNow,
 			};
-
-			// Load quiz with questions and answers
-			var quiz = await GetQuizWithDetailsAsync(request.QuizId, cancellationToken);
-
-			if (quiz is null)
-			{
-				response.SetMessage(MessageId.E00000, "Không tải được chi tiết bài kiểm tra");
-				return false;
-			}
-			// Prepare QuizEvaluableCreatedEvent
-			var (scope, scopeId) = ValidateAndResolveScope(request);
-			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers);
-			var courseId = request.CourseId;
-
-			// Calculate score
-			var baseScore100 = (short)Math.Clamp((int)Math.Round((double)correct / Math.Max(total, 1) * 100), 0, 100);
-
-			// Update StudentQuiz with result
-            newStudentQuiz.Scope = (short)scope;
-            newStudentQuiz.ScopeId = scopeId;
-			newStudentQuiz.TotalQuestions = (short)total;
-            newStudentQuiz.TotalCorrect = (short)correct;
-            newStudentQuiz.Score100 = baseScore100;
-
-			_studentQuizCommandRepository.Update(newStudentQuiz);
-			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
-
 
 			// Prepare event
 			var evt = new QuizEvaluableCreatedEvent(
