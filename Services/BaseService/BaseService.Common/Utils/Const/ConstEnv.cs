@@ -71,4 +71,8 @@ public static class ConstEnv
     public const string EmbedModel = "EMBED_MODEL";
 
     public const string GroqApiKey = "GROQ_API_KEY";
+
+    public const string FastMode = "FAST_MODE";
+
+    public const string TavilyApiKey = "TAVILY_API_KEY";
 }
