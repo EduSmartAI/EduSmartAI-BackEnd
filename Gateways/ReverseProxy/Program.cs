@@ -11,7 +11,13 @@ builder.Services.AddOpenApi();
 
 // Thêm HttpClient cho SwaggerController
 builder.Services.AddHttpClient();
-
+builder.Services.AddCors(o =>
+{
+    o.AddPolicy("AllowAll", b => b
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+});
 // Add Authentication with OpenIdConnect/JWT
 builder.Services.AddReverseProxyAuthentication(builder.Configuration);
 
@@ -39,6 +45,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseRouting();
+app.UseCors("AllowAll");
 app.Use(async (context, next) =>
 {
     context.Request.EnableBuffering();
