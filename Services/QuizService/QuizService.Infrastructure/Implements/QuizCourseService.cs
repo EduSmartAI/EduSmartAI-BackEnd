@@ -547,7 +547,8 @@ public class QuizCourseService : IQuizCourseService
 				{
 					QuestionId = ans.QuestionId,
 					AnswerId = ans.AnswerId,
-				}).ToList()
+				}).ToList(),
+                CourseId = request.CourseId,
 			};
 
 			await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
@@ -610,6 +611,17 @@ public class QuizCourseService : IQuizCourseService
 
 			// Calculate score
 			var baseScore100 = (short)Math.Clamp((int)Math.Round((double)correct / Math.Max(total, 1) * 100), 0, 100);
+
+			// Update StudentQuiz with result
+            newStudentQuiz.Scope = (short)scope;
+            newStudentQuiz.ScopeId = scopeId;
+			newStudentQuiz.TotalQuestions = (short)total;
+            newStudentQuiz.TotalCorrect = (short)correct;
+            newStudentQuiz.Score100 = baseScore100;
+
+			_studentQuizCommandRepository.Update(newStudentQuiz);
+			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+
 
 			// Prepare event
 			var evt = new QuizEvaluableCreatedEvent(
