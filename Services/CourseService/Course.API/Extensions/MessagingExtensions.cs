@@ -5,6 +5,7 @@ using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.Consumers;
+using Course.Application.Consumers.GetInfoCourse;
 using Course.Application.Consumers.GetInfoInternalCourse;
 using Course.Application.Dashboards.Consumers;
 using MassTransit;
@@ -32,6 +33,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetModuleDashboardEventConsumer>();
                 x.AddConsumer<SuggestCourseRetakeEventConsumer>();
                 x.AddConsumer<GetCourseModuleCountEventConsumer>();
+                x.AddConsumer<GetLessonInfoConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 
