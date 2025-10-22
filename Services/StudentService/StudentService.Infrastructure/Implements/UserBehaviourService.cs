@@ -52,6 +52,7 @@ public class UserBehaviourService : IUserBehaviourService
             var userBehaviourCollection = UserBehaviourCollection.FromWriteModel(userBehaviour);
             _unitOfWork.Store(userBehaviourCollection);
             await _unitOfWork.SessionSaveChangesAsync();
+            await _unitOfWork.CacheRemoveAsync(CacheKey.UserBehaviours(currentUser!.UserId));
 
             // Set response
             response.Success = true;
