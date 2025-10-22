@@ -16,11 +16,13 @@ public interface IUnitOfWork : IDisposable
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Save all changes.
     /// </summary>
+    /// <param name="email"></param>
     /// <param name="cancellationToken"></param>
+    /// <param name="needLogicalDelete"></param>
     /// <returns></returns>
     Task<int> SaveChangesAsync(string email, CancellationToken cancellationToken, bool needLogicalDelete = false);
     

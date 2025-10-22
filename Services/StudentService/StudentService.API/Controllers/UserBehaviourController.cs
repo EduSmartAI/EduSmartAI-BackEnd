@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.UserBehaviours.Commands;
+using StudentService.Application.Applications.UserBehaviours.Queries.SelectAllUserBehaviour;
 using Swashbuckle.AspNetCore.Annotations;
 
 
@@ -47,7 +48,8 @@ public class UserBehaviourController : ControllerBase
     [SwaggerOperation(
         Summary = "Dùng cho việc lưu hành vi của người dùng để theo dõi đưa ra lộ trình cá nhân hoá phù hợp",
         Description = "Cần cấp quyền"
-    )]    public async Task<UserBehaviourInsertResponse> InsertUserBehaviour([FromBody] UserBehaviourInsertCommand request)
+    )]    
+    public async Task<UserBehaviourInsertResponse> InsertUserBehaviour([FromBody] UserBehaviourInsertCommand request)
     {
         return await ApiControllerHelper
             .HandleRequest<UserBehaviourInsertCommand, UserBehaviourInsertResponse, string>(
@@ -59,5 +61,32 @@ public class UserBehaviourController : ControllerBase
                 _identityEntity,
                 _httpContextAccessor,
                 new UserBehaviourInsertResponse());
+    }
+
+    /// <summary>
+    /// Get all user behaviours with pagination and filtering
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy danh sách toàn bộ hành vi của người dùng hiện tại",
+        Description = "API hỗ trợ phân trang và lọc theo ActionType, TargetType. Cần cấp quyền."
+    )]
+    public async Task<SelectAllUserBehaviourResponse> SelectUserBehaviours()
+    {
+        var request = new SelectAllUserBehaviourQuery();
+        
+        return await ApiControllerHelper
+            .HandleRequest<SelectAllUserBehaviourQuery, SelectAllUserBehaviourResponse, List<UserBehaviourDto>>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new SelectAllUserBehaviourResponse());
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BaseService.Common.Utils;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -84,6 +85,12 @@ public class OutboxPublisher : BackgroundService
                             var e8 = JsonSerializer.Deserialize<QuizEvaluableCreatedEvent>(e.Content);
                             await publishEndpoint.Publish(e8!, stoppingToken);
                             logging.InfoLog($"Successfully published QuizEvaluableCreatedEvent for QuizId: {e8!.QuizId}");
+                            break;
+                        case nameof(SuggestCourseForStudentEvent):
+                            logging.InfoLog("Processing SuggestCourseForStudentEvent");
+                            var e9 = JsonSerializer.Deserialize<SuggestCourseForStudentEvent>(e.Content);
+                            await publishEndpoint.Publish(e9!, stoppingToken);
+                            logging.InfoLog($"Successfully published SuggestCourseForStudentEvent for StudentId: {e9!.SuggestCourses.First().StudentId}");
                             break;
 						default:
                             logging.WarningLog($"Unknown event type: {e.Type}");

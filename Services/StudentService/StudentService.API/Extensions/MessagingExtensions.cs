@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
@@ -10,6 +11,7 @@ using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
 using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
+using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Application.Consumers;
 
 namespace StudentService.API.Extensions;
@@ -39,6 +41,8 @@ public static class MessagingExtensions
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
 			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
+			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -66,6 +70,9 @@ public static class MessagingExtensions
             x.AddRequestClient<CoursesSelectEvent>();
             x.AddRequestClient<GetInfoInternalCourseEvents>();
             x.AddRequestClient<GetModuleDashboardEvent>();
+            x.AddRequestClient<GetCourseInfoEvent>();
+            x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
+            x.AddRequestClient<GetCourseModuleCountEvent>();
         });
 
         return services;

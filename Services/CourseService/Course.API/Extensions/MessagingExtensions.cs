@@ -3,6 +3,7 @@ using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.Consumers;
 using Course.Application.Consumers.GetInfoCourse;
 using Course.Application.Consumers.GetInfoInternalCourse;
@@ -30,6 +31,8 @@ namespace Course.API.Extensions
                 x.AddConsumer<CoursesSelectConsumer>();
                 x.AddConsumer<GetInfoInternalCourseConsumer>();
                 x.AddConsumer<GetModuleDashboardEventConsumer>();
+                x.AddConsumer<SuggestCourseRetakeEventConsumer>();
+                x.AddConsumer<GetCourseModuleCountEventConsumer>();
                 x.AddConsumer<GetLessonInfoConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
@@ -49,7 +52,8 @@ namespace Course.API.Extensions
                 x.AddRequestClient<QuizCourseSelectEvent>();
                 x.AddRequestClient<QuizCourseCheckAttemptEvent>();
                 x.AddRequestClient<GetLatestModuleQuizScoresEvent>();
-            });
+                x.AddRequestClient<SuggestCourseRetakeEvent>();
+			});
 
             return services;
         }

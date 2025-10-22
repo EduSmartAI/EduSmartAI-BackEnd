@@ -16,4 +16,7 @@ public static class CacheKey
 
     public static string QuizCourses(Guid existingQuizQuizId)
         => $"QuizCourse_{existingQuizQuizId}";
+
+    public static string UserBehaviours(Guid userId)
+        => $"user_behaviour:all:{userId}";
 }

@@ -45,18 +45,19 @@ public class AccountService : IAccountService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentInsertResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken)
+    public async Task<StudentInsertResponse> InsertAccountAsync(StudentInsertCommand request, CancellationToken cancellationToken)
     {
         var response = new StudentInsertResponse { Success = false };
 
-        // Check role existence
-        var role = await _roleCommandRepository.FirstOrDefaultAsync(
-            x => x.Name == nameof(ConstantEnum.UserRole.Student), cancellationToken);
-        if (role == null)
+        Role role = new Role();
+        if (request.Email.Contains("@fe.edu.vn"))
         {
-            response.SetMessage(MessageId.E99999);
-            return response;
+            role = (await _roleCommandRepository.FirstOrDefaultAsync(x => x.Name == nameof(ConstantEnum.UserRole.Lecturer), cancellationToken))!;
         }
+        else {
+            role = (await _roleCommandRepository.FirstOrDefaultAsync(x => x.Name == nameof(ConstantEnum.UserRole.Student), cancellationToken))!;
+        }
+       
 
         // Check the existing account
         var existingAccount = await _accountCommandRepository.FirstOrDefaultAsync(
@@ -106,10 +107,16 @@ public class AccountService : IAccountService
                             OldUserId = existingAccount.AccountId,
                             FirstName = request.FirstName,
                             LastName = request.LastName,
-                            UserRole = (byte)ConstantEnum.UserRole.Student,
+                            UserRole = role.Name == nameof(ConstantEnum.UserRole.Lecturer) ? (byte)ConstantEnum.UserRole.Lecturer : (byte)ConstantEnum.UserRole.Student,
                             Email = newUser.Email,
                         };
-
+                        if (role.Name == nameof(ConstantEnum.UserRole.Lecturer))
+                        {
+                        }
+                        else
+                        {
+                            
+                        }
                         var userInsertResponse = await _requestUserClient.GetResponse<UserInsertEventResponse>(@event, cancellationToken);
                         if (!userInsertResponse.Message.Success)
                         {
@@ -147,7 +154,7 @@ public class AccountService : IAccountService
                 UserId = newAccount.AccountId,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
-                UserRole = (byte)ConstantEnum.UserRole.Student,
+                UserRole = role.Name == nameof(ConstantEnum.UserRole.Lecturer) ? (byte)ConstantEnum.UserRole.Lecturer : (byte)ConstantEnum.UserRole.Student,
                 Email = newAccount.Email,
             };
 

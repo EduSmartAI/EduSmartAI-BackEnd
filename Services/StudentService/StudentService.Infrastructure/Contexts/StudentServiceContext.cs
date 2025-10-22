@@ -36,6 +36,8 @@ public partial class StudentServiceContext : AppDbContext
 
     public virtual DbSet<UserBehaviour> UserBehaviours { get; set; }
     
+    public virtual DbSet<CourseSuggestion> CourseSuggestions { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasPostgresExtension("pgcrypto");
@@ -205,6 +207,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasColumnName("is_active");
             entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
             entity.Property(e => e.Position).HasColumnName("position");
+            entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.StepName)
                 .HasMaxLength(255)
                 .HasColumnName("step_name");
@@ -508,8 +511,47 @@ public partial class StudentServiceContext : AppDbContext
                 .HasConstraintName("fk_user_behaviour_user");
         });
 
-        //OnModelCreatingPartial(modelBuilder);
-    }
+        modelBuilder.Entity<CourseSuggestion>(entity =>
+        {
+            entity.HasKey(e => e.CourseSuggestionId).HasName("course_suggestions_pkey");
 
-    //partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
+            entity.ToTable("course_suggestions");
+
+            entity.HasIndex(e => new { e.StudentId, e.IsActive }, "idx_course_suggestion_student");
+            entity.HasIndex(e => new { e.StudentId, e.IsAccepted }, "idx_course_suggestion_accepted");
+            entity.HasIndex(e => e.CreatedAt, "idx_course_suggestion_created").IsDescending();
+            entity.HasIndex(e => new { e.StudentId, e.OriginalCourseId, e.SuggestedCourseId, e.IsActive }, "uq_course_suggestion").IsUnique();
+
+            entity.Property(e => e.CourseSuggestionId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("course_suggestion_id");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.OriginalCourseId).HasColumnName("original_course_id");
+            entity.Property(e => e.SuggestedCourseId).HasColumnName("suggested_course_id");
+            entity.Property(e => e.Reason)
+                .IsRequired()
+                .HasColumnName("reason");
+            entity.Property(e => e.IsAccepted).HasColumnName("is_accepted");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+
+            entity.HasOne(d => d.Student).WithMany()
+                .HasForeignKey(d => d.StudentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_course_suggestion_student");
+        });
+    }
 }
