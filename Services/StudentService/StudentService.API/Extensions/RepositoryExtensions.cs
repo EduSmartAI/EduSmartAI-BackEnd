@@ -54,6 +54,7 @@ public static class RepositoryExtensions
         services.AddScoped<ILearningPathService, LearningPathService>();
         services.AddScoped<IUserBehaviourService, UserBehaviourService>();
         services.AddScoped<IAiQuizEvaluateStudentService, AiQuizEvaluateStudentService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         // MediatR configuration
         services.AddMediatR(cfg =>

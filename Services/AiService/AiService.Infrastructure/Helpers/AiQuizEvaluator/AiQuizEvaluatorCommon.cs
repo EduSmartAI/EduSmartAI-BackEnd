@@ -8,6 +8,11 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 	public static class AiQuizEvaluatorCommon
 	{
 		#region Helper Methods
+		/// <summary>
+		/// Build user prompt JSON for AI quiz evaluation
+		/// </summary>
+		/// <param name="evt"></param>
+		/// <returns></returns>
 		public static string BuildUserPrompt(QuizEvaluableCreatedEvent evt)
 		{
 			var raw = new
@@ -44,8 +49,11 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 			return JsonSerializer.Serialize(raw);
 		}
 
-
-
+		/// <summary>
+		/// Help parse AI JSON response safely
+		/// </summary>
+		/// <param name="json"></param>
+		/// <returns></returns>
 		public static AiEvaluationDto ParseAiJsonSafely(string json)
 		{
 			using var doc = JsonDocument.Parse(json);
@@ -73,6 +81,12 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 				CreatedAtUtc: default // sẽ fill ở trên
 			);
 		}
+
+		/// <summary>
+		/// Help strip ```code fence``` from AI response
+		/// </summary>
+		/// <param name="s"></param>
+		/// <returns></returns>
 		public static string StripCodeFence(string s)
 		{
 			if (s.StartsWith("```", StringComparison.Ordinal))
@@ -85,6 +99,13 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 			return s.Trim();
 		}
 
+		/// <summary>
+		/// Help read int from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <param name="def"></param>
+		/// <returns></returns>
 		public static int ReadInt(JsonElement obj, string name, int def)
 		{
 			if (!obj.TryGetProperty(name, out var el)) return def;
@@ -95,6 +116,14 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 				_ => def
 			};
 		}
+
+		/// <summary>
+		/// Help read double from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <param name="def"></param>
+		/// <returns></returns>
 		public static double ReadDouble(JsonElement obj, string name, double def)
 		{
 			if (!obj.TryGetProperty(name, out var el)) return def;
@@ -105,6 +134,13 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 				_ => def
 			};
 		}
+
+		/// <summary>
+		/// Help read string from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
 		public static string? ReadString(JsonElement obj, string name)
 		{
 			if (!obj.TryGetProperty(name, out var el)) return null;
@@ -117,6 +153,12 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 			};
 		}
 
+		/// <summary>
+		/// Help read list of string from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
 		public static List<string> ReadStringList(JsonElement obj, string name)
 		{
 			var list = new List<string>();
@@ -144,6 +186,12 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 			return list.Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
 		}
 
+		/// <summary>
+		/// Help read list of RecommendedAction from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
 		public static List<RecommendedAction> ReadActions(JsonElement obj, string name)
 		{
 			var list = new List<RecommendedAction>();
@@ -178,6 +226,12 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 			return list;
 		}
 
+		/// <summary>
+		/// Help read list of SkillGap from JsonElement safely
+		/// </summary>
+		/// <param name="obj"></param>
+		/// <param name="name"></param>
+		/// <returns></returns>
 		public static List<SkillGap> ReadGaps(JsonElement obj, string name)
 		{
 			var list = new List<SkillGap>();
