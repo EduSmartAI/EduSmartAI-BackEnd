@@ -565,7 +565,6 @@ public class QuizCourseService : IQuizCourseService
 			};
 
 			await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
-			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
 			// Load quiz with questions and answers
 			var quiz = await GetQuizWithDetailsAsync(request.QuizId, cancellationToken);
@@ -581,7 +580,7 @@ public class QuizCourseService : IQuizCourseService
 			var courseId = request.CourseId;
 
 			// Calculate score
-			var baseScore100 = (short)Math.Clamp((int)Math.Round((double)correct / Math.Max(total, 1) * 100), 0, 100);
+			var baseScore100 = (short) Math.Clamp((int) Math.Round((double) correct / Math.Max(total, 1) * 100), 0, 100);
 
 			// Update StudentQuiz with result
             newStudentQuiz.Scope = (short)scope;
@@ -761,7 +760,16 @@ public class QuizCourseService : IQuizCourseService
 		                }).ToList()
 	                };
 	                
-	                await _publishEndpoint.Publish(suggestCourseForStudentEvent, cancellationToken);
+	                var suggestCourseForStudentEventOutboxMessage = new OutboxMessage
+	                {
+		                Id = Guid.NewGuid(),
+		                Type = nameof(SuggestCourseForStudentEvent),
+		                Content = JsonSerializer.Serialize(suggestCourseForStudentEvent),
+		                OccurredOnUtc = DateTime.UtcNow,
+	                };
+	                
+	                await _outboxCommandRepository.AddAsync(suggestCourseForStudentEventOutboxMessage);
+	                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
                 }
             }
 

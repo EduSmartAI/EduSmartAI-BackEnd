@@ -518,7 +518,6 @@ public partial class StudentServiceContext : AppDbContext
             entity.ToTable("course_suggestions");
 
             entity.HasIndex(e => new { e.StudentId, e.IsActive }, "idx_course_suggestion_student");
-            entity.HasIndex(e => new { e.StudentId, e.IsViewed, e.CreatedAt }, "idx_course_suggestion_viewed").IsDescending(false, false, true);
             entity.HasIndex(e => new { e.StudentId, e.IsAccepted }, "idx_course_suggestion_accepted");
             entity.HasIndex(e => e.CreatedAt, "idx_course_suggestion_created").IsDescending();
             entity.HasIndex(e => new { e.StudentId, e.OriginalCourseId, e.SuggestedCourseId, e.IsActive }, "uq_course_suggestion").IsUnique();
@@ -532,10 +531,6 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.Reason)
                 .IsRequired()
                 .HasColumnName("reason");
-            entity.Property(e => e.SuggestionType).HasColumnName("suggestion_type");
-            entity.Property(e => e.IsViewed)
-                .HasDefaultValue(false)
-                .HasColumnName("is_viewed");
             entity.Property(e => e.IsAccepted).HasColumnName("is_accepted");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")

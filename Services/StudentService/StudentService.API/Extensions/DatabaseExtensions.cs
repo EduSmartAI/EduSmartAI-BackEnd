@@ -45,6 +45,7 @@ public static class DatabaseExtensions
             options.Schema.For<StudentOrientationCollection>().Identity(x => x.StudentOrientationId);
             options.Schema.For<UserBehaviourCollection>().Identity(x => x.Id);
             options.Schema.For<AiEvaluationCollection>().Identity(x => x.EvaluationId);
+            options.Schema.For<CourseSuggestionCollection>().Identity(x => x.CourseSuggestionId);
         });
 
         return services;

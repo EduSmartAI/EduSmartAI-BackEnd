@@ -11,6 +11,7 @@ using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
 using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
+using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Application.Consumers;
 
 namespace StudentService.API.Extensions;
@@ -40,6 +41,8 @@ public static class MessagingExtensions
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
 			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
+			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
