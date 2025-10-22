@@ -62,6 +62,7 @@ namespace Course.Infrastructure
             services.AddScoped<IMajorService, MajorService>();
             services.AddScoped<ISemesterService, SemesterService>();
             services.AddScoped<ISubjectService, SubjectService>();
+            services.AddScoped<IExternalCourseService, ExternalCourseService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();

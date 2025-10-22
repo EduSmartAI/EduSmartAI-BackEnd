@@ -1,9 +1,9 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using FluentValidation;
-using MassTransit;
 using MassTransit.Initializers;
 using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.QuizCourses.Commands;
@@ -28,7 +28,6 @@ public class QuizCourseService : IQuizCourseService
     private readonly ICommandRepository<Answer> _answerCommandRepository;
     private readonly ICommandRepository<Question> _questionCommandRepository;
 	private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
-	private readonly IPublishEndpoint _publishEndpoint;
 
 	/// <summary>
 	/// Constructor
@@ -47,8 +46,7 @@ public class QuizCourseService : IQuizCourseService
 		ICommandRepository<StudentQuiz> studentQuizCommandRepository, 
 		IQueryRepository<StudentQuizCollection> studentQuizQueryRepository, 
 		ICommandRepository<Answer> answerCommandRepository,
-		ICommandRepository<Question> questionCommandRepository,
-		IPublishEndpoint publishEndpoint)
+		ICommandRepository<Question> questionCommandRepository)
     {
         _quizCommandRepository = quizCommandRepository;
         _quizQueryRepository = quizQueryRepository;
@@ -59,7 +57,6 @@ public class QuizCourseService : IQuizCourseService
         _studentQuizQueryRepository = studentQuizQueryRepository;
         _answerCommandRepository = answerCommandRepository;
         _questionCommandRepository = questionCommandRepository;
-        _publishEndpoint = publishEndpoint;
 	}
 
     /// <summary>
@@ -895,6 +892,77 @@ public class QuizCourseService : IQuizCourseService
 		};
 		response.SetMessage(MessageId.I00001, "Bạn đã làm bài kiểm tra này");
 
+		return response;
+	}
+
+	public async Task<GetLatestModuleQuizScoresResponseEvent> GetLatestModuleQuizScoresAsync(GetLatestModuleQuizScoresEvent request, CancellationToken cancellationToken)
+	{
+		var response = new GetLatestModuleQuizScoresResponseEvent { Success = false };
+
+		var q = _studentQuizCommandRepository.Find(
+			sq => sq.StudentId == request.StudentId
+			   && sq.CourseId == request.CourseId
+			   && sq.Scope == (short)QuizScope.Module
+			   && sq.ScopeId != null
+			   && request.ModuleIds.Contains(sq.ScopeId!.Value),
+			isTracking: false, cancellationToken);
+
+		// KHÔNG ToListAsync() ở đây
+		var maxesQuery =
+			from sq in q
+			group sq by sq.ScopeId!.Value into g
+			select new
+			{
+				ModuleId = g.Key,
+				MaxCreated = g.Max(x => x.CreatedAt),
+				AttemptCnt = g.Count()
+			};
+
+		// Join thuần IQueryable → EF dịch được
+		var latestPerModuleQuery =
+			from sq in q
+			join mx in maxesQuery
+				on new { Mod = sq.ScopeId!.Value, sq.CreatedAt }
+				equals new { Mod = mx.ModuleId, CreatedAt = mx.MaxCreated }
+			select new
+			{
+				ModuleId = sq.ScopeId!.Value,
+				LatestScore100 = sq.Score100,
+				mx.AttemptCnt
+			};
+
+		var latestPerModule = await latestPerModuleQuery.ToListAsync(cancellationToken);
+
+		var dict = latestPerModule
+			.GroupBy(x => x.ModuleId)
+			.ToDictionary(
+				g => g.Key,
+				g => new {
+					LatestScore100 = g.Select(x => x.LatestScore100).FirstOrDefault(),
+					AttemptCount = g.Select(x => x.AttemptCnt).FirstOrDefault()
+				});
+
+		var payload = new GetLatestModuleQuizScoresPayload
+		{
+			Modules = request.ModuleIds
+				.Select(mid => dict.TryGetValue(mid, out var v)
+					? new ModuleLatestQuizScore
+					{
+						ModuleId = mid,
+						LatestScore100 = v.LatestScore100,
+						AttemptCount = v.AttemptCount
+					}
+					: new ModuleLatestQuizScore
+					{
+						ModuleId = mid,
+						LatestScore100 = null,
+						AttemptCount = 0
+					})
+				.ToList()
+		};
+
+		response.Success = true;
+		response.Response = payload;
 		return response;
 	}
 }
