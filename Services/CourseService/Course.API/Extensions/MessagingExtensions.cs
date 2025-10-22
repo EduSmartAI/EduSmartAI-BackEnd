@@ -26,6 +26,8 @@ namespace Course.API.Extensions
                 x.AddConsumer<SubjectSelectsConsumer>();
                 x.AddConsumer<CoursesSelectConsumer>();
                 x.AddConsumer<GetInfoInternalCourseConsumer>();
+                x.AddConsumer<SuggestCourseRetakeEventConsumer>();
+                x.AddConsumer<GetCourseModuleCountEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

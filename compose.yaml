@@ -11,6 +11,8 @@
     image: studentservice.api:latest
     ports:
       - "7002:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/studentservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -39,6 +41,8 @@
     image: authservice.api:latest
     ports:
       - "7001:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/authservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -68,6 +72,8 @@
     image: quizservice.api:latest
     ports:
       - "7003:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/quizservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -96,6 +102,8 @@
     image: teacherservice.api:latest
     ports:
       - "7004:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/teacherservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -123,6 +131,8 @@
     image: paymentservice.api:latest
     ports:
       - "7007:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/paymentservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -150,6 +160,8 @@
     image: notificationservice.api:latest
     ports:
       - "7008:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/notificationservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -177,6 +189,8 @@
     image: utilityservice.api:latest
     ports:
       - "7010:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/utilityservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -204,6 +218,8 @@
     image: courseservice.api:latest
     ports:
       - "7005:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/courseservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -231,6 +247,8 @@
     image: aiservice.api:latest
     ports:
       - "7006:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/aiservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80

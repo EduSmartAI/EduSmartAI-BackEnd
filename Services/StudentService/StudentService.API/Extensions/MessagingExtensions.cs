@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
@@ -38,6 +39,7 @@ public static class MessagingExtensions
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
 			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -64,6 +66,9 @@ public static class MessagingExtensions
             x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<CoursesSelectEvent>();
             x.AddRequestClient<GetInfoInternalCourseEvents>();
+            x.AddRequestClient<GetCourseInfoEvent>();
+            x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
+            x.AddRequestClient<GetCourseModuleCountEvent>();
         });
 
         return services;

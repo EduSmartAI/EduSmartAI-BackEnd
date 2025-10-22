@@ -162,5 +162,31 @@ public static class ConstantEnum
         Other = 99,
     }
 
-	public enum QuizScope { Lesson = 1, Module = 2 }
+    public enum QuizScope
+    {
+        Lesson = 1, 
+        Module = 2
+    }
+    
+    public enum StudentLearningPathCourseStatus
+    {
+        NotStarted = 0,
+        InProgress = 1,
+        Completed = 2,
+        Failed = 3,
+        Skipped = 4,
+        Locked = 5
+    }
+    
+    public enum SuggestionType
+    {
+        LowerLevel = 1,
+        SameLevel = 2,
+        HigherLevel = 3
+    }
+    
+    // Course Suggestion Constants
+    public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m; // 40%
+    public const decimal PASSING_SCORE = 4.0m;
+    
 }

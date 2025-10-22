@@ -12,6 +12,8 @@ public partial class LearningPathCourse
     public Guid? InternalCourseId { get; set; }
 
     public int? Position { get; set; }
+    
+    public short Status { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
