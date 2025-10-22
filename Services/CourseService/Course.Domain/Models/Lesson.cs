@@ -31,6 +31,8 @@ public partial class Lesson
 
     public virtual LessonQuiz LessonQuiz { get; set; }
 
+    public virtual ICollection<LessonTranscript> LessonTranscripts { get; set; } = new List<LessonTranscript>();
+
     public virtual Module Module { get; set; }
 
     public virtual ICollection<Note> Notes { get; set; } = new List<Note>();

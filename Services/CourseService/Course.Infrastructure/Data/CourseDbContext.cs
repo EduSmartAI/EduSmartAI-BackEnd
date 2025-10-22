@@ -37,6 +37,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<LessonQuiz> LessonQuizzes { get; set; }
 
+    public virtual DbSet<LessonTranscript> LessonTranscripts { get; set; }
+
     public virtual DbSet<Major> Majors { get; set; }
 
     public virtual DbSet<Module> Modules { get; set; }
@@ -73,8 +75,9 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<VUserModuleProgress> VUserModuleProgresses { get; set; }
     public virtual DbSet<VMajorSemesterSubjectCourses> VMajorSemesterSubjectCoursess { get; set; }
+	public virtual DbSet<VwCourseInfo> VwCourseInfos { get; set; }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
             .HasPostgresEnum("course_status", new[] { "draft", "published", "archived" })
@@ -561,6 +564,49 @@ public partial class CourseDbContext : AppDbContext
             entity.HasOne(d => d.Lesson).WithOne(p => p.LessonQuiz)
                 .HasForeignKey<LessonQuiz>(d => d.LessonId)
                 .HasConstraintName("fk_lesson_quizzes_lesson");
+        });
+
+        modelBuilder.Entity<LessonTranscript>(entity =>
+        {
+            entity.HasKey(e => e.TranscriptId).HasName("lesson_transcripts_pkey");
+
+            entity.ToTable("lesson_transcripts");
+
+            entity.HasIndex(e => e.LessonId, "idx_lesson_transcripts_lesson");
+
+            entity.HasIndex(e => e.Status, "idx_lesson_transcripts_status");
+
+            entity.HasIndex(e => new { e.LessonId, e.Language }, "uq_lesson_transcripts_active")
+                .IsUnique()
+                .HasFilter("(is_active = true)");
+
+            entity.Property(e => e.TranscriptId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("transcript_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Error).HasColumnName("error");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.Language)
+                .HasMaxLength(16)
+                .HasColumnName("language");
+            entity.Property(e => e.LessonId).HasColumnName("lesson_id");
+            entity.Property(e => e.Status)
+                .HasDefaultValue((short)0)
+                .HasColumnName("status");
+            entity.Property(e => e.TextFull).HasColumnName("text_full");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.VttPublicId).HasColumnName("vtt_public_id");
+            entity.Property(e => e.VttUrl).HasColumnName("vtt_url");
+
+            entity.HasOne(d => d.Lesson).WithMany(p => p.LessonTranscripts)
+                .HasForeignKey(d => d.LessonId)
+                .HasConstraintName("lesson_transcripts_lesson_id_fkey");
         });
 
         modelBuilder.Entity<Major>(entity =>
@@ -1259,7 +1305,45 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.ShortDescription).HasColumnName("short_description");
         });
 
-        OnModelCreatingPartial(modelBuilder);
+		modelBuilder.Entity<VwCourseInfo>(entity =>
+		{
+			entity
+				.HasNoKey()
+				.ToView("vw_course_info");
+
+			entity.Property(e => e.CourseId).HasColumnName("course_id");
+			entity.Property(e => e.Description).HasColumnName("description");
+			entity.Property(e => e.DurationHours)
+				.HasPrecision(8, 2)
+				.HasColumnName("duration_hours");
+			entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
+			entity.Property(e => e.IsCore).HasColumnName("is_core");
+			entity.Property(e => e.LearnerCount).HasColumnName("learner_count");
+			entity.Property(e => e.LessonId).HasColumnName("lesson_id");
+			entity.Property(e => e.LessonTitle)
+				.HasMaxLength(200)
+				.HasColumnName("lesson_title");
+			entity.Property(e => e.Level).HasColumnName("level");
+			entity.Property(e => e.MaterialFileUrl).HasColumnName("material_file_url");
+			entity.Property(e => e.MaterialId).HasColumnName("material_id");
+			entity.Property(e => e.MaterialTitle)
+				.HasMaxLength(200)
+				.HasColumnName("material_title");
+			entity.Property(e => e.ModuleId).HasColumnName("module_id");
+			entity.Property(e => e.ModuleName)
+				.HasMaxLength(150)
+				.HasColumnName("module_name");
+			entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
+			entity.Property(e => e.TranscriptId).HasColumnName("transcript_id");
+			entity.Property(e => e.TranscriptLanguage)
+				.HasMaxLength(16)
+				.HasColumnName("transcript_language");
+			entity.Property(e => e.TranscriptText).HasColumnName("transcript_text");
+			entity.Property(e => e.VideoDurationSec).HasColumnName("video_duration_sec");
+			entity.Property(e => e.VideoUrl).HasColumnName("video_url");
+		});
+
+		OnModelCreatingPartial(modelBuilder);
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
