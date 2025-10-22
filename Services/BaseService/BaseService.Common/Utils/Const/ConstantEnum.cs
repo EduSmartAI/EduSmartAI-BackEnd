@@ -163,4 +163,11 @@ public static class ConstantEnum
     }
 
 	public enum QuizScope { Lesson = 1, Module = 2 }
+
+	public enum ModuleProgressStatus : short
+	{
+		NotStarted = 0,
+		InProgress = 1,
+		Completed = 2
+	}
 }
