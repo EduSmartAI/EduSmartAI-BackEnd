@@ -10,8 +10,4 @@
       <ProjectReference Include="..\..\BaseService\BaseService.Domain\BaseService.Domain.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="WriteModels\" />
-    </ItemGroup>
-
 </Project>

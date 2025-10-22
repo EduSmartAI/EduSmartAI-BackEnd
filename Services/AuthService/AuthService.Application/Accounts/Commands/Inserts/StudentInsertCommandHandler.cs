@@ -20,6 +20,6 @@ public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand,
     /// <returns></returns>
     public async Task<StudentInsertResponse> Handle(StudentInsertCommand request, CancellationToken cancellationToken)
     {
-        return await _accountService.InsertStudentAsync(request, cancellationToken);
+        return await _accountService.InsertAccountAsync(request, cancellationToken);
     }
 }

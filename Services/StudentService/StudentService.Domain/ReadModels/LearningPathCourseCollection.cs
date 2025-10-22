@@ -9,6 +9,8 @@ public class LearningPathCourseCollection
     public Guid? InternalCourseId { get; set; }
 
     public int? Position { get; set; }
+    
+    public short Status { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -41,6 +43,7 @@ public class LearningPathCourseCollection
             LearningPathMajorId = model.LearningPathMajorId,
             InternalCourseId = model.InternalCourseId,
             Position = model.Position,
+            Status = model.Status,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

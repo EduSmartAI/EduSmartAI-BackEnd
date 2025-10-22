@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
@@ -66,6 +67,9 @@ public static class MessagingExtensions
             x.AddRequestClient<CoursesSelectEvent>();
             x.AddRequestClient<GetInfoInternalCourseEvents>();
             x.AddRequestClient<GetModuleDashboardEvent>();
+            x.AddRequestClient<GetCourseInfoEvent>();
+            x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
+            x.AddRequestClient<GetCourseModuleCountEvent>();
         });
 
         return services;

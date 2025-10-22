@@ -157,7 +157,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     )]
     public async Task<StudentQuizCourseInsertResponse> InsertStudentQuizCourse(StudentQuizCourseInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<StudentQuizCourseInsertCommand, StudentQuizCourseInsertResponse, Guid?>(
+        return await ApiControllerHelper.HandleRequest<StudentQuizCourseInsertCommand, StudentQuizCourseInsertResponse, StudentQuizCourseInsertResponseEntity>(
             request,
             _logger,
             ModelState,
@@ -169,7 +169,7 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
     }
     
     /// <summary>
-    /// 
+    /// Check student quiz attempt
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -192,12 +192,18 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
             new StudentCourseQuizSelectResponse());
     }
 
+    /// <summary>
+    /// Check student quiz attempt
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
     [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Kiểm tra bài kiểm tra course của sinh viên",
         Description = "Cần cấp quyền Student cho API"
     )]
+    
     public async Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttempt([FromBody] QuizCourseCheckAttemptCommand request)
     {
         return await ApiControllerHelper.HandleRequest<QuizCourseCheckAttemptCommand, QuizCourseCheckAttemptResponse, QuizCourseCheckAttemptEntity>(

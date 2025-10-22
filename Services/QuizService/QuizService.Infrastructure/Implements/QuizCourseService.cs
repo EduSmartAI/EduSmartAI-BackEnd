@@ -4,6 +4,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using FluentValidation;
+using MassTransit;
 using MassTransit.Initializers;
 using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.QuizCourses.Commands;
@@ -13,6 +14,7 @@ using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
 using System.Text.Json;
+using BuildingBlocks.Messaging.Events.CourseService;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace QuizService.Infrastructure.Implements;
@@ -28,6 +30,9 @@ public class QuizCourseService : IQuizCourseService
     private readonly ICommandRepository<Answer> _answerCommandRepository;
     private readonly ICommandRepository<Question> _questionCommandRepository;
 	private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
+	private readonly IPublishEndpoint _publishEndpoint;
+	private readonly IRequestClient<GetCourseModuleCountEvent> _getCourseModuleCountClient;
+	private readonly IRequestClient<SuggestCourseRetakeEvent> _getSuggestCourseRetakeEvent;
 
 	/// <summary>
 	/// Constructor
@@ -36,8 +41,14 @@ public class QuizCourseService : IQuizCourseService
 	/// <param name="quizQueryRepository"></param>
 	/// <param name="unitOfWork"></param>
 	/// <param name="outboxCommandRepository"></param>
+	/// <param name="studentQuizCommandRepository"></param>
+	/// <param name="studentQuizQueryRepository"></param>
 	/// <param name="answerCommandRepository"></param>
 	/// <param name="questionCommandRepository"></param>
+	/// <param name="identityService"></param>
+	/// <param name="publishEndpoint"></param>
+	/// <param name="getCourseModuleCountClient"></param>
+	/// <param name="getSuggestCourseRetakeEvent"></param>
 	public QuizCourseService(ICommandRepository<Quiz> quizCommandRepository,
 		IQueryRepository<QuizCollection> quizQueryRepository, 
 		IUnitOfWork unitOfWork, 
@@ -46,7 +57,10 @@ public class QuizCourseService : IQuizCourseService
 		ICommandRepository<StudentQuiz> studentQuizCommandRepository, 
 		IQueryRepository<StudentQuizCollection> studentQuizQueryRepository, 
 		ICommandRepository<Answer> answerCommandRepository,
-		ICommandRepository<Question> questionCommandRepository)
+		ICommandRepository<Question> questionCommandRepository,
+		IPublishEndpoint publishEndpoint,
+		IRequestClient<GetCourseModuleCountEvent> getCourseModuleCountClient,
+		IRequestClient<SuggestCourseRetakeEvent> getSuggestCourseRetakeEvent)
     {
         _quizCommandRepository = quizCommandRepository;
         _quizQueryRepository = quizQueryRepository;
@@ -57,7 +71,10 @@ public class QuizCourseService : IQuizCourseService
         _studentQuizQueryRepository = studentQuizQueryRepository;
         _answerCommandRepository = answerCommandRepository;
         _questionCommandRepository = questionCommandRepository;
-	}
+        _publishEndpoint = publishEndpoint;
+        _getCourseModuleCountClient = getCourseModuleCountClient;
+        _getSuggestCourseRetakeEvent = getSuggestCourseRetakeEvent;
+    }
 
     /// <summary>
     /// Insert new quiz for course
@@ -87,10 +104,10 @@ public class QuizCourseService : IQuizCourseService
                     QuestionText = x.QuestionText,
                     Explanation = x.Explanation,
                     QuestionType = x.QuestionType,
-                    Answers = x.Answers.Select(x => new Answer
+                    Answers = x.Answers.Select(answersInsert => new Answer
                     {
-                        AnswerText = x.AnswerText,
-                        IsCorrect = x.IsCorrect
+                        AnswerText = answersInsert.AnswerText,
+                        IsCorrect = answersInsert.IsCorrect
                     }).ToList()
                 }).ToList(),
             };
@@ -252,10 +269,9 @@ public class QuizCourseService : IQuizCourseService
                     // Mark as updated
                     updatedQuizIds.Add(quizRequest.QuizId);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log the error and add to failed list
-                    Console.WriteLine($"❌ Failed to update quiz {quizRequest.QuizId}: {ex.Message}");
                     failedQuizIds.Add(quizRequest.QuizId);
                 }
             }
@@ -270,15 +286,15 @@ public class QuizCourseService : IQuizCourseService
                 return false;
             }
             
-            // ✅ FIX: Reload quizzes with full data after save to publish correct events
+            // Reload quizzes with full data after save to publish correct events
             foreach (var quizId in updatedQuizIds)
             {
                 var reloadedQuiz = await _quizCommandRepository
                     .Find(q => q.QuizId == quizId && q.IsActive, 
                         isTracking: false,
                         cancellationToken: cancellationToken)
-                    .Include(q => q.CourseQuizSetting!)
-                    .Include(q => q.Questions.Where(x => x.IsActive))
+                    .Include(q => q!.CourseQuizSetting!)
+                    .Include(q => q!.Questions.Where(x => x.IsActive))
                     .ThenInclude(q => q.Answers.Where(a => a.IsActive))
                     .AsSplitQuery()
                     .FirstOrDefaultAsync(cancellationToken);
@@ -359,8 +375,8 @@ public class QuizCourseService : IQuizCourseService
             // Check if quiz exists
             var existingQuiz = await _quizCommandRepository
 	            .Find(q => q.QuizId == request.QuizId && q.QuizType == (short) TestType.Exam && q.IsActive, cancellationToken: cancellationToken)
-	            .Include(q => q.CourseQuizSetting!)
-	            .Include(q => q.Questions)
+	            .Include(q => q!.CourseQuizSetting!)
+	            .Include(q => q!.Questions)
 	            .ThenInclude(q => q.Answers)
 	            .FirstOrDefaultAsync(cancellationToken);
             
@@ -378,7 +394,7 @@ public class QuizCourseService : IQuizCourseService
                 OccurredOnUtc = DateTime.UtcNow,
             };
             await _outboxCommandRepository.AddAsync(outboxMessage);
-            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             
             // True
             response.Success = true;
@@ -428,9 +444,9 @@ public class QuizCourseService : IQuizCourseService
             
             // Check if quiz exists
             var existingQuiz = await _quizCommandRepository
-	            .Find(q => q.QuizId == request.QuizId && q.QuizType == (short) TestType.Exam && q.IsActive, cancellationToken: cancellationToken)
-	            .Include(q => q.CourseQuizSetting!)
-	            .Include(q => q.Questions)
+	            .Find(q => q.QuizId == request.QuizId && q.QuizType == (short)TestType.Exam && q.IsActive, cancellationToken: cancellationToken)
+	            .Include(q => q!.CourseQuizSetting!)
+	            .Include(q => q!.Questions)
 	            .ThenInclude(q => q.Answers)
 	            .FirstOrDefaultAsync(cancellationToken);
             
@@ -561,7 +577,7 @@ public class QuizCourseService : IQuizCourseService
 			}
 			// Prepare QuizEvaluableCreatedEvent
 			var (scope, scopeId) = ValidateAndResolveScope(request);
-			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers);
+			var (total, correct, details) = ComputeAttemptResult(quiz, newStudentQuiz.StudentQuizAnswers.ToList());
 			var courseId = request.CourseId;
 
 			// Calculate score
@@ -651,14 +667,111 @@ public class QuizCourseService : IQuizCourseService
                 Content = JsonSerializer.Serialize(evt),
                 OccurredOnUtc = DateTime.UtcNow,
             };
-
+            
             await _outboxCommandRepository.AddAsync(outboxMessage);
             await _outboxCommandRepository.AddAsync(quizEvaluableCreatedEventOutboxMessage);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
+            List<SuggestCourseEntity>? courseSuggestions = null;
+            
+            // Check if need to suggest course for student
+            // Only check for MODULE quiz (scope = 2) and when CourseId is available
+            if (scope == QuizScope.Module)
+            {
+                // Step 1: Get TOTAL modules in this course from CourseService
+                var courseModuleCountRequest = new GetCourseModuleCountEvent
+                {
+                    CourseId = courseId
+                };
+
+                var courseModuleCountResponse = await _getCourseModuleCountClient.GetResponse<GetCourseModuleCountEventResponse>(courseModuleCountRequest, cancellationToken);
+                if (!courseModuleCountResponse.Message.Success)
+                {
+	                response.SetMessage(MessageId.E99999);
+                    return false;
+                }
+
+                var totalModulesInCourse = courseModuleCountResponse.Message.Response.TotalModules;
+
+                // Step 2: Get all module quiz attempts for this student in this course
+                var allModuleQuizzes = await _studentQuizCommandRepository
+                    .Find(sq => sq.StudentId == currentUser.UserId 
+                                && sq.CourseId == courseId
+                                && sq.Scope == (short) QuizScope.Module
+                                && sq.IsActive,
+                        isTracking: false,
+                        cancellationToken: cancellationToken)
+                    .ToListAsync(cancellationToken);
+
+                // Step 3: Group by distinct modules and get best score for each module
+                var moduleQuizResults = allModuleQuizzes
+                    .Where(sq => sq!.ScopeId.HasValue && sq.Score100.HasValue)
+                    .GroupBy(sq => sq!.ScopeId!.Value)
+                    .Select(g => new
+                    {
+                        ModuleId = g.Key,
+                        // Get best score for this module
+                        BestScore = g.Max(sq => sq!.Score100!.Value),
+                        AttemptCount = g.Count()
+                    })
+                    .ToList();
+
+                // Step 4: Count distinct modules with score < 40 (< 4.0 on 0-10 scale)
+                var failedModuleCount = moduleQuizResults.Count(m => m.BestScore < 40);
+                
+                // Calculate required failed modules for 40% threshold
+                var requiredFailedModules = Math.Ceiling(totalModulesInCourse * 0.4m);
+                
+                // Step 6: Check if failed count >= 40% of TOTAL modules
+                if (failedModuleCount >= requiredFailedModules)
+                {
+                    var quizModuleCompletedEvent = new SuggestCourseRetakeEvent
+                    {
+                        CourseId = courseId,
+                    };
+
+                    // Publish event to CourseService to suggest course easily
+	                var courseSuggestionMessage = await _getSuggestCourseRetakeEvent.GetResponse<SuggestCourseRetakeEventResponse>(quizModuleCompletedEvent, cancellationToken);
+	                courseSuggestions = courseSuggestionMessage
+		                .Message
+		                .Response
+		                .Select(x => new SuggestCourseEntity
+		                {
+			                SuggestCourseId = x.CourseId,
+			                Level = x.Level,
+			                Description = x.Description,
+			                DurationMinutes = x.DurationMinutes,
+			                Title = x.Title,
+			                CourseImageUrl = x.CourseImageUrl,
+			                Reason = $"Bạn đã đạt điểm dưới 4.0 ở 40% số bài kiểm tra các module trong khoá học. " +
+			                         $"Chúng tôi đề xuất thử khóa học {x.Title} " +
+			                         $"(trình độ {x.Level}) để củng cố nền tảng trước khi tiếp tục khóa học tiếp theo."
+		                }).ToList();
+	                
+	                // Publish message to StudentService to insert suggestion for student
+	                var suggestCourseForStudentEvent = new SuggestCourseForStudentEvent
+	                {
+		                SuggestCourses = courseSuggestions.Select(x => new SuggestCourseForStudentEventEntity
+		                {
+			                OriginalCourseId = courseId,
+			                SuggestedCourseId = x.SuggestCourseId,
+			                StudentId = currentUser.UserId,
+			                Email = currentUser.Email,
+			                Reason = x.Reason
+		                }).ToList()
+	                };
+	                
+	                await _publishEndpoint.Publish(suggestCourseForStudentEvent, cancellationToken);
+                }
+            }
+
             // True
             response.Success = true;
-			response.Response = newStudentQuiz.StudentQuizId;
+			response.Response = new StudentQuizCourseInsertResponseEntity
+			{
+				StudentQuizCourseId = newStudentQuiz.StudentQuizId,
+				SuggestedCourses = courseSuggestions,
+			};
 			response.SetMessage(MessageId.I00001, "Lưu kết quả làm bài course");
 			return true;
 		}, cancellationToken);
@@ -720,7 +833,7 @@ public class QuizCourseService : IQuizCourseService
 		// EF Core: Include + ThenInclude + filtered include (Where)
 		var quiz = await query
 			.Include(q => q.Questions.Where(x => x.IsActive))
-				.ThenInclude(q => q.Answers)
+			.ThenInclude(q => q.Answers)
 			.AsSplitQuery() // khuyến nghị: tránh Cartesian explosion
 			.FirstOrDefaultAsync(ct);
 
@@ -730,9 +843,10 @@ public class QuizCourseService : IQuizCourseService
 	/// <summary>
 	/// Summarize the attempt result
 	/// </summary>
-	/// <param name="attempt"></param>
+	/// <param name="quiz"></param>
+	/// <param name="chosen"></param>
 	/// <returns></returns>
-	private static (int total, int correct, List<QuestionsCourseResultSelectResponseEntity> details) ComputeAttemptResult(Quiz quiz, IEnumerable<StudentQuizAnswer> chosen)
+	private static (int total, int correct, List<QuestionsCourseResultSelectResponseEntity> details) ComputeAttemptResult(Quiz quiz, List<StudentQuizAnswer> chosen)
 	{
 		var details = new List<QuestionsCourseResultSelectResponseEntity>();
 		int total = quiz.Questions.Count(q => q.IsActive);

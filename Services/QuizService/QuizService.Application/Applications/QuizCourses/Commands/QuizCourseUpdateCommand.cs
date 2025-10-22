@@ -7,7 +7,7 @@ public class QuizCourseUpdateCommand : ICommand<QuizCourseUpdateResponse>
 {
     [Required(ErrorMessage = "Quizzes is required")]
     [MinLength(1, ErrorMessage = "At least one quiz is required")]
-    public List<QuizUpdateRequest> Quizzes { get; set; }
+    public List<QuizUpdateRequest> Quizzes { get; set; } = null!;
 }
 
 public record QuizUpdateRequest
@@ -29,7 +29,7 @@ public record QuestionUpdateRequest
     public string? QuestionText { get; set; }
     public short? QuestionType { get; set; }
     public string? Explanation { get; set; }
-    public List<AnswerUpdateRequest> Answers { get; set; }
+    public List<AnswerUpdateRequest>? Answers { get; set; }
 }
 
 public record AnswerUpdateRequest

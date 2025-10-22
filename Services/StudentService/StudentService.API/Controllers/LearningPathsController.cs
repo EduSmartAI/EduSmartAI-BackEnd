@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
@@ -147,6 +148,30 @@ namespace StudentService.API.Controllers
                 _identityEntity,
                 _httpContextAccessor,
                 new SelectAllLearningPathResponse());
+        }
+        
+        /// <summary>
+        /// Update course status to Skipped (Student accepts course overload/skip)
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPut("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Cập nhật trạng thái khóa học sang Skipped",
+            Description = "API cho phép sinh viên chấp nhận học vượt/bỏ qua khóa học trong lộ trình học tập"
+        )]
+        public async Task<UpdateCourseStatusToSkippedResponse> UpdateCourseStatusToSkipped([FromBody] UpdateCourseStatusToSkippedCommand request)
+        {
+            return await ApiControllerHelper.HandleRequest<UpdateCourseStatusToSkippedCommand, UpdateCourseStatusToSkippedResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new UpdateCourseStatusToSkippedResponse());
         }
     }
 }

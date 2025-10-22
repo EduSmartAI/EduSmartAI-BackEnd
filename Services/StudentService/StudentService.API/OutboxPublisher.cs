@@ -1,9 +1,11 @@
 using System.Text.Json;
 using BaseService.Common.Utils;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
+using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
 
 namespace StudentService.API;
@@ -18,7 +20,7 @@ public class OutboxPublisher : BackgroundService
         _services = services;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var logging = new LoggingUtil(_logger, "OutboxPublisher-StudentService");
 
@@ -36,9 +38,26 @@ public class OutboxPublisher : BackgroundService
             {
                 try
                 {
-                    var evt = JsonSerializer.Deserialize<StudentInformationUpdatedEvent>(e.Content);
-                    await publishEndpoint.Publish(evt!, stoppingToken);
-
+                    logging.InfoLog($"Processing event with Type: '{e.Type}' and Id: {e.Id}");
+                    
+                    switch (e.Type)
+                    {
+                        case nameof(StudentInformationUpdatedEvent):
+                            logging.InfoLog("Processing StudentInformationUpdatedEvent");
+                            var e1 = JsonSerializer.Deserialize<StudentInformationUpdatedEvent>(e.Content);
+                            await publishEndpoint.Publish(e1!, stoppingToken);
+                            logging.InfoLog($"Successfully published StudentInformationUpdatedEvent for StudentId: {e1!.Student.StudentId}");
+                            break;
+                        case nameof(SuggestCourseCollectionEvent):
+                            logging.InfoLog("Processing SuggestCourseCollectionEvent");
+                            var e2 = JsonSerializer.Deserialize<SuggestCourseCollectionEvent>(e.Content);
+                            await publishEndpoint.Publish(e2!, stoppingToken);
+                            logging.InfoLog($"Successfully published SuggestCourseCollectionEvent for StudentId: {e2.SuggestCourseCollections.First().StudentId}");
+                            break;
+						default:
+                            logging.WarningLog($"Unknown event type: {e.Type}");
+                            break;
+                    }
                     e.ProcessedOnUtc = DateTime.UtcNow;
                 }
                 catch (Exception ex)
@@ -48,8 +67,8 @@ public class OutboxPublisher : BackgroundService
             }
             
             await db.SaveChangesAsync(stoppingToken);
-
-            await Task.Delay(2000, stoppingToken);
+            await Task.Delay(3000, stoppingToken);
         }
     }
+
 }
