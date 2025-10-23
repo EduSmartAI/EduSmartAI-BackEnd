@@ -3,6 +3,7 @@
     public class ChatRequestDto
     {
         public string? Message { get; set; }
+        public Guid? LessionId { get; set; }
         public List<ChatHistoryItem>? History { get; set; }
     }
 
