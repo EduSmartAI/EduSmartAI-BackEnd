@@ -565,6 +565,7 @@ public class QuizCourseService : IQuizCourseService
 			};
 
 			await _studentQuizCommandRepository.AddAsync(newStudentQuiz);
+			await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
 			// Load quiz with questions and answers
 			var quiz = await GetQuizWithDetailsAsync(request.QuizId, cancellationToken);
