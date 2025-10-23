@@ -263,7 +263,8 @@ public class StudentTestService : IStudentTestService
     public async Task<StudentTestSelectResponse> SelectStudentTestAsync(StudentTestSelectQuery request)
     {
         var response = new StudentTestSelectResponse {Success = false};
-        string cacheKey = $"studentTest:{request.StudentTestId}";
+        
+        string cacheKey = CacheKey.StudentTest(request.StudentTestId);
         
         var studentId = _identityService.GetCurrentUser()!.UserId;
         // Validate student test ownership
@@ -330,6 +331,7 @@ public class StudentTestService : IStudentTestService
                     QuestionText = question.QuestionText,
                     QuestionType = question.QuestionType,
                     DifficultyLevel = question.DifficultyLevel,
+                    Explanation = question.Explanation,
                     Answers = answerResults
                 });
             }

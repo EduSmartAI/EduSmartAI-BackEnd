@@ -19,4 +19,7 @@ public static class CacheKey
 
     public static string UserBehaviours(Guid userId)
         => $"user_behaviour:all:{userId}";
+
+    public static string LearningGoalSelects()
+        => "learning_goals:all";
 }

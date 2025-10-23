@@ -67,7 +67,7 @@ public class LearningGoalService : ILearningGoalService
             
             _unitOfWork.Store(LearningGoalCollection.FromWriteModel(learningGoal));
             await _unitOfWork.SessionSaveChangesAsync();
-            await _unitOfWork.CacheRemoveAsync("learning_goals:all");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningGoalSelects());
             
             // True
             response.Success = true;
@@ -86,7 +86,7 @@ public class LearningGoalService : ILearningGoalService
     {
         var response = new LearningGoalSelectsEventResponse { Success = false};
         
-        string cacheKey = "learning_goals:all";
+        string cacheKey = CacheKey.LearningGoalSelects();
         
         // Get majors from cache or database
         var majors = await _learningGoalQueryRepository.GetOrSetListAsync(
