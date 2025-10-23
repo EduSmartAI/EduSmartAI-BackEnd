@@ -60,7 +60,7 @@ public class LearningGoalService : ILearningGoalService
             {
                 GoalName = request.GoalName,
                 Description = request.Description,
-                LearningGoalType = request.LearningGoalType,
+                LearningGoalType = (short) request.LearningGoalType,
             };
             await _learningGoalCommandRepository.AddAsync(learningGoal, currentUserEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

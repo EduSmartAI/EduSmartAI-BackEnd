@@ -49,7 +49,13 @@ public static class ConstantEnum
         None = 0,
         Frontend = 2,
         Backend = 3,
-        Fullstack = 4
+        Fullstack = 4,
+        Mobile = 5,
+        Devops = 6,
+        DataScience = 7,
+        AI = 8,
+        CloudComputing = 9,
+        CyberSecurity = 10
     }
 
     public enum SurveyCode
