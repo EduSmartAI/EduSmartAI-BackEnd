@@ -27,6 +27,7 @@ public static class RepositoryExtensions
         services.AddScoped<IMajorService, MajorService>();
         services.AddScoped<IAISearchService, AISearchService>();
         services.AddScoped<IChatBotService, ChatBotService>();
+        services.AddScoped<ITavilyService, TavilyService>();
 
         // Services
         services.AddMediatR(cfg =>
