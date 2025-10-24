@@ -1,5 +1,6 @@
 ﻿using AiService.Application.DTOs;
 using AiService.Application.Features.AIChatBot;
+using AiService.Application.Features.AiSearch;
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using MediatR;
@@ -50,6 +51,20 @@ namespace AiService.API.Controller
                 _identityEntity,
                 _httpContextAccessor,
                 new AIChatBotResponse());
+        }
+        [HttpPost("ai-search-assignment")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<AiSearchResponse> SearchWithAi(AiSearchChatBotRequest request)
+        {
+            return await ApiControllerHelper.HandleRequest<AiSearchChatBotRequest, AiSearchResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new AiSearchResponse());
         }
     }
 }
