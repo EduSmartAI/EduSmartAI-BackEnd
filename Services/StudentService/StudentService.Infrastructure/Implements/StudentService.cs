@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit.Initializers;
@@ -61,9 +62,9 @@ public class StudentService : IStudentService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<UserInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default)
+    public async Task<StudentInsertEventResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken = default)
     {
-        var response = new UserInsertEventResponse { Success = false };
+        var response = new StudentInsertEventResponse { Success = false };
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {

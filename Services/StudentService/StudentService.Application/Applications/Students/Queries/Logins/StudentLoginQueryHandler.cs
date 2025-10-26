@@ -7,7 +7,7 @@ using StudentService.Domain.ReadModels;
 
 namespace StudentService.Application.Applications.Students.Queries.Logins;
 
-public class UserLoginQueryHandler : IQueryHandler<UserLoginQuery, UserLoginEventResponse>
+public class StudentLoginQueryHandler : IQueryHandler<StudentLoginQuery, StudentLoginEventResponse>
 {
     private readonly IQueryRepository<StudentCollection> _studentQueryRepository;
 
@@ -15,7 +15,7 @@ public class UserLoginQueryHandler : IQueryHandler<UserLoginQuery, UserLoginEven
     /// Constructor
     /// </summary>
     /// <param name="studentQueryRepository"></param>
-    public UserLoginQueryHandler(IQueryRepository<StudentCollection> studentQueryRepository)
+    public StudentLoginQueryHandler(IQueryRepository<StudentCollection> studentQueryRepository)
     {
         _studentQueryRepository = studentQueryRepository;
     }
@@ -26,9 +26,9 @@ public class UserLoginQueryHandler : IQueryHandler<UserLoginQuery, UserLoginEven
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<UserLoginEventResponse> Handle(UserLoginQuery request, CancellationToken cancellationToken)
+    public async Task<StudentLoginEventResponse> Handle(StudentLoginQuery request, CancellationToken cancellationToken)
     {
-        var response = new UserLoginEventResponse { Success = false };
+        var response = new StudentLoginEventResponse { Success = false };
 
         // Check if the user is a student
         var student = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.UserId);

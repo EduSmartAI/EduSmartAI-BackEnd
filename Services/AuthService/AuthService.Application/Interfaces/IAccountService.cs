@@ -6,7 +6,7 @@ namespace AuthService.Application.Interfaces;
 
 public interface IAccountService
 {
-    Task<StudentInsertResponse> InsertAccountAsync(StudentInsertCommand request, CancellationToken cancellationToken);
+    Task<AccountInsertResponse> InsertAccountAsync(AccountInsertCommand request, CancellationToken cancellationToken);
 
     /// <summary>
     /// Validates user by email,

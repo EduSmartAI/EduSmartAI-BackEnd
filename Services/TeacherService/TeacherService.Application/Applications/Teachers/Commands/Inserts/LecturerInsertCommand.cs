@@ -1,11 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using BuildingBlocks.CQRS;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
-using BuildingBlocks.Messaging.Events.InsertUserEvents;
 
-namespace StudentService.Application.Applications.Students.Commands.Inserts;
+namespace TeacherService.Application.Applications.Teachers.Commands.Inserts;
 
-public record StudentInsertCommand : ICommand<StudentInsertEventResponse>
+public record LecturerInsertCommand : ICommand<LecturerInsertEventResponse>
 {
     [Required(ErrorMessage = "UserId is required")]
     public Guid UserId { get; init; }
@@ -13,14 +12,12 @@ public record StudentInsertCommand : ICommand<StudentInsertEventResponse>
     public Guid? OldUserId { get; init; }
     
     [Required(ErrorMessage = "Email is required")]
-    public string Enail { get; init; } = null!;
+    public string Email { get; init; } = null!;
     
     [Required(ErrorMessage = "FirstName is required")]
     public string FirstName { get; init; } = null!;
     
     [Required(ErrorMessage = "LastName is required")]
     public string LastName { get; init; } = null!;
-    
-    [Required(ErrorMessage = "UserRole is required")]
-    public byte UserRole { get; init; }
 }
+
