@@ -22,6 +22,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<Account>, CommandRepository<Account>>();
         services.AddScoped<ICommandRepository<Role>, CommandRepository<Role>>();
         services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
+        services.AddScoped<ICommandRepository<AdminAccount>, CommandRepository<AdminAccount>>();
         services.AddScoped<IQueryRepository<AccountCollection>, QueryRepository<AccountCollection>>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
         
