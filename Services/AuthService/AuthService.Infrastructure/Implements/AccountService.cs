@@ -22,6 +22,7 @@ public class AccountService : IAccountService
     private readonly IQueryRepository<AccountCollection> _accountQueryRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICommandRepository<OutboxMessage> _outboxCommandRepository;
+    private readonly ICommandRepository<AdminAccount> _adminAccountCommandRepository;
     private readonly ICommonLogic _commonLogic;
 
     public AccountService(
@@ -30,7 +31,8 @@ public class AccountService : IAccountService
         IQueryRepository<AccountCollection> accountQueryRepository,
         IUnitOfWork unitOfWork,
         ICommonLogic commonLogic,
-        ICommandRepository<OutboxMessage> outboxCommandRepository)
+        ICommandRepository<OutboxMessage> outboxCommandRepository, 
+        ICommandRepository<AdminAccount> adminAccountCommandRepository)
     {
         _accountCommandRepository = accountCommandRepository;
         _roleCommandRepository = roleCommandRepository;
@@ -38,6 +40,7 @@ public class AccountService : IAccountService
         _unitOfWork = unitOfWork;
         _commonLogic = commonLogic;
         _outboxCommandRepository = outboxCommandRepository;
+        _adminAccountCommandRepository = adminAccountCommandRepository;
     }
 
     /// <summary>
@@ -46,8 +49,7 @@ public class AccountService : IAccountService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<AccountInsertResponse> InsertAccountAsync(AccountInsertCommand request,
-        CancellationToken cancellationToken)
+    public async Task<AccountInsertResponse> InsertAccountAsync(AccountInsertCommand request, CancellationToken cancellationToken)
     {
         var response = new AccountInsertResponse { Success = false };
 
@@ -403,6 +405,20 @@ public class AccountService : IAccountService
             return true;
         });
         return response;
+    }
+
+    /// <summary>
+    /// Retrieves admin account details by account ID.
+    /// </summary>
+    /// <param name="accountAccountId"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task<AdminAccount?> GetAdminAccountByIdAsync(Guid accountAccountId, CancellationToken cancellationToken)
+    {
+        var adminAccount = _adminAccountCommandRepository
+            .Find(x => x.AccountId == accountAccountId && x.IsActive)
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        return adminAccount;
     }
 
     /// <summary>

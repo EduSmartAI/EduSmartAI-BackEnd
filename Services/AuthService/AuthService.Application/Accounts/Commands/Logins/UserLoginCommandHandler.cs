@@ -73,7 +73,7 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
             }
 
             // Send login event based on role
-            UserLoginEntity? userLoginEntity = null;
+            UserLoginEntity? userLoginEntity;
             
             if (roleName == nameof(ConstantEnum.UserRole.Lecturer))
             {
@@ -115,9 +115,24 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
                     RoleName: roleName
                 );
             }
+            else if (roleName == nameof(ConstantEnum.UserRole.Admin))
+            {
+                var adminAccount = await _accountService.GetAdminAccountByIdAsync(account.AccountId, cancellationToken);
+                if (adminAccount == null)
+                {
+                    response.SetMessage(MessageId.E00000, "Không tìm thấy tài khoản");
+                    return false;
+                }
+                userLoginEntity = new UserLoginEntity(
+                    UserId: account.AccountId,
+                    FullName: adminAccount.FullName,
+                    Email: account.Email,
+                    RoleName: roleName
+                );
+            }
             else
             {
-                response.SetMessage(MessageId.E99999, "Invalid user role");
+                response.SetMessage(MessageId.E99999);
                 return false;
             }
 
