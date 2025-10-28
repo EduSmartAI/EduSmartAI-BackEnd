@@ -6,9 +6,7 @@ namespace TeacherService.Domain.WriteModels;
 public partial class Teacher
 {
     public Guid TeacherId { get; set; }
-
-    public Guid? UserId { get; set; }
-
+    
     public string DisplayName { get; set; } = null!;
 
     public string? FirstName { get; set; }

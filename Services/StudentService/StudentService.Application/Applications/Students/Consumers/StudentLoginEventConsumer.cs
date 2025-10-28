@@ -6,13 +6,13 @@ using StudentService.Application.Applications.Students.Queries.Logins;
 
 namespace StudentService.Application.Applications.Students.Consumers;
 
-public class UserLoginEventConsumer(IMediator mediator) : IConsumer<UserLoginEvent>
+public class StudentLoginEventConsumer(IMediator mediator) : IConsumer<StudentLoginEvent>
 {
-    public async Task Consume(ConsumeContext<UserLoginEvent> context)
+    public async Task Consume(ConsumeContext<StudentLoginEvent> context)
     {
         var evt = context.Message;
         
-        var command = new UserLoginQuery
+        var command = new StudentLoginQuery
         {
             UserId = evt.UserId
         };

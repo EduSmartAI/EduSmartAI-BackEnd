@@ -3,7 +3,7 @@ using BuildingBlocks.CQRS;
 
 namespace AuthService.Application.Accounts.Commands.Inserts;
 
-public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand, StudentInsertResponse>
+public class StudentInsertCommandHandler : ICommandHandler<AccountInsertCommand, AccountInsertResponse>
 {
     private readonly IAccountService _accountService;
 
@@ -18,7 +18,7 @@ public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand,
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentInsertResponse> Handle(StudentInsertCommand request, CancellationToken cancellationToken)
+    public async Task<AccountInsertResponse> Handle(AccountInsertCommand request, CancellationToken cancellationToken)
     {
         return await _accountService.InsertAccountAsync(request, cancellationToken);
     }
