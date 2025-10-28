@@ -1,4 +1,3 @@
-using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using MassTransit;
 using MediatR;
@@ -6,9 +5,9 @@ using StudentService.Application.Applications.Students.Commands.Inserts;
 
 namespace StudentService.Application.Applications.Students.Consumers;
 
-public class UserInsertEventConsumer(IMediator mediator) : IConsumer<StudentInsertEvent>
+public class UserInsertEventConsumer(IMediator mediator) : IConsumer<UserInsertEvent>
 {
-    public async Task Consume(ConsumeContext<StudentInsertEvent> context)
+    public async Task Consume(ConsumeContext<UserInsertEvent> context)
     {
         var evt = context.Message;
         

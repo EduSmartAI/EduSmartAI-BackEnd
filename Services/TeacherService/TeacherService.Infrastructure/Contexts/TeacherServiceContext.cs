@@ -62,7 +62,9 @@ public partial class TeacherServiceContext : AppDbContext
             entity.HasIndex(e => e.DisplayName, "idx_teachers_display_name");
 
             entity.HasIndex(e => e.IsActive, "idx_teachers_is_active");
-            
+
+            entity.HasIndex(e => e.UserId, "uq_teachers_user").IsUnique();
+
             entity.Property(e => e.TeacherId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("teacher_id");
@@ -92,6 +94,7 @@ public partial class TeacherServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
         });
 
         modelBuilder.Entity<TeacherCertificate>(entity =>

@@ -1,7 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
-using TeacherService.Application.Applications.Teachers.Consumers;
 
 namespace TeacherService.API.Extensions;
 
@@ -18,10 +17,6 @@ public static class MessagingExtensions
         services.AddMassTransit(x =>
         {
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "teacher", includeNamespace: false));
-
-            // Add consumers
-            x.AddConsumer<LecturerInsertEventConsumer>();
-            x.AddConsumer<TeacherLoginEventConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {

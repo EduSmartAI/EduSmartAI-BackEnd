@@ -4,7 +4,7 @@ using BuildingBlocks.CQRS;
 
 namespace AuthService.Application.Accounts.Commands.Inserts;
 
-public record AccountInsertCommand : ICommand<AccountInsertResponse>
+public record StudentInsertCommand : ICommand<StudentInsertResponse>
 {
     [Required(ErrorMessage = "Email is required")]
     [EmailAddress(ErrorMessage = "Invalid email format")]
@@ -26,5 +26,5 @@ public record AccountInsertCommand : ICommand<AccountInsertResponse>
     [Required(ErrorMessage = "Tên là bắt buộc")]
     [StringLength(50, MinimumLength = 2, ErrorMessage = "Tên phải từ 2-50 ký tự")]
     [RegularExpression(@"^[\p{L}\s]+$", ErrorMessage = "Tên chỉ được chứa chữ cái và khoảng trắng")]  
-    [DefaultValue("Smart")]
+    [DefaultValue("Smárt")]
     public string LastName { get; init; } = null!;}

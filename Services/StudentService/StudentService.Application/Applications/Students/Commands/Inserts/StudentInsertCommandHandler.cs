@@ -1,11 +1,10 @@
 using BuildingBlocks.CQRS;
-using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Applications.Students.Commands.Inserts;
 
-public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand, StudentInsertEventResponse>
+public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand, UserInsertEventResponse>
 {
     private readonly IStudentService _studentService;
 
@@ -24,7 +23,7 @@ public class StudentInsertCommandHandler : ICommandHandler<StudentInsertCommand,
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentInsertEventResponse> Handle(StudentInsertCommand request, CancellationToken cancellationToken)
+    public async Task<UserInsertEventResponse> Handle(StudentInsertCommand request, CancellationToken cancellationToken)
     {
         return await _studentService.InsertStudentAsync(request, cancellationToken);
     }

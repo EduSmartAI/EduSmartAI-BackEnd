@@ -10,8 +10,6 @@ public class AuthServiceContext(DbContextOptions<AuthServiceContext> options) : 
     
     public virtual DbSet<Role> Roles { get; set; }
     
-    public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
-    
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -43,34 +41,6 @@ public class AuthServiceContext(DbContextOptions<AuthServiceContext> options) : 
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
             entity.Property(x => x.NormalizedName).HasMaxLength(256).IsRequired();
-        });
-        
-        builder.Entity<OutboxMessage>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
-
-            entity.ToTable("outbox_messages");
-
-            entity.Property(e => e.Id)
-                .ValueGeneratedNever()
-                .HasColumnName("id");
-            entity.Property(e => e.Content)
-                .HasColumnType("jsonb")
-                .HasColumnName("content");
-            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("created_by");
-            entity.Property(e => e.IsActive).HasColumnName("is_active");
-            entity.Property(e => e.OccurredOnUtc).HasColumnName("occurred_on_utc");
-            entity.Property(e => e.ProcessedOnUtc).HasColumnName("processed_on_utc");
-            entity.Property(e => e.Type)
-                .HasMaxLength(255)
-                .HasColumnName("type");
-            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
         });
     }
 }

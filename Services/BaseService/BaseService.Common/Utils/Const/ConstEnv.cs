@@ -75,6 +75,4 @@ public static class ConstEnv
     public const string FastMode = "FAST_MODE";
 
     public const string TavilyApiKey = "TAVILY_API_KEY";
-    
-    public const string TeacherServiceDb = "TEACHER_SERVICE_DB";
 }

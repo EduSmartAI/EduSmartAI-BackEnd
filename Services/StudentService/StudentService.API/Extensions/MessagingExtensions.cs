@@ -1,7 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
-using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
@@ -30,7 +29,7 @@ public static class MessagingExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<UserInsertEventConsumer>();
-            x.AddConsumer<StudentLoginEventConsumer>();
+            x.AddConsumer<UserLoginEventConsumer>();
             x.AddConsumer<StudentInformationInsertConsumer>();
             x.AddConsumer<ExternalTechnologySelectsConsumer>();
             x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
@@ -64,8 +63,8 @@ public static class MessagingExtensions
                 cfg.UseInMemoryOutbox();
             });
 
-            x.AddRequestClient<StudentInsertEvent>();
-            x.AddRequestClient<StudentLoginEvent>();
+            x.AddRequestClient<UserInsertEvent>();
+            x.AddRequestClient<UserLoginEvent>();
             x.AddRequestClient<UpdateExternalMajorEvent>();
             x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<CoursesSelectEvent>();

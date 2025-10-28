@@ -1,6 +1,6 @@
-namespace BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
+namespace BuildingBlocks.Messaging.Events.InsertUserEvents;
 
-public record LecturerInsertEvent : IntegrationEvent
+public record UserInsertEvent : IntegrationEvent
 {
     public Guid UserId { get; set; }
     
@@ -11,4 +11,6 @@ public record LecturerInsertEvent : IntegrationEvent
     public string FirstName { get; set; } = null!;
     
     public string LastName { get; set; } = null!;
+    
+    public byte UserRole { get; set; }
 }
