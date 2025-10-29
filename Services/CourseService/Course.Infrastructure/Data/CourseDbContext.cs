@@ -1187,6 +1187,9 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.LastPositionSec)
                 .HasDefaultValue(0)
                 .HasColumnName("last_position_sec");
+            entity.Property(e => e.LastSeenPositionSec)
+                .HasDefaultValue(0)
+                .HasColumnName("last_seen_position_sec");
             entity.Property(e => e.LessonId).HasColumnName("lesson_id");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.UpdatedAt)

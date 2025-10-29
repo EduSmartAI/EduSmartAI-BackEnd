@@ -171,8 +171,9 @@ public static class ConstantEnum
     public enum QuizScope
     {
         Lesson = 1, 
-        Module = 2
-    }
+        Module = 2,
+        Overview = 3
+	}
     
     public enum StudentLearningPathCourseStatus
     {
