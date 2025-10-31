@@ -84,14 +84,14 @@ namespace Course.API.Controllers
 		}
 
 		/// <summary>
-		/// Get course details by ID for students
+		/// Get course progress details by ID for students
 		/// </summary>
 		/// <param name="courseId"></param>
 		/// <returns></returns>
 		[HttpGet("{courseId:guid}")]
 		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Get course details by ID for students",
+			Summary = "Get course progress details by ID for students",
 			Description = "Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to students."
 		)]
 		public async Task<GetDetailsProgressByCourseIdForStudentResponse> GetCourseByIdForStudentAsync(Guid courseId)
@@ -107,14 +107,14 @@ namespace Course.API.Controllers
 		}
 
 		/// <summary>
-		/// Get course details by slug for students
+		/// Get course progress details by slug for students
 		/// </summary>
 		/// <param name="courseSlug"></param>
 		/// <returns></returns>
 		[HttpGet("{courseSlug}")]
 		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Get course details by slug for students",
+			Summary = "Get course progress details by slug for students",
 			Description = "Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to students."
 		)]
 		public async Task<GetDetailsProgressByCourseSlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug)
