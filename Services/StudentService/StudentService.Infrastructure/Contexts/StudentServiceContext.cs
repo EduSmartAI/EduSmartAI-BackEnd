@@ -14,6 +14,8 @@ public partial class StudentServiceContext : AppDbContext
 
     public virtual DbSet<AiEvaluation> AiEvaluations { get; set; }
 
+    public virtual DbSet<AiEvaluationImprovement> AiEvaluationImprovements { get; set; }
+
     public virtual DbSet<LearningGoal> LearningGoals { get; set; }
 
     public virtual DbSet<LearningPath> LearningPaths { get; set; }
@@ -35,72 +37,155 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<Technology> Technologies { get; set; }
 
     public virtual DbSet<UserBehaviour> UserBehaviours { get; set; }
-    
-    public virtual DbSet<CourseSuggestion> CourseSuggestions { get; set; }
-    
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+
+	public virtual DbSet<CourseSuggestion> CourseSuggestions { get; set; }
+
+	protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasPostgresExtension("pgcrypto");
+        modelBuilder
+            .HasPostgresExtension("pgcrypto")
+            .HasPostgresExtension("unaccent");
 
-		modelBuilder.Entity<AiEvaluation>(entity =>
-		{
-			entity.HasKey(e => e.EvaluationId).HasName("ai_evaluations_pkey");
+        modelBuilder.Entity<AiEvaluation>(entity =>
+        {
+            entity.HasKey(e => e.EvaluationId).HasName("ai_evaluations_pkey");
 
-			entity.ToTable("ai_evaluations");
+            entity.ToTable("ai_evaluations");
 
-			entity.HasIndex(e => e.AttemptId, "ai_evaluations_attempt_id_key").IsUnique();
+            entity.HasIndex(e => e.AttemptId, "ai_evaluations_attempt_id_key").IsUnique();
 
-			entity.HasIndex(e => e.CreatedAt, "idx_ai_eval_created").IsDescending();
+            entity.HasIndex(e => e.CreatedAt, "idx_ai_eval_created").IsDescending();
 
-			entity.HasIndex(e => new { e.UserId, e.CourseId, e.Scope, e.ScopeId }, "idx_ai_eval_user_course_scope");
+            entity.HasIndex(e => new { e.UserId, e.CourseId, e.Scope, e.ScopeId }, "idx_ai_eval_user_course_scope");
 
-			entity.Property(e => e.EvaluationId)
-				.HasDefaultValueSql("gen_random_uuid()")
-				.HasColumnName("evaluation_id");
-			entity.Property(e => e.Actions)
-				.IsRequired()
-				.HasColumnType("jsonb")
-				.HasColumnName("actions");
-			entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
-			entity.Property(e => e.Confidence)
-				.HasPrecision(3, 2)
-				.HasColumnName("confidence");
-			entity.Property(e => e.CourseId).HasColumnName("course_id");
-			entity.Property(e => e.CreatedAt)
-				.HasDefaultValueSql("now()")
-				.HasColumnName("created_at");
-			entity.Property(e => e.Improvements)
-				.IsRequired()
-				.HasColumnType("jsonb")
-				.HasColumnName("improvements");
-			entity.Property(e => e.Model)
-				.IsRequired()
-				.HasColumnName("model");
-			entity.Property(e => e.QuizId).HasColumnName("quiz_id");
-			entity.Property(e => e.RubricVersion)
-				.IsRequired()
-				.HasColumnName("rubric_version");
-			entity.Property(e => e.Scope).HasColumnName("scope");
-			entity.Property(e => e.ScopeId).HasColumnName("scope_id");
-			entity.Property(e => e.Score100).HasColumnName("score_100");
-			entity.Property(e => e.Score100Raw).HasColumnName("score_100_raw");
-			entity.Property(e => e.SkillGaps)
-				.IsRequired()
-				.HasColumnType("jsonb")
-				.HasColumnName("skill_gaps");
-			entity.Property(e => e.Strengths)
-				.IsRequired()
-				.HasColumnType("jsonb")
-				.HasColumnName("strengths");
-			entity.Property(e => e.Summary).HasColumnName("summary");
-			entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.EvaluationId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("evaluation_id");
+            entity.Property(e => e.Actions)
+                .IsRequired()
+                .HasColumnType("jsonb")
+                .HasColumnName("actions");
+            entity.Property(e => e.AttemptId).HasColumnName("attempt_id");
+            entity.Property(e => e.Confidence)
+                .HasPrecision(3, 2)
+                .HasColumnName("confidence");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.Improvements)
+                .IsRequired()
+                .HasColumnType("jsonb")
+                .HasColumnName("improvements");
+            entity.Property(e => e.Model)
+                .IsRequired()
+                .HasColumnName("model");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+            entity.Property(e => e.RubricVersion)
+                .IsRequired()
+                .HasColumnName("rubric_version");
+            entity.Property(e => e.Scope).HasColumnName("scope");
+            entity.Property(e => e.ScopeId).HasColumnName("scope_id");
+            entity.Property(e => e.Score100).HasColumnName("score_100");
+            entity.Property(e => e.Score100Raw).HasColumnName("score_100_raw");
+            entity.Property(e => e.SkillGaps)
+                .IsRequired()
+                .HasColumnType("jsonb")
+                .HasColumnName("skill_gaps");
+            entity.Property(e => e.Strengths)
+                .IsRequired()
+                .HasColumnType("jsonb")
+                .HasColumnName("strengths");
+            entity.Property(e => e.Summary).HasColumnName("summary");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
 
-			entity.HasOne(d => d.User).WithMany(p => p.AiEvaluations)
-				.HasForeignKey(d => d.UserId)
-				.HasConstraintName("ai_evaluations_user_id_fkey");
-		});
+            entity.HasOne(d => d.User).WithMany(p => p.AiEvaluations)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("ai_evaluations_user_id_fkey");
+        });
 
-		modelBuilder.Entity<LearningGoal>(entity =>
+        modelBuilder.Entity<AiEvaluationImprovement>(entity =>
+        {
+            entity.HasKey(e => e.ImprovementId).HasName("ai_evaluation_improvements_pkey");
+
+            entity.ToTable("ai_evaluation_improvements");
+
+            entity.HasIndex(e => e.EvaluationId, "idx_impr_eval");
+
+            entity.HasIndex(e => e.Slug, "idx_impr_slug");
+
+            entity.HasIndex(e => new { e.EvaluationId, e.PositionIndex }, "uq_impr_eval_pos").IsUnique();
+
+            entity.Property(e => e.ImprovementId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("improvement_id");
+            entity.Property(e => e.ContentMarkdown).HasColumnName("content_markdown");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.EvaluationId).HasColumnName("evaluation_id");
+            entity.Property(e => e.ImprovementsText)
+                .IsRequired()
+                .HasColumnName("improvements_text");
+            entity.Property(e => e.PositionIndex).HasColumnName("position_index");
+            entity.Property(e => e.Slug).HasColumnName("slug");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+
+            entity.HasOne(d => d.Evaluation).WithMany(p => p.AiEvaluationImprovements)
+                .HasForeignKey(d => d.EvaluationId)
+                .HasConstraintName("ai_evaluation_improvements_evaluation_id_fkey");
+        });
+
+        modelBuilder.Entity<CourseSuggestion>(entity =>
+        {
+            entity.HasKey(e => e.CourseSuggestionId).HasName("course_suggestions_pkey");
+
+            entity.ToTable("course_suggestions");
+
+            entity.HasIndex(e => new { e.StudentId, e.IsAccepted }, "idx_course_suggestion_accepted");
+
+            entity.HasIndex(e => e.CreatedAt, "idx_course_suggestion_created").IsDescending();
+
+            entity.HasIndex(e => new { e.StudentId, e.IsActive }, "idx_course_suggestion_student");
+
+            entity.HasIndex(e => new { e.StudentId, e.OriginalCourseId, e.SuggestedCourseId, e.IsActive }, "uq_course_suggestion").IsUnique();
+
+            entity.Property(e => e.CourseSuggestionId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("course_suggestion_id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsAccepted).HasColumnName("is_accepted");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.OriginalCourseId).HasColumnName("original_course_id");
+            entity.Property(e => e.Reason)
+                .IsRequired()
+                .HasColumnName("reason");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.SuggestedCourseId).HasColumnName("suggested_course_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .IsRequired()
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Student).WithMany(p => p.CourseSuggestions)
+                .HasForeignKey(d => d.StudentId)
+                .HasConstraintName("fk_course_suggestion_student");
+        });
+
+        modelBuilder.Entity<LearningGoal>(entity =>
         {
             entity.HasKey(e => e.GoalId).HasName("learning_goals_pkey");
 
@@ -511,47 +596,8 @@ public partial class StudentServiceContext : AppDbContext
                 .HasConstraintName("fk_user_behaviour_user");
         });
 
-        modelBuilder.Entity<CourseSuggestion>(entity =>
-        {
-            entity.HasKey(e => e.CourseSuggestionId).HasName("course_suggestions_pkey");
-
-            entity.ToTable("course_suggestions");
-
-            entity.HasIndex(e => new { e.StudentId, e.IsActive }, "idx_course_suggestion_student");
-            entity.HasIndex(e => new { e.StudentId, e.IsAccepted }, "idx_course_suggestion_accepted");
-            entity.HasIndex(e => e.CreatedAt, "idx_course_suggestion_created").IsDescending();
-            entity.HasIndex(e => new { e.StudentId, e.OriginalCourseId, e.SuggestedCourseId, e.IsActive }, "uq_course_suggestion").IsUnique();
-
-            entity.Property(e => e.CourseSuggestionId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("course_suggestion_id");
-            entity.Property(e => e.StudentId).HasColumnName("student_id");
-            entity.Property(e => e.OriginalCourseId).HasColumnName("original_course_id");
-            entity.Property(e => e.SuggestedCourseId).HasColumnName("suggested_course_id");
-            entity.Property(e => e.Reason)
-                .IsRequired()
-                .HasColumnName("reason");
-            entity.Property(e => e.IsAccepted).HasColumnName("is_accepted");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("created_by");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-
-            entity.HasOne(d => d.Student).WithMany()
-                .HasForeignKey(d => d.StudentId)
-                .OnDelete(DeleteBehavior.Cascade)
-                .HasConstraintName("fk_course_suggestion_student");
-        });
+        OnModelCreatingPartial(modelBuilder);
     }
+
+    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }
