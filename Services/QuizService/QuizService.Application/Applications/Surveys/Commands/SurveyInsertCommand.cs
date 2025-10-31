@@ -26,7 +26,7 @@ public record SurveyQuestionRequest
     public string QuestionText { get; set; } = null!;
     
     [Required(ErrorMessage = "QuestionType is required")]
-    public short QuestionType { get; set; }
+    public ConstantEnum.QuestionType QuestionType { get; set; }
 
     [Required(ErrorMessage = "Answers are required")]
     public List<SurveyAnswerRequest> Answers { get; set; } = null!;

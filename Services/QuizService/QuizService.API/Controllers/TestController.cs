@@ -37,30 +37,6 @@ public class TestController : ControllerBase
         _identityService = identityService;
         _httpContextAccessor = httpContextAccessor;
     }
-
-    /// <summary>
-    /// Incoming Post
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpPost("[action]")]
-    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Tạo bài kiểm tra mới",
-        Description = "Cần cấp quyền Admin cho API"
-    )]
-    public async Task<TestInsertResponse> InsertTest(TestInsertCommand request)
-    {
-        return await ApiControllerHelper.HandleRequest<TestInsertCommand, TestInsertResponse, string>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            _identityService,
-            _identityEntity,
-            _httpContextAccessor,
-            new TestInsertResponse());
-    }
     
     [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]

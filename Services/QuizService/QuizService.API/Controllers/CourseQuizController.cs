@@ -24,7 +24,6 @@ namespace QuizService.API.Controllers;
 [Route("api/v1/[controller]")]
 public class CourseQuizController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor) : ControllerBase
 {
-
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly IdentityEntity _identityEntity;
     

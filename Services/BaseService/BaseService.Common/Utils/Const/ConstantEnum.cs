@@ -179,9 +179,7 @@ public static class ConstantEnum
         NotStarted = 0,
         InProgress = 1,
         Completed = 2,
-        Failed = 3,
-        Skipped = 4,
-        Locked = 5
+        Skipped = 3,
     }
     
     public enum SuggestionType
@@ -192,7 +190,7 @@ public static class ConstantEnum
     }
     
     // Course Suggestion Constants
-    public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m; // 40%
+    public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m;
     public const decimal PASSING_SCORE = 4.0m;
     
 	public enum ModuleProgressStatus : short

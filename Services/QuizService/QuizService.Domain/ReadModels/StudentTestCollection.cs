@@ -1,3 +1,4 @@
+using BaseService.Domain.Snapshort;
 using QuizService.Domain.WriteModels;
 
 namespace QuizService.Domain.ReadModels;
@@ -15,11 +16,13 @@ public sealed class StudentTestCollection
     public string UpdatedBy { get; set; } = null!;
     public bool IsActive { get; set; }
     
+    public UserInformation Student { get; set; }
+    
     public ICollection<StudentQuizCollection> StudentQuizzes { get; set; } = new List<StudentQuizCollection>();
     
     public ICollection<StudentAnswerCollection> StudentAnswers { get; set; } = new List<StudentAnswerCollection>();
 
-    public static StudentTestCollection FromWriteModel(StudentTest model)
+    public static StudentTestCollection FromWriteModel(StudentTest model, UserInformation user)
     {
         var st = new StudentTestCollection
         {
@@ -32,7 +35,8 @@ public sealed class StudentTestCollection
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,
             UpdatedBy = model.UpdatedBy,
-            IsActive = model.IsActive
+            IsActive = model.IsActive,
+            Student = user
         };
 
         if (model.StudentAnswers.Any())

@@ -3,6 +3,7 @@ using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
+using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
@@ -146,7 +147,7 @@ public class StudentTestService : IStudentTestService
             foreach (var studentQuiz in studentQuizzes)
             {
                 var quiz = testExist.Quizzes.FirstOrDefault(qu => qu.QuizId == studentQuiz.QuizId);
-                var studentQuizCollection = StudentQuizCollection.FromWriteModel(studentQuiz, quiz);
+                var studentQuizCollection = StudentQuizCollection.FromWriteModel(studentQuiz, quiz, new UserInformation{Email = currentUser.Email, FullName = currentUser.FullName});
                 _unitOfWork.Store(studentQuizCollection);
                 studentQuizCollections.Add(studentQuizCollection);
             }
@@ -166,6 +167,7 @@ public class StudentTestService : IStudentTestService
                 CreatedBy = studentTest.CreatedBy,
                 UpdatedAt = studentTest.UpdatedAt,
                 UpdatedBy = studentTest.UpdatedBy,
+                Student = new UserInformation {Email = currentUser.Email, FullName = currentUser.FullName},
                 StudentAnswers = studentTest.StudentAnswers.Select(sa => new StudentAnswerCollection
                 {
                     QuestionId = sa.QuestionId,

@@ -22,4 +22,7 @@ public static class CacheKey
 
     public static string LearningGoalSelects()
         => "learning_goals:all";
+
+    public static string QuizList()
+        => "quiz:list";
 }

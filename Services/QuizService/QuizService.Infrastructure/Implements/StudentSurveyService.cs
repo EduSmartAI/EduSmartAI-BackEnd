@@ -2,6 +2,7 @@ using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
@@ -279,6 +280,7 @@ public class StudentSurveyService : IStudentSurveyService
                 StudentQuizId = studentQuiz.StudentQuizId,
                 QuizType = studentQuiz.QuizType,
                 StudentId = studentQuiz.StudentId,
+                Student = new UserInformation {Email = _identityService.GetCurrentUser()!.Email, FullName = _identityService.GetCurrentUser()!.FullName},
                 QuizId = studentQuiz.QuizId,
                 IsActive = studentQuiz.IsActive,
                 CreatedAt = studentQuiz.CreatedAt,
