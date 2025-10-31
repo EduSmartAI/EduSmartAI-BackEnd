@@ -43,5 +43,7 @@ public partial class AiEvaluation
 
     public short? Score100Raw { get; set; }
 
+    public virtual ICollection<AiEvaluationImprovement> AiEvaluationImprovements { get; set; } = new List<AiEvaluationImprovement>();
+
     public virtual Student User { get; set; }
 }

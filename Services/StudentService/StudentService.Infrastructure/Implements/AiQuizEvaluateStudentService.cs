@@ -91,7 +91,7 @@ namespace StudentService.Infrastructure.Implements
 			}
 
 			// Base query: theo student + course + scope = Module + scope_id ∈ ModuleIds
-			var q = _aiEvaluateCommandRepository.Find(
+			var baseQuery = _aiEvaluateCommandRepository.Find(
 				ev => ev.UserId == request.StudentId
 				   && ev.CourseId == request.CourseId
 				   && ev.Scope == (short)QuizScope.Module
@@ -102,7 +102,7 @@ namespace StudentService.Infrastructure.Implements
 
 			// Lấy newest per module (GroupBy → OrderByDescending → FirstOrDefault)
 			// EF Core 6/7/8 dịch tốt pattern này về SQL (SELECT DISTINCT ON / CROSS APPLY tùy provider)
-			var latestPerModule = await q
+			var latestPerModule = await baseQuery
 				.GroupBy(ev => ev.ScopeId)
 				.Select(g => g.OrderByDescending(ev => ev.CreatedAt).FirstOrDefault()!)
 				.ToListAsync(cancellationToken);
