@@ -143,7 +143,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             LearningPathMajorId = major.LearningPathMajorId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                             Position = stepOrder,
                             StepName = step.Title,
                             ExternalCourseLink = sc.Link,
@@ -234,7 +234,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = courseId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
@@ -256,7 +256,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = courseId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
                         }).ToList()
                 };
 
@@ -360,7 +360,7 @@ public class LearningPathService : ILearningPathService
                             {
                                 LearningPathCourseId = Guid.NewGuid(),
                                 LearningPathMajorId = major.LearningPathMajorId,
-                                Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                                Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                                 Position = stepOrder,
                                 StepName = step.Title,
                                 ExternalCourseLink = sc.Link,
@@ -515,13 +515,14 @@ public class LearningPathService : ILearningPathService
         // 4) Fill BasicLearningPath.Courses
         var basicCourses = readModel.LearningPathMajors
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic)
-            .SelectMany(m => m.LearningPathCourses)
+            .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
             .Where(c => c.InternalCourseId.HasValue)
             .Select(c =>
             {
                 dictBasic.TryGetValue(c.InternalCourseId!.Value, out var info);
                 return _mapper.Map<CourseItemDto>((c, info));
             })
+            .Where(ci => ci != null)
             .OrderBy(c => c.SemesterPosition)
             .ToList();
 
@@ -940,7 +941,7 @@ public class LearningPathService : ILearningPathService
             var course = await _learningPathCourseCommandRepository
                 .Find(c => c.LearningPathCourseId == request.LearningPathCourseId && c.IsActive,
                     isTracking: true,
-                    cancellationToken: cancellationToken, 
+                    cancellationToken: cancellationToken,
                     c => c.LearningPathMajor)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -952,8 +953,8 @@ public class LearningPathService : ILearningPathService
 
             // 2. Verify that this course belongs to the current user's learning path
             var learningPath = await _learningPathCommandRepository
-                .Find(lp => lp.PathId == course.LearningPathMajor.PathId 
-                            && lp.StudentId == currentUser.UserId 
+                .Find(lp => lp.PathId == course.LearningPathMajor.PathId
+                            && lp.StudentId == currentUser.UserId
                             && lp.IsActive,
                       cancellationToken: cancellationToken)
                 .FirstOrDefaultAsync(cancellationToken);
@@ -967,30 +968,30 @@ public class LearningPathService : ILearningPathService
             // 3. Update course status to Skipped in write model
             course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
             _learningPathCourseCommandRepository.Update(course, currentUser.Email);
-            
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // 4. Update read model - get learning path với nested majors và courses
             var learningPathRead = await _learningPathQueryRepository
                 .FirstOrDefaultAsync(lp => lp.PathId == learningPath.PathId && lp.IsActive);
-            
+
             if (learningPathRead != null)
             {
                 // Find the major containing this course
                 var majorContainingCourse = learningPathRead.LearningPathMajors
                     .FirstOrDefault(m => m.LearningPathCourses
                         .Any(c => c.LearningPathCourseId == request.LearningPathCourseId));
-                
+
                 if (majorContainingCourse != null)
                 {
                     // Find and update the course status
                     var courseToUpdate = majorContainingCourse.LearningPathCourses
                         .FirstOrDefault(c => c.LearningPathCourseId == request.LearningPathCourseId);
-                    
+
                     if (courseToUpdate != null)
                     {
                         courseToUpdate.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-                        
+
                         // Store updated learning path with nested data
                         _unitOfWork.Store(learningPathRead);
                         await _unitOfWork.SessionSaveChangesAsync();

@@ -5,6 +5,8 @@ using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
+using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
@@ -40,9 +42,10 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
-			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
-			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
-			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+            x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+            x.AddConsumer<SuggestCourseCollectionEventConsumer>();
+            x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+            x.AddConsumer<GetInfoEvaluationConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -55,7 +58,7 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
-                
+
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
@@ -73,6 +76,8 @@ public static class MessagingExtensions
             x.AddRequestClient<GetCourseInfoEvent>();
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
+            x.AddRequestClient<GetInfoEvaluationEvent>();
+            x.AddRequestClient<GetAllDetailCourseEvent>();
         });
 
         return services;

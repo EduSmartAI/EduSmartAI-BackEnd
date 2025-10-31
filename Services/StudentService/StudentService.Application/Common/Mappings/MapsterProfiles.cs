@@ -19,6 +19,7 @@ namespace StudentService.Application.Common.Mappings
 
             // Enrich CourseItemDto from (Course + Info)
             config.NewConfig<(LearningPathCourseCollection c, InternalCourseInfoDto? info), CourseItemDto>()
+                .ConstructUsing(_ => new CourseItemDto())
                 .Map(d => d.CourseId, s => s.c.InternalCourseId.HasValue ? s.c.InternalCourseId.Value.ToString() : null)
                 .Map(d => d.SemesterPosition, s => s.info != null ? (int)s.info.SemesterNumber : 0)
                 .Map(d => d.Description, s => s.info != null ? s.info.Description : string.Empty)

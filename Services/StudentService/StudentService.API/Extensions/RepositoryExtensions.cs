@@ -35,10 +35,10 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<LearningPathMajor>, CommandRepository<LearningPathMajor>>();
         services.AddScoped<ICommandRepository<LearningPathCourse>, CommandRepository<LearningPathCourse>>();
         services.AddScoped<ICommandRepository<UserBehaviour>, CommandRepository<UserBehaviour>>();
-		services.AddScoped<ICommandRepository<AiEvaluation>, CommandRepository<AiEvaluation>>();
-		services.AddScoped<ICommandRepository<CourseSuggestion>, CommandRepository<CourseSuggestion>>();
+        services.AddScoped<ICommandRepository<AiEvaluation>, CommandRepository<AiEvaluation>>();
+        services.AddScoped<ICommandRepository<CourseSuggestion>, CommandRepository<CourseSuggestion>>();
 
-		services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
+        services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();
         services.AddScoped<IQueryRepository<StudentLearningGoalCollection>, QueryRepository<StudentLearningGoalCollection>>();
         services.AddScoped<IQueryRepository<TechnologyCollection>, QueryRepository<TechnologyCollection>>();
@@ -58,6 +58,7 @@ public static class RepositoryExtensions
         services.AddScoped<IAiQuizEvaluateStudentService, AiQuizEvaluateStudentService>();
         services.AddScoped<ICourseSuggestionService, CourseSuggestionService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IAiEvaluationService, AiEvaluationService>();
 
         // MediatR configuration
         services.AddMediatR(cfg =>
