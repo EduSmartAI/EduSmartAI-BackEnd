@@ -36,29 +36,4 @@ public class LearningGoalController : ControllerBase
         _identityService = identityService;
         _httpContextAccessor = httpContextAccessor;
     }
-    
-    /// <summary>
-    /// Incoming Post
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpPost]
-    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Tạo mục tiêu học tập mới",
-        Description = "Cần cấp quyền Admin"
-    )]
-    public async Task<LearningGoalInsertResponse> InsertLearningGoal(LearningGoalInsertCommand request)
-    {
-        return await ApiControllerHelper.HandleRequest<LearningGoalInsertCommand, LearningGoalInsertResponse, string>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            _identityService,
-            _identityEntity,
-            _httpContextAccessor,
-            new LearningGoalInsertResponse()
-        );
-    }
 }
