@@ -346,7 +346,7 @@ namespace Course.Infrastructure.Helpers.Courses
 
 							var has = progressByLessonId.TryGetValue(l.LessonId, out var lp);
 							var isCompleted = has && lp!.Status == (short)LessonStatus.Completed;
-							var lastPos = has ? lp!.LastPositionSec : 0;
+							var lastPos = has ? lp!.LastSeenPositionSec : 0;
 
 							return new StudentLessonDetailDto(
 								l.LessonId,
