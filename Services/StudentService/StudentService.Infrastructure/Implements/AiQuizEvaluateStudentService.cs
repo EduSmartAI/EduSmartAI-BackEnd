@@ -14,7 +14,8 @@ namespace StudentService.Infrastructure.Implements
 {
 	public class AiQuizEvaluateStudentService(
 		IUnitOfWork unitOfWork,
-		ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository) : IAiQuizEvaluateStudentService
+		ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository,
+		ICommandRepository<AiEvaluationImprovement> _aiEvaluationImprovementCommandRepository) : IAiQuizEvaluateStudentService
 	{
 		/// <summary>
 		/// Create AI Quiz Evaluate
@@ -65,8 +66,29 @@ namespace StudentService.Infrastructure.Implements
 							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
 						}, ct);
 
-			// response
-			response.Success = true;
+			if (aiEvaluationUpsertEvent.Improvements is { Count: > 0 })
+			{
+				var improvements = aiEvaluationUpsertEvent.Improvements
+					.Select((text, idx) => new AiEvaluationImprovement
+					{
+						// ImprovementId do DB tự sinh (DEFAULT gen_random_uuid())
+						EvaluationId = result.EvaluationId,
+						PositionIndex = idx,
+						ImprovementsText = text,
+						ContentMarkdown = null,
+					})
+					.ToList();
+
+				await unitOfWork.BeginTransactionAsync(async () =>
+				{
+					await _aiEvaluationImprovementCommandRepository.AddRangeAsync(improvements);
+					await unitOfWork.SaveChangesAsync(ct);
+					return true; // yêu cầu của BeginTransactionAsync: trả true để commit
+				}, ct);
+			}
+
+				// response
+				response.Success = true;
 			response.Response = result.EvaluationId.ToString();
 			response.SetMessage(MessageId.I00001, "Lưu kết quả AI đánh giá thành công");
 
