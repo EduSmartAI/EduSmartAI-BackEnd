@@ -249,7 +249,7 @@ namespace Course.Infrastructure.Implements
 			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
 				.Select(x => new LessonProgressSnap(
-					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
+					x.LessonId, x.Status, x.LastSeenPositionSec, x.CompletedAt))
 				.ToListAsync(ct);
 			var progressByLessonId =
 				lessonProgress.ToDictionary(x => x.LessonId, x => x);
@@ -414,7 +414,7 @@ namespace Course.Infrastructure.Implements
 			var lessonProgress = await _userLessonProgress
 				.Find(x => x.UserId == userId && lessonIds.Contains(x.LessonId), isTracking: false, ct)
 				.Select(x => new LessonProgressSnap(
-					x.LessonId, x.Status, x.LastPositionSec ?? 0, x.CompletedAt))
+					x.LessonId, x.Status, x.LastSeenPositionSec, x.CompletedAt))
 				.ToListAsync(ct);
 			var progressByLessonId =
 				lessonProgress.ToDictionary(x => x.LessonId, x => x);
@@ -473,6 +473,7 @@ namespace Course.Infrastructure.Implements
 			var response = new UpsertUserLessonProgressResponse() { Success = false };
 			var currentUser = _identityService.GetCurrentUser()!;
 			var userId = currentUser.UserId;
+			//var userId = new Guid("74984b58-f266-4d92-b6b1-3a4d65aa01d2")
 			var now = DateTime.UtcNow;
 			const int MaxDeltaPerTick = 300;
 
@@ -492,20 +493,35 @@ namespace Course.Infrastructure.Implements
 				.Find(x => x.UserId == userId && x.LessonId == lessonId, isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
 
+			// Chuẩn hóa input
+			int? incomingSeen = dto.LastSeenPositionSec.HasValue ? ClampNonNeg(dto.LastSeenPositionSec.Value, videoMax) : null;
+
+			int watchedDelta = (dto.WatchedDeltaSec is int d && d > 0) ? Math.Min(d, MaxDeltaPerTick) : 0;
+
 			// 3) Nếu chưa có → tạo mới
 			if (progress is null)
 			{
+				var lastSeen = incomingSeen ?? 0;
+				var lastMax = lastSeen;
+
 				progress = new UserLessonProgress
 				{
 					UserId = userId,
 					LessonId = lessonId,
 					Status = (short)LessonStatus.InProgress,
-					LastPositionSec = 0,
-					DurationWatchedSec = 0,
+					LastSeenPositionSec = lastSeen,
+					LastPositionSec = lastMax,
+					DurationWatchedSec = watchedDelta,
 					CreatedAt = now,
 					UpdatedAt = now,
 					CompletedAt = null
 				};
+
+				if (ShouldCompleteSimple(videoMax, progress.LastPositionSec))
+				{
+					progress.Status = (short)LessonStatus.Completed;
+					progress.CompletedAt = now;
+				}
 
 				await unitOfWork.BeginTransactionAsync(async () =>
 				{
@@ -522,8 +538,8 @@ namespace Course.Infrastructure.Implements
 				var result = new UserLessonProgressEntity(
 					progress.LessonId, 
 					progress.Status,
-					progress.LastPositionSec ?? 0, 
-					progress.DurationWatchedSec, 
+					progress.LastPositionSec ?? 0,
+					progress.DurationWatchedSec,
 					progress.CompletedAt);
 
 				response.Success = true;
@@ -533,19 +549,15 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// 4) ĐÃ CÓ RECORD
+			if (incomingSeen.HasValue) progress.LastSeenPositionSec = incomingSeen.Value;
+
+			progress.LastPositionSec = Math.Max(progress.LastPositionSec ?? 0, progress.LastSeenPositionSec);
+
+			if (watchedDelta > 0) progress.DurationWatchedSec += watchedDelta;
+
 			// 4.a) Nếu đã Completed: KHÔNG cho revert; chỉ cập nhật resume/time
 			if (progress.Status == (short)LessonStatus.Completed)
 			{
-				if (dto.LastPositionSec.HasValue)
-				{
-					var clamped = Math.Clamp(dto.LastPositionSec.Value, 0, videoMax);
-					progress.LastPositionSec = Math.Max(progress.LastPositionSec ?? 0, clamped);
-				}
-				if (dto.WatchedDeltaSec is int d && d > 0)
-				{
-					progress.DurationWatchedSec += Math.Min(d, MaxDeltaPerTick);
-				}
-
 				progress.UpdatedAt = now;
 
 				await unitOfWork.BeginTransactionAsync(async () =>
@@ -574,15 +586,6 @@ namespace Course.Infrastructure.Implements
 			}
 
 			// 4.b) Chưa Completed: cập nhật đơn điệu + tự xét Completed
-			if (dto.LastPositionSec.HasValue)
-			{
-				var clamped = Math.Clamp(dto.LastPositionSec.Value, 0, videoMax);
-				progress.LastPositionSec = Math.Max(progress.LastPositionSec ?? 0, clamped);
-			}
-			if (dto.WatchedDeltaSec is int d2 && d2 > 0)
-			{
-				progress.DurationWatchedSec += Math.Min(d2, MaxDeltaPerTick);
-			}
 
 			// Auto-complete sau khi đã cập nhật vị trí/thời gian
 			if (ShouldCompleteSimple(videoMax, progress.LastPositionSec))
@@ -622,5 +625,14 @@ namespace Course.Infrastructure.Implements
 			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ thành công.");
 			return response;
 		}
+
+		/// <summary>
+		/// Helpers
+		/// </summary>
+		/// <param name="value"></param>
+		/// <param name="max"></param>
+		/// <returns></returns>
+		private static int ClampNonNeg(int value, int max) => Math.Clamp(value, 0, max);
+
 	}
 }
