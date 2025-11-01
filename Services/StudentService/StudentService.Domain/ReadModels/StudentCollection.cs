@@ -23,7 +23,9 @@ public sealed class StudentCollection
     public string? UpdatedBy { get; set; }
     public bool IsActive { get; set; }
     
-    public ICollection<StudentLearningGoalCollection> LearningGoals { get; set; } = new List<StudentLearningGoalCollection>();
+    public List<StudentLearningGoalCollection> LearningGoals { get; set; }
+    
+    public List<StudentTechnologyCollection> Technologies { get; set; }
 
     public static StudentCollection FromWriteModel(Student model, string? semesterName, string? majorName, bool included = false)
     {

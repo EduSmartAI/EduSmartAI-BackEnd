@@ -1,0 +1,30 @@
+using BuildingBlocks.CQRS;
+
+namespace StudentService.Application.Applications.Students.Commands.Updates;
+
+public class StudentProfileUpdateCommand : ICommand<StudentProfileUpdateResponse>
+{
+    public string? FirstName { get; set; }
+
+    public string? LastName { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    public string? PhoneNumber { get; set; }
+
+    public short? Gender { get; set; }
+
+    public string? AvatarUrl { get; set; }
+
+    public string? Address { get; set; }
+
+    public Guid? MajorId { get; set; }
+
+    public string? Bio { get; set; }
+
+    public Guid? SemesterId { get; set; }
+    
+    public List<Guid>? Technologies { get; set; }
+    
+    public List<Guid>? LearningGoals { get; set; }
+}

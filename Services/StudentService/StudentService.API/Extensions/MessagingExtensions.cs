@@ -44,6 +44,7 @@ public static class MessagingExtensions
 			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
 			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
 			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+			x.AddConsumer<StudentCollectionEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 

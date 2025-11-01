@@ -41,7 +41,6 @@ public static class ConstantEnum
     {
         ProgrammingLanguage = 1,
         Framework = 2,
-        Database = 3,
     }
 
     public enum LearningGoalType

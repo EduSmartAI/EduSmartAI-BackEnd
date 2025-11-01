@@ -1,3 +1,4 @@
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 
 namespace StudentService.Application.Applications.Technologies.Commands;
@@ -8,5 +9,5 @@ public class TechnologyInsertCommand : ICommand<TechnologyInsertResponse>
 
     public string? Description { get; set; }
     
-    public short TechnologyType { get; set; }
+    public ConstantEnum.TechnologyType TechnologyType { get; set; }
 }

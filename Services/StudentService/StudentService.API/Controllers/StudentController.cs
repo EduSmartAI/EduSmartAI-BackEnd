@@ -10,7 +10,9 @@ namespace StudentService.API.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class StudentController : ControllerBase
+public class StudentController(ISender sender) : ControllerBase
 {
+    private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
     
 }

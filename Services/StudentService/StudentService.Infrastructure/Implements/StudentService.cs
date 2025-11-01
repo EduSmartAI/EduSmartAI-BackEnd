@@ -1,12 +1,14 @@
 using System.Text.Json;
+using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
-using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
-using MassTransit.Initializers;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Students.Commands.Inserts;
+using StudentService.Application.Applications.Students.Commands.Updates;
+using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
@@ -25,6 +27,8 @@ public class StudentService : IStudentService
     private readonly ICommandRepository<OutboxMessage> _outboxService;
     private readonly IQueryRepository<LearningGoalCollection> _learningGoalQueryRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IIdentityService _identityService;
+    private readonly IRequestClient<MajorAndSemesterSelectEvent> _requestClientMajorAndSemesterSelect;
 
     /// <summary>
     /// Constructor
@@ -36,6 +40,8 @@ public class StudentService : IStudentService
     /// <param name="studentLearningGoalRepository"></param>
     /// <param name="learningGoalQueryRepository"></param>
     /// <param name="outboxService"></param>
+    /// <param name="identityService"></param>
+    /// <param name="requestClientMajorAndSemesterSelect"></param>
     public StudentService(IQueryRepository<StudentCollection> studentQueryRepository,
         ICommandRepository<Student> studentRepository, IUnitOfWork unitOfWork,
         ICommandRepository<StudentTechnology> studentTechnologyRepository,
@@ -43,7 +49,9 @@ public class StudentService : IStudentService
         IQueryRepository<LearningGoalCollection> learningGoalQueryRepository, 
         ICommandRepository<OutboxMessage> outboxService, 
         IQueryRepository<TechnologyCollection> technologyQueryRepository,
-        IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository)
+        IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository, 
+        IIdentityService identityService,
+        IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect)
     {
         _studentQueryRepository = studentQueryRepository;
         _studentRepository = studentRepository;
@@ -54,6 +62,8 @@ public class StudentService : IStudentService
         _outboxService = outboxService;
         _technologyQueryRepository = technologyQueryRepository;
         _studentTechnologyQueryRepository = studentTechnologyQueryRepository;
+        _identityService = identityService;
+        _requestClientMajorAndSemesterSelect = requestClientMajorAndSemesterSelect;
     }
 
     /// <summary>
@@ -288,6 +298,134 @@ public class StudentService : IStudentService
         response.Response = studentInfo;
         response.Success = true;
         response.SetMessage(MessageId.I00001);
+        return response;
+    }
+
+    /// <summary>
+    /// Update student profile
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentProfileUpdateResponse> UpdateStudentProfileAsync(StudentProfileUpdateCommand request, CancellationToken cancellationToken)
+    {
+        var response = new StudentProfileUpdateResponse { Success = false };
+
+        var currentUser = _identityService.GetCurrentUser();
+        var studentExist = await _studentRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser!.UserId && x.IsActive, cancellationToken);
+        if (studentExist == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin sinh viên");
+            return response;
+        }
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Update basic info
+            studentExist.FirstName = request.FirstName ?? studentExist.FirstName;
+            studentExist.LastName = request.LastName ?? studentExist.LastName;
+            studentExist.DateOfBirth = request.DateOfBirth ?? studentExist.DateOfBirth;
+            studentExist.PhoneNumber = request.PhoneNumber ?? studentExist.PhoneNumber;
+            studentExist.Gender = request.Gender ?? studentExist.Gender;
+            studentExist.AvatarUrl = request.AvatarUrl ?? studentExist.AvatarUrl;
+            studentExist.Address = request.Address ?? studentExist.Address;
+            studentExist.MajorId = request.MajorId ?? studentExist.MajorId;
+            studentExist.Bio = request.Bio ?? studentExist.Bio;
+            studentExist.SemesterId = request.SemesterId ?? studentExist.SemesterId;
+
+            _studentRepository.Update(studentExist);
+
+            // Update technologies if provided
+            if (request.Technologies != null)
+            {
+                // Remove old technologies
+                studentExist.StudentTechnologies.Clear();
+                // Add new technologies
+                foreach (var techId in request.Technologies)
+                {
+                    studentExist.StudentTechnologies.Add(new StudentTechnology
+                    {
+                        StudentId = studentExist.StudentId,
+                        TechnologyId = techId,
+                    });
+                }
+            }
+
+            // Update learning goals if provided
+            if (request.LearningGoals != null)
+            {
+                studentExist.StudentLearningGoals.Clear();
+                foreach (var goalId in request.LearningGoals)
+                {
+                    studentExist.StudentLearningGoals.Add(new StudentLearningGoal
+                    {
+                        StudentId = studentExist.StudentId,
+                        GoalId = goalId,
+                    });
+                }
+            }
+            
+            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+
+            var studentCollection = new StudentCollection();
+            
+            // Publish event to CourseService to get semester name and major name
+            if (request.SemesterId != null || request.MajorId != null)
+            {
+                var responseMajorAndSemester = await _requestClientMajorAndSemesterSelect
+                    .GetResponse<MajorAndSemesterSelectEventResponse>(new MajorAndSemesterSelectEvent
+                    {
+                        MajorId = request.MajorId,
+                        SemesterId = request.SemesterId
+                    }, cancellationToken);
+                var majorName = responseMajorAndSemester.Message.Response.Major?.MajorName;
+                var semesterName = responseMajorAndSemester.Message.Response.Semester?.SemesterName;
+
+                if (majorName != null)
+                {
+                    studentCollection.MajorName = majorName;
+                }
+                if (semesterName != null)
+                {
+                    studentCollection.SemesterName = semesterName;
+                }
+            }
+            
+            // Map student to student collection
+            studentCollection.FirstName = studentExist.FirstName;
+            studentCollection.LastName = studentExist.LastName;
+            studentCollection.DateOfBirth = studentExist.DateOfBirth;
+            studentCollection.PhoneNumber = studentExist.PhoneNumber;
+            studentCollection.Gender = studentExist.Gender;
+            studentCollection.AvatarUrl = studentExist.AvatarUrl;
+            studentCollection.Address = studentExist.Address;
+            studentCollection.MajorId = studentExist.MajorId;
+            studentCollection.Bio = studentExist.Bio;
+            studentCollection.SemesterId = studentExist.SemesterId;
+            studentCollection.UpdatedAt = studentExist.UpdatedAt;
+            studentCollection.UpdatedBy = studentExist!.UpdatedBy;
+            studentCollection.IsActive = studentExist.IsActive;
+            
+            var @event = new StudentCollectionEvent
+            {
+                
+            };
+            
+            var outboxMessage = new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = nameof(StudentCollectionEvent),
+                Content = JsonSerializer.Serialize(@event),
+                OccurredOnUtc = DateTime.UtcNow,
+            };
+            await _outboxService.AddAsync(outboxMessage);
+            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Cập nhật thông tin cá nhân");
+            return true;
+        }, cancellationToken);
+
         return response;
     }
 }
