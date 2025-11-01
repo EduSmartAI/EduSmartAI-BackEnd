@@ -4,6 +4,9 @@ public static class CacheKey
 {
     public static string StudentTest(Guid studentTestId)
         => $"studentTest:{studentTestId}";
+    
+    public static string AdminStudentTest(Guid studentTestId)
+        => $"admin_studentTest:{studentTestId}";
 
     public static string StudentMajorSemesterInformation(Guid studentMajorSemesterId)
         => $"studentMajorSemesterInformation:{studentMajorSemesterId}";

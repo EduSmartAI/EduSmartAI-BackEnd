@@ -85,4 +85,29 @@ public class StudentSurveyController : ControllerBase
             _httpContextAccessor,
             new StudentSurveySelectResponse());
     }
+    
+    /// <summary>
+    /// Select detail of a student survey
+    /// </summary>
+    /// <param name="studentSurveyId"></param>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy chi tiết câu trả lời của học sinh trong bài khảo sát",
+        Description = "Cần cấp quyền Student cho API"
+    )]
+    public async Task<StudentSurveySelectDetailResponse> SelectStudentSurveyDetail([FromQuery] Guid studentSurveyId)
+    {
+        var query = new StudentSurveySelectDetailQuery { StudentSurveyId = studentSurveyId };
+        return await ApiControllerHelper.HandleRequest<StudentSurveySelectDetailQuery, StudentSurveySelectDetailResponse, StudentSurveySelectDetailResponseEntity>(
+            query,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(query),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new StudentSurveySelectDetailResponse());
+    }
 }

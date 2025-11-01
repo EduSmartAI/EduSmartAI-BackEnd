@@ -13,5 +13,5 @@ public interface IMajorService
     /// <returns>Major name</returns>
     Task<string> SelectMajorAsync(Guid id, CancellationToken cancellationToken);
 
-    Task<MajorSelectsEventResponse> SelectMajorsAsync(MajorSelectsQuery request, CancellationToken cancellationToken);
+    Task<MajorSelectsEventResponse> SelectMajorsAsync(MajorCodeSelectsQuery request, CancellationToken cancellationToken);
 }

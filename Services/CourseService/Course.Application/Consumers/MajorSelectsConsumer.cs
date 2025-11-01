@@ -1,15 +1,16 @@
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.Majors.Queries;
 
 namespace Course.Application.Consumers;
 
-public class MajorSelectsConsumer(IMediator mediator) : IConsumer<MajorSelectsEvent>
+public class MajorSelectsConsumer(IMediator mediator) : IConsumer<MajorCodeSelectsEvent>
 {
-    public async Task Consume(ConsumeContext<MajorSelectsEvent> context)
+    public async Task Consume(ConsumeContext<MajorCodeSelectsEvent> context)
     {
         var evt = context.Message;
         
-        var command = new MajorSelectsQuery
+        var command = new MajorCodeSelectsQuery
         {
             MajorCodes = evt.MajorCodes
         };

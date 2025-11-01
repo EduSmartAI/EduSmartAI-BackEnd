@@ -1,10 +1,11 @@
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using MassTransit;
 
 namespace QuizService.Application.Applications.ExternalApplications;
 
-public class ExternalMajorSelectsQueryHandler(IRequestClient<MajorSelectsEvent> requestMajorSelectsEventClient) : IQueryHandler<ExternalMajorSelectsQuery, MajorSelectsEventResponse>
+public class ExternalMajorSelectsQueryHandler(IRequestClient<MajorCodeSelectsEvent> requestMajorSelectsEventClient) : IQueryHandler<ExternalMajorSelectsQuery, MajorSelectsEventResponse>
 {
     public async Task<MajorSelectsEventResponse> Handle(ExternalMajorSelectsQuery request, CancellationToken cancellationToken)
     {

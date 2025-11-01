@@ -10,6 +10,7 @@ using OpenIddict.Validation.AspNetCore;
 using QuizService.Application.Applications.Admin.Queries.Quizzes;
 using QuizService.Application.Applications.Admin.Queries.StudentSurveys;
 using QuizService.Application.Applications.Admin.Queries.StudentTests;
+using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Tests.Commands;
 using Swashbuckle.AspNetCore.Annotations;
@@ -145,6 +146,30 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
             _identityEntity,
             httpContextAccessor,
             new AdminStudentTestsSelectResponse());
+    }
+    
+    /// <summary>
+    /// Get detail of a specific student test
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(Roles = ConstRole.Admin,
+        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Chi tiết một bài kiểm tra đầu vào của sinh viên"
+    )]
+    public async Task<AdminStudentTestSelectDetailResponse> SelectStudentTestDetail([FromQuery] AdminStudentTestSelectDetailQuery request)
+    {
+        return await ApiControllerHelper.HandleRequest<AdminStudentTestSelectDetailQuery, AdminStudentTestSelectDetailResponse, StudentTestSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new AdminStudentTestSelectDetailResponse());
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.SemesterSelectsEvents;
 using Course.Application.Semesters.Queries;
 
