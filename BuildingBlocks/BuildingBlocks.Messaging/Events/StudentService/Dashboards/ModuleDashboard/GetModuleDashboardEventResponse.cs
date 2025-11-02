@@ -82,7 +82,8 @@ namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashbo
 		public IReadOnlyList<string>? AiStrengths { get; init; }
 
 		/// <summary>Điểm cần cải thiện do AI tổng hợp.</summary>
-		public IReadOnlyList<string>? AiImprovements { get; init; }
+		//public IReadOnlyList<string>? AiImprovements { get; init; }
+		public IReadOnlyList<AiImprovementDto> ImprovementResources { get; init; } = Array.Empty<AiImprovementDto>();
 
 		// Timestamps (nếu StudentService muốn hiển thị)
 		public DateTime? StartedAtUtc { get; init; }
@@ -111,5 +112,16 @@ namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashbo
 		// Chỗ trống cho tổng hợp điểm/AI (nếu cần sau này)
 		public decimal? AverageQuizScore { get; init; }  // trung bình có trọng số (tùy bạn định nghĩa)
 		public int? AverageAiScore { get; init; }        // trung bình (tùy bạn định nghĩa)
+	}
+
+	public sealed class AiImprovementDto
+	{
+		public Guid ImprovementId { get; init; }
+		public int PositionIndex { get; init; }
+		public string ImprovementText { get; init; } = default!;
+		public string ContentMarkdown { get; init; } = default!;
+		public string Slug { get; init; } = default!;
+		public DateTime CreatedAt { get; init; }
+		public DateTime UpdatedAt { get; init; }
 	}
 }

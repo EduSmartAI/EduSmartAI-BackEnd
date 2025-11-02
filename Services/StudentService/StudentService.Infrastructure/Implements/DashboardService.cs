@@ -14,6 +14,12 @@ namespace StudentService.Infrastructure.Implements
 		IAiQuizEvaluateStudentService _aiService
 	) : IDashboardService
 	{
+		/// <summary>
+		/// Get Module Dashboard
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetModuleDashboardEventResponse> GetModuleDashboardAsync(GetModuleDashboardQuery request, CancellationToken ct = default)
 		{
 			var response = new GetModuleDashboardEventResponse { Success = false };
@@ -106,8 +112,8 @@ namespace StudentService.Infrastructure.Implements
 							AiScore = ai.Score100,                    // int?
 							AiFeedbackSummary = ai.Summary,                     // string?
 							AiStrengths = ai.Strengths?.ToList(),         // IReadOnlyList<string>?
-							AiImprovements = ai.Improvements?.ToList()       // IReadOnlyList<string>?
-																			 // Nếu có thêm: AiScoreRaw, AiEvaluatedAtUtc ... thì set ở đây
+							ImprovementResources = ai.ImprovementResources       // IReadOnlyList<string>?
+																				 // Nếu có thêm: AiScoreRaw, AiEvaluatedAtUtc ... thì set ở đây
 						};
 					}
 				}
