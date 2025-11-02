@@ -5,6 +5,7 @@ using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
@@ -75,6 +76,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetCourseInfoEvent>();
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
+            x.AddRequestClient<AvatarUploadEvent>();
         });
 
         return services;

@@ -82,6 +82,73 @@ public class CloudinaryService : ICloudinaryService
             throw;
         }
     }
+    
+    public async Task<string> UploadImageAsync(string fileName, Stream stream, string contentType)
+    {
+        try
+        {
+            var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+            if (cloudinaryKey == null)
+                throw new Exception("Không tìm thấy cấu hình Cloudinary");
+
+            var account = new Account(
+                cloudinaryKey.CloudApiName,
+                cloudinaryKey.CloudApiKey,
+                cloudinaryKey.CloudApiSecret
+            );
+            var cloudinary = new Cloudinary(account);
+
+            var uploadParams = new ImageUploadParams
+            {
+                File = new FileDescription(fileName, stream)
+            };
+
+            var uploadResult = await cloudinary.UploadAsync(uploadParams);
+
+            if (uploadResult.Error != null)
+            {
+                // Nếu key bị rate limit
+                if (uploadResult.Error.Message.Contains("Rate Limit Exceeded", StringComparison.OrdinalIgnoreCase))
+                {
+                    _cloudinaryConfigRepository.Update(cloudinaryKey, "Admin");
+                    await _unitOfWork.SaveChangesAsync(CancellationToken.None);
+
+                    var nextKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+                    if (nextKey == null)
+                        throw new Exception("Không còn Cloudinary API key khả dụng.");
+
+                    return await RetryWithNewKey(fileName, stream, nextKey);
+                }
+
+                throw new Exception($"Cloudinary upload failed: {uploadResult.Error.Message}");
+            }
+
+            return uploadResult.SecureUrl?.ToString() ?? throw new Exception("Upload thất bại");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+
+private async Task<string> RetryWithNewKey(string fileName, Stream stream, CloudinaryConfig newKey)
+{
+    var account = new Account(newKey.CloudApiName, newKey.CloudApiKey, newKey.CloudApiSecret);
+    var cloudinary = new Cloudinary(account);
+
+    stream.Position = 0; // reset stream
+    var uploadParams = new ImageUploadParams
+    {
+        File = new FileDescription(fileName, stream)
+    };
+
+    var uploadResult = await cloudinary.UploadAsync(uploadParams);
+    if (uploadResult.Error != null)
+        throw new Exception($"Retry upload failed: {uploadResult.Error.Message}");
+
+    return uploadResult.SecureUrl?.ToString() ?? throw new Exception("Retry upload failed");
+}
 
     /// <summary>
     /// Deletes an image from Cloudinary using its URL.

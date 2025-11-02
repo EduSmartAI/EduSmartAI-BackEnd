@@ -1,5 +1,6 @@
 using BuildingBlocks.CQRS;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 
 namespace StudentService.Application.Applications.Students.Commands.Updates;
 
@@ -19,8 +20,7 @@ public class StudentProfileUpdateCommand : ICommand<StudentProfileUpdateResponse
     [Range(1, 3, ErrorMessage = "Giới tính không hợp lệ. (1: Nam, 2: Nữ, 3: Khác)")]
     public short? Gender { get; set; }
 
-    [Url(ErrorMessage = "URL ảnh đại diện không hợp lệ.")]
-    public string? AvatarUrl { get; set; }
+    public IFormFile? Avatar { get; set; }
 
     [StringLength(200, ErrorMessage = "Địa chỉ không được vượt quá 200 ký tự.")]
     public string? Address { get; set; }

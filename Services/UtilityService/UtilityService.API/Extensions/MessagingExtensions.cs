@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
+using UtilityService.Application.Consumers;
 using UtilityService.Application.Consumers.UploadVideo;
 using UtilityService.Application.Consumers.VerifyAccounts;
 
@@ -20,6 +21,7 @@ public static class MessagingExtensions
         {
             x.AddConsumer<SendKeyEventConsumer>();
             x.AddConsumer<UploadVideoRequestedConsumer>();
+            x.AddConsumer<AvatarUploadEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "utility", includeNamespace: false));
 

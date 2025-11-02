@@ -4,6 +4,7 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Students.Commands.Inserts;
@@ -30,6 +31,7 @@ public class StudentService : IStudentService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IIdentityService _identityService;
     private readonly IRequestClient<MajorAndSemesterSelectEvent> _requestClientMajorAndSemesterSelect;
+    private readonly IRequestClient<AvatarUploadEvent> _requestClientAvatarUpload;
 
     /// <summary>
     /// Constructor
@@ -41,10 +43,14 @@ public class StudentService : IStudentService
     /// <param name="studentLearningGoalRepository"></param>
     /// <param name="learningGoalQueryRepository"></param>
     /// <param name="outboxService"></param>
+    /// <param name="technologyQueryRepository"></param>
+    /// <param name="studentTechnologyQueryRepository"></param>
     /// <param name="identityService"></param>
     /// <param name="requestClientMajorAndSemesterSelect"></param>
+    /// <param name="requestClientAvatarUpload"></param>
     public StudentService(IQueryRepository<StudentCollection> studentQueryRepository,
-        ICommandRepository<Student> studentRepository, IUnitOfWork unitOfWork,
+        ICommandRepository<Student> studentRepository,
+        IUnitOfWork unitOfWork,
         ICommandRepository<StudentTechnology> studentTechnologyRepository,
         ICommandRepository<StudentLearningGoal> studentLearningGoalRepository,
         IQueryRepository<LearningGoalCollection> learningGoalQueryRepository, 
@@ -52,7 +58,8 @@ public class StudentService : IStudentService
         IQueryRepository<TechnologyCollection> technologyQueryRepository,
         IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository, 
         IIdentityService identityService,
-        IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect)
+        IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect, 
+        IRequestClient<AvatarUploadEvent> requestClientAvatarUpload)
     {
         _studentQueryRepository = studentQueryRepository;
         _studentRepository = studentRepository;
@@ -65,6 +72,7 @@ public class StudentService : IStudentService
         _studentTechnologyQueryRepository = studentTechnologyQueryRepository;
         _identityService = identityService;
         _requestClientMajorAndSemesterSelect = requestClientMajorAndSemesterSelect;
+        _requestClientAvatarUpload = requestClientAvatarUpload;
     }
 
     /// <summary>
@@ -218,7 +226,7 @@ public class StudentService : IStudentService
                 }).ToList());
             }
            
-            StudentLearningGoalCollection newStudentLearningGoalCollection = null;
+            StudentLearningGoalCollection newStudentLearningGoalCollection = new StudentLearningGoalCollection();
             var studentLearningGoalExist = await _studentLearningGoalRepository
                 .FirstOrDefaultAsync(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId && slg.IsActive, cancellationToken);
             if (studentLearningGoalExist == null)
@@ -286,8 +294,8 @@ public class StudentService : IStudentService
         var studentInfo = new StudentInformationSelectsEventResponseEntity
         {
             SemesterId = studentCollection!.SemesterId ?? Guid.Empty,
-            LearningGoalName = studentCollection.LearningGoals.Select(x => x.Goal!.GoalName).FirstOrDefault()!,
-            LearningGoalType = studentCollection.LearningGoals.Select(x => x.Goal!.LearningGoalType).FirstOrDefault(),
+            LearningGoalName = studentCollection.LearningGoals!.Select(x => x.Goal!.GoalName).FirstOrDefault()!,
+            LearningGoalType = studentCollection.LearningGoals!.Select(x => x.Goal!.LearningGoalType).FirstOrDefault(),
             Technologies = studentTechnologiesCollections.Select(x => new StudentTechnologySelectsEventResponseEntity
             {
                 TechnologyName = x.Technology.TechnologyName,
@@ -350,11 +358,36 @@ public class StudentService : IStudentService
             studentExist.DateOfBirth = request.DateOfBirth ?? studentExist.DateOfBirth;
             studentExist.PhoneNumber = request.PhoneNumber ?? studentExist.PhoneNumber;
             studentExist.Gender = request.Gender ?? studentExist.Gender;
-            studentExist.AvatarUrl = request.AvatarUrl ?? studentExist.AvatarUrl;
             studentExist.Address = request.Address ?? studentExist.Address;
             studentExist.MajorId = request.MajorId ?? studentExist.MajorId;
             studentExist.Bio = request.Bio ?? studentExist.Bio;
             studentExist.SemesterId = request.SemesterId ?? studentExist.SemesterId;
+
+            if (request.Avatar != null)
+            {
+                await using var ms = new MemoryStream();
+                await request.Avatar.CopyToAsync(ms, cancellationToken);
+                var fileBytes = ms.ToArray();
+                
+                // Publish event to UtilityService to upload avatar
+                var avatarUploadEvent = new AvatarUploadEvent
+                {
+                    FileName = request.Avatar.FileName,
+                    ContentType = request.Avatar.ContentType,
+                    FileData = fileBytes
+                };
+                
+                var avatarUrlResponse = await _requestClientAvatarUpload.GetResponse<AvatarUploadEventResponse>(avatarUploadEvent, cancellationToken);
+                if (!avatarUrlResponse.Message.Success)
+                {
+                    response.SetMessage(MessageId.E00000, "Có lỗi xảy ra trong quá trình tải ảnh đại diện");
+                    return false;
+                }
+                else
+                {
+                    studentExist.AvatarUrl = avatarUrlResponse.Message.Response.AvatarUrl;
+                }
+            }
 
             _studentRepository.Update(studentExist);
             await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
@@ -386,7 +419,7 @@ public class StudentService : IStudentService
                     }
                 }
 
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
                 // If any existing technologies are not in the new list, mark them as inactive
                 var inactiveTechs = existingTechs
@@ -398,7 +431,7 @@ public class StudentService : IStudentService
                     _studentTechnologyRepository.Update(tech);
                 }
 
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
             }
             else
             {
@@ -408,7 +441,7 @@ public class StudentService : IStudentService
                 {
                     _studentTechnologyRepository.Update(tech);
                 }
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
 
             }
 
@@ -438,7 +471,7 @@ public class StudentService : IStudentService
                         });
                     }
                 }
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
                 // If any existing goals are not in the new list, mark them as inactive
                 var inactiveGoals = existingGoals
@@ -449,7 +482,7 @@ public class StudentService : IStudentService
                 {
                     _studentLearningGoalRepository.Update(goal);
                 }
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
             } 
             else
             {
@@ -459,12 +492,12 @@ public class StudentService : IStudentService
                 {
                     _studentLearningGoalRepository.Update(goal);
                 }
-                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
             }
             
             // Get updated student with latest technologies and learning goals
             var updatedStudent = await _studentRepository
-                .FirstOrDefaultAsync(predicate: x => x.StudentId == currentUser!.UserId && x.IsActive,
+                .FirstOrDefaultAsync(predicate: x => x.StudentId == currentUser.UserId && x.IsActive,
                     cancellationToken: cancellationToken,
                     x => x.StudentTechnologies,
                     x => x.StudentLearningGoals);
@@ -528,9 +561,9 @@ public class StudentService : IStudentService
                 OccurredOnUtc =  DateTime.UtcNow,
             };
 
-            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(currentUser!.UserId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(currentUser.UserId));
             await _outboxService.AddAsync(outboxMessage);
-            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
             // True
             response.Success = true;
