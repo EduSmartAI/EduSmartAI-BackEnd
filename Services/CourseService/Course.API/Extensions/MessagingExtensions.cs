@@ -37,6 +37,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetLessonDashboardEventConsumer>();
                 x.AddConsumer<GetLessonInfoConsumer>();
                 x.AddConsumer<MajorAndSemesterSelectEventConsumer>();
+                x.AddConsumer<GetInfoCourseByCourseIdConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

@@ -8,6 +8,8 @@ using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
+using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
@@ -47,6 +49,7 @@ public static class MessagingExtensions
 			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
 			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
 			x.AddConsumer<StudentCollectionEventConsumer>();
+            x.AddConsumer<GetInfoEvaluationConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -59,7 +62,7 @@ public static class MessagingExtensions
                 });
 
                 cfg.ConfigureEndpoints(context);
-                
+
                 cfg.UseMessageRetry(r => r.Exponential(5,
                     TimeSpan.FromSeconds(1),
                     TimeSpan.FromSeconds(30),
@@ -79,6 +82,8 @@ public static class MessagingExtensions
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
             x.AddRequestClient<AvatarUploadEvent>();
+            x.AddRequestClient<GetInfoEvaluationEvent>();
+            x.AddRequestClient<GetAllDetailCourseEvent>();
         });
 
         return services;

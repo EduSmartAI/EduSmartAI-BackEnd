@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+﻿using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Domain.Models;
 using Mapster;
@@ -39,6 +40,12 @@ namespace Course.Application.Mapping
                 .Map(d => d.SemesterName, s => s.SemesterName)
                 .Map(d => d.Description, s => s.Description)
                 .Map(d => d.ShortDescription, s => s.ShortDescription)
+                .IgnoreNullValues(true);
+
+            // VwCourseInfo -> LessonInfor (đúng DTO bạn đang dùng ở response)
+            config.NewConfig<VwCourseInfo, LessonInfor>()
+                .Map(d => d.LessonId, s => s.LessonId ?? Guid.Empty)
+                .Map(d => d.LessonTitle, s => s.LessonTitle ?? string.Empty)
                 .IgnoreNullValues(true);
         }
     }
