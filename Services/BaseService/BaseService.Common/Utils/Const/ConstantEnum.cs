@@ -199,4 +199,12 @@ public static class ConstantEnum
 		InProgress = 1,
 		Completed = 2
 	}
+
+    public enum Gender
+    {
+        Male = 1,
+        Female = 2,
+        Other = 3,
+        None = 4
+    }
 }

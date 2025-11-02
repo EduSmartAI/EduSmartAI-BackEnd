@@ -28,4 +28,7 @@ public static class CacheKey
 
     public static string QuizList()
         => "quiz:list";
+
+    public static string StudentProfile(Guid studentId)
+        => $"student_profile:{studentId}";
 }

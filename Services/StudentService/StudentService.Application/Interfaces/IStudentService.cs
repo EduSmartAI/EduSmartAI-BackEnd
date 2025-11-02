@@ -1,9 +1,8 @@
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
-using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Students.Commands.Updates;
-using StudentService.Domain.WriteModels;
+using StudentService.Application.Applications.Students.Queries;
 
 namespace StudentService.Application.Interfaces;
 
@@ -16,4 +15,6 @@ public interface IStudentService
     Task<StudentInformationSelectsEventResponse> GetStudentInformationSelectsAsync(StudentInformationSelectsEvent request, CancellationToken cancellationToken = default);
     
     Task<StudentProfileUpdateResponse> UpdateStudentProfileAsync(StudentProfileUpdateCommand request, CancellationToken cancellationToken);
+    
+    Task<StudentProfileSelectResponse> SelectStudentProfileAsync(StudentProfileSelectQuery request, CancellationToken cancellationToken);
 }
