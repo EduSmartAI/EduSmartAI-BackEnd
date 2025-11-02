@@ -1,5 +1,6 @@
 ﻿using BaseService.Common.ApiEntities;
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 
 namespace StudentService.Application.Applications.Dashboards.Queries
 {
@@ -23,7 +24,8 @@ namespace StudentService.Application.Applications.Dashboards.Queries
 		public int Score100 { get; init; }           // điểm do AI (đã chỉnh 70/30)
 		public string? Summary { get; init; }
 		public IReadOnlyList<string> Strengths { get; init; } = Array.Empty<string>();
-		public IReadOnlyList<string> Improvements { get; init; } = Array.Empty<string>();
+		//public IReadOnlyList<string> Improvements { get; init; } = Array.Empty<string>()
+		public IReadOnlyList<AiImprovementDto> ImprovementResources { get; init; } = Array.Empty<AiImprovementDto>();
 		public DateTime CreatedAt { get; init; }     // latest theo module
 	}
 }
