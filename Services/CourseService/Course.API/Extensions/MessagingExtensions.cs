@@ -34,6 +34,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetModuleDashboardEventConsumer>();
                 x.AddConsumer<SuggestCourseRetakeEventConsumer>();
                 x.AddConsumer<GetCourseModuleCountEventConsumer>();
+                x.AddConsumer<GetLessonDashboardEventConsumer>();
                 x.AddConsumer<GetLessonInfoConsumer>();
                 x.AddConsumer<MajorAndSemesterSelectEventConsumer>();
 

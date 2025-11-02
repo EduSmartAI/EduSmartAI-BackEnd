@@ -1,5 +1,6 @@
 ﻿using BaseService.API.BaseControllers;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -23,7 +24,7 @@ namespace StudentService.API.Controllers
 			Summary = "Lấy Module Dashboard",
 			Description = "Trả về Module Dashboard theo tham số query. Cần xác thực Bearer."
 		)]
-		public async Task<GetModuleDashboardEventResponse> GetModuleDashboardResponse([FromQuery] GetModuleDashboardQuery request)
+		public async Task<GetModuleDashboardEventResponse> GetModuleDashboardProcess([FromQuery] GetModuleDashboardQuery request)
 		{
 			return await ApiControllerHelper.HandleRequest<GetModuleDashboardQuery, GetModuleDashboardEventResponse, ModuleDashboardContract>(
 				request,
@@ -31,6 +32,23 @@ namespace StudentService.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new GetModuleDashboardEventResponse()
+			);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Lấy Module Dashboard",
+			Description = "Trả về Module Dashboard theo tham số query. Cần xác thực Bearer."
+		)]
+		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardProcess([FromQuery] GetLessonDashboardQuery request)
+		{
+			return await ApiControllerHelper.HandleRequest<GetLessonDashboardQuery, GetLessonDashboardEventResponse, LessonDashboardContract>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetLessonDashboardEventResponse()
 			);
 		}
 	}
