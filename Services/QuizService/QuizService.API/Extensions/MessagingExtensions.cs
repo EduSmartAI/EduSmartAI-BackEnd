@@ -25,6 +25,7 @@ public static class MessagingExtensions
 			x.AddConsumer<StudentQuizCourseInsertEventConsumer>();
             x.AddConsumer<QuizCourseCheckAttemptConsumer>();
             x.AddConsumer<GetLatestModuleQuizScoresConsumer>();
+            x.AddConsumer<GetLatestLessonQuizScoresConsumer>();
 
 			x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "quiz", includeNamespace: false));
 

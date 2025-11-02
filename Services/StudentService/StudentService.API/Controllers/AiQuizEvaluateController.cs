@@ -43,5 +43,18 @@ namespace StudentService.API.Controllers
 				new GetLatestModuleAiEvaluationsResponse()
 			);
 		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		public async Task<GetLatestLessonAiEvaluationsResponse> GetLatestLessonAiEvaluationsAsync([FromQuery] GetLatestLessonAiEvaluationsQuery request)
+		{
+			return await ApiControllerHelper.HandleRequest<GetLatestLessonAiEvaluationsQuery, GetLatestLessonAiEvaluationsResponse, GetLatestLessonAiEvaluationsPayload>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetLatestLessonAiEvaluationsResponse()
+			);
+		}
 	}
 }
