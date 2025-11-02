@@ -8,10 +8,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 
-// builder.Services.AddDatabaseServices();
-// builder.Services.AddAuthenticationServices();
-// builder.Services.AddRepositoryServices();
-// builder.Services.AddMessagingServices();
+builder.Services.AddDatabaseServices();
+builder.Services.AddAuthenticationServices();
+builder.Services.AddRepositoryServices();
+builder.Services.AddMessagingServices();
 builder.Services.AddSwaggerServices();
 builder.Services.AddCorsServices();
 

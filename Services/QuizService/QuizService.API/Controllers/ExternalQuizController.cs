@@ -1,5 +1,6 @@
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.LearningGoalSelectsEvents;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using BuildingBlocks.Messaging.Events.QuizService.SemesterSelectsEvents;
@@ -11,6 +12,7 @@ using NLog;
 using OpenIddict.Validation.AspNetCore;
 using QuizService.Application.Applications.ExternalApplications;
 using Swashbuckle.AspNetCore.Annotations;
+using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.API.Controllers;
 

@@ -31,15 +31,15 @@ public class AccountController : ControllerBase
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost("insert-student")]
-    public async Task<StudentInsertResponse> InsertStudent(StudentInsertCommand request)
+    [HttpPost("insert-account")]
+    public async Task<AccountInsertResponse> InsertStudent(AccountInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<StudentInsertCommand, StudentInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<AccountInsertCommand, AccountInsertResponse, string>(
             request,
             _logger,
             ModelState,
             async () => await _mediator.Send(request),
-            new StudentInsertResponse()
+            new AccountInsertResponse()
         );
     }
     

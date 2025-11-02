@@ -8,5 +8,11 @@ public interface ILearningGoalService
 {
     Task<LearningGoalInsertResponse> InsertLearningGoalAsync(LearningGoalInsertCommand request, CancellationToken cancellationToken);
     
+    Task<LearningGoalUpdateResponse> UpdateLearningGoalAsync(LearningGoalUpdateCommand request, CancellationToken cancellationToken);
+    
+    Task<LearningGoalDeleteResponse> DeleteLearningGoalAsync(LearningGoalDeleteCommand request, CancellationToken cancellationToken);
+    
     Task<LearningGoalSelectsEventResponse> SelectLearningGoalsAsync(LearningGoalSelectsQuery request);
+    
+    Task<AdminLearningGoalsSelectResponse> SelectAdminLearningGoalsAsync(AdminLearningGoalsSelectQuery request);
 }

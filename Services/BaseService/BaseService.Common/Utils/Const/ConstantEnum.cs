@@ -41,7 +41,6 @@ public static class ConstantEnum
     {
         ProgrammingLanguage = 1,
         Framework = 2,
-        Database = 3,
     }
 
     public enum LearningGoalType
@@ -171,17 +170,16 @@ public static class ConstantEnum
     public enum QuizScope
     {
         Lesson = 1, 
-        Module = 2
-    }
+        Module = 2,
+        Overview = 3
+	}
     
     public enum StudentLearningPathCourseStatus
     {
         NotStarted = 0,
         InProgress = 1,
         Completed = 2,
-        Failed = 3,
-        Skipped = 4,
-        Locked = 5
+        Skipped = 3,
     }
     
     public enum SuggestionType
@@ -192,7 +190,7 @@ public static class ConstantEnum
     }
     
     // Course Suggestion Constants
-    public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m; // 40%
+    public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m;
     public const decimal PASSING_SCORE = 4.0m;
     
 	public enum ModuleProgressStatus : short
@@ -201,4 +199,12 @@ public static class ConstantEnum
 		InProgress = 1,
 		Completed = 2
 	}
+
+    public enum Gender
+    {
+        Male = 1,
+        Female = 2,
+        Other = 3,
+        None = 4
+    }
 }

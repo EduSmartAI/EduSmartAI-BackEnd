@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 
 namespace StudentService.Application.Applications.Students.Commands.Inserts;
 
-public record StudentInsertCommand : ICommand<UserInsertEventResponse>
+public record StudentInsertCommand : ICommand<StudentInsertEventResponse>
 {
     [Required(ErrorMessage = "UserId is required")]
     public Guid UserId { get; init; }

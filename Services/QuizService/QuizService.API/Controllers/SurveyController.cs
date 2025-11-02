@@ -39,53 +39,6 @@ public class SurveyController : ControllerBase
         _identityService = identityService;
         _httpContextAccessor = httpContextAccessor;
     }
-
-    /// <summary>
-    /// Incoming Post
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpPost("[action]")]
-    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Tạo khảo sát mới",
-        Description = "Tạo khảo sát mới với các câu hỏi và câu trả lời tương ứng"
-    )]
-    public async Task<SurveyInsertResponse> InsertSurvey(SurveyInsertCommand request)
-    {
-        var response = new SurveyInsertResponse { Success = false };
-        var detailErrors = new List<DetailError>();
-        
-        // Validate that each question of type 2 (multiple choice) has at least one answer
-        foreach (var question in request.Questions)
-        {
-            if ((question.QuestionType == (short) ConstantEnum.QuestionType.MultipleChoice || 
-                 question.QuestionType == (short) ConstantEnum.QuestionType.TrueFalse) 
-                && (question.Answers == null || !question.Answers.Any()))
-            {
-                var detailEror = new DetailError();
-                detailEror.SetMessage(MessageId.E10000);
-                detailEror.ErrorMessage = "Câu hỏi loại trắc nghiệm phải có ít nhất một câu trả lời";
-                detailErrors.Add(detailEror);
-                
-                response.SetMessage(MessageId.E10000);
-                response.DetailErrors = detailErrors;
-                return response;
-            }
-        }
-        
-        // Call the helper to handle the request
-        response = await ApiControllerHelper.HandleRequest<SurveyInsertCommand, SurveyInsertResponse, string>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            _identityService,
-            _identityEntity,
-            _httpContextAccessor,
-            new SurveyInsertResponse());
-        return response;
-    }
     
     /// <summary>
     /// Incoming Get Select

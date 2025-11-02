@@ -28,6 +28,9 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 
+// Add background service for outbox message publishing
+builder.Services.AddHostedService<OutboxPublisher>();
+
 var app = builder.Build();
 app.UseForwardedHeaders();
 

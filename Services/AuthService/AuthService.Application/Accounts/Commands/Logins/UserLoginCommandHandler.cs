@@ -2,6 +2,7 @@ using AuthService.Application.Interfaces;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.AuthService.UserLoginEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
 
@@ -11,19 +12,26 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
 {
     private readonly IAccountService _accountService;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IRequestClient<UserLoginEvent> _requestClient;
+    private readonly IRequestClient<StudentLoginEvent> _studentRequestClient;
+    private readonly IRequestClient<TeacherLoginEvent> _teacherRequestClient;
 
     /// <summary>
     /// Constructor
     /// </summary>
     /// <param name="accountService"></param>
     /// <param name="unitOfWork"></param>
-    /// <param name="requestClient"></param>
-    public UserLoginCommandHandler(IAccountService accountService, IUnitOfWork unitOfWork, IRequestClient<UserLoginEvent> requestClient)
+    /// <param name="studentRequestClient"></param>
+    /// <param name="teacherRequestClient"></param>
+    public UserLoginCommandHandler(
+        IAccountService accountService, 
+        IUnitOfWork unitOfWork, 
+        IRequestClient<StudentLoginEvent> studentRequestClient,
+        IRequestClient<TeacherLoginEvent> teacherRequestClient)
     {
         _accountService = accountService;
         _unitOfWork = unitOfWork;
-        _requestClient = requestClient;
+        _studentRequestClient = studentRequestClient;
+        _teacherRequestClient = teacherRequestClient;
     }
 
     /// <summary>
@@ -64,12 +72,67 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
                 return false;
             }
 
-            // Send login event
-            var @event = new UserLoginEvent { UserId = account.AccountId };
-            var userLoginMessageResponse = await _requestClient.GetResponse<UserLoginEventResponse>(@event, cancellationToken);
-            if (!userLoginMessageResponse.Message.Success)
+            // Send login event based on role
+            UserLoginEntity? userLoginEntity;
+            
+            if (roleName == nameof(ConstantEnum.UserRole.Lecturer))
             {
-                response.SetMessage(userLoginMessageResponse.Message.MessageId, userLoginMessageResponse.Message.Message);
+                // Send login event to TeacherService
+                var teacherEvent = new TeacherLoginEvent { UserId = account.AccountId };
+                var teacherLoginResponse = await _teacherRequestClient.GetResponse<TeacherLoginEventResponse>(teacherEvent, cancellationToken);
+                
+                if (!teacherLoginResponse.Message.Success)
+                {
+                    response.SetMessage(teacherLoginResponse.Message.MessageId, teacherLoginResponse.Message.Message);
+                    return false;
+                }
+                
+                var teacherMsg = teacherLoginResponse.Message.Response;
+                userLoginEntity = new UserLoginEntity(
+                    UserId: account.AccountId,
+                    FullName: $"{teacherMsg.FirstName} {teacherMsg.LastName}",
+                    Email: account.Email,
+                    RoleName: roleName
+                );
+            }
+            else if (roleName == nameof(ConstantEnum.UserRole.Student))
+            {
+                // Send login event to StudentService
+                var studentEvent = new StudentLoginEvent { UserId = account.AccountId };
+                var studentLoginResponse = await _studentRequestClient.GetResponse<StudentLoginEventResponse>(studentEvent, cancellationToken);
+                
+                if (!studentLoginResponse.Message.Success)
+                {
+                    response.SetMessage(studentLoginResponse.Message.MessageId, studentLoginResponse.Message.Message);
+                    return false;
+                }
+                
+                var studentMsg = studentLoginResponse.Message.Response;
+                userLoginEntity = new UserLoginEntity(
+                    UserId: account.AccountId,
+                    FullName: $"{studentMsg.FirstName} {studentMsg.LastName}",
+                    Email: account.Email,
+                    RoleName: roleName
+                );
+            }
+            else if (roleName == nameof(ConstantEnum.UserRole.Admin))
+            {
+                var adminAccount = await _accountService.GetAdminAccountByIdAsync(account.AccountId, cancellationToken);
+                if (adminAccount == null)
+                {
+                    response.SetMessage(MessageId.E00000, "Không tìm thấy tài khoản");
+                    return false;
+                }
+                userLoginEntity = new UserLoginEntity(
+                    UserId: account.AccountId,
+                    FullName: adminAccount.FullName,
+                    Email: account.Email,
+                    RoleName: roleName
+                );
+            }
+            else
+            {
+                response.SetMessage(MessageId.E99999);
                 return false;
             }
 
@@ -77,13 +140,7 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
             _accountService.ResetFailedAttempts(account);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            var msg = userLoginMessageResponse.Message.Response;
-            response.Response = new UserLoginEntity(
-                UserId: account.AccountId,
-                FullName: $"{msg.FirstName} {msg.LastName}",
-                Email: account.Email,
-                RoleName: roleName
-            );
+            response.Response = userLoginEntity;
 
             // True
             response.Success = true;

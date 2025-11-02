@@ -2,10 +2,12 @@ using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using QuizService.Application.Applications.Admin.Queries.StudentSurveys;
 using QuizService.Application.Applications.StudentSurveys.Commands;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Application.Applications.StudentSurveys.Queries;
@@ -279,6 +281,7 @@ public class StudentSurveyService : IStudentSurveyService
                 StudentQuizId = studentQuiz.StudentQuizId,
                 QuizType = studentQuiz.QuizType,
                 StudentId = studentQuiz.StudentId,
+                Student = new UserInformation {Email = _identityService.GetCurrentUser()!.Email, FullName = _identityService.GetCurrentUser()!.FullName},
                 QuizId = studentQuiz.QuizId,
                 IsActive = studentQuiz.IsActive,
                 CreatedAt = studentQuiz.CreatedAt,
@@ -372,6 +375,156 @@ public class StudentSurveyService : IStudentSurveyService
         response.Response = studentSurveyResponse;
         response.SetMessage(MessageId.I00001, "Lấy khảo sát của sinh viên");
         return response;
+    }
+    
+    /// <summary>
+    /// Select student survey detail
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    public async Task<StudentSurveySelectDetailResponse> SelectStudentSurveyDetailAsync(StudentSurveySelectDetailQuery request)
+    {
+        var response = new StudentSurveySelectDetailResponse { Success = false };
+        
+        var currentUser = _identityService.GetCurrentUser();
+        
+        // Validate student survey ownership
+        var ownershipCheck = await _studentQuizQueryRepository.FirstOrDefaultAsync(x => 
+            x.StudentQuizId == request.StudentSurveyId && 
+            x.StudentId == currentUser!.UserId &&
+            x.QuizType == (short)ConstantEnum.TestType.Survey);
+            
+        if (ownershipCheck == null)
+        {
+            response.SetMessage(MessageId.E00000, "Khảo sát không thuộc về sinh viên hiện tại");
+            return response;
+        }
+
+        var cacheKey = CacheKey.StudentSurvey(request.StudentSurveyId);
+        var result = await GetStudentSurveyDetailAsync(request.StudentSurveyId, cacheKey);
+        
+        if (result == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy khảo sát của sinh viên");
+            return response;
+        }
+
+        response.Success = true;
+        response.Response = result;
+        response.SetMessage(MessageId.I00001, "Lấy thông tin chi tiết khảo sát của sinh viên");
+        return response;
+    }
+
+    /// <summary>
+    /// Select student survey detail for admin (no ownership check)
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<AdminStudentSurveySelectDetailResponse> SelectAdminStudentSurveyDetailAsync(AdminStudentSurveySelectDetailQuery request, CancellationToken cancellationToken)
+    {
+        var response = new AdminStudentSurveySelectDetailResponse { Success = false };
+        
+        var cacheKey = CacheKey.StudentSurvey(request.StudentSurveyId);
+        var result = await GetStudentSurveyDetailAsync(request.StudentSurveyId, cacheKey);
+        
+        if (result == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy khảo sát của sinh viên");
+            return response;
+        }
+
+        response.Success = true;
+        response.Response = result;
+        response.SetMessage(MessageId.I00001, "Lấy thông tin chi tiết khảo sát của sinh viên");
+        return response;
+    }
+
+    /// <summary>
+    /// Get student survey detail - shared logic
+    /// </summary>
+    /// <param name="studentSurveyId">Student survey ID</param>
+    /// <param name="cacheKey">Cache key to use</param>
+    /// <returns>Student survey detail entity or null if not found</returns>
+    private async Task<StudentSurveySelectDetailResponseEntity?> GetStudentSurveyDetailAsync(Guid studentSurveyId, string cacheKey)
+    {
+        // Get student survey from cache or database
+        var studentSurvey = await _studentQuizQueryRepository.GetOrSetAsync(
+            cacheKey,
+            async () =>
+            {
+                return await _studentQuizQueryRepository.FirstOrDefaultAsync(x => 
+                    x.StudentQuizId == studentSurveyId && 
+                    x.QuizType == (short)ConstantEnum.TestType.Survey &&
+                    x.IsActive);
+            },
+            TimeSpan.FromMinutes(10)
+        );
+        
+        if (studentSurvey == null)
+        {
+            return null;
+        }
+
+        // Get survey info
+        var survey = await _quizQueryRepository.FirstOrDefaultAsync(x => x.QuizId == studentSurvey.QuizId);
+        if (survey == null)
+        {
+            return null;
+        }
+
+        // Build question results
+        var questionResults = BuildSurveyQuestionResults(survey, studentSurvey);
+
+        return new StudentSurveySelectDetailResponseEntity
+        {
+            StudentSurveyId = studentSurvey.StudentQuizId,
+            SurveyId = studentSurvey.QuizId,
+            SurveyTitle = survey.SurveyQuizSetting?.Title ?? string.Empty,
+            SurveyDescription = survey.SurveyQuizSetting?.Description,
+            SurveyCode = survey.SurveyQuizSetting?.SurveyCode,
+            CreatedAt = studentSurvey.CreatedAt,
+            Questions = questionResults
+        };
+    }
+
+    /// <summary>
+    /// Build question results for a survey
+    /// </summary>
+    /// <param name="survey">Survey collection</param>
+    /// <param name="studentSurvey">Student survey collection</param>
+    /// <returns>List of survey question results</returns>
+    private List<SurveyQuestionDetailResponseEntity> BuildSurveyQuestionResults(QuizCollection survey, StudentQuizCollection studentSurvey)
+    {
+        var questionResults = new List<SurveyQuestionDetailResponseEntity>();
+        
+        // Get question results for this survey - including answers and whether student selected them
+        foreach (var question in survey.Questions)
+        {
+            var answerResults = new List<SurveyAnswerDetailResponse>();
+            foreach (var answer in question.Answers)
+            {
+                var selectedByStudent = studentSurvey.StudentQuizAnswers.Any(sa => 
+                    sa.QuestionId == question.QuestionId && sa.AnswerId == answer.AnswerId);
+                    
+                answerResults.Add(new SurveyAnswerDetailResponse
+                {
+                    AnswerId = answer.AnswerId,
+                    SelectedByStudent = selectedByStudent,
+                    AnswerText = answer.AnswerText
+                });
+            }
+            
+            questionResults.Add(new SurveyQuestionDetailResponseEntity
+            {
+                QuestionId = question.QuestionId,
+                QuestionText = question.QuestionText,
+                QuestionType = question.QuestionType,
+                Answers = answerResults
+            });
+        }
+        
+        return questionResults;
     }
     
     private int GetStudentStudyTime(IEnumerable<StudentQuizAnswerCollection> studentQuizAnswers)

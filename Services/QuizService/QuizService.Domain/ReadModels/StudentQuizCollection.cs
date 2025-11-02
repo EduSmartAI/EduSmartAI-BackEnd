@@ -1,3 +1,4 @@
+using BaseService.Domain.Snapshort;
 using QuizService.Domain.WriteModels;
 
 namespace QuizService.Domain.ReadModels;
@@ -35,15 +36,18 @@ public class StudentQuizCollection
 	public short? Score100 { get; set; }
 
 	public QuizCollection Quiz { get; set; }
+	
+	public UserInformation Student { get; set; }
 
     public virtual ICollection<StudentQuizAnswerCollection> StudentQuizAnswers { get; set; } = new List<StudentQuizAnswerCollection>();
     
-    public static StudentQuizCollection FromWriteModel(StudentQuiz studentQuiz, QuizCollection quiz)
+    public static StudentQuizCollection FromWriteModel(StudentQuiz studentQuiz, QuizCollection quiz, UserInformation user)
     {
         var result = new StudentQuizCollection
         {
             StudentQuizId = studentQuiz.StudentQuizId,
             StudentId = studentQuiz.StudentId,
+            Student = user,
             QuizId = studentQuiz.QuizId,
             QuizType = studentQuiz.QuizType,
             IsActive = studentQuiz.IsActive,

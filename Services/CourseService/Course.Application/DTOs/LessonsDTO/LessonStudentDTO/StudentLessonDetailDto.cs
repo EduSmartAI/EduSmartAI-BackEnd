@@ -10,7 +10,7 @@ namespace Course.Application.DTOs.LessonsDTO.LessonStudentDTO
 		int PositionIndex,
 		bool IsActive,
 		bool IsCompleted,   // NEW: tick bài
-		int LastPositionSec,
+		int LastSeenPositionSec,
 		bool CanAttempt,
 		Guid? StudentQuizResultId,
 		QuizOutDto? LessonQuiz = null

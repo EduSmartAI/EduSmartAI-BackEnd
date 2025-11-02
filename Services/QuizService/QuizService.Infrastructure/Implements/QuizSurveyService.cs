@@ -67,7 +67,7 @@ public class QuizSurveyService : IQuizSurveyService
                 Questions = request.Questions.Select(q => new Question
                 {
                     QuestionText = q.QuestionText,
-                    QuestionType = q.QuestionType,
+                    QuestionType = (short) q.QuestionType,
                     Answers =  q.Answers.Select(a => new Answer
                         {
                             AnswerText = a.AnswerText,

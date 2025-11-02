@@ -1,4 +1,5 @@
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.QuizService.TechnologySelectsEvents;
 using StudentService.Application.Interfaces;
 

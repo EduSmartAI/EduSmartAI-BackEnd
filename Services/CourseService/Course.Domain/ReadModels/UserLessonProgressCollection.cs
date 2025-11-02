@@ -22,6 +22,8 @@ namespace Course.Domain.ReadModels
 
 		public int? LastPositionSec { get; set; }
 
+		public int LastSeenPositionSec { get; set; }
+
 		public static UserLessonProgressCollection FromWriteModel(UserLessonProgress model)
 		{
 			var userLessonProgress = new UserLessonProgressCollection
@@ -34,7 +36,8 @@ namespace Course.Domain.ReadModels
 				DurationWatchedSec = model.DurationWatchedSec,
 				CreatedAt = model.CreatedAt,
 				UpdatedAt = model.UpdatedAt,
-				LastPositionSec = model.LastPositionSec
+				LastPositionSec = model.LastPositionSec,
+				LastSeenPositionSec = model.LastSeenPositionSec
 			};
 			return userLessonProgress;
 		}

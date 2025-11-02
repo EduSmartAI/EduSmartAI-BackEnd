@@ -39,7 +39,9 @@ public partial class Student
 
     public virtual ICollection<AiEvaluation> AiEvaluations { get; set; } = new List<AiEvaluation>();
 
-    public virtual ICollection<LearningPath> LearningPaths { get; set; } = new List<LearningPath>();
+	public virtual ICollection<CourseSuggestion> CourseSuggestions { get; set; } = new List<CourseSuggestion>();
+
+	public virtual ICollection<LearningPath> LearningPaths { get; set; } = new List<LearningPath>();
 
     public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
 

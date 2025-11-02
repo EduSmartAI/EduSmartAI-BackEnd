@@ -46,7 +46,7 @@ public class QuizService : IQuizService
     public async Task<QuizSelectsResponse> SelectQuizzesAsync(QuizSelectsQuery request)
     {
         var response = new QuizSelectsResponse { Success = false };
-        string cacheKey = "quiz:list";
+        string cacheKey = CacheKey.QuizList();
 
         // Get quizzes from cache or database
         var test = await _testQueryRepository.GetOrSetAsync(

@@ -6,7 +6,7 @@ namespace AuthService.Application.Interfaces;
 
 public interface IAccountService
 {
-    Task<StudentInsertResponse> InsertAccountAsync(StudentInsertCommand request, CancellationToken cancellationToken);
+    Task<AccountInsertResponse> InsertAccountAsync(AccountInsertCommand request, CancellationToken cancellationToken);
 
     /// <summary>
     /// Validates user by email,
@@ -54,4 +54,12 @@ public interface IAccountService
     /// <param name="requestKey"></param>
     /// <returns></returns>
     Task<AccountVerifyResponse> VerifyAccount(string requestKey);
+
+    /// <summary>
+    /// Retrieves an admin account by its unique identifier.
+    /// </summary>
+    /// <param name="accountAccountId"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    Task<AdminAccount?> GetAdminAccountByIdAsync(Guid accountAccountId, CancellationToken cancellationToken);
 }

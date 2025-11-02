@@ -4,6 +4,9 @@ public static class CacheKey
 {
     public static string StudentTest(Guid studentTestId)
         => $"studentTest:{studentTestId}";
+    
+    public static string AdminStudentTest(Guid studentTestId)
+        => $"admin_studentTest:{studentTestId}";
 
     public static string StudentMajorSemesterInformation(Guid studentMajorSemesterId)
         => $"studentMajorSemesterInformation:{studentMajorSemesterId}";
@@ -22,4 +25,10 @@ public static class CacheKey
 
     public static string LearningGoalSelects()
         => "learning_goals:all";
+
+    public static string QuizList()
+        => "quiz:list";
+
+    public static string StudentProfile(Guid studentId)
+        => $"student_profile:{studentId}";
 }

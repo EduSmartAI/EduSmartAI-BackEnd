@@ -4,6 +4,7 @@ using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
+using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
@@ -53,6 +54,12 @@ public class OutboxPublisher : BackgroundService
                             var e2 = JsonSerializer.Deserialize<SuggestCourseCollectionEvent>(e.Content);
                             await publishEndpoint.Publish(e2!, stoppingToken);
                             logging.InfoLog($"Successfully published SuggestCourseCollectionEvent for StudentId: {e2.SuggestCourseCollections.First().StudentId}");
+                            break;
+                        case nameof(StudentCollectionEvent):
+                            logging.InfoLog("Processing StudentCollectionEvent");
+                            var e3 = JsonSerializer.Deserialize<StudentCollectionEvent>(e.Content);
+                            await publishEndpoint.Publish(e3!, stoppingToken);
+                            logging.InfoLog($"Successfully published StudentCollectionEvent for StudentId: {e3.Student.StudentId}");
                             break;
 						default:
                             logging.WarningLog($"Unknown event type: {e.Type}");

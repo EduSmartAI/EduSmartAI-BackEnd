@@ -21,7 +21,7 @@ public class MajorService(ICommandRepository<Major> commandRepository) : IMajorS
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<MajorSelectsEventResponse> SelectMajorsAsync(MajorSelectsQuery request, CancellationToken cancellationToken)
+    public async Task<MajorSelectsEventResponse> SelectMajorsAsync(MajorCodeSelectsQuery request, CancellationToken cancellationToken)
     {
         var response = new MajorSelectsEventResponse { Success = false };
         

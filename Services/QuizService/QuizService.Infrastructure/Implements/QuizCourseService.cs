@@ -14,6 +14,7 @@ using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
 using System.Text.Json;
+using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.CourseService;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
@@ -614,6 +615,7 @@ public class QuizCourseService : IQuizCourseService
                     TotalCorrect = newStudentQuiz.TotalCorrect,
                     Score100 = newStudentQuiz.Score100,
 					Quiz = quizCollectionExist,
+					Student = new UserInformation {Email = currentUser.Email, FullName = currentUser.FullName},
 					StudentQuizAnswers = newStudentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
 					{
 						StudentQuizAnswerId = x.StudentQuizAnswerId,

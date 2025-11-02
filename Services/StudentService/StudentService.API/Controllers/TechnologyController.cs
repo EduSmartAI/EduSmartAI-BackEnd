@@ -36,30 +36,5 @@ public class TechnologyController : ControllerBase
         _identityService = identityService;
         _httpContextAccessor = httpContextAccessor;
     }
-
-    /// <summary>
-    /// Incoming Post
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpPost("InsertTechnology")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Thêm ngôn ngữ/ framework/ tool/ platform mới",
-        Description = "Cần cấp quyền Admin"
-    )]
-    public async Task<TechnologyInsertResponse> InsertTechnology([FromBody] TechnologyInsertCommand request)
-    {
-        return await ApiControllerHelper.HandleRequest<TechnologyInsertCommand, TechnologyInsertResponse, string>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            _identityService,
-            _identityEntity,
-            _httpContextAccessor,
-            new TechnologyInsertResponse()
-        );
-    }
+    
 }

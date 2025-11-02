@@ -15,7 +15,15 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "public.ai_evaluation_improvements",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.ai_evaluations",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_suggestions",
          "ObjectType": 0
       },
       {

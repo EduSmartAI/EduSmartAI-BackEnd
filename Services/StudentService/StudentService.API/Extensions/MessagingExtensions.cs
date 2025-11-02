@@ -1,6 +1,7 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
@@ -31,7 +32,7 @@ public static class MessagingExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<UserInsertEventConsumer>();
-            x.AddConsumer<UserLoginEventConsumer>();
+            x.AddConsumer<StudentLoginEventConsumer>();
             x.AddConsumer<StudentInformationInsertConsumer>();
             x.AddConsumer<ExternalTechnologySelectsConsumer>();
             x.AddConsumer<ExternalLearningGoalSelectsConsumer>();
@@ -42,9 +43,10 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
-            x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
-            x.AddConsumer<SuggestCourseCollectionEventConsumer>();
-            x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
+			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+			x.AddConsumer<StudentCollectionEventConsumer>();
             x.AddConsumer<GetInfoEvaluationConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
@@ -66,8 +68,8 @@ public static class MessagingExtensions
                 cfg.UseInMemoryOutbox();
             });
 
-            x.AddRequestClient<UserInsertEvent>();
-            x.AddRequestClient<UserLoginEvent>();
+            x.AddRequestClient<StudentInsertEvent>();
+            x.AddRequestClient<StudentLoginEvent>();
             x.AddRequestClient<UpdateExternalMajorEvent>();
             x.AddRequestClient<UpdateBatchExternalMajorEvent>();
             x.AddRequestClient<CoursesSelectEvent>();

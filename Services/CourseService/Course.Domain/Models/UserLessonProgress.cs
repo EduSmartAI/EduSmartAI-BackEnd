@@ -25,5 +25,7 @@ public partial class UserLessonProgress
 
     public int? LastPositionSec { get; set; }
 
+    public int LastSeenPositionSec { get; set; }
+
     public virtual Lesson Lesson { get; set; }
 }

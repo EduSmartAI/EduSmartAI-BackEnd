@@ -1,6 +1,6 @@
 using BaseService.Common.ApiEntities;
 
-namespace BuildingBlocks.Messaging.Events.QuizService.TechnologySelectsEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService;
 
 public record TechnologySelectsEventResponse : AbstractApiResponse<List<TechnologySelectsEventResponseEntity>>
 {
