@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace StudentService.Domain.WriteModels;
+﻿namespace StudentService.Domain.WriteModels;
 
 public partial class Student
 {
@@ -39,15 +36,17 @@ public partial class Student
 
     public virtual ICollection<AiEvaluation> AiEvaluations { get; set; } = new List<AiEvaluation>();
 
-	public virtual ICollection<CourseSuggestion> CourseSuggestions { get; set; } = new List<CourseSuggestion>();
+    public virtual ICollection<CourseSuggestion> CourseSuggestions { get; set; } = new List<CourseSuggestion>();
 
-	public virtual ICollection<LearningPath> LearningPaths { get; set; } = new List<LearningPath>();
+    public virtual ICollection<LearningPath> LearningPaths { get; set; } = new List<LearningPath>();
 
     public virtual ICollection<StudentLearningGoal> StudentLearningGoals { get; set; } = new List<StudentLearningGoal>();
 
     public virtual ICollection<StudentOrientation> StudentOrientations { get; set; } = new List<StudentOrientation>();
 
     public virtual ICollection<StudentTechnology> StudentTechnologies { get; set; } = new List<StudentTechnology>();
+
+    public virtual ICollection<StudentTranscript> StudentTranscripts { get; set; } = new List<StudentTranscript>();
 
     public virtual ICollection<UserBehaviour> UserBehaviours { get; set; } = new List<UserBehaviour>();
 }

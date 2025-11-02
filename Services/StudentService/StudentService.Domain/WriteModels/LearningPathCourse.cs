@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace StudentService.Domain.WriteModels;
+﻿namespace StudentService.Domain.WriteModels;
 
 public partial class LearningPathCourse
 {
@@ -12,8 +9,6 @@ public partial class LearningPathCourse
     public Guid? InternalCourseId { get; set; }
 
     public int? Position { get; set; }
-    
-    public short Status { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -38,6 +33,8 @@ public partial class LearningPathCourse
     public string? ExternalCourseDuration { get; set; }
 
     public string? ExternalCourseProvider { get; set; }
+
+    public short Status { get; set; }
 
     public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }

@@ -22,6 +22,14 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             {
                 student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };        
             }
+            if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
+            {
+                student.Technologies = new List<StudentTechnologyCollection>();
+                foreach (var tech in message.StudentTechnologies)
+                {
+                    student.Technologies.Add(tech);
+                }
+            }
         }
         unitOfWork.Store(student);
 

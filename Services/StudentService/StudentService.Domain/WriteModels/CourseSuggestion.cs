@@ -1,4 +1,4 @@
-namespace StudentService.Domain.WriteModels;
+﻿namespace StudentService.Domain.WriteModels;
 
 public partial class CourseSuggestion
 {
@@ -11,7 +11,7 @@ public partial class CourseSuggestion
     public Guid SuggestedCourseId { get; set; }
 
     public string Reason { get; set; } = null!;
-    
+
     public bool? IsAccepted { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -24,6 +24,5 @@ public partial class CourseSuggestion
 
     public bool IsActive { get; set; }
 
-    public virtual Student? Student { get; set; }
+    public virtual Student Student { get; set; } = null!;
 }
-
