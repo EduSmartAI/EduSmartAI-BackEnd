@@ -1,4 +1,5 @@
 ﻿using BaseService.Common.Settings;
+using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
@@ -33,6 +34,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetModuleDashboardEventConsumer>();
                 x.AddConsumer<SuggestCourseRetakeEventConsumer>();
                 x.AddConsumer<GetCourseModuleCountEventConsumer>();
+                x.AddConsumer<GetLessonDashboardEventConsumer>();
                 x.AddConsumer<GetLessonInfoConsumer>();
                 x.AddConsumer<MajorAndSemesterSelectEventConsumer>();
                 x.AddConsumer<GetInfoCourseByCourseIdConsumer>();
@@ -54,8 +56,9 @@ namespace Course.API.Extensions
                 x.AddRequestClient<QuizCourseSelectEvent>();
                 x.AddRequestClient<QuizCourseCheckAttemptEvent>();
                 x.AddRequestClient<GetLatestModuleQuizScoresEvent>();
-                x.AddRequestClient<SuggestCourseRetakeEvent>();
-            });
+                x.AddRequestClient<GetLatestLessonQuizScoresEvent>();
+				x.AddRequestClient<SuggestCourseRetakeEvent>();
+			});
 
             return services;
         }

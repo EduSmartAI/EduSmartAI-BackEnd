@@ -30,7 +30,7 @@ public class StudentController(IIdentityService identityService, IMediator media
         Summary = "Cập nhật thông tin học sinh",
         Description = "Cần cấp quyền Student"
     )]
-    public async Task<StudentProfileUpdateResponse> UpdateStudentProfile([FromBody] StudentProfileUpdateCommand request)
+    public async Task<StudentProfileUpdateResponse> UpdateStudentProfile([FromForm] StudentProfileUpdateCommand request)
     {
         return await ApiControllerHelper.HandleRequest<StudentProfileUpdateCommand, StudentProfileUpdateResponse, string>(
             request,

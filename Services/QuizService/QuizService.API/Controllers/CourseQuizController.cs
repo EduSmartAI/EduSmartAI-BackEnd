@@ -1,6 +1,7 @@
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using MediatR;
@@ -229,10 +230,23 @@ public class CourseQuizController(IMediator mediator, IIdentityService identityS
             _logger,
             ModelState,
             async () => await mediator.Send(request),
-            //identityService,
-            //_identityEntity,
-            //httpContextAccessor,
             new GetLatestModuleQuizScoresResponseEvent());
+	}
+
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy điểm làm bài kiểm tra mới nhất của sinh viên theo lesson",
+        Description = "Cần cấp quyền Student cho API"
+    )]
+	public async Task<GetLatestLessonQuizScoresResponseEvent> GetLatestLessonQuizScores([FromQuery] GetLatestLessonQuizScoresQuery request)
+    {
+        return await ApiControllerHelper.HandleRequest<GetLatestLessonQuizScoresQuery, GetLatestLessonQuizScoresResponseEvent, GetLatestLessonQuizScoresPayload>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            new GetLatestLessonQuizScoresResponseEvent());
 	}
 
 }

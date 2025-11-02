@@ -1,3 +1,4 @@
+using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using QuizService.Application.Applications.QuizCourses.Commands;
 using QuizService.Application.Applications.QuizCourses.Queries;
@@ -23,4 +24,5 @@ public interface IQuizCourseService
     Task<QuizCourseCheckAttemptResponse> CheckStudentQuizAttemptAsync(QuizCourseCheckAttemptCommand request, CancellationToken cancellationToken);
 
     Task<GetLatestModuleQuizScoresResponseEvent> GetLatestModuleQuizScoresAsync(GetLatestModuleQuizScoresEvent request, CancellationToken cancellationToken);
+    Task<GetLatestLessonQuizScoresResponseEvent> GetLatestLessonQuizScoresAsync(GetLatestLessonQuizScoresEvent request, CancellationToken cancellationToken);
 }

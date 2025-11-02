@@ -17,6 +17,7 @@ using System.Text.Json;
 using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.CourseService;
 using static BaseService.Common.Utils.Const.ConstantEnum;
+using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -1020,9 +1021,21 @@ public class QuizCourseService : IQuizCourseService
 		return response;
 	}
 
+	/// <summary>
+	/// Get latest module quiz scores for multiple modules
+	/// </summary>
+	/// <param name="request"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
 	public async Task<GetLatestModuleQuizScoresResponseEvent> GetLatestModuleQuizScoresAsync(GetLatestModuleQuizScoresEvent request, CancellationToken cancellationToken)
 	{
 		var response = new GetLatestModuleQuizScoresResponseEvent { Success = false };
+
+        if (request.ModuleIds is null || request.ModuleIds.Count == 0)
+        {
+            response.SetMessage(MessageId.E11001, "ModuleIds are null or empty");
+            return response;
+		}
 
 		var q = _studentQuizCommandRepository.Find(
 			sq => sq.StudentId == request.StudentId
@@ -1087,6 +1100,79 @@ public class QuizCourseService : IQuizCourseService
 		};
 
 		response.Success = true;
+		response.Response = payload;
+		return response;
+	}
+
+	/// <summary>
+	/// Get latest lesson quiz scores for multiple lessons
+	/// </summary>
+	/// <param name="request"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
+	public async Task<GetLatestLessonQuizScoresResponseEvent> GetLatestLessonQuizScoresAsync(GetLatestLessonQuizScoresEvent request, CancellationToken cancellationToken)
+	{
+		var response = new GetLatestLessonQuizScoresResponseEvent { Success = false };
+
+		if (request.LessonIds is null || request.LessonIds.Count == 0)
+		{
+			response.SetMessage(MessageId.E11001, "LessonIds are null or empty");
+			return response;
+		}
+
+		// base query: student + course + scope = Lesson + scope_id ∈ LessonIds
+		var q = _studentQuizCommandRepository.Find(
+			sq => sq.StudentId == request.StudentId
+				&& sq.CourseId == request.CourseId
+				&& sq.Scope == (short)QuizScope.Lesson
+				&& sq.ScopeId != null
+				&& request.LessonIds.Contains(sq.ScopeId.Value),
+			isTracking: false,
+			cancellationToken: cancellationToken);
+
+		// Lấy record mới nhất cho MỖI lesson bằng correlated subquery (tránh lỗi Join/type inference)
+		var latestPerLesson = await
+		(
+			from sq in q
+			where sq.CreatedAt ==
+				  q.Where(x => x.ScopeId == sq.ScopeId).Max(x => x.CreatedAt)
+			select new
+			{
+				LessonId = sq.ScopeId!.Value,
+				LatestScore = sq.Score100,          // int? (nullable)
+				LastAttemptAt = sq.CreatedAt          // DateTimeOffset/DateTime (phụ thuộc mapping)
+			}
+		).ToListAsync(cancellationToken);
+
+		// Đếm tổng số attempt per lesson (để giám sát dữ liệu)
+		var attemptCounts = await q
+			.GroupBy(sq => sq.ScopeId!.Value)
+			.Select(g => new { LessonId = g.Key, AttemptCount = g.Count() })
+			.ToListAsync(cancellationToken);
+
+		// Build dicts
+		var latestDict = latestPerLesson.ToDictionary(x => x.LessonId, x => x);
+		var countsDict = attemptCounts.ToDictionary(x => x.LessonId, x => x.AttemptCount);
+
+		// Map payload, đảm bảo trả đủ mọi LessonId được yêu cầu
+		var payload = new GetLatestLessonQuizScoresPayload
+		{
+			Lessons = request.LessonIds.Select(lessonId =>
+			{
+				latestDict.TryGetValue(lessonId, out var latest);
+				countsDict.TryGetValue(lessonId, out var cnt);
+
+				return new LessonLatestQuizScore
+				{
+					LessonId = lessonId,
+					LatestScore100 = latest?.LatestScore,
+					AttemptCount = cnt
+				};
+			}).ToList()
+		};
+
+		response.Success = true;
+        response.SetMessage(MessageId.I00001, "Lấy điểm bài kiểm tra mới nhất cho các bài học");
 		response.Response = payload;
 		return response;
 	}

@@ -1,6 +1,7 @@
 ﻿using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.AiEvaluationUpsertEvents;
+using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.AiQuizEvaluates.Commands.CreateAiQuizEvaluate;
 using StudentService.Application.Applications.Dashboards.Queries;
@@ -87,8 +88,8 @@ namespace StudentService.Infrastructure.Implements
 				}, ct);
 			}
 
-				// response
-				response.Success = true;
+			// response
+			response.Success = true;
 			response.Response = result.EvaluationId.ToString();
 			response.SetMessage(MessageId.I00001, "Lưu kết quả AI đánh giá thành công");
 
@@ -112,45 +113,217 @@ namespace StudentService.Infrastructure.Implements
 				return response;
 			}
 
-			// Base query: theo student + course + scope = Module + scope_id ∈ ModuleIds
+			// base query
 			var baseQuery = _aiEvaluateCommandRepository.Find(
 				ev => ev.UserId == request.StudentId
 				   && ev.CourseId == request.CourseId
 				   && ev.Scope == (short)QuizScope.Module
 				   && request.ModuleIds.Contains(ev.ScopeId),
 				isTracking: false,
-				cancellationToken: cancellationToken
-			); // IQueryable<AiEvaluation>
+				cancellationToken: cancellationToken);
 
-			// Lấy newest per module (GroupBy → OrderByDescending → FirstOrDefault)
-			// EF Core 6/7/8 dịch tốt pattern này về SQL (SELECT DISTINCT ON / CROSS APPLY tùy provider)
-			var latestPerModule = await baseQuery
-				.GroupBy(ev => ev.ScopeId)
-				.Select(g => g.OrderByDescending(ev => ev.CreatedAt).FirstOrDefault()!)
+			// Lấy record mới nhất cho MỖI module bằng correlated subquery (tránh Join)
+			var latestPerModule = await
+			(
+				from ev in baseQuery
+				where ev.CreatedAt ==
+					  baseQuery
+						 .Where(x => x.ScopeId == ev.ScopeId)
+						 .Max(x => x.CreatedAt)
+				select new
+				{
+					ev.EvaluationId,
+					ModuleId = ev.ScopeId,
+					ev.QuizId,
+					ev.Score100Raw,
+					ev.Score100,
+					ev.Summary,
+					ev.Strengths,
+					ev.CreatedAt
+				}
+			).ToListAsync(cancellationToken);
+
+			if (latestPerModule.Count == 0)
+			{
+				response.Success = true;
+				response.Response = new GetLatestModuleAiEvaluationsPayload
+				{
+					Modules = Array.Empty<ModuleAiEvaluationDto>()
+				};
+				return response;
+			}
+
+			// Lấy improvements (markdown) theo evaluation_id của bản ghi latest
+			var evalIds = latestPerModule.Select(x => x.EvaluationId).Distinct().ToList();
+
+			var improvements = await _aiEvaluationImprovementCommandRepository
+				.Find(im => evalIds.Contains(im.EvaluationId), isTracking: false, cancellationToken)
+				.Select(im => new
+				{
+					im.ImprovementId,
+					im.EvaluationId,
+					im.PositionIndex,
+					im.ImprovementsText,
+					im.ContentMarkdown,
+					im.Slug,
+					im.CreatedAt,
+					im.UpdatedAt
+				})
 				.ToListAsync(cancellationToken);
 
+			var improvementsByEval = improvements
+				.GroupBy(im => im.EvaluationId)
+				.ToDictionary(
+					g => g.Key,
+					g => g.OrderBy(x => x.PositionIndex)
+						  .Select(x => new AiImprovementDto
+						  {
+							  ImprovementId = x.ImprovementId,
+							  PositionIndex = x.PositionIndex,
+							  ImprovementText = x.ImprovementsText,
+							  ContentMarkdown = x.ContentMarkdown,
+							  Slug = x.Slug,
+							  CreatedAt = x.CreatedAt,
+							  UpdatedAt = x.UpdatedAt
+						  })
+						  .ToList()
+						  .AsReadOnly()
+				);
+
 			var modules = latestPerModule
-				.Where(ev => ev != null)
-				.Select(ev => new ModuleAiEvaluationDto
+				.Select(x => new ModuleAiEvaluationDto
 				{
-					ModuleId = ev.ScopeId,
-					QuizId = ev.QuizId,
-					Score100Raw = ev.Score100Raw.HasValue ? (int?)ev.Score100Raw.Value : null,
-					Score100 = ev.Score100,
-					Summary = ev.Summary,
-					Strengths = ToList(ev.Strengths),
-					Improvements = ToList(ev.Improvements),
-					CreatedAt = ev.CreatedAt
+					ModuleId = x.ModuleId,
+					QuizId = x.QuizId,
+					Score100Raw = x.Score100Raw,
+					Score100 = x.Score100,
+					Summary = x.Summary,
+					Strengths = ToList(x.Strengths),
+					CreatedAt = x.CreatedAt,
+					ImprovementResources = improvementsByEval.TryGetValue(x.EvaluationId, out var list)
+											? list
+											: Array.Empty<AiImprovementDto>()
 				})
-				// Optional: sắp theo thời gian mới → cũ khi trả về
 				.OrderByDescending(m => m.CreatedAt)
 				.ToList();
 
-			response.Response = new GetLatestModuleAiEvaluationsPayload
-			{
-				Modules = modules
-			};
+			response.Response = new GetLatestModuleAiEvaluationsPayload { Modules = modules };
 			response.Success = true;
+			return response;
+		}
+
+		/// <summary>
+		/// Get latest AI evaluations for multiples lessons
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public async Task<GetLatestLessonAiEvaluationsResponse> GetLatestLessonAiEvaluationsAsync(GetLatestLessonAiEvaluationsQuery request, CancellationToken cancellationToken)
+		{
+			var response = new GetLatestLessonAiEvaluationsResponse { Success = false };
+
+			if (request.LessonIds is null || request.LessonIds.Count == 0)
+			{
+				response.SetMessage(MessageId.E11001, "LessonIds trống");
+				return response;
+			}
+
+			// Base query: student + course + scope=Lesson + scope_id ∈ LessonIds
+			var baseQuery = _aiEvaluateCommandRepository.Find(
+				ev => ev.UserId == request.StudentId
+				   && ev.CourseId == request.CourseId
+				   && ev.Scope == (short)QuizScope.Lesson
+				   && request.LessonIds.Contains(ev.ScopeId),
+				isTracking: false,
+				cancellationToken: cancellationToken);
+
+			// Latest per lesson bằng correlated subquery (tránh Join/type inference)
+			var latestPerLesson = await
+			(
+				from ev in baseQuery
+				where ev.CreatedAt ==
+					  baseQuery.Where(x => x.ScopeId == ev.ScopeId)
+							   .Max(x => x.CreatedAt)
+				select new
+				{
+					ev.EvaluationId,
+					LessonId = ev.ScopeId,
+					ev.QuizId,
+					ev.Score100Raw,
+					ev.Score100,
+					ev.Summary,
+					ev.Strengths,   // sẽ parse ra List<string>
+					ev.CreatedAt
+				}
+			).ToListAsync(cancellationToken);
+
+			if (latestPerLesson.Count == 0)
+			{
+				response.Success = true;
+				response.Response = new GetLatestLessonAiEvaluationsPayload
+				{
+					Lessons = Array.Empty<LessonAiEvaluationDto>()
+				};
+				return response;
+			}
+
+			// Lấy improvements (markdown) theo evaluation_id của bản ghi latest
+			var evalIds = latestPerLesson.Select(x => x.EvaluationId).Distinct().ToList();
+
+			var improvements = await _aiEvaluationImprovementCommandRepository
+				.Find(im => evalIds.Contains(im.EvaluationId), isTracking: false, cancellationToken)
+				.Select(im => new
+				{
+					im.ImprovementId,
+					im.EvaluationId,
+					im.PositionIndex,
+					im.ImprovementsText,
+					im.ContentMarkdown,
+					im.Slug,
+					im.CreatedAt,
+					im.UpdatedAt
+				})
+				.ToListAsync(cancellationToken);
+
+			var improvementsByEval = improvements
+				.GroupBy(im => im.EvaluationId)
+				.ToDictionary(
+					g => g.Key,
+					g => g.OrderBy(x => x.PositionIndex)
+						  .Select(x => new AiImprovementDto
+						  {
+							  ImprovementId = x.ImprovementId,
+							  PositionIndex = x.PositionIndex,
+							  ImprovementText = x.ImprovementsText,
+							  ContentMarkdown = x.ContentMarkdown,
+							  Slug = x.Slug,
+							  CreatedAt = x.CreatedAt,
+							  UpdatedAt = x.UpdatedAt
+						  })
+						  .ToList()
+						  .AsReadOnly()
+				);
+
+			// Map payload: KHÔNG có field Improvements; dùng ImprovementResources thay thế
+			var lessons = latestPerLesson
+				.Select(x => new LessonAiEvaluationDto
+				{
+					LessonId = x.LessonId,
+					QuizId = x.QuizId,
+					Score100Raw = x.Score100Raw,
+					Score100 = x.Score100,
+					Summary = x.Summary,
+					Strengths = ToList(x.Strengths),
+					CreatedAt = x.CreatedAt,
+					ImprovementResources = improvementsByEval.TryGetValue(x.EvaluationId, out var list)
+											? list
+											: Array.Empty<AiImprovementDto>()
+				})
+				.OrderByDescending(m => m.CreatedAt)
+				.ToList();
+
+			response.Success = true;
+			response.Response = new GetLatestLessonAiEvaluationsPayload { Lessons = lessons };
 			return response;
 		}
 
@@ -174,6 +347,5 @@ namespace StudentService.Infrastructure.Implements
 					  .Where(s => s.Length > 0)
 					  .ToArray();
 		}
-
 	}
 }
