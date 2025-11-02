@@ -357,6 +357,7 @@ public class StudentService : IStudentService
             studentExist.SemesterId = request.SemesterId ?? studentExist.SemesterId;
 
             _studentRepository.Update(studentExist);
+            await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
 
             // Update technologies if provided
             if (request.Technologies != null)
@@ -384,8 +385,9 @@ public class StudentService : IStudentService
                         });
                     }
                 }
+
                 await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken);
-                
+
                 // If any existing technologies are not in the new list, mark them as inactive
                 var inactiveTechs = existingTechs
                     .Where(t => !request.Technologies.Contains(t.TechnologyId))
@@ -395,7 +397,19 @@ public class StudentService : IStudentService
                 {
                     _studentTechnologyRepository.Update(tech);
                 }
+
                 await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+            }
+            else
+            {
+                // Delete all technologies if null
+                var inactiveTechs = studentExist.StudentTechnologies.ToList();
+                foreach (var tech in inactiveTechs)
+                {
+                    _studentTechnologyRepository.Update(tech);
+                }
+                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+
             }
 
             // Update learning goals if provided
@@ -431,6 +445,16 @@ public class StudentService : IStudentService
                     .Where(g => !request.LearningGoals.Contains(g.GoalId))
                     .ToList();
 
+                foreach (var goal in inactiveGoals)
+                {
+                    _studentLearningGoalRepository.Update(goal);
+                }
+                await _unitOfWork.SaveChangesAsync(currentUser!.Email, cancellationToken, needLogicalDelete: true);
+            } 
+            else
+            {
+                // Delete all learning goals if null
+                var inactiveGoals = studentExist.StudentLearningGoals.ToList();
                 foreach (var goal in inactiveGoals)
                 {
                     _studentLearningGoalRepository.Update(goal);
