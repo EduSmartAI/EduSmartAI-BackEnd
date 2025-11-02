@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
+﻿using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
+using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.CourseService;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
@@ -8,16 +9,196 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<CourseEntity> _courseRepository,
 		IDatabase _cache,
 		ICacheKeyFactory _cacheKeyFactory,
-		IIdentityService _identityService,
 		ICommandRepository<Module> _moduleRepository,
 		ICommandRepository<Lesson> _lessonRepository,
 		ICommandRepository<UserLessonProgress> _userLessonProgressRepository,
 		ICommandRepository<UserModuleProgress> _userModuleProgressRepository,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		IRequestClient<GetLatestModuleQuizScoresEvent> _quizScoresClient
+		IRequestClient<GetLatestModuleQuizScoresEvent> _quizScoresClient,
+		IRequestClient<GetLatestLessonQuizScoresEvent> _quizLessonClient
 	) : IExternalCourseService
 	{
+		public async Task<GetCourseLessonDashboardEventResponse> GetCourseLessonDashboardAsync(Guid studentId, Guid courseId, CancellationToken cancellationToken)
+		{
+			var response = new GetCourseLessonDashboardEventResponse { Success = false };
+
+			// 1) Course exists
+			var course = await _courseRepository.FirstOrDefaultAsync(c => c.CourseId == courseId && c.IsActive, cancellationToken);
+			if (course is null)
+			{
+				response.SetMessage(MessageId.E11001, $"CourseId {courseId} không tồn tại");
+				return response;
+			}
+
+			// 2) Modules
+			var modules = await _moduleRepository
+				.Find(m => m.CourseId == courseId && m.IsActive, isTracking: false, cancellationToken: cancellationToken)
+				.OrderBy(m => m.PositionIndex)
+				.ToListAsync(cancellationToken);
+			if (modules.Count == 0)
+			{
+				response.Success = true;
+				response.Response = new CourseLessonDashboardContract
+				{
+					StudentId = studentId,
+					CourseId = courseId,
+					Modules = Array.Empty<CourseLessonModuleGroup>(),
+					Totals = new CourseLessonTotals()
+				};
+				return response;
+			}
+			var moduleIds = modules.Select(m => m.ModuleId).ToList();
+
+			// 3) Lessons
+			var lessons = await _lessonRepository
+				.Find(l => moduleIds.Contains(l.ModuleId) && l.IsActive, isTracking: false, cancellationToken: cancellationToken)
+				.OrderBy(l => l.PositionIndex)
+				.ToListAsync(cancellationToken);
+			var lessonIds = lessons.Select(l => l.LessonId).ToList();
+
+			// 4) UserLessonProgress
+			var ulps = lessonIds.Count == 0
+				? new List<UserLessonProgress>()
+				: await _userLessonProgressRepository
+					.Find(ulp => ulp.UserId == studentId && lessonIds.Contains(ulp.LessonId),
+						  isTracking: false, cancellationToken: cancellationToken)
+					.ToListAsync(cancellationToken);
+
+			// 5) Lesson quizzes
+			var lqs = lessonIds.Count == 0
+				? new List<LessonQuiz>()
+				: await _lessonQuizRepository
+					.Find(lq => lessonIds.Contains(lq.LessonId) && lq.IsActive,
+						  isTracking: false, cancellationToken: cancellationToken)
+					.ToListAsync(cancellationToken);
+
+			var ulpByLesson = ulps.ToDictionary(x => x.LessonId, x => x);
+			var quizCountByLesson = lqs
+				.GroupBy(q => q.LessonId)
+				.ToDictionary(g => g.Key, g => g.Select(x => x.QuizId).Distinct().Count());
+
+			// 6) Gọi QuizService lấy latest score_100 cho mỗi lesson
+			Dictionary<Guid, int?> latestScoreByLesson = new();
+			if (lessonIds.Count > 0)
+			{
+				try
+				{
+					var req = new GetLatestLessonQuizScoresEvent(studentId, courseId, lessonIds);
+					var resp = await _quizLessonClient.GetResponse<GetLatestLessonQuizScoresResponseEvent>(req, cancellationToken);
+
+					if (resp.Message.Success && resp.Message.Response?.Lessons is { Count: > 0 } list)
+					{
+						latestScoreByLesson = list.ToDictionary(x => x.LessonId, x => x.LatestScore100);
+					}
+				}
+				catch
+				{
+					// không làm fail dashboard; để điểm = null
+				}
+			}
+
+			// 7) Build groups
+			var lessonsByModule = lessons.GroupBy(l => l.ModuleId)
+										 .ToDictionary(g => g.Key, g => g.ToList());
+
+			var groups = new List<CourseLessonModuleGroup>(modules.Count);
+			foreach (var m in modules)
+			{
+				var moduleLessons = lessonsByModule.TryGetValue(m.ModuleId, out var list) ? list : new List<Lesson>();
+				var items = new List<CourseLessonItem>(moduleLessons.Count);
+
+				foreach (var l in moduleLessons)
+				{
+					ulpByLesson.TryGetValue(l.LessonId, out var ulp);
+
+					var status = ulp is null ? LessonStatus.NotStarted
+						: ulp.Status == 2 ? LessonStatus.Completed
+						: ulp.Status == 1 ? LessonStatus.InProgress
+						: LessonStatus.NotStarted;
+
+					var videoSec = Math.Max(0, l.VideoDurationSec ?? 0);
+					var watchedSec = Math.Max(0, ulp?.DurationWatchedSec ?? 0);
+					var percent = videoSec == 0 ? 0m : Math.Round((decimal)watchedSec * 100m / videoSec, 2);
+
+					quizCountByLesson.TryGetValue(l.LessonId, out var lqCount);
+					latestScoreByLesson.TryGetValue(l.LessonId, out var latestScore);
+
+					DateTime? updatedAt = null;
+					if (ulp?.UpdatedAt is DateTime ulpUpd)
+						updatedAt = ulpUpd > l.UpdatedAt ? ulpUpd : l.UpdatedAt;
+					else
+						updatedAt = l.UpdatedAt;
+
+					items.Add(new CourseLessonItem
+					{
+						LessonId = l.LessonId,
+						Title = l.Title,
+						PositionIndex = l.PositionIndex,
+						IsActive = l.IsActive,
+						VideoUrl = l.VideoUrl,
+
+						Status = status,
+						CurrentSecond = ulp?.LastSeenPositionSec,
+						VideoDurationSeconds = videoSec,
+						ActualStudyMinutes = (int)Math.Ceiling(watchedSec / 60.0),
+						PercentWatched = percent,
+
+						LessonQuizCount = lqCount,
+						AverageQuizScore = latestScore.HasValue ? latestScore.Value : null,
+
+						CompletedAtUtc = ulp?.CompletedAt,
+						UpdatedAtUtc = updatedAt
+					});
+				}
+
+				groups.Add(new CourseLessonModuleGroup
+				{
+					ModuleId = m.ModuleId,
+					ModuleName = m.ModuleName,
+					PositionIndex = m.PositionIndex,
+					Lessons = items
+				});
+			}
+
+			// 8) Totals
+			var flat = groups.SelectMany(g => g.Lessons).ToList();
+
+			var totals = new CourseLessonTotals
+			{
+				ModulesCount = groups.Count,
+				LessonsCount = flat.Count,
+				TotalVideoDurationMinutes = flat.Sum(x => (int)Math.Ceiling(x.VideoDurationSeconds / 60.0)),
+				TotalActualStudyMinutes = flat.Sum(x => x.ActualStudyMinutes),
+				TotalLessonQuizCount = flat.Sum(x => x.LessonQuizCount),
+				AverageQuizScore = flat.Any(x => x.AverageQuizScore.HasValue)
+					? Math.Round(flat.Where(x => x.AverageQuizScore.HasValue)
+									 .Average(x => x.AverageQuizScore!.Value), 2)
+					: (decimal?)null
+			};
+
+			// 9) Response
+			response.Success = true;
+			response.Response = new CourseLessonDashboardContract
+			{
+				StudentId = studentId,
+				CourseId = courseId,
+				Modules = groups,
+				Totals = totals
+			};
+
+			response.SetMessage(MessageId.I00001, "Lấy Course Lesson Dashboard thành công");
+
+			return response;
+		}
+
+		/// <summary>
+		/// Get Course Module Dashboard
+		/// </summary>
+		/// <param name="studentId"></param>
+		/// <param name="courseId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
 		public async Task<GetCourseModuleDashboardEventResponse> GetCourseModuleDashboardAsync(Guid studentId, Guid courseId, CancellationToken cancellationToken)
 		{
 			var response = new GetCourseModuleDashboardEventResponse{ Success = false };
@@ -254,6 +435,7 @@ namespace Course.Infrastructure.Implements
 				Modules = items.OrderBy(x => x.PositionIndex).ToList(),
 				Totals = totals
 			};
+			response.SetMessage(MessageId.I00001, "Lấy Course Module Dashboard thành công");
 			return response;
 		}
 	}

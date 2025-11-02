@@ -1,4 +1,5 @@
 ﻿using BuildingBlocks.Messaging.Events.StudentService.Dashboards.CourseService;
+using Course.Application.Dashboards.Queries.GetCourseLessonDashboard;
 using Course.Application.Dashboards.Queries.GetCourseModuleDashboard;
 
 namespace Course.API.Controllers
@@ -23,6 +24,18 @@ namespace Course.API.Controllers
 			ModelState,
 			async () => await sender.Send(request),
 			new GetCourseModuleDashboardEventResponse());
+		}
+
+		[HttpGet("[action]")]
+		public async Task<GetCourseLessonDashboardEventResponse> ProcessGetCourseLessonDashboard([FromQuery] Guid studentId, [FromQuery] Guid courseId)
+		{
+			var request = new GetCourseLessonDashboardQuery(studentId, courseId);
+			return await ApiControllerHelper.HandleRequest<GetCourseLessonDashboardQuery, GetCourseLessonDashboardEventResponse, CourseLessonDashboardContract>(
+			request,
+			_logger,
+			ModelState,
+			async () => await sender.Send(request),
+			new GetCourseLessonDashboardEventResponse());
 		}
 	}
 }

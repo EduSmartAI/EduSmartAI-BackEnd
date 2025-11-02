@@ -1172,6 +1172,7 @@ public class QuizCourseService : IQuizCourseService
 		};
 
 		response.Success = true;
+        response.SetMessage(MessageId.I00001, "Lấy điểm bài kiểm tra mới nhất cho các bài học");
 		response.Response = payload;
 		return response;
 	}

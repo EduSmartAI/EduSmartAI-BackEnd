@@ -88,8 +88,8 @@ namespace StudentService.Infrastructure.Implements
 				}, ct);
 			}
 
-				// response
-				response.Success = true;
+			// response
+			response.Success = true;
 			response.Response = result.EvaluationId.ToString();
 			response.SetMessage(MessageId.I00001, "Lưu kết quả AI đánh giá thành công");
 
@@ -213,6 +213,115 @@ namespace StudentService.Infrastructure.Implements
 		}
 
 
+		public async Task<GetLatestLessonAiEvaluationsResponse> GetLatestLessonAiEvaluationsAsync(GetLatestLessonAiEvaluationsQuery request, CancellationToken cancellationToken)
+		{
+			var response = new GetLatestLessonAiEvaluationsResponse { Success = false };
+
+			if (request.LessonIds is null || request.LessonIds.Count == 0)
+			{
+				response.SetMessage(MessageId.E11001, "LessonIds trống");
+				return response;
+			}
+
+			// Base query: student + course + scope=Lesson + scope_id ∈ LessonIds
+			var baseQuery = _aiEvaluateCommandRepository.Find(
+				ev => ev.UserId == request.StudentId
+				   && ev.CourseId == request.CourseId
+				   && ev.Scope == (short)QuizScope.Lesson
+				   && request.LessonIds.Contains(ev.ScopeId),
+				isTracking: false,
+				cancellationToken: cancellationToken);
+
+			// Latest per lesson bằng correlated subquery (tránh Join/type inference)
+			var latestPerLesson = await
+			(
+				from ev in baseQuery
+				where ev.CreatedAt ==
+					  baseQuery.Where(x => x.ScopeId == ev.ScopeId)
+							   .Max(x => x.CreatedAt)
+				select new
+				{
+					ev.EvaluationId,
+					LessonId = ev.ScopeId,
+					ev.QuizId,
+					ev.Score100Raw,
+					ev.Score100,
+					ev.Summary,
+					ev.Strengths,   // sẽ parse ra List<string>
+					ev.CreatedAt
+				}
+			).ToListAsync(cancellationToken);
+
+			if (latestPerLesson.Count == 0)
+			{
+				response.Success = true;
+				response.Response = new GetLatestLessonAiEvaluationsPayload
+				{
+					Lessons = Array.Empty<LessonAiEvaluationDto>()
+				};
+				return response;
+			}
+
+			// Lấy improvements (markdown) theo evaluation_id của bản ghi latest
+			var evalIds = latestPerLesson.Select(x => x.EvaluationId).Distinct().ToList();
+
+			var improvements = await _aiEvaluationImprovementCommandRepository
+				.Find(im => evalIds.Contains(im.EvaluationId), isTracking: false, cancellationToken)
+				.Select(im => new
+				{
+					im.ImprovementId,
+					im.EvaluationId,
+					im.PositionIndex,
+					im.ImprovementsText,
+					im.ContentMarkdown,
+					im.Slug,
+					im.CreatedAt,
+					im.UpdatedAt
+				})
+				.ToListAsync(cancellationToken);
+
+			var improvementsByEval = improvements
+				.GroupBy(im => im.EvaluationId)
+				.ToDictionary(
+					g => g.Key,
+					g => g.OrderBy(x => x.PositionIndex)
+						  .Select(x => new AiImprovementDto
+						  {
+							  ImprovementId = x.ImprovementId,
+							  PositionIndex = x.PositionIndex,
+							  ImprovementText = x.ImprovementsText,
+							  ContentMarkdown = x.ContentMarkdown,
+							  Slug = x.Slug,
+							  CreatedAt = x.CreatedAt,
+							  UpdatedAt = x.UpdatedAt
+						  })
+						  .ToList()
+						  .AsReadOnly()
+				);
+
+			// Map payload: KHÔNG có field Improvements; dùng ImprovementResources thay thế
+			var lessons = latestPerLesson
+				.Select(x => new LessonAiEvaluationDto
+				{
+					LessonId = x.LessonId,
+					QuizId = x.QuizId,
+					Score100Raw = x.Score100Raw,
+					Score100 = x.Score100,
+					Summary = x.Summary,
+					Strengths = ToList(x.Strengths),
+					CreatedAt = x.CreatedAt,
+					ImprovementResources = improvementsByEval.TryGetValue(x.EvaluationId, out var list)
+											? list
+											: Array.Empty<AiImprovementDto>()
+				})
+				.OrderByDescending(m => m.CreatedAt)
+				.ToList();
+
+			response.Success = true;
+			response.Response = new GetLatestLessonAiEvaluationsPayload { Lessons = lessons };
+			return response;
+		}
+
 		// Helper: cố gắng parse JSON array, nếu không thì fallback tách theo xuống dòng/ký hiệu bullet
 		private static IReadOnlyList<string> ToList(string? src)
 		{
@@ -233,6 +342,5 @@ namespace StudentService.Infrastructure.Implements
 					  .Where(s => s.Length > 0)
 					  .ToArray();
 		}
-
 	}
 }
