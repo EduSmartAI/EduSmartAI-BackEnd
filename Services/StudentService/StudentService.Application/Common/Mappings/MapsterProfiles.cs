@@ -13,48 +13,49 @@ namespace StudentService.Application.Common.Mappings
         {
             // Course -> CourseItemDto
             config.NewConfig<LearningPathCourseCollection, CourseItemDto>()
-                .Map(d => d.CourseId, s => s.InternalCourseId.HasValue ? s.InternalCourseId.Value.ToString() : null)
-                .Map(d => d.SubjectCode, _ => null as string)
-                .Map(d => d.SemesterPosition, s => s.Position.HasValue ? s.Position.Value : 0);
+            .Map(d => d.CourseId, s => s.InternalCourseId.HasValue ? s.InternalCourseId.Value.ToString() : null)
+            .Map(d => d.SubjectCode, _ => string.Empty)
+            .Map(d => d.SemesterPosition, s => s.Position ?? 0)
+            .Map(d => d.Status, s => s.Status);
 
             // Enrich CourseItemDto from (Course + Info)
             config.NewConfig<(LearningPathCourseCollection c, InternalCourseInfoDto? info), CourseItemDto>()
                 .ConstructUsing(_ => new CourseItemDto())
                 .Map(d => d.CourseId, s => s.c.InternalCourseId.HasValue ? s.c.InternalCourseId.Value.ToString() : null)
-                .Map(d => d.SemesterPosition, s => s.info != null ? (int)s.info.SemesterNumber : 0)
-                .Map(d => d.Description, s => s.info != null ? s.info.Description : string.Empty)
-                .Map(d => d.ShortDescription, s => s.info != null ? s.info.ShortDescription : string.Empty)
-                .Map(d => d.Title, s => s.info != null ? s.info.SubjectName : null)
-                .Map(d => d.Slug, s => s.info != null ? s.info.Slug : null)
-                .Map(d => d.SubjectCode, s => s.info != null ? s.info.SubjectCode : null)
-                .Map(d => d.CourseImageUrl, s => s.info != null ? s.info.CourseImageUrl : null)
-                .Map(d => d.LearnerCount, s => s.info != null ? s.info.LearnerCount : 0)
-                .Map(d => d.DurationMinutes, s => s.info != null ? s.info.DurationMinutes : 0)
-                .Map(d => d.DurationHours, s => s.info != null && s.info.DurationMinutes.HasValue
-                        ? (int)Math.Ceiling(s.info.DurationMinutes.Value / 60m)
-                        : 0)
-                .Map(d => d.Level, s => s.info != null ? s.info.Level : 0)
-                .Map(d => d.Price, s => s.info != null ? s.info.Price : 0m)
-                .Map(d => d.DealPrice, s => s.info != null ? s.info.DealPrice : 0m);
+                // info.SemesterNumber -> c.Position -> 0
+                .Map(d => d.SemesterPosition, s => s.info == null ? (s.c.Position ?? 0) : (int)s.info.SemesterNumber)
+                .Map(d => d.Description, s => s.info == null ? string.Empty : s.info.Description)
+                .Map(d => d.ShortDescription, s => s.info == null ? string.Empty : s.info.ShortDescription)
+                .Map(d => d.Title, s => s.info == null ? null : s.info.SubjectName)
+                .Map(d => d.Slug, s => s.info == null ? null : s.info.Slug)
+                .Map(d => d.SubjectCode, s => s.info == null ? string.Empty : s.info.SubjectCode)
+                .Map(d => d.CourseImageUrl, s => s.info == null ? null : s.info.CourseImageUrl)
+                .Map(d => d.LearnerCount, s => s.info != null && s.info.LearnerCount.HasValue ? s.info.LearnerCount.Value : 0)
+                .Map(d => d.DurationMinutes, s => s.info != null && s.info.DurationMinutes.HasValue ? s.info.DurationMinutes.Value : 0)
+                .Map(d => d.DurationHours, s => s.info != null && s.info.DurationMinutes.HasValue ? (int)Math.Ceiling(s.info.DurationMinutes.Value / 60m) : 0)
+                .Map(d => d.Level, s => s.info != null && s.info.Level.HasValue ? (int)s.info.Level.Value : 0)
+                .Map(d => d.Price, s => s.info != null && s.info.Price.HasValue ? s.info.Price.Value : 0m)
+                .Map(d => d.DealPrice, s => s.info != null && s.info.DealPrice.HasValue ? s.info.DealPrice.Value : 0m)
+                .Map(d => d.Status, s => s.c.Status);
 
-            //// Major Internal -> InternalLearningPathDto
+            // Major Internal -> InternalLearningPathDto
             config.NewConfig<LearningPathMajorCollection, InternalLearningPathDto>()
                 .Map(d => d.MajorId, s => s.LearningPathMajorId.ToString())
                 .Map(d => d.MajorCode, s => s.MajorCode)
                 .Map(d => d.Reason, s => s.Reason)
                 .Map(d => d.PositionIndex, s => s.PositionIndex)
-                .Map(d => d.MajorCourse, _ => new List<CourseItemDto>());
+                .Map(d => d.MajorCourseGroups, _ => new List<CourseGroupDto>());
 
-            // Major External -> ExternalLearningPathDto
+            // Major External -> ExternalLearningPathDto (giữ nguyên)
             config.NewConfig<LearningPathMajorCollection, ExternalLearningPathDto>()
                 .Map(d => d.MajorId, s => s.LearningPathMajorId.ToString())
                 .Map(d => d.MajorCode, s => s.MajorCode)
                 .Map(d => d.Reason, s => s.Reason)
                 .Map(d => d.Steps,
-                    s => (s.LearningPathCourses != null ? s.LearningPathCourses : new List<LearningPathCourseCollection>())
+                    s => (s.LearningPathCourses ?? new List<LearningPathCourseCollection>())
                         .Where(c => c.InternalCourseId == null)
                         .GroupBy(c => new { c.StepName, c.Position })
-                        .OrderBy(g => g.Key.Position.HasValue ? g.Key.Position.Value : int.MaxValue)
+                        .OrderBy(g => g.Key.Position ?? int.MaxValue)
                         .Select(g => new ExternalStepDto
                         {
                             Title = string.IsNullOrWhiteSpace(g.Key.StepName)
@@ -74,29 +75,21 @@ namespace StudentService.Application.Common.Mappings
 
             // LearningPath -> LearningPathSelectDto
             config.NewConfig<LearningPathCollection, LearningPathSelectDto>()
-                // Status
                 .Map(d => d.Status, s => s.Status)
-                // Basic
-                .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto
-                {
-                    SubjectName = s.PathName,
-                    Semester = null,
-                    Courses = new List<CourseItemDto>()
-                })
-                // Internal list
+                .Map(d => d.PathName, s => s.PathName)
+                .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto { CourseGroups = new List<CourseGroupDto>() })
                 .Map(d => d.InternalLearningPath,
-                    s => (s.LearningPathMajors != null ? s.LearningPathMajors : new List<LearningPathMajorCollection>())
+                    s => (s.LearningPathMajors ?? new List<LearningPathMajorCollection>())
                         .Where(m => m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
                         .Select(m => m.Adapt<InternalLearningPathDto>(config))
                         .ToList())
-                // External list
                 .Map(d => d.ExternalLearningPath,
-                    s => (s.LearningPathMajors != null ? s.LearningPathMajors : new List<LearningPathMajorCollection>())
+                    s => (s.LearningPathMajors ?? new List<LearningPathMajorCollection>())
                         .Where(m => m.Type == (short)ConstantEnum.LearningPathMajor.External)
                         .Select(m => m.Adapt<ExternalLearningPathDto>(config))
                         .ToList());
 
-            // LearningPath list → LearningPathSelectAllDto
+            // List -> SelectAll (giữ nguyên)
             config.NewConfig<LearningPathCollection, LearningPathSelectAllDto>()
                   .Map(d => d.PathId, s => s.PathId)
                   .Map(d => d.PathName, s => s.PathName)
