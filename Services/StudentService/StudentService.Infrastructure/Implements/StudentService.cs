@@ -494,22 +494,7 @@ public class StudentService : IStudentService
             }
             
             // Map student to student collection
-            studentCollection.StudentId = studentExist.StudentId;
-            studentCollection.FirstName = studentExist.FirstName;
-            studentCollection.LastName = studentExist.LastName;
-            studentCollection.DateOfBirth = studentExist.DateOfBirth;
-            studentCollection.PhoneNumber = studentExist.PhoneNumber;
-            studentCollection.Gender = studentExist.Gender;
-            studentCollection.AvatarUrl = studentExist.AvatarUrl;
-            studentCollection.Address = studentExist.Address;
-            studentCollection.MajorId = studentExist.MajorId;
-            studentCollection.Bio = studentExist.Bio;
-            studentCollection.SemesterId = studentExist.SemesterId;
-            studentCollection.UpdatedAt = studentExist.UpdatedAt;
-            studentCollection.UpdatedBy = studentExist.UpdatedBy;
-            studentCollection.IsActive = studentExist.IsActive;
-            studentCollection.CreatedAt = studentExist.CreatedAt;
-            studentCollection.CreatedBy = studentExist.CreatedBy;
+            studentCollection = StudentCollection.FromWriteModel(studentExist);
             
             // Map Technologies to StudentTechnologyCollection
             studentCollection.Technologies = updatedStudent!.StudentTechnologies
