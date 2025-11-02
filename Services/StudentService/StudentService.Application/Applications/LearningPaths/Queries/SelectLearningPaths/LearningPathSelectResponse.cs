@@ -10,38 +10,35 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     public record LearningPathSelectDto
     {
         public int Status { get; set; }
+        public string PathName { get; set; } = string.Empty;
+        public decimal CompletionPercent { get; set; }
         public BasicLearningPathDto BasicLearningPath { get; set; } = new();
         public List<InternalLearningPathDto> InternalLearningPath { get; set; } = [];
         public List<ExternalLearningPathDto> ExternalLearningPath { get; set; } = [];
     }
 
-
     #region Basic
-
     public record BasicLearningPathDto
     {
-        public string? SubjectName { get; set; }
-        public string? Semester { get; set; }
-        public List<CourseItemDto> Courses { get; set; } = [];
+        // CHANGED: bỏ Courses, thay bằng CourseGroups
+        public List<CourseGroupDto> CourseGroups { get; set; } = [];
     }
-
     #endregion
 
     #region Internal
-
     public record InternalLearningPathDto
     {
         public string? MajorId { get; set; }
         public string? MajorCode { get; set; }
         public string? Reason { get; set; }
         public int? PositionIndex { get; set; }
-        public List<CourseItemDto> MajorCourse { get; set; } = [];
-    }
 
+        // CHANGED: bỏ MajorCourse, thay bằng MajorCourseGroups
+        public List<CourseGroupDto> MajorCourseGroups { get; set; } = [];
+    }
     #endregion
 
     #region External
-
     public record ExternalLearningPathDto
     {
         public string? MajorId { get; set; }
@@ -67,16 +64,15 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public string? Rating { get; set; }
         public int? Est_Duration_Weeks { get; set; }
     }
-
     #endregion
 
     #region Shared course model
-
     public record CourseItemDto
     {
         public string? CourseId { get; set; }
         public int SemesterPosition { get; set; }
         public string SubjectCode { get; set; } = string.Empty;
+        public short Status { get; set; }
         public string? Title { get; set; }
         public string? ShortDescription { get; set; }
         public string? Description { get; set; }
@@ -90,5 +86,12 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public decimal DealPrice { get; set; }
     }
 
+    // NEW: nhóm theo môn
+    public record CourseGroupDto
+    {
+        public string SubjectCode { get; set; } = string.Empty;
+        public short Status { get; set; }
+        public List<CourseItemDto> Courses { get; set; } = [];
+    }
     #endregion
 }

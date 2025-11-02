@@ -212,7 +212,12 @@ namespace StudentService.Infrastructure.Implements
 			return response;
 		}
 
-
+		/// <summary>
+		/// Get latest AI evaluations for multiples lessons
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
 		public async Task<GetLatestLessonAiEvaluationsResponse> GetLatestLessonAiEvaluationsAsync(GetLatestLessonAiEvaluationsQuery request, CancellationToken cancellationToken)
 		{
 			var response = new GetLatestLessonAiEvaluationsResponse { Success = false };

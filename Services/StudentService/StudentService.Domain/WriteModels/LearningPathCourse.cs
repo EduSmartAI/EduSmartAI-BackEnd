@@ -10,6 +10,8 @@ public partial class LearningPathCourse
 
     public int? Position { get; set; }
 
+    public short Status { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -33,8 +35,6 @@ public partial class LearningPathCourse
     public string? ExternalCourseDuration { get; set; }
 
     public string? ExternalCourseProvider { get; set; }
-
-    public short Status { get; set; }
-
+    
     public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }
