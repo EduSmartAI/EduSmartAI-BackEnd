@@ -478,9 +478,9 @@ namespace Course.Infrastructure.Implements
             // Get current user id
             var currentUser = _identityService.GetCurrentUser()!;
 
-            var title = dto.Title?.Trim();
+            var title = dto.Title!.Trim();
 
-            var slug = await _slugService.GenerateUniqueSlugAsync(dto.Title!, ct);
+            var slug = await _slugService.GenerateUniqueSlugAsync(title, ct);
 
             var course = new CourseEntity
             {
