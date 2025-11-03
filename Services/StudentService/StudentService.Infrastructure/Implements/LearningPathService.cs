@@ -143,7 +143,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             LearningPathMajorId = major.LearningPathMajorId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                             Position = stepOrder,
                             StepName = step.Title,
                             ExternalCourseLink = sc.Link,
@@ -234,7 +234,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = courseId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
@@ -256,7 +256,7 @@ public class LearningPathService : ILearningPathService
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = courseId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
                         }).ToList()
                 };
 
@@ -360,7 +360,7 @@ public class LearningPathService : ILearningPathService
                             {
                                 LearningPathCourseId = Guid.NewGuid(),
                                 LearningPathMajorId = major.LearningPathMajorId,
-                                Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                                Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                                 Position = stepOrder,
                                 StepName = step.Title,
                                 ExternalCourseLink = sc.Link,
@@ -441,6 +441,64 @@ public class LearningPathService : ILearningPathService
         return true;
     }
     /// <summary>
+    /// Determines the aggregate status of a group of courses based on individual course statuses.
+    /// Priority: Completed > InProgress > Skipped > NotStarted.
+    /// </summary>
+    /// <param name="courses"></param>
+    /// <returns></returns>
+    private static short AggregateGroupStatus(IEnumerable<CourseItemDto> courses)
+    {
+        if (courses.Any(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Completed))
+            return (short)ConstantEnum.StudentLearningPathCourseStatus.Completed;
+
+        if (courses.Any(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress))
+            return (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress;
+
+        if (courses.Any() && courses.All(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped))
+            return (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+
+        return (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted;
+    }
+    /// <summary>
+    /// Cacluation completion of learning path
+    /// </summary>
+    /// <param name="readModel"></param>
+    /// <returns></returns>
+    private static decimal CalculateCompletionPercentFromGroups(LearningPathSelectDto dto)
+    {
+        var allGroups = new List<CourseGroupDto>();
+        if (dto.BasicLearningPath?.CourseGroups != null)
+            allGroups.AddRange(dto.BasicLearningPath.CourseGroups);
+
+        if (dto.InternalLearningPath != null)
+            allGroups.AddRange(dto.InternalLearningPath.SelectMany(m => m.MajorCourseGroups ?? new List<CourseGroupDto>()));
+        var mergedBySubject = allGroups
+            .GroupBy(g => string.IsNullOrWhiteSpace(g.SubjectCode) ? "UNKNOWN" : g.SubjectCode)
+            .Select(g => new
+            {
+                Subject = g.Key,
+                Courses = g.SelectMany(x => x.Courses ?? new List<CourseItemDto>())
+                           .Where(c => c.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                           .ToList()
+            })
+            .Where(x => x.Courses.Count > 0)
+            .Select(x => new
+            {
+                x.Subject,
+                Status = AggregateGroupStatus(x.Courses)
+            })
+            .ToList();
+
+        var totalSubjects = mergedBySubject.Count;
+        if (totalSubjects == 0) return 0m;
+
+        var completedSubjects = mergedBySubject.Count(x =>
+            x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Completed);
+
+        var percent = (decimal)completedSubjects * 100m / totalSubjects;
+        return Math.Round(percent, 2, MidpointRounding.AwayFromZero);
+    }
+    /// <summary>
     /// Get Learning Path By Id
     /// </summary>
     /// <param name="query"></param>
@@ -477,7 +535,7 @@ public class LearningPathService : ILearningPathService
         // Get list courseId For Basic & Internal
         var basicIds = readModel.LearningPathMajors
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic)
-            .SelectMany(m => m.LearningPathCourses)
+            .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
             .Where(c => c.InternalCourseId.HasValue)
             .Select(c => c.InternalCourseId!.Value)
             .Distinct()
@@ -485,7 +543,7 @@ public class LearningPathService : ILearningPathService
 
         var internalIds = readModel.LearningPathMajors
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
-            .SelectMany(m => m.LearningPathCourses)
+            .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
             .Where(c => c.InternalCourseId.HasValue)
             .Select(c => c.InternalCourseId!.Value)
             .Distinct()
@@ -512,43 +570,75 @@ public class LearningPathService : ILearningPathService
             .GroupBy(x => x.CourseId!.Value)
             .ToDictionary(g => g.Key, g => g.First());
 
-        // 4) Fill BasicLearningPath.Courses
-        var basicCourses = readModel.LearningPathMajors
+        // ===== 4) Basic: Group theo subjectCode, sort theo SemesterPosition =====
+        var basicItems = readModel.LearningPathMajors
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic)
-            .SelectMany(m => m.LearningPathCourses)
+            .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
             .Where(c => c.InternalCourseId.HasValue)
             .Select(c =>
             {
                 dictBasic.TryGetValue(c.InternalCourseId!.Value, out var info);
                 return _mapper.Map<CourseItemDto>((c, info));
             })
-            .OrderBy(c => c.SemesterPosition)
+            .Where(ci => ci != null)
+            .ToList()!;
+
+        dto.BasicLearningPath.CourseGroups = basicItems
+            .GroupBy(ci => string.IsNullOrWhiteSpace(ci!.SubjectCode) ? "UNKNOWN" : ci!.SubjectCode)
+            .Select(g =>
+            {
+                var courses = g.OrderBy(x => x.SemesterPosition).ToList();
+                return new CourseGroupDto
+                {
+                    SubjectCode = g.Key,
+                    Status = AggregateGroupStatus(courses),
+                    Courses = courses
+                };
+            })
+            .OrderBy(g => g.Courses.Min(x => x.SemesterPosition))
+            .ThenBy(g => g.SubjectCode)
             .ToList();
 
-        dto.BasicLearningPath.Courses = basicCourses;
-
-        // 5) Fill InternalLearningPath[i].MajorCourse
+        // ===== 5) Internal: mỗi major -> group theo subjectCode, sort theo SemesterPosition =====
         var internalMajorsRead = readModel.LearningPathMajors
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
             .ToList();
 
-        // Map dto.InternalLearningPath
         dto.InternalLearningPath = internalMajorsRead
             .Select(m =>
             {
                 var majorDto = _mapper.Map<InternalLearningPathDto>(m);
-                majorDto.MajorCourse = (m.LearningPathCourses)
+
+                var items = (m.LearningPathCourses ?? new List<LearningPathCourseCollection>())
                     .Where(c => c.InternalCourseId.HasValue)
                     .Select(c =>
                     {
                         dictInternal.TryGetValue(c.InternalCourseId!.Value, out var info);
                         return _mapper.Map<CourseItemDto>((c, info));
                     })
-                    .OrderBy(ci => ci.SemesterPosition)
+                    .Where(ci => ci != null)
+                    .ToList()!;
+
+                majorDto.MajorCourseGroups = items
+                    .GroupBy(ci => string.IsNullOrWhiteSpace(ci!.SubjectCode) ? "UNKNOWN" : ci!.SubjectCode)
+                    .Select(g =>
+                    {
+                        var courses = g.OrderBy(x => x.SemesterPosition).ToList();
+                        return new CourseGroupDto
+                        {
+                            SubjectCode = g.Key,
+                            Status = AggregateGroupStatus(courses),
+                            Courses = courses
+                        };
+                    })
+                    .OrderBy(g => g.Courses.Min(x => x.SemesterPosition))
+                    .ThenBy(g => g.SubjectCode)
                     .ToList();
+
                 return majorDto;
             })
             .ToList();
+        dto.CompletionPercent = CalculateCompletionPercentFromGroups(dto);
 
         // Done
         res.Response = dto;
@@ -940,7 +1030,7 @@ public class LearningPathService : ILearningPathService
             var course = await _learningPathCourseCommandRepository
                 .Find(c => c.LearningPathCourseId == request.LearningPathCourseId && c.IsActive,
                     isTracking: true,
-                    cancellationToken: cancellationToken, 
+                    cancellationToken: cancellationToken,
                     c => c.LearningPathMajor)
                 .FirstOrDefaultAsync(cancellationToken);
 
@@ -952,8 +1042,8 @@ public class LearningPathService : ILearningPathService
 
             // 2. Verify that this course belongs to the current user's learning path
             var learningPath = await _learningPathCommandRepository
-                .Find(lp => lp.PathId == course.LearningPathMajor.PathId 
-                            && lp.StudentId == currentUser.UserId 
+                .Find(lp => lp.PathId == course.LearningPathMajor.PathId
+                            && lp.StudentId == currentUser.UserId
                             && lp.IsActive,
                       cancellationToken: cancellationToken)
                 .FirstOrDefaultAsync(cancellationToken);
@@ -967,30 +1057,30 @@ public class LearningPathService : ILearningPathService
             // 3. Update course status to Skipped in write model
             course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
             _learningPathCourseCommandRepository.Update(course, currentUser.Email);
-            
+
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             // 4. Update read model - get learning path với nested majors và courses
             var learningPathRead = await _learningPathQueryRepository
                 .FirstOrDefaultAsync(lp => lp.PathId == learningPath.PathId && lp.IsActive);
-            
+
             if (learningPathRead != null)
             {
                 // Find the major containing this course
                 var majorContainingCourse = learningPathRead.LearningPathMajors
                     .FirstOrDefault(m => m.LearningPathCourses
                         .Any(c => c.LearningPathCourseId == request.LearningPathCourseId));
-                
+
                 if (majorContainingCourse != null)
                 {
                     // Find and update the course status
                     var courseToUpdate = majorContainingCourse.LearningPathCourses
                         .FirstOrDefault(c => c.LearningPathCourseId == request.LearningPathCourseId);
-                    
+
                     if (courseToUpdate != null)
                     {
                         courseToUpdate.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-                        
+
                         // Store updated learning path with nested data
                         _unitOfWork.Store(learningPathRead);
                         await _unitOfWork.SessionSaveChangesAsync();

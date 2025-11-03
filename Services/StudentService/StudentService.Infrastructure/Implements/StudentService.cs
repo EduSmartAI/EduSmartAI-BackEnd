@@ -5,6 +5,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
+using ExcelDataReader;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Students.Commands.Inserts;
@@ -25,6 +26,7 @@ public class StudentService : IStudentService
     private readonly IQueryRepository<TechnologyCollection> _technologyQueryRepository;
     private readonly IQueryRepository<StudentTechnologyCollection> _studentTechnologyQueryRepository;
     private readonly ICommandRepository<StudentLearningGoal> _studentLearningGoalRepository;
+    private readonly ICommandRepository<StudentTranscript> _studentTranscriptRepository;
     private readonly IQueryRepository<StudentCollection> _studentQueryRepository;
     private readonly ICommandRepository<OutboxMessage> _outboxService;
     private readonly IQueryRepository<LearningGoalCollection> _learningGoalQueryRepository;
@@ -32,6 +34,7 @@ public class StudentService : IStudentService
     private readonly IIdentityService _identityService;
     private readonly IRequestClient<MajorAndSemesterSelectEvent> _requestClientMajorAndSemesterSelect;
     private readonly IRequestClient<AvatarUploadEvent> _requestClientAvatarUpload;
+    private readonly IRequestClient<SemesterIdSelectsEvent> _requestClientSemesterIdSelects;
 
     /// <summary>
     /// Constructor
@@ -48,6 +51,8 @@ public class StudentService : IStudentService
     /// <param name="identityService"></param>
     /// <param name="requestClientMajorAndSemesterSelect"></param>
     /// <param name="requestClientAvatarUpload"></param>
+    /// <param name="studentTranscriptRepository"></param>
+    /// <param name="requestClientSemesterIdSelects"></param>
     public StudentService(IQueryRepository<StudentCollection> studentQueryRepository,
         ICommandRepository<Student> studentRepository,
         IUnitOfWork unitOfWork,
@@ -59,7 +64,9 @@ public class StudentService : IStudentService
         IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository, 
         IIdentityService identityService,
         IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect, 
-        IRequestClient<AvatarUploadEvent> requestClientAvatarUpload)
+        IRequestClient<AvatarUploadEvent> requestClientAvatarUpload,
+        ICommandRepository<StudentTranscript> studentTranscriptRepository, 
+        IRequestClient<SemesterIdSelectsEvent> requestClientSemesterIdSelects)
     {
         _studentQueryRepository = studentQueryRepository;
         _studentRepository = studentRepository;
@@ -73,6 +80,8 @@ public class StudentService : IStudentService
         _identityService = identityService;
         _requestClientMajorAndSemesterSelect = requestClientMajorAndSemesterSelect;
         _requestClientAvatarUpload = requestClientAvatarUpload;
+        _studentTranscriptRepository = studentTranscriptRepository;
+        _requestClientSemesterIdSelects = requestClientSemesterIdSelects;
     }
 
     /// <summary>
@@ -201,11 +210,12 @@ public class StudentService : IStudentService
             studentExist.MajorId = request.MajorId;
             studentExist.SemesterId = request.SemesterId;
             _studentRepository.Update(studentExist);
-            
+            await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
+
             // Check StudentTechnology exist
             List<StudentTechnologyCollection> newStudentTechnologyCollections = new List<StudentTechnologyCollection>();
             var existingStudentTechnologies = await _studentTechnologyRepository
-                .Find(st => st.StudentId == request.StudentId && request.TechnologyIds.Contains(st.TechnologyId) && st.IsActive).ToListAsync(cancellationToken: cancellationToken);
+                .Find(st => st.StudentId == request.StudentId && request.TechnologyIds.Contains(st.TechnologyId)).ToListAsync(cancellationToken: cancellationToken);
             if (!existingStudentTechnologies.Any())
             {
                 // Insert technologies
@@ -225,10 +235,24 @@ public class StudentService : IStudentService
                     return StudentTechnologyCollection.FromWriteModel(x, tech);
                 }).ToList());
             }
+            // If technologies exist but inactive, activate them
+            else
+            {
+                foreach (var existingStudentTechnology in existingStudentTechnologies)
+                {
+                    if (!existingStudentTechnology.IsActive)
+                    {
+                        _studentTechnologyRepository.Update(existingStudentTechnology);
+                        var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == existingStudentTechnology.TechnologyId);
+                        newStudentTechnologyCollections.Add(StudentTechnologyCollection.FromWriteModel(existingStudentTechnology, tech));
+                    }
+                }
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
+            }
            
-            StudentLearningGoalCollection newStudentLearningGoalCollection = new StudentLearningGoalCollection();
+            StudentLearningGoalCollection? newStudentLearningGoalCollection = null;
             var studentLearningGoalExist = await _studentLearningGoalRepository
-                .FirstOrDefaultAsync(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId && slg.IsActive, cancellationToken);
+                .FirstOrDefaultAsync(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId, cancellationToken);
             if (studentLearningGoalExist == null)
             {
                 // Insert learning goal
@@ -239,6 +263,16 @@ public class StudentService : IStudentService
                 };
                 await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
                 newStudentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(newStudentLearningGoal, learningGoal:existingGoal);
+            }
+            // If learning goal exist but inactive, activate it
+            else
+            {
+                if (!studentLearningGoalExist.IsActive)
+                {
+                    _studentLearningGoalRepository.Update(studentLearningGoalExist);
+                    await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
+                    newStudentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(studentLearningGoalExist, learningGoal: existingGoal);
+                }
             }
             
             // Save event to Outbox
@@ -645,7 +679,91 @@ public class StudentService : IStudentService
         response.SetMessage(MessageId.I00001, "Lấy thông tin cá nhân sinh viên");
         return response;
     }
-    
+
+    /// <summary>
+    /// Insert student transcript from Excel file
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentTranscriptInsertResponse> InsertStudentTranscriptAsync(StudentTranscriptInsertCommand request, CancellationToken cancellationToken)
+    {
+        var response = new StudentTranscriptInsertResponse { Success = false };
+
+        if (request.TranscriptFile.Length == 0)
+        {
+            response.SetMessage(MessageId.I00000, "File bảng điểm trống. Vui lòng chọn file hợp lệ");
+            return response;
+        }
+        
+        var currentUser = _identityService.GetCurrentUser()!;
+        
+        // Begin transaction
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+            await using var stream = request.TranscriptFile.OpenReadStream();
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+            var result = reader.AsDataSet();
+
+            var table = result.Tables[0];
+            var studentTranscripts = new List<StudentTranscript>();
+
+            var semesterIdSelectsEvent = new SemesterIdSelectsEvent();
+            for (int i = 1; i < table.Rows.Count; i++)
+            {
+                var row = table.Rows[i];
+
+                var subject = new StudentTranscript
+                {
+                    SemesterNumber = Convert.ToInt32(row[1]),
+                    Semester = row[2].ToString() ?? string.Empty,
+                    SubjectCode = row[3].ToString() ?? string.Empty,
+                    Prerequisite = row[4]?.ToString(),
+                    SubjectName = row[6].ToString() ?? string.Empty,
+                    Credit = string.IsNullOrEmpty(row[7].ToString()) ? 0 : Convert.ToInt32(row[7]),
+                    Grade = string.IsNullOrEmpty(row[8].ToString()) ? 0 : Convert.ToDouble(row[8]),
+                    Status = row[9].ToString() ?? string.Empty
+                };
+                semesterIdSelectsEvent.SemesterNumbers.Add(subject.SemesterNumber);
+                studentTranscripts.Add(subject);
+            }
+            
+            // Publish event to CourseService to get semester IDs
+            var semesterIdResponse = await _requestClientSemesterIdSelects.GetResponse<SemesterIdSelectsEventResponse>(semesterIdSelectsEvent, cancellationToken);
+            if (!semesterIdResponse.Message.Success)
+            {
+                response.SetMessage(MessageId.E00000, "Có lỗi xảy ra trong quá trình xử lý");
+                return false;
+            }
+            
+            // Map semester IDs to transcripts
+            var semesterIdMap = semesterIdResponse.Message.Response.ToDictionary(x => x.SemesterNumber, x => x.SemesterId);
+            foreach (var transcript in studentTranscripts)
+            {
+                if (semesterIdMap.TryGetValue(transcript.SemesterNumber, out var semesterId))
+                {
+                    transcript.SemesterId = semesterId;
+                }
+            }
+
+            await _studentTranscriptRepository.AddRangeAsync(studentTranscripts);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Import bảng điểm");
+            return true;
+        }, cancellationToken);
+        return response;
+    }
+
+    public Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
     private static string GetTechnologyTypeName(short technologyType)
     {
         return technologyType switch
