@@ -8,6 +8,7 @@ using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.Consumers;
 using Course.Application.Consumers.GetInfoCourse;
 using Course.Application.Consumers.GetInfoInternalCourse;
+using Course.Application.Courses.Consumers;
 using Course.Application.Dashboards.Consumers;
 using MassTransit;
 
@@ -39,6 +40,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<MajorAndSemesterSelectEventConsumer>();
                 x.AddConsumer<SemesterIdSelectsEventConsumer>();
                 x.AddConsumer<GetInfoCourseByCourseIdConsumer>();
+                x.AddConsumer<TranscriptUpsertConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

@@ -12,7 +12,6 @@ using System.Text.Json;
 namespace AiService.Infrastructure.Implements
 {
 	public class GroqTranscriptionService(
-		IConfiguration config,
 		//ITranscriptStore store,
 		ISubtitlePublisher subtitlePublisher,
 		ILogger<GroqTranscriptionService> log) : ITranscriptionService

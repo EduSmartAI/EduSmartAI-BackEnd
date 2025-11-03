@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
+﻿using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Course.Application.Courses.Commands.CreateCourse;
@@ -26,7 +27,8 @@ namespace Course.Infrastructure.Implements
         IDatabase _cache,
         IIdentityService _identityService,
         IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
-        ICommandRepository<ModuleQuiz> _moduleQuizRepository,
+		IPublishEndpoint _publish,
+		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
         ICommandRepository<LessonQuiz> _lessonQuizRepository,
         ISlugService _slugService,
         ICacheKeyFactory _cacheKeyFactory,
@@ -478,9 +480,9 @@ namespace Course.Infrastructure.Implements
             // Get current user id
             var currentUser = _identityService.GetCurrentUser()!;
 
-            var title = dto.Title?.Trim();
+            var title = dto.Title!.Trim();
 
-            var slug = await _slugService.GenerateUniqueSlugAsync(dto.Title!, ct);
+            var slug = await _slugService.GenerateUniqueSlugAsync(title, ct);
 
             var course = new CourseEntity
             {
@@ -742,6 +744,26 @@ namespace Course.Infrastructure.Implements
                 await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
             }
+
+			var transcribeItems = course.Modules
+							.SelectMany(m => m.Lessons)
+							.Where(l => !string.IsNullOrWhiteSpace(l.VideoUrl))
+							.OrderBy(l => l.PositionIndex)
+							.Select(l => new TranscribeItem(l.LessonId, l.VideoUrl!, l.VideoDurationSec))
+							.ToList();
+
+			if (transcribeItems.Count > 0)
+			{
+				var corrId = Guid.NewGuid();
+				var evt = new TranscribeBatchRequested(
+					CorrelationId: corrId,
+					RequestedBy: currentUser.Email,
+					Language: "vi",
+					Items: transcribeItems,
+					RequestedAtUtc: DateTime.UtcNow
+				);
+				await _publish.Publish(evt, ct);
+			}
 
 
 			// Clear cache after successful creation
