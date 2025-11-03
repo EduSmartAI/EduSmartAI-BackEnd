@@ -2,9 +2,9 @@ using BaseService.Common.ApiEntities;
 
 namespace StudentService.Application.Applications.Students.Queries;
 
-public record StudentTranscriptSelectResponse : AbstractApiResponse<StudentTranscriptSelectResponseEntity>
+public record StudentTranscriptSelectResponse : AbstractApiResponse<List<StudentTranscriptSelectResponseEntity>>
 {
-    public override StudentTranscriptSelectResponseEntity Response { get; set; }
+    public override List<StudentTranscriptSelectResponseEntity> Response { get; set; }
 }
 
 public class StudentTranscriptSelectResponseEntity

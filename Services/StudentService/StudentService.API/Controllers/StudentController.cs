@@ -95,7 +95,7 @@ public class StudentController(IIdentityService identityService, IMediator media
     public async Task<StudentTranscriptSelectResponse> SelectStudentTranscript()
     {
         var request = new StudentTranscriptSelectQuery();
-        return await ApiControllerHelper.HandleRequest<StudentTranscriptSelectQuery, StudentTranscriptSelectResponse, StudentTranscriptSelectResponseEntity>(
+        return await ApiControllerHelper.HandleRequest<StudentTranscriptSelectQuery, StudentTranscriptSelectResponse, List<StudentTranscriptSelectResponseEntity>>(
             request,
             _logger,
             ModelState,

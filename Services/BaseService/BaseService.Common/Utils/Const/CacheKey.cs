@@ -31,4 +31,7 @@ public static class CacheKey
 
     public static string StudentProfile(Guid studentId)
         => $"student_profile:{studentId}";
+
+    public static string StudentTranscript(Guid userId)
+        => $"student_transcript:{userId}";
 }

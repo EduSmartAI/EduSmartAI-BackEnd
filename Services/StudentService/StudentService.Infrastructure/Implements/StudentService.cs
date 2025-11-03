@@ -697,6 +697,16 @@ public class StudentService : IStudentService
         }
         
         var currentUser = _identityService.GetCurrentUser()!;
+
+        // Check if student has existing transcripts, delete them
+        var currentTranscripts = await _studentTranscriptRepository
+            .Find(st => st.StudentId == currentUser.UserId && st.IsActive)
+            .ToListAsync(cancellationToken: cancellationToken);
+        if (currentTranscripts.Any())
+        {
+            _studentTranscriptRepository.UpdateRange(currentTranscripts!);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
+        }
         
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
@@ -710,11 +720,29 @@ public class StudentService : IStudentService
             var table = result.Tables[0];
             var studentTranscripts = new List<StudentTranscript>();
 
-            var semesterIdSelectsEvent = new SemesterIdSelectsEvent();
+            var semesterIdSelectsEvent = new SemesterIdSelectsEvent
+            {
+                SemesterNumbers = new List<int>()
+            };
             for (int i = 1; i < table.Rows.Count; i++)
             {
                 var row = table.Rows[i];
+                
+                // Ignore blank lines or comment lines
+                if (row.ItemArray.All(cell => string.IsNullOrWhiteSpace(cell?.ToString())))
+                    continue;
 
+                // Ignore if SubjectCode or SubjectName is empty
+                var subjectCode = row[3]?.ToString()?.Trim();
+                var subjectName = row[6]?.ToString()?.Trim();
+
+                if (string.IsNullOrEmpty(subjectCode) || string.IsNullOrEmpty(subjectName))
+                    continue;
+
+                // If SemesterNumber is not a valid integer, skip the row
+                if (!int.TryParse(row[1]?.ToString(), out int semesterNumber))
+                    continue;
+                
                 var subject = new StudentTranscript
                 {
                     SemesterNumber = Convert.ToInt32(row[1]),
@@ -724,11 +752,13 @@ public class StudentService : IStudentService
                     SubjectName = row[6].ToString() ?? string.Empty,
                     Credit = string.IsNullOrEmpty(row[7].ToString()) ? 0 : Convert.ToInt32(row[7]),
                     Grade = string.IsNullOrEmpty(row[8].ToString()) ? 0 : Convert.ToDouble(row[8]),
-                    Status = row[9].ToString() ?? string.Empty
+                    Status = row[9].ToString() ?? string.Empty,
+                    StudentId = currentUser.UserId
                 };
                 semesterIdSelectsEvent.SemesterNumbers.Add(subject.SemesterNumber);
                 studentTranscripts.Add(subject);
             }
+            semesterIdSelectsEvent.SemesterNumbers = semesterIdSelectsEvent.SemesterNumbers.Distinct().ToList();
             
             // Publish event to CourseService to get semester IDs
             var semesterIdResponse = await _requestClientSemesterIdSelects.GetResponse<SemesterIdSelectsEventResponse>(semesterIdSelectsEvent, cancellationToken);
@@ -759,9 +789,40 @@ public class StudentService : IStudentService
         return response;
     }
 
-    public Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken)
+    public async Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        var response = new StudentTranscriptSelectResponse { Success = false };
+        
+        // Get student transcripts from cache or database
+        var studentTranscripts = await _studentTranscriptRepository
+            .Find(x => x.StudentId == _identityService.GetCurrentUser()!.UserId && x.IsActive)
+            .OrderBy(x => x.SemesterNumber)
+            .ThenBy(x => x.SubjectCode)
+            .ToListAsync(cancellationToken: cancellationToken);
+        if (!studentTranscripts.Any())
+        {
+            response.SetMessage(MessageId.I00000, "Chưa có bảng điểm nào được nhập");
+            return response;
+        }
+        var transcriptItems = studentTranscripts.Select(st => new StudentTranscriptSelectResponseEntity
+        {
+            StudentTranscriptId = st.StudentTranscriptId,
+            Semester = st.Semester,
+            SemesterNumber = st.SemesterNumber,
+            SubjectCode = st.SubjectCode,
+            Prerequisite = st.Prerequisite,
+            SubjectName = st.SubjectName,
+            Credit = st.Credit,
+            Grade = st.Grade,
+            Status = st.Status,
+            CreatedAt = st.CreatedAt
+        }).ToList();
+        
+        // True
+        response.Success = true;
+        response.Response = transcriptItems;
+        response.SetMessage(MessageId.I00001, "Lấy bảng điểm");
+        return response;
     }
 
     private static string GetTechnologyTypeName(short technologyType)

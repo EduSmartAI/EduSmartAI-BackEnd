@@ -45,7 +45,8 @@ public class StudentSurveyService : IStudentSurveyService
         IQueryRepository<QuizCollection> quizQueryRepository,
         IRequestClient<CourseMajorSemesterSelectEvent> requestCourseMajorSemesterClient,
         IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient,
-        ICommandRepository<OutboxMessage> outboxService, IPublishEndpoint publishEndpoint)
+        ICommandRepository<OutboxMessage> outboxService, 
+        IPublishEndpoint publishEndpoint)
     {
         _studentQuizCommandRepository = studentQuizCommandRepository;
         _studentQuizQueryRepository = studentQuizQueryRepository;

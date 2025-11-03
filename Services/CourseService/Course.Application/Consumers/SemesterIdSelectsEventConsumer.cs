@@ -1,4 +1,5 @@
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.StudentService;
 using Course.Domain.Models;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +11,9 @@ public class SemesterIdSelectsEventConsumer(ICommandRepository<Semester> semeste
     public async Task Consume(ConsumeContext<SemesterIdSelectsEvent> context)
     {
         var evt = context.Message;
-        var semesterNumbers = evt.SemesterNumbers.Distinct().ToList();
         
         var semesters = await semesterRepository
-            .Find(s => semesterNumbers.Contains(s.SemesterNumber))
+            .Find(s => evt.SemesterNumbers.Contains(s.SemesterNumber))
             .ToListAsync();
 
         var responseEntities = semesters
@@ -26,9 +26,10 @@ public class SemesterIdSelectsEventConsumer(ICommandRepository<Semester> semeste
 
         var response = new SemesterIdSelectsEventResponse
         {
-            Response = responseEntities
+            Response = responseEntities,
+            Success = true
         };
-
+        response.SetMessage(MessageId.I00001);
         await context.RespondAsync(response);
     }
 }
