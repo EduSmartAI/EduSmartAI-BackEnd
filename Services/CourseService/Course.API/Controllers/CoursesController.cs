@@ -17,7 +17,7 @@ namespace Course.API.Controllers
 {
 	[Route("api/v1/[controller]")]
 	[ApiController]
-	public class CoursesController(ISender sender, ICourseService courseService) : ControllerBase
+	public class CoursesController(ISender sender) : ControllerBase
 	{
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
@@ -310,28 +310,5 @@ namespace Course.API.Controllers
 		}
 
 		#endregion
-
-		[HttpPost("event/courses/test")]
-		public async Task<CoursesSelectEventResponse> GetCoursesForEvent(CoursesSelectEvent request)
-		{
-			var response = new CoursesSelectEventResponse { Success = false };
-			try
-			{
-				request.SemesterId = Guid.Parse("af62ee21-2a58-48ea-a76e-400bb2426e82");
-				request.StudentLevel = 3;
-				request.LimitTime = 15000;
-				request.MajorCodes = new List<string> { "SE", ".NET" };
-
-				return await courseService.GetCourseSelectsAsync(request);
-			}
-			catch (Exception ex)
-			{
-				response.Success = false;
-				response.SetMessage("An error occurred while processing the request.");
-				_logger.Error(ex, "Error in GetCoursesForEvent: {Message}", ex.Message);
-			}
-
-			return response;
-		}
 	}
 }

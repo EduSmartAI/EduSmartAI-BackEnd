@@ -207,4 +207,10 @@ public static class ConstantEnum
         Other = 3,
         None = 4
     }
+
+    public enum TranscriptStatus : short
+	{
+        Succeeded = 1,
+        Failed = 2,
+	}
 }
