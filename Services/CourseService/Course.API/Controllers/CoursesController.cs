@@ -9,6 +9,7 @@ using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.Interfaces;
@@ -310,5 +311,23 @@ namespace Course.API.Controllers
 		}
 
 		#endregion
+
+		[HttpGet("[action]")]
+		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get in-progress courses by student ID",
+			Description = "Retrieve a list of courses that are currently in progress for a specific student."
+		)]
+		public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentId()
+		{
+			var query = new GetInProgressCourseByStudentIdQuery();
+			return await ApiControllerHelper.HandleRequest<GetInProgressCourseByStudentIdQuery, GetInProgressCourseByStudentIdResponse, IReadOnlyList<InProgressCourseDto>>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetInProgressCourseByStudentIdResponse()
+				);
+		}
 	}
 }

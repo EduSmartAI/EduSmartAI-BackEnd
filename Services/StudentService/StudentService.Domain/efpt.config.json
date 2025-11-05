@@ -59,6 +59,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.student_transcripts",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.students",
          "ObjectType": 0
       },

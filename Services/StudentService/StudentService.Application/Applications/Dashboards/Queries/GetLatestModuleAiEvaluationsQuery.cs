@@ -18,10 +18,10 @@ namespace StudentService.Application.Applications.Dashboards.Queries
 
 	public sealed class ModuleAiEvaluationDto
 	{
-		public Guid ModuleId { get; init; }          // scope_id (Module)
-		public Guid QuizId { get; init; }
+		public Guid? ModuleId { get; init; }          // scope_id (Module)
+		public Guid? QuizId { get; init; }
 		public int? Score100Raw { get; init; }       // score_100_raw (nullable)
-		public int Score100 { get; init; }           // điểm do AI (đã chỉnh 70/30)
+		public int? Score100 { get; init; }           // điểm do AI (đã chỉnh 70/30)
 		public string? Summary { get; init; }
 		public IReadOnlyList<string> Strengths { get; init; } = Array.Empty<string>();
 		//public IReadOnlyList<string> Improvements { get; init; } = Array.Empty<string>()
