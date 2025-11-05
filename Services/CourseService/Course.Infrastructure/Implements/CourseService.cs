@@ -10,6 +10,7 @@ using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.QuizDTO;
@@ -1176,16 +1177,81 @@ namespace Course.Infrastructure.Implements
                 return null;
             }
         }
-        #endregion
+		#endregion
 
-        #region Private Helper Methods
 
-        /// <summary>
-        /// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
-        /// </summary>
-        /// <param name="dto"></param>
-        /// <exception cref="ValidationException"></exception>
-        private static void ValidateCourseDetailPositionIndexes(UpdateCourseDto dto)
+		/// <summary>
+		/// Get in-progress courses by student id
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentIdAsync(GetInProgressCourseByStudentIdQuery request, CancellationToken ct = default)
+		{
+			var response = new GetInProgressCourseByStudentIdResponse { Success = false };
+
+            var currentUser = _identityService.GetCurrentUser();
+            if (currentUser is null)
+            {
+                response.SetMessage(MessageId.E11001);
+                return response;
+            }
+
+			// cd22e142-c775-40f2-ad75-de50acb7291e
+			var userId = currentUser.UserId;
+
+            // Lấy danh sách khóa học đang học của học viên
+            var queryable = _courseRepository.Find(
+	                                    	predicate: c =>
+	                                    		c.IsActive &&
+	                                    		c.CourseStudentEnrollments.Any(e =>
+	                                    			e.UserId == userId &&
+	                                    			e.IsActive),
+	                                    	isTracking: false
+	                                    );
+
+			// Lọc theo CourseIds nếu có trong request
+			var items = await queryable
+		        // B1: đưa StartedAt về scalar nullable để EF translate tốt
+		        .Select(c => new
+		        {
+		        	c.CourseId,
+		        	c.Title,
+		        	c.ShortDescription,
+		        	c.CourseImageUrl,
+		        	c.DurationHours,
+		        	StartedAt = c.CourseStudentEnrollments
+		        		.Where(e => e.UserId == userId && e.IsActive /* && (e.ExpiresAt == null || e.ExpiresAt > nowUtc)*/)
+		        		.Select(e => (DateTime?)e.StartedAt)
+		        		.Max()
+		        })
+		        // B2: Order by scalar
+		        .OrderByDescending(x => x.StartedAt)
+		        // B3: Project sang record
+		        .Select(x => new InProgressCourseDto(
+		        	x.CourseId,
+		        	x.Title,
+		        	x.ShortDescription,
+		        	x.CourseImageUrl,
+		        	x.DurationHours,
+		        	(x.StartedAt ?? DateTime.MinValue) // hoặc .Value nếu bạn chắc chắn có enrollment
+		        ))
+		        .ToListAsync(ct);
+
+			response.Response = items;
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học đang học của học viên");
+			return response;
+		}
+
+		#region Private Helper Methods
+
+		/// <summary>
+		/// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
+		/// </summary>
+		/// <param name="dto"></param>
+		/// <exception cref="ValidationException"></exception>
+		private static void ValidateCourseDetailPositionIndexes(UpdateCourseDto dto)
         {
             // Course Objectives (chỉ active)
             if (dto.Objectives is { Count: > 0 })
@@ -1911,7 +1977,7 @@ namespace Course.Infrastructure.Implements
             return next;
         }
 
-        #endregion
-        
-    }
+		#endregion
+
+	}
 }
