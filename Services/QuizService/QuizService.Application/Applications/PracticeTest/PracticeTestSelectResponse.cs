@@ -18,6 +18,19 @@ public class PracticeTestSelectResponseEntity
     public string Difficulty { get; set; } = null!;
     
     public List<PracticeTestProblemExample> Examples { get; set; }
+    
+    public List<PracticeTestSelectTestCaseResponse> TestCases { get; set; }
+}
+
+public class PracticeTestSelectTestCaseResponse
+{
+    public Guid TestcaseId { get; set; }
+
+    public Guid? ProblemId { get; set; }
+
+    public string InputData { get; set; } = null!;
+
+    public string ExpectedOutput { get; set; } = null!;
 }
 
 public class PracticeTestProblemExample

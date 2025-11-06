@@ -50,7 +50,8 @@ public class PracticeTestService
             .Find(predicate:x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: false,
                   cancellationToken: cancellationToken,
-                  x => x.ProblemExamples)
+                  x => x.ProblemExamples,
+                x => x.TestCases)
             .Select(x => new PracticeTestSelectResponseEntity
             {
                 ProblemId = x.ProblemId,
@@ -67,7 +68,16 @@ public class PracticeTestService
                         InputData = e.InputData,
                         OutputData = e.OutputData
                     })
-                    .ToList()
+                    .ToList(),
+                TestCases = x.TestCases
+                    .Where(ts => ts.IsActive && ts.IsPublic == true)
+                    .Select(ts => new PracticeTestSelectTestCaseResponse
+                    {
+                        ProblemId = x.ProblemId,
+                        TestcaseId = ts.TestcaseId,
+                        ExpectedOutput = ts.ExpectedOutput,
+                        InputData = ts.InputData
+                    }).ToList()
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -190,7 +200,7 @@ public class PracticeTestService
             // Submit to Judge0 API
             var batchRequest = new BatchSubmissionRequest
             {
-                Submissions = problem.TestCases.Select(tc => new SubmissionRequest
+                Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
                 {
                     SourceCode = request.SourceCode,
                     LanguageId = request.LanguageId,

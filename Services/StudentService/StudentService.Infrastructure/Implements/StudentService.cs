@@ -764,9 +764,12 @@ public class StudentService : IStudentService
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
 
-            await using var stream = request.TranscriptFile.OpenReadStream();
-            using var reader = ExcelReaderFactory.CreateReader(stream);
-            var result = reader.AsDataSet();
+            try
+            {
+                await using var stream = request.TranscriptFile.OpenReadStream();
+                using var reader = ExcelReaderFactory.CreateReader(stream);
+                
+                var result = reader.AsDataSet();
 
             var table = result.Tables[0];
             var studentTranscripts = new List<StudentTranscript>();
@@ -831,6 +834,13 @@ public class StudentService : IStudentService
 
             await _studentTranscriptRepository.AddRangeAsync(studentTranscripts);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+
+            }
+            catch (Exception e)
+            {
+                response.SetMessage(MessageId.E00000, "Định dạng file không hợp lệ. Vui lòng kiểm tra lại file bảng điểm");
+                return false;
+            }
             
             // True
             response.Success = true;
