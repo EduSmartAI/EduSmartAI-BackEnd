@@ -212,68 +212,119 @@ public class StudentService : IStudentService
             _studentRepository.Update(studentExist);
             await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
 
-            // Check StudentTechnology exist
-            List<StudentTechnologyCollection> newStudentTechnologyCollections = new List<StudentTechnologyCollection>();
-            var existingStudentTechnologies = await _studentTechnologyRepository
-                .Find(st => st.StudentId == request.StudentId && request.TechnologyIds.Contains(st.TechnologyId)).ToListAsync(cancellationToken: cancellationToken);
-            if (!existingStudentTechnologies.Any())
+            // Get all existing student technologies (active and inactive)
+            var allExistingStudentTechnologies = await _studentTechnologyRepository
+                .Find(st => st.StudentId == request.StudentId)
+                .ToListAsync(cancellationToken: cancellationToken);
+
+            var existingTechIds = allExistingStudentTechnologies
+                .Where(st => st.IsActive)
+                .Select(st => st.TechnologyId)
+                .ToList();
+            
+            // Technologies to add (in request but not in database or inactive)
+            var techIdsToAdd = request.TechnologyIds.Except(existingTechIds).ToList();
+            
+            // Technologies to soft delete (in database active but not in request)
+            var techIdsToDelete = existingTechIds.Except(request.TechnologyIds).ToList();
+            
+            // Add new technologies
+            if (techIdsToAdd.Any())
             {
-                // Insert technologies
-                var newStudentTechnologies = request.TechnologyIds
-                    .Select(techId => new StudentTechnology
-                    {
-                        StudentId = request.StudentId,
-                        TechnologyId = techId
-                    }).ToList();
-                
-                await _studentTechnologyRepository.AddRangeAsync(newStudentTechnologies);
-                
-                // Map to collection with technology info
-                newStudentTechnologyCollections.AddRange(newStudentTechnologies.Select(x =>
+                foreach (var techId in techIdsToAdd)
                 {
-                    var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == x.TechnologyId);
-                    return StudentTechnologyCollection.FromWriteModel(x, tech);
-                }).ToList());
-            }
-            // If technologies exist but inactive, activate them
-            else
-            {
-                foreach (var existingStudentTechnology in existingStudentTechnologies)
-                {
-                    if (!existingStudentTechnology.IsActive)
+                    // Check if it exists but inactive
+                    var inactiveTech = allExistingStudentTechnologies
+                        .FirstOrDefault(st => st.TechnologyId == techId && !st.IsActive);
+                    
+                    if (inactiveTech != null)
                     {
-                        _studentTechnologyRepository.Update(existingStudentTechnology);
-                        var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == existingStudentTechnology.TechnologyId);
-                        newStudentTechnologyCollections.Add(StudentTechnologyCollection.FromWriteModel(existingStudentTechnology, tech));
+                        // Reactivate
+                        _studentTechnologyRepository.Update(inactiveTech);
+                    }
+                    else
+                    {
+                        // Create new
+                        await _studentTechnologyRepository.AddAsync(new StudentTechnology
+                        {
+                            StudentId = request.StudentId,
+                            TechnologyId = techId
+                        });
                     }
                 }
                 await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
             }
-           
-            StudentLearningGoalCollection? newStudentLearningGoalCollection = null;
-            var studentLearningGoalExist = await _studentLearningGoalRepository
-                .FirstOrDefaultAsync(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId, cancellationToken);
+            
+            // Soft delete technologies not in request
+            if (techIdsToDelete.Any())
+            {
+                var techsToDelete = allExistingStudentTechnologies
+                    .Where(st => techIdsToDelete.Contains(st.TechnologyId) && st.IsActive)
+                    .ToList();
+                
+                foreach (var tech in techsToDelete)
+                {
+                    _studentTechnologyRepository.Update(tech);
+                }
+                
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken, needLogicalDelete: true);
+            }
+            
+            // Refresh student technologies after save to get updated active status
+            var updatedStudentTechnologies = await _studentTechnologyRepository
+                .Find(st => st.StudentId == request.StudentId && request.TechnologyIds.Contains(st.TechnologyId) && st.IsActive)
+                .ToListAsync(cancellationToken: cancellationToken);
+            
+            // Prepare all technologies for event (based on request)
+            var studentTechnologyCollections = updatedStudentTechnologies.Select(studentTech =>
+            {
+                var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == studentTech.TechnologyId);
+                return StudentTechnologyCollection.FromWriteModel(studentTech, tech);
+            }).ToList();
+            
+            // Get all existing learning goals
+            var allExistingLearningGoals = await _studentLearningGoalRepository
+                .Find(slg => slg.StudentId == request.StudentId)
+                .ToListAsync(cancellationToken: cancellationToken);
+            
+            // Soft delete all learning goals not matching request
+            var goalsToDelete = allExistingLearningGoals
+                .Where(slg => slg.GoalId != request.LearningGoalId && slg.IsActive)
+                .ToList();
+            
+            if (goalsToDelete.Any())
+            {
+                foreach (var goal in goalsToDelete)
+                {
+                    _studentLearningGoalRepository.Update(goal);
+                }
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken, needLogicalDelete: true);
+            }
+            
+            // Add or reactivate the requested learning goal
+            var studentLearningGoalExist = allExistingLearningGoals
+                .FirstOrDefault(slg => slg.GoalId == request.LearningGoalId);
+            
             if (studentLearningGoalExist == null)
             {
-                // Insert learning goal
-                var newStudentLearningGoal = new StudentLearningGoal
+                // Insert new learning goal
+                studentLearningGoalExist = new StudentLearningGoal
                 {
                     StudentId = request.StudentId,
                     GoalId = request.LearningGoalId
                 };
-                await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
-                newStudentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(newStudentLearningGoal, learningGoal:existingGoal);
+                await _studentLearningGoalRepository.AddAsync(studentLearningGoalExist);
             }
-            // If learning goal exist but inactive, activate it
-            else
+            else if (!studentLearningGoalExist.IsActive)
             {
-                if (!studentLearningGoalExist.IsActive)
-                {
-                    _studentLearningGoalRepository.Update(studentLearningGoalExist);
-                    await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
-                    newStudentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(studentLearningGoalExist, learningGoal: existingGoal);
-                }
+                // Reactivate
+                _studentLearningGoalRepository.Update(studentLearningGoalExist);
             }
+            
+            await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
+            
+            // Prepare learning goal for event
+            var studentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(studentLearningGoalExist, learningGoal: existingGoal);
             
             // Save event to Outbox
             var @event = new StudentInformationUpdatedEvent
@@ -286,8 +337,8 @@ public class StudentService : IStudentService
                     SemesterId = request.SemesterId,
                     SemesterName = request.SemesterName
                 },
-                StudentTechnologies = newStudentTechnologyCollections,            
-                StudentLearningGoal = newStudentLearningGoalCollection,
+                StudentTechnologies = studentTechnologyCollections,            
+                StudentLearningGoal = studentLearningGoalCollection,
             };
             
             var outboxMessage = new OutboxMessage

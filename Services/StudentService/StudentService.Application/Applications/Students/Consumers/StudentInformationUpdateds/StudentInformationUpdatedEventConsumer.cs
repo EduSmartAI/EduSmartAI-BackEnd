@@ -18,21 +18,31 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             student.MajorName = message.Student.MajorName;
             student.SemesterId = message.Student.SemesterId;
             student.SemesterName = message.Student.SemesterName;
+            
+            // Update Learning Goal - always replace with latest from event
             if (message.StudentLearningGoal != null)
             {
-                student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };        
+                student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };
             }
+            else
+            {
+                student.LearningGoals = new List<StudentLearningGoalCollection>();
+            }
+            
+            // Update Technologies - always replace with latest from event
             if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
             {
-                student.Technologies = new List<StudentTechnologyCollection>();
-                foreach (var tech in message.StudentTechnologies)
-                {
-                    student.Technologies.Add(tech);
-                }
+                student.Technologies = message.StudentTechnologies.ToList();
             }
+            else
+            {
+                student.Technologies = new List<StudentTechnologyCollection>();
+            }
+            
+            unitOfWork.Store(student);
         }
-        unitOfWork.Store(student);
 
+        // Store all technologies from event
         if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
         {
             foreach (var tech in message.StudentTechnologies)
@@ -41,6 +51,7 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             }
         }
 
+        // Store learning goal from event
         if (message.StudentLearningGoal != null)
         {
             unitOfWork.Store(message.StudentLearningGoal);
