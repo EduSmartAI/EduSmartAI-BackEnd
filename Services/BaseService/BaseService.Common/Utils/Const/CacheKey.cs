@@ -34,4 +34,10 @@ public static class CacheKey
 
     public static string StudentTranscript(Guid userId)
         => $"student_transcript:{userId}";
+
+    public static string PracticeTestSelects()
+        => "practice_test:selects";
+    
+    public static string PracticeTestSelect(Guid problemId)
+        => $"practice_test:{problemId}";
 }
