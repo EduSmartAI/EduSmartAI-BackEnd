@@ -1,4 +1,5 @@
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils.Const;
 using MassTransit;
 using StudentService.Domain.ReadModels;
 
@@ -56,7 +57,7 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
         {
             unitOfWork.Store(message.StudentLearningGoal);
         }
-
+        await unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(message.Student.StudentId));
         await unitOfWork.SessionSaveChangesAsync();
     }
 }
