@@ -23,19 +23,19 @@ public partial class StudentQuiz
 
     public bool IsActive { get; set; }
 
-	public Guid? CourseId { get; set; }
+    public Guid? CourseId { get; set; }
 
-	public short? Scope { get; set; }
+    public short? Scope { get; set; }
 
-	public Guid? ScopeId { get; set; }
+    public Guid? ScopeId { get; set; }
 
-	public short? TotalQuestions { get; set; }
+    public short? TotalQuestions { get; set; }
 
-	public short? TotalCorrect { get; set; }
+    public short? TotalCorrect { get; set; }
 
-	public short? Score100 { get; set; }
+    public short? Score100 { get; set; }
 
-	public virtual Quiz Quiz { get; set; } = null!;
+    public virtual Quiz Quiz { get; set; } = null!;
 
     public virtual ICollection<StudentQuizAnswer> StudentQuizAnswers { get; set; } = new List<StudentQuizAnswer>();
 }

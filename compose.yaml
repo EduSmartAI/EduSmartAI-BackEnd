@@ -88,6 +88,8 @@
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
+      - JUDGE0_API_KEY=${JUDGE0_API_KEY}
+      - JUDGE0_BASE_URL=${JUDGE0_BASE_URL}
     networks:
       - edusmartai-network
   
