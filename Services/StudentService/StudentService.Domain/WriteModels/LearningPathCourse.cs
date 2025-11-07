@@ -35,6 +35,6 @@ public partial class LearningPathCourse
     public string? ExternalCourseDuration { get; set; }
 
     public string? ExternalCourseProvider { get; set; }
-
+    
     public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }

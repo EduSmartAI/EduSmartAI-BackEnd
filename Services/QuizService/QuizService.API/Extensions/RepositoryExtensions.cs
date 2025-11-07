@@ -8,6 +8,7 @@ using QuizService.Application.Applications.StudentTests.Commands;
 using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Applications.Tests.Commands;
 using QuizService.Application.Interfaces;
+using QuizService.Application.Judge0Logics;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
 using QuizService.Infrastructure.Implements;
@@ -31,6 +32,9 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<StudentQuizAnswer>, CommandRepository<StudentQuizAnswer>>();
         services.AddScoped<ICommandRepository<SurveyType>, CommandRepository<SurveyType>>();
         services.AddScoped<ICommandRepository<OutboxMessage>, CommandRepository<OutboxMessage>>();
+        services.AddScoped<ICommandRepository<Problem>, CommandRepository<Problem>>();
+        services.AddScoped<ICommandRepository<CodeLanguage>, CommandRepository<CodeLanguage>>();
+        services.AddScoped<ICommandRepository<Submission>, CommandRepository<Submission>>();
         
         services.AddScoped<IQueryRepository<TestCollection>, QueryRepository<TestCollection>>();
         services.AddScoped<IQueryRepository<QuizCollection>, QueryRepository<QuizCollection>>();
@@ -50,6 +54,8 @@ public static class RepositoryExtensions
         services.AddScoped<IQuizCourseService, QuizCourseService>();
         services.AddScoped<IQuizSurveyService, QuizSurveyService>();
         services.AddScoped<IStudentSurveyService, StudentSurveyService>();
+        services.AddScoped<IPracticeTestService, PracticeTestService>();
+        services.AddScoped<IJudge0ApiLogic, Judge0ApiLogic>();
         services.AddScoped<StudentTestServiceDependencies>();
         
         // MediatR configuration

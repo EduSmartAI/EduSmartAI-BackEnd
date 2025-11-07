@@ -118,7 +118,8 @@ namespace StudentService.Infrastructure.Implements
 				ev => ev.UserId == request.StudentId
 				   && ev.CourseId == request.CourseId
 				   && ev.Scope == (short)QuizScope.Module
-				   && request.ModuleIds.Contains(ev.ScopeId),
+				   && ev.ScopeId.HasValue
+				   && request.ModuleIds.Contains(ev.ScopeId.Value),
 				isTracking: false,
 				cancellationToken: cancellationToken);
 
@@ -233,7 +234,8 @@ namespace StudentService.Infrastructure.Implements
 				ev => ev.UserId == request.StudentId
 				   && ev.CourseId == request.CourseId
 				   && ev.Scope == (short)QuizScope.Lesson
-				   && request.LessonIds.Contains(ev.ScopeId),
+				   && ev.ScopeId.HasValue
+				   && request.LessonIds.Contains(ev.ScopeId.Value),
 				isTracking: false,
 				cancellationToken: cancellationToken);
 

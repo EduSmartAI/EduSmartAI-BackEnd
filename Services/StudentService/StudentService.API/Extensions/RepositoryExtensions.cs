@@ -38,6 +38,7 @@ public static class RepositoryExtensions
 		services.AddScoped<ICommandRepository<AiEvaluation>, CommandRepository<AiEvaluation>>();
 		services.AddScoped<ICommandRepository<CourseSuggestion>, CommandRepository<CourseSuggestion>>();
 		services.AddScoped<ICommandRepository<AiEvaluationImprovement>, CommandRepository<AiEvaluationImprovement>>();
+		services.AddScoped<ICommandRepository<StudentTranscript>, CommandRepository<StudentTranscript>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();

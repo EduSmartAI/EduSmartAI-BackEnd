@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
+using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Students.Commands.Updates;
 using StudentService.Application.Applications.Students.Queries;
 using Swashbuckle.AspNetCore.Annotations;
@@ -24,12 +25,8 @@ public class StudentController(IIdentityService identityService, IMediator media
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPut("[action]")]
-    [Authorize(Roles = ConstRole.Student,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Cập nhật thông tin học sinh",
-        Description = "Cần cấp quyền Student"
-    )]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Cập nhật thông tin học sinh", Description = "Cần cấp quyền Student")]
     public async Task<StudentProfileUpdateResponse> UpdateStudentProfile([FromForm] StudentProfileUpdateCommand request)
     {
         return await ApiControllerHelper.HandleRequest<StudentProfileUpdateCommand, StudentProfileUpdateResponse, string>(
@@ -49,12 +46,8 @@ public class StudentController(IIdentityService identityService, IMediator media
     /// </summary>
     /// <returns></returns>
     [HttpGet("[action]")]
-    [Authorize(Roles = ConstRole.Student,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Hiển thị profile học sinh",
-        Description = "Cần cấp quyền Student"
-    )]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Hiển thị profile học sinh", Description = "Cần cấp quyền Student")]
     public async Task<StudentProfileSelectResponse> SelectStudentProfile()
     {
         var request = new StudentProfileSelectQuery();
@@ -70,4 +63,47 @@ public class StudentController(IIdentityService identityService, IMediator media
         );
     }
     
+    /// <summary>
+    /// Insert student transcript
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Import bảng điểm từ FAP cho sinh viên", Description = "Cần cấp quyền Student")]
+    public async Task<StudentTranscriptInsertResponse> InsertStudentTranscript([FromForm] StudentTranscriptInsertCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<StudentTranscriptInsertCommand, StudentTranscriptInsertResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new StudentTranscriptInsertResponse()
+        );
+    }
+    
+    /// <summary>
+    /// Select student transcript
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Hiển thị bảng điểm được import từ FAP của sinh viên", Description = "Cần cấp quyền Student")]
+    public async Task<StudentTranscriptSelectResponse> SelectStudentTranscript()
+    {
+        var request = new StudentTranscriptSelectQuery();
+        return await ApiControllerHelper.HandleRequest<StudentTranscriptSelectQuery, StudentTranscriptSelectResponse, List<StudentTranscriptSelectResponseEntity>>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new StudentTranscriptSelectResponse()
+        );
+    }
 }

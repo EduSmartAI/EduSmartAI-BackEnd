@@ -1,4 +1,5 @@
 using AiService.Application.Consumers.AiQuizEvaluates;
+using AiService.Application.Consumers.CourseService;
 using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
@@ -26,6 +27,7 @@ public static class MessagingExtensions
             x.AddConsumer<StudentMajorRecommendConsumer>();
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             x.AddConsumer<QuizEvaluableCreatedEventConsumer>();
+            x.AddConsumer<TranscribeBatchRequestedConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
 
