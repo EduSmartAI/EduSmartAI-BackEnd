@@ -1,6 +1,5 @@
-using System.Text.Json;
 using BaseService.Common.Utils;
-using BuildingBlocks.Messaging.Events.QuizService;
+using BaseService.Common.Utils.Const;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -8,6 +7,8 @@ using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
+using System.Text.Json;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace StudentService.API;
 
@@ -15,13 +16,17 @@ public class OutboxPublisher : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
-
+    private readonly short _currentOutboxEnv;
     public OutboxPublisher(IServiceProvider services)
     {
         _services = services;
+        var envValue = Environment.GetEnvironmentVariable(ConstEnv.OutboxEnvironment);
+        _currentOutboxEnv = string.IsNullOrWhiteSpace(envValue)
+            ? (short)OutboxEnvType.Production
+            : (short)OutboxEnvType.Development;
     }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var logging = new LoggingUtil(_logger, "OutboxPublisher-StudentService");
 
@@ -32,7 +37,7 @@ public class OutboxPublisher : BackgroundService
             var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
             var events = await db.OutboxMessages
-                .Where(m => m.ProcessedOnUtc == null)
+                .Where(m => m.ProcessedOnUtc == null && m.OutboxEnvironment == _currentOutboxEnv)
                 .ToListAsync(stoppingToken);
 
             foreach (var e in events)
@@ -40,7 +45,7 @@ public class OutboxPublisher : BackgroundService
                 try
                 {
                     logging.InfoLog($"Processing event with Type: '{e.Type}' and Id: {e.Id}");
-                    
+
                     switch (e.Type)
                     {
                         case nameof(StudentInformationUpdatedEvent):
@@ -61,7 +66,7 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e3!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentCollectionEvent for StudentId: {e3.Student.StudentId}");
                             break;
-						default:
+                        default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;
                     }
@@ -72,7 +77,7 @@ public class OutboxPublisher : BackgroundService
                     logging.ErrorLog($"Failed to publish event with Id {e.Id}: {ex.Message}");
                 }
             }
-            
+
             await db.SaveChangesAsync(stoppingToken);
             await Task.Delay(3000, stoppingToken);
         }

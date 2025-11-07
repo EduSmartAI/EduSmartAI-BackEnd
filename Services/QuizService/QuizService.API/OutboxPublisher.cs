@@ -1,5 +1,5 @@
-using System.Text.Json;
 using BaseService.Common.Utils;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
@@ -9,6 +9,8 @@ using NLog;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Infrastructure.Contexts;
+using System.Text.Json;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace QuizService.API;
 
@@ -16,10 +18,15 @@ public class OutboxPublisher : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
+    private readonly short _currentOutboxEnv;
 
     public OutboxPublisher(IServiceProvider services)
     {
         _services = services;
+        var envValue = Environment.GetEnvironmentVariable(ConstEnv.OutboxEnvironment);
+        _currentOutboxEnv = string.IsNullOrWhiteSpace(envValue)
+            ? (short)OutboxEnvType.Production
+            : (short)OutboxEnvType.Development;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -33,7 +40,7 @@ public class OutboxPublisher : BackgroundService
             var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
             var events = await db.OutboxMessages
-                .Where(m => m.ProcessedOnUtc == null)
+                .Where(m => m.ProcessedOnUtc == null && m.OutboxEnvironment == _currentOutboxEnv)
                 .ToListAsync(stoppingToken);
 
             foreach (var e in events)
@@ -41,7 +48,7 @@ public class OutboxPublisher : BackgroundService
                 try
                 {
                     logging.InfoLog($"Processing event with Type: '{e.Type}' and Id: {e.Id}");
-                    
+
                     switch (e.Type)
                     {
                         case nameof(StudentQuizCollectionInsertEvent):
@@ -79,7 +86,7 @@ public class OutboxPublisher : BackgroundService
                             var e6 = JsonSerializer.Deserialize<StudentQuizCourseInsertEvent>(e.Content);
                             await publishEndpoint.Publish(e6!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentQuizCourseInsertEvent for QuizId: {e6.StudentQuiz.QuizId}");
-                            break; 
+                            break;
                         case nameof(QuizEvaluableCreatedEvent):
                             logging.InfoLog("Processing QuizEvaluableCreatedEvent");
                             var e8 = JsonSerializer.Deserialize<QuizEvaluableCreatedEvent>(e.Content);
@@ -92,7 +99,7 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e9!, stoppingToken);
                             logging.InfoLog($"Successfully published SuggestCourseForStudentEvent for StudentId: {e9!.SuggestCourses.First().StudentId}");
                             break;
-						default:
+                        default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;
                     }
@@ -103,7 +110,7 @@ public class OutboxPublisher : BackgroundService
                     logging.ErrorLog($"Failed to publish event with Id {e.Id}: {ex.Message}");
                 }
             }
-            
+
             await db.SaveChangesAsync(stoppingToken);
             await Task.Delay(3000, stoppingToken);
         }

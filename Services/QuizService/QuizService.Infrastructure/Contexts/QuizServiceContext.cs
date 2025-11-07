@@ -27,7 +27,7 @@ public partial class QuizServiceContext(DbContextOptions options) : AppDbContext
     public virtual DbSet<SurveyType> SurveyTypes { get; set; }
 
     public virtual DbSet<Test> Tests { get; set; }
-    
+
     public virtual DbSet<AnswerRule> AnswerRules { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -149,6 +149,8 @@ public partial class QuizServiceContext(DbContextOptions options) : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.OutboxEnvironment)
+                .HasColumnName("outbox_environment");
         });
 
         modelBuilder.Entity<PlacementTestQuizSetting>(entity =>
@@ -277,44 +279,44 @@ public partial class QuizServiceContext(DbContextOptions options) : AppDbContext
                 .HasConstraintName("student_answers_student_test_id_fkey");
         });
 
-		modelBuilder.Entity<StudentQuiz>(entity =>
-		{
-			entity.HasKey(e => e.StudentQuizId).HasName("student_quizzes_pkey");
+        modelBuilder.Entity<StudentQuiz>(entity =>
+        {
+            entity.HasKey(e => e.StudentQuizId).HasName("student_quizzes_pkey");
 
-			entity.ToTable("student_quizzes");
+            entity.ToTable("student_quizzes");
 
-			entity.HasIndex(e => e.CreatedAt, "idx_student_quiz_created").IsDescending();
+            entity.HasIndex(e => e.CreatedAt, "idx_student_quiz_created").IsDescending();
 
-			entity.HasIndex(e => new { e.StudentId, e.CourseId, e.Scope, e.ScopeId }, "idx_student_quiz_user_course_scope");
+            entity.HasIndex(e => new { e.StudentId, e.CourseId, e.Scope, e.ScopeId }, "idx_student_quiz_user_course_scope");
 
-			entity.Property(e => e.StudentQuizId)
-				.HasDefaultValueSql("gen_random_uuid()")
-				.HasColumnName("student_quiz_id");
-			entity.Property(e => e.CourseId).HasColumnName("course_id");
-			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
-			entity.Property(e => e.CreatedBy)
-				.HasMaxLength(100)
-				.HasColumnName("created_by");
-			entity.Property(e => e.IsActive).HasColumnName("is_active");
-			entity.Property(e => e.QuizId).HasColumnName("quiz_id");
-			entity.Property(e => e.QuizType).HasColumnName("quiz_type");
-			entity.Property(e => e.Scope).HasColumnName("scope");
-			entity.Property(e => e.ScopeId).HasColumnName("scope_id");
-			entity.Property(e => e.Score100).HasColumnName("score_100");
-			entity.Property(e => e.StudentId).HasColumnName("student_id");
-			entity.Property(e => e.TotalCorrect).HasColumnName("total_correct");
-			entity.Property(e => e.TotalQuestions).HasColumnName("total_questions");
-			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
-			entity.Property(e => e.UpdatedBy)
-				.HasMaxLength(100)
-				.HasColumnName("updated_by");
+            entity.Property(e => e.StudentQuizId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("student_quiz_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.QuizId).HasColumnName("quiz_id");
+            entity.Property(e => e.QuizType).HasColumnName("quiz_type");
+            entity.Property(e => e.Scope).HasColumnName("scope");
+            entity.Property(e => e.ScopeId).HasColumnName("scope_id");
+            entity.Property(e => e.Score100).HasColumnName("score_100");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.TotalCorrect).HasColumnName("total_correct");
+            entity.Property(e => e.TotalQuestions).HasColumnName("total_questions");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
 
-			entity.HasOne(d => d.Quiz).WithMany(p => p.StudentQuizzes)
-				.HasForeignKey(d => d.QuizId)
-				.HasConstraintName("student_quizzes_quiz_id_fkey");
-		});
+            entity.HasOne(d => d.Quiz).WithMany(p => p.StudentQuizzes)
+                .HasForeignKey(d => d.QuizId)
+                .HasConstraintName("student_quizzes_quiz_id_fkey");
+        });
 
-		modelBuilder.Entity<StudentQuizAnswer>(entity =>
+        modelBuilder.Entity<StudentQuizAnswer>(entity =>
         {
             entity.HasKey(e => e.StudentQuizAnswerId).HasName("student_quiz_answers_pkey");
 

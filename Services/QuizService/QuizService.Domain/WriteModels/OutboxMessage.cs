@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace QuizService.Domain.WriteModels;
+﻿namespace QuizService.Domain.WriteModels;
 
 public partial class OutboxMessage
 {
@@ -24,4 +21,5 @@ public partial class OutboxMessage
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+    public short OutboxEnvironment { get; set; }
 }

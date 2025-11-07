@@ -38,9 +38,12 @@ public partial class StudentServiceContext : AppDbContext
 
     public virtual DbSet<UserBehaviour> UserBehaviours { get; set; }
 
-	public virtual DbSet<CourseSuggestion> CourseSuggestions { get; set; }
+    public virtual DbSet<CourseSuggestion> CourseSuggestions { get; set; }
+    public virtual DbSet<VwUserPlayvideoStreak> VwUserPlayvideoStreaks { get; set; }
+    public virtual DbSet<VwUserPlayvideoTimeSlot> VwUserPlayvideoTimeSlots { get; set; }
+    public virtual DbSet<VwUserVideoActionsAgg> VwUserVideoActionsAggs { get; set; }
 
-	protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
             .HasPostgresExtension("pgcrypto")
@@ -349,7 +352,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasConstraintName("fk_lpm_path");
             entity.Property(e => e.PositionIndex).HasColumnName("position_index");
         });
-        
+
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -376,6 +379,8 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
+            entity.Property(e => e.OutboxEnvironment)
+                .HasColumnName("outbox_environment");
         });
 
         modelBuilder.Entity<Student>(entity =>
@@ -578,6 +583,8 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.Metadata)
                 .HasColumnType("jsonb")
                 .HasColumnName("metadata");
+            entity.Property(e => e.ParentTargetId)
+                .HasColumnName("parent_target_id");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
             entity.Property(e => e.TargetId).HasColumnName("target_id");
             entity.Property(e => e.TargetType)
@@ -594,6 +601,45 @@ public partial class StudentServiceContext : AppDbContext
                 .HasForeignKey(d => d.StudentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_user_behaviour_user");
+        });
+        modelBuilder.Entity<VwUserPlayvideoStreak>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("vw_user_playvideo_streaks");
+
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.StreakDays).HasColumnName("streak_days");
+        });
+
+        modelBuilder.Entity<VwUserPlayvideoTimeSlot>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("vw_user_playvideo_time_slot");
+
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.Slot).HasColumnName("slot");
+            entity.Property(e => e.PlayCount).HasColumnName("play_count");
+        });
+
+        modelBuilder.Entity<VwUserVideoActionsAgg>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("vw_user_video_actions_agg");
+
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.CourseId).HasColumnName("course_id");
+            entity.Property(e => e.TargetId).HasColumnName("target_id");
+            entity.Property(e => e.TargetType)
+                .HasMaxLength(30)
+                .HasColumnName("target_type");
+            entity.Property(e => e.ActionType)
+                .HasMaxLength(50)
+                .HasColumnName("action_type");
+            entity.Property(e => e.ActionCount).HasColumnName("action_count");
         });
 
         OnModelCreatingPartial(modelBuilder);
