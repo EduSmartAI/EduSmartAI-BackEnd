@@ -57,12 +57,14 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<VwCourseInfo>, CommandRepository<VwCourseInfo>>();
             services.AddScoped<ICommandRepository<VwOverviewCourseProgress>, CommandRepository<VwOverviewCourseProgress>>();
             services.AddScoped<ICommandRepository<VUserCourseProgress>, CommandRepository<VUserCourseProgress>>();
+            services.AddScoped<ICommandRepository<LessonTranscript>, CommandRepository<LessonTranscript>>();
 
 
             // Services
             services.AddScoped<IStudentProgressService, StudentProgressService>();
             services.AddScoped<ICourseService, CourseService>();
             services.AddScoped<IModuleService, ModuleService>();
+            services.AddScoped<ILessonService, LessonService>();
             services.AddScoped<IMajorService, MajorService>();
             services.AddScoped<ISemesterService, SemesterService>();
             services.AddScoped<ISubjectService, SubjectService>();

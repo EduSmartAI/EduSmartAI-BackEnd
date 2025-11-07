@@ -1,4 +1,4 @@
-namespace StudentService.Domain.WriteModels;
+﻿namespace StudentService.Domain.WriteModels;
 
 public partial class LearningPathMajor
 {
@@ -24,6 +24,7 @@ public partial class LearningPathMajor
     /// 1: Internal, 2: External
     /// </summary>
     public short Type { get; set; }
+
     public int? PositionIndex { get; set; }
 
     public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();

@@ -1,4 +1,5 @@
 using AiService.Application.Consumers.AiQuizEvaluates;
+using AiService.Application.Consumers.CourseService;
 using AiService.Application.Consumers.AiSummaryAndFeedback;
 using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
@@ -29,6 +30,7 @@ public static class MessagingExtensions
             x.AddConsumer<StudentMajorRecommendConsumer>();
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             x.AddConsumer<QuizEvaluableCreatedEventConsumer>();
+            x.AddConsumer<TranscribeBatchRequestedConsumer>();
             x.AddConsumer<QuizAiFeedBackOverviewEventConsumer>();
             x.AddConsumer<QuizAiFeedBackModuleEventConsumer>();
 

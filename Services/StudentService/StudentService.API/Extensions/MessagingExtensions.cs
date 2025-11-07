@@ -86,6 +86,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
             x.AddRequestClient<AvatarUploadEvent>();
+            x.AddRequestClient<SemesterIdSelectsEvent>();
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
             x.AddRequestClient<GetOverviewCourseEvents>();

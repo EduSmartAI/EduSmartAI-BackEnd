@@ -17,11 +17,11 @@ public partial class AiEvaluation
 
     public short Scope { get; set; }
 
-    public Guid ScopeId { get; set; }
+    public Guid? ScopeId { get; set; }
 
-    public Guid QuizId { get; set; }
+    public Guid? QuizId { get; set; }
 
-    public short Score100 { get; set; }
+    public short? Score100 { get; set; }
 
     public string Summary { get; set; }
 

@@ -9,6 +9,7 @@ using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.Interfaces;
@@ -17,7 +18,7 @@ namespace Course.API.Controllers
 {
 	[Route("api/v1/[controller]")]
 	[ApiController]
-	public class CoursesController(ISender sender, ICourseService courseService) : ControllerBase
+	public class CoursesController(ISender sender) : ControllerBase
 	{
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
@@ -311,27 +312,22 @@ namespace Course.API.Controllers
 
 		#endregion
 
-		[HttpPost("event/courses/test")]
-		public async Task<CoursesSelectEventResponse> GetCoursesForEvent(CoursesSelectEvent request)
+		[HttpGet("[action]")]
+		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get in-progress courses by student ID",
+			Description = "Retrieve a list of courses that are currently in progress for a specific student."
+		)]
+		public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentId()
 		{
-			var response = new CoursesSelectEventResponse { Success = false };
-			try
-			{
-				request.SemesterId = Guid.Parse("af62ee21-2a58-48ea-a76e-400bb2426e82");
-				request.StudentLevel = 3;
-				request.LimitTime = 15000;
-				request.MajorCodes = new List<string> { "SE", ".NET" };
-
-				return await courseService.GetCourseSelectsAsync(request);
-			}
-			catch (Exception ex)
-			{
-				response.Success = false;
-				response.SetMessage("An error occurred while processing the request.");
-				_logger.Error(ex, "Error in GetCoursesForEvent: {Message}", ex.Message);
-			}
-
-			return response;
+			var query = new GetInProgressCourseByStudentIdQuery();
+			return await ApiControllerHelper.HandleRequest<GetInProgressCourseByStudentIdQuery, GetInProgressCourseByStudentIdResponse, IReadOnlyList<InProgressCourseDto>>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetInProgressCourseByStudentIdResponse()
+				);
 		}
 	}
 }

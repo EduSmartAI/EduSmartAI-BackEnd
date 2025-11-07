@@ -17,4 +17,8 @@ public interface IStudentService
     Task<StudentProfileUpdateResponse> UpdateStudentProfileAsync(StudentProfileUpdateCommand request, CancellationToken cancellationToken);
     
     Task<StudentProfileSelectResponse> SelectStudentProfileAsync(StudentProfileSelectQuery request, CancellationToken cancellationToken);
+    
+    Task<StudentTranscriptInsertResponse> InsertStudentTranscriptAsync(StudentTranscriptInsertCommand request, CancellationToken cancellationToken);
+    
+    Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken);
 }
