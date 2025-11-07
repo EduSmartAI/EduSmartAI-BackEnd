@@ -1,5 +1,4 @@
 using BaseService.Common.Utils;
-using BaseService.Common.Utils.Const;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -8,7 +7,6 @@ using StudentService.Application.Applications.Students.Consumers.StudentInformat
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
 using System.Text.Json;
-using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace StudentService.API;
 
@@ -16,14 +14,9 @@ public class OutboxPublisher : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
-    private readonly short _currentOutboxEnv;
     public OutboxPublisher(IServiceProvider services)
     {
         _services = services;
-        var envValue = Environment.GetEnvironmentVariable(ConstEnv.OutboxEnvironment);
-        _currentOutboxEnv = string.IsNullOrWhiteSpace(envValue)
-            ? (short)OutboxEnvType.Production
-            : (short)OutboxEnvType.Development;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,7 +30,7 @@ public class OutboxPublisher : BackgroundService
             var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
             var events = await db.OutboxMessages
-                .Where(m => m.ProcessedOnUtc == null && m.OutboxEnvironment == _currentOutboxEnv)
+                .Where(m => m.ProcessedOnUtc == null)
                 .ToListAsync(stoppingToken);
 
             foreach (var e in events)

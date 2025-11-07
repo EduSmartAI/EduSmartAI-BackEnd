@@ -1,5 +1,4 @@
 using BaseService.Common.Utils;
-using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
@@ -10,7 +9,6 @@ using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Infrastructure.Contexts;
 using System.Text.Json;
-using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace QuizService.API;
 
@@ -18,15 +16,10 @@ public class OutboxPublisher : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
-    private readonly short _currentOutboxEnv;
 
     public OutboxPublisher(IServiceProvider services)
     {
         _services = services;
-        var envValue = Environment.GetEnvironmentVariable(ConstEnv.OutboxEnvironment);
-        _currentOutboxEnv = string.IsNullOrWhiteSpace(envValue)
-            ? (short)OutboxEnvType.Production
-            : (short)OutboxEnvType.Development;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,7 +33,7 @@ public class OutboxPublisher : BackgroundService
             var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
             var events = await db.OutboxMessages
-                .Where(m => m.ProcessedOnUtc == null && m.OutboxEnvironment == _currentOutboxEnv)
+                .Where(m => m.ProcessedOnUtc == null)
                 .ToListAsync(stoppingToken);
 
             foreach (var e in events)

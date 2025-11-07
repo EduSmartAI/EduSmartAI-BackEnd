@@ -50,7 +50,7 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<Test> Tests { get; set; }
 
     public virtual DbSet<TestCase> TestCases { get; set; }
-    
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -212,8 +212,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
-            entity.Property(e => e.OutboxEnvironment)
-                .HasColumnName("outbox_environment");
         });
 
         modelBuilder.Entity<PlacementTestQuizSetting>(entity =>
