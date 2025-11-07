@@ -35,9 +35,12 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<LearningPathMajor>, CommandRepository<LearningPathMajor>>();
         services.AddScoped<ICommandRepository<LearningPathCourse>, CommandRepository<LearningPathCourse>>();
         services.AddScoped<ICommandRepository<UserBehaviour>, CommandRepository<UserBehaviour>>();
-		services.AddScoped<ICommandRepository<AiEvaluation>, CommandRepository<AiEvaluation>>();
-		services.AddScoped<ICommandRepository<CourseSuggestion>, CommandRepository<CourseSuggestion>>();
-		services.AddScoped<ICommandRepository<AiEvaluationImprovement>, CommandRepository<AiEvaluationImprovement>>();
+        services.AddScoped<ICommandRepository<AiEvaluation>, CommandRepository<AiEvaluation>>();
+        services.AddScoped<ICommandRepository<CourseSuggestion>, CommandRepository<CourseSuggestion>>();
+        services.AddScoped<ICommandRepository<AiEvaluationImprovement>, CommandRepository<AiEvaluationImprovement>>();
+        services.AddScoped<ICommandRepository<VwUserPlayvideoStreak>, CommandRepository<VwUserPlayvideoStreak>>();
+        services.AddScoped<ICommandRepository<VwUserPlayvideoTimeSlot>, CommandRepository<VwUserPlayvideoTimeSlot>>();
+        services.AddScoped<ICommandRepository<VwUserVideoActionsAgg>, CommandRepository<VwUserVideoActionsAgg>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();

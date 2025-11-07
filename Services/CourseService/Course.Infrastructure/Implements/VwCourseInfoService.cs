@@ -32,10 +32,10 @@ namespace Course.Infrastructure.Implements
 
             // Group theo Module
             var modules = rows
-                .Where(r => r.ModuleId.HasValue)
+                .Where(r => r!.ModuleId.HasValue)
                 .GroupBy(r => new
                 {
-                    ModuleId = r.ModuleId!.Value,
+                    ModuleId = r!.ModuleId!.Value,
                     ModuleName = r.ModuleName ?? string.Empty,
                     IsCore = r.IsCore ?? false
                 })
@@ -43,8 +43,8 @@ namespace Course.Infrastructure.Implements
                 {
                     // Group tiếp theo Lesson (distinct theo LessonId để tránh trùng do join)
                     var lessons = modGrp
-                        .Where(r => r.LessonId.HasValue)
-                        .GroupBy(r => r.LessonId!.Value)
+                        .Where(r => r!.LessonId.HasValue)
+                        .GroupBy(r => r!.LessonId!.Value)
                         .Select(lesGrp =>
                         {
                             var head = lesGrp.First();

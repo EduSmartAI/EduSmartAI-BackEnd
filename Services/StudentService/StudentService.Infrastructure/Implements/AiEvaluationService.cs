@@ -1,15 +1,23 @@
 ﻿using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.WriteModels;
+using System.Text.Json;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace StudentService.Infrastructure.Implements
 {
-    public class AiEvaluationService(ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository, IRequestClient<GetAllDetailCourseEvent> requestClient) : IAiEvaluationService
+    public class AiEvaluationService(
+        ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository,
+        IRequestClient<GetAllDetailCourseEvent> requestClient,
+        IRequestClient<GetUserCourseProgressEvent> _courseProgressClient,
+        ILogger<AiEvaluationService> _logger) : IAiEvaluationService
     {
         /// <summary>
         /// Get and map info evaluation
@@ -38,9 +46,9 @@ namespace StudentService.Infrastructure.Implements
                     .ToDictionary(l => l.LessonId, l => l.LessonTitle);
 
                 var raw = await _aiEvaluateCommandRepository
-                .Find(x => x.UserId == studentId && x.CourseId == courseId, isTracking: false)
-                .OrderByDescending(x => x.CreatedAt)
-                .ThenByDescending(x => x.EvaluationId)
+                .Find(x => x.UserId == studentId && x.CourseId == courseId && x.Scope != (short)QuizScope.Overview, isTracking: false)
+                .OrderByDescending(x => x!.CreatedAt)
+                .ThenByDescending(x => x!.EvaluationId)
                 .Select(x => new
                 {
                     x.EvaluationId,
@@ -141,6 +149,7 @@ namespace StudentService.Infrastructure.Implements
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "GetAllEvaluationByCourseId failed for student {StudentId}, course {CourseId}", studentId, courseId);
                 return new GetInfoEvaluationEventResponse
                 {
                     Response = new GetInfoEvaluationGroupedDto
@@ -150,6 +159,83 @@ namespace StudentService.Infrastructure.Implements
                     }
                 };
             }
+        }
+        /// <summary>
+        /// Get evaluation
+        /// </summary>
+        /// <param name="studentId"></param>
+        /// <param name="courseId"></param>
+        /// <param name="moduleId"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        public async Task<ModuleProgressDto> GetModuleProgressAsync(Guid studentId, Guid courseId, Guid moduleId, CancellationToken cancellationToken)
+        {
+            var evalQuery = _aiEvaluateCommandRepository.Find(
+                x => x.UserId == studentId
+                     && x.CourseId == courseId
+                     && x.Scope == (short)QuizScope.Module
+                     && x.ScopeId == moduleId,
+                isTracking: false,
+                cancellationToken: cancellationToken);
+
+            var eval = await evalQuery
+                .OrderByDescending(x => x!.CreatedAt)
+                .ThenByDescending(x => x!.EvaluationId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            // 2) Gọi CourseService lấy progress
+            var courseReq = new GetUserCourseProgressEvent(courseId, studentId);
+            var courseResp = await _courseProgressClient
+                .GetResponse<GetUserCourseProgressResponse>(courseReq, cancellationToken);
+
+            var cp = courseResp.Message.Response ?? new UserCourseProgressDto();
+
+            var dto = new ModuleProgressDto
+            {
+                LessonsTotal = (int)cp.LessonsTotal,
+                LessonsCompleted = (int)cp.LessonsCompleted,
+                PercentCompleted = cp.PercentCompleted,
+                Score100Raw = 0d,
+                Score100 = 0d,
+                Strengths = Enumerable.Empty<string>(),
+                Improvements = Enumerable.Empty<string>(),
+                Actions = Enumerable.Empty<string>(),
+                SkillGaps = Enumerable.Empty<string>()
+            };
+
+            if (eval is not null)
+            {
+                dto.Score100 = eval.Score100;
+                dto.Score100Raw = eval.Score100Raw.HasValue
+                    ? eval.Score100Raw.Value
+                    : eval.Score100;
+
+                dto.Strengths = ParseList(eval.Strengths);
+                dto.Improvements = ParseList(eval.Improvements);
+                dto.Actions = ParseList(eval.Actions);
+                dto.SkillGaps = ParseList(eval.SkillGaps);
+            }
+
+            return dto;
+        }
+        private static IEnumerable<string> ParseList(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return Enumerable.Empty<string>();
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<string>>(raw);
+                if (list is { Count: > 0 })
+                    return list;
+            }
+            catch
+            {
+                // ignore, fallback phía dưới
+            }
+            return raw
+                .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0);
         }
     }
 }

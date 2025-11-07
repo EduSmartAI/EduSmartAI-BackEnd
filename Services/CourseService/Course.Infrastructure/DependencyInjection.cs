@@ -55,6 +55,8 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<VMajorSemesterSubjectCourses>, CommandRepository<VMajorSemesterSubjectCourses>>();
             services.AddScoped<ICommandRepository<VMajorSemesterSubjectCourses>, CommandRepository<VMajorSemesterSubjectCourses>>();
             services.AddScoped<ICommandRepository<VwCourseInfo>, CommandRepository<VwCourseInfo>>();
+            services.AddScoped<ICommandRepository<VwOverviewCourseProgress>, CommandRepository<VwOverviewCourseProgress>>();
+            services.AddScoped<ICommandRepository<VUserCourseProgress>, CommandRepository<VUserCourseProgress>>();
 
 
             // Services
@@ -66,6 +68,8 @@ namespace Course.Infrastructure
             services.AddScoped<ISubjectService, SubjectService>();
             services.AddScoped<IExternalCourseService, ExternalCourseService>();
             services.AddScoped<IVwCourseInforService, VwCourseInfoService>();
+            services.AddScoped<IOverviewCourseService, OverviewCourseService>();
+            services.AddScoped<IVUserModuleProgressService, VUserModuleProgressService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
