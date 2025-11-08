@@ -1,11 +1,14 @@
-﻿using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using StudentService.Application.Applications.Dashboards.Commands;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.WriteModels;
 using System.Text.Json;
@@ -14,10 +17,14 @@ using static BaseService.Common.Utils.Const.ConstantEnum;
 namespace StudentService.Infrastructure.Implements
 {
     public class AiEvaluationService(
+        IIdentityService _identityService,
         ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository,
+        ICommandRepository<AiEvaluationImprovement> _aiEvaluationImprovementRepository,
         IRequestClient<GetAllDetailCourseEvent> requestClient,
         IRequestClient<GetUserCourseProgressEvent> _courseProgressClient,
-        ILogger<AiEvaluationService> _logger) : IAiEvaluationService
+        IRequestClient<SearchAiRecommendImproveEvents> _aiSearchClient,
+        ILogger<AiEvaluationService> _logger,
+        IUnitOfWork _unitOfWork) : IAiEvaluationService
     {
         /// <summary>
         /// Get and map info evaluation
@@ -237,6 +244,44 @@ namespace StudentService.Infrastructure.Implements
                 .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim())
                 .Where(s => s.Length > 0);
+        }
+
+        public async Task<SearchAiRecommendResponse> GenAndInsertImprovement(Guid ImprovementId, CancellationToken cancellationToken)
+        {
+            var userId = _identityService.GetCurrentUser()!.UserId;
+            var improvementQuery = _aiEvaluationImprovementRepository
+            .Find(
+                x => x.ImprovementId == ImprovementId
+                  && x.Evaluation.UserId == userId,
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                i => i.Evaluation
+            );
+
+            var improvement = await improvementQuery.FirstOrDefaultAsync(cancellationToken);
+            if (improvement is null)
+            {
+                return new SearchAiRecommendResponse
+                {
+                    Success = false
+                };
+            }
+            var @event = new SearchAiRecommendImproveEvents(improvement.ImprovementsText);
+            var resultSearch = await _aiSearchClient.GetResponse<SearchAiRecommendImproveResponse>(@event, cancellationToken);
+            var msg = resultSearch.Message;
+            if (msg.Success && !string.IsNullOrWhiteSpace(msg.Response))
+            {
+                improvement.ContentMarkdown = msg.Response;
+                improvement.UpdatedAt = DateTime.UtcNow;
+
+                _aiEvaluationImprovementRepository.Update(improvement);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            return new SearchAiRecommendResponse
+            {
+                Success = msg.Success,
+                Response = msg.Response
+            };
         }
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
+using StudentService.Application.Applications.Dashboards.Commands;
 using StudentService.Application.Applications.Dashboards.Queries;
 using StudentService.Application.Applications.Dashboards.Queries.GetOverviewCourseDashboard;
 using Swashbuckle.AspNetCore.Annotations;
@@ -66,6 +67,22 @@ namespace StudentService.API.Controllers
                 ModelState,
                 async () => await sender.Send(request),
                 new GetOverviewCourseDashboardResponse()
+            );
+        }
+        [HttpPost("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Tìm tài liệu improvement",
+            Description = "Trả về tài liệu dạng markdown. Cần xác thực Bearer."
+        )]
+        public async Task<SearchAiRecommendResponse> GenAndInsertImprovementByAI([FromQuery] SearchAiRecommendRequest request)
+        {
+            return await ApiControllerHelper.HandleRequest<SearchAiRecommendRequest, SearchAiRecommendResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await sender.Send(request),
+                new SearchAiRecommendResponse()
             );
         }
     }

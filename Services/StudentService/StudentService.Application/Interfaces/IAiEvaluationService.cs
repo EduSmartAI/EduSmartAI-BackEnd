@@ -1,5 +1,6 @@
 ﻿using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
+using StudentService.Application.Applications.Dashboards.Commands;
 
 namespace StudentService.Application.Interfaces
 {
@@ -11,5 +12,7 @@ namespace StudentService.Application.Interfaces
             Guid courseId,
             Guid moduleId,
             CancellationToken cancellationToken);
+        Task<SearchAiRecommendResponse> GenAndInsertImprovement(Guid ImprovementId, CancellationToken cancellationToken);
+
     }
 }

@@ -530,6 +530,7 @@ namespace StudentService.Infrastructure.Implements
                 TotalVideos = dto.LessonsTotal ?? 0,
                 TotalQuizzes = totalQuizzes,
                 StartDate = dto.StartedAt ?? DateTime.MinValue,
+                Level = (dto.Level ?? 0),
 
                 Progress = new ProgressSection
                 {
@@ -546,8 +547,6 @@ namespace StudentService.Infrastructure.Implements
 
                 Performance = new PerformanceSection
                 {
-                    AiPerformanceScore = 0,
-                    Level = (int)(dto.Level ?? 0),
                     avgMinutesPerLesson = (avgMinutesPerLesson ?? 0),
                     Rank = rank,
                     FasterCount = fasterCount,

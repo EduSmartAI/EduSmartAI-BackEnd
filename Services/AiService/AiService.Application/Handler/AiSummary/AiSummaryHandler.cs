@@ -9,6 +9,12 @@ namespace AiService.Application.Handler.AiSummary
     public class AiSummaryHandler(IAiSummaryService _aiSummaryService, IRequestClient<InsertAiFeedbackEvents> _courseOverviewClient)
         : IRequestHandler<AiSummaryRequest, AiSummaryResponse>
     {
+        /// <summary>
+        /// This function use to gen feedback by markdown and save to database
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task<AiSummaryResponse> Handle(AiSummaryRequest request, CancellationToken cancellationToken)
         {
             var responseAI = await _aiSummaryService.FeedBackCourseByAI(request, cancellationToken);

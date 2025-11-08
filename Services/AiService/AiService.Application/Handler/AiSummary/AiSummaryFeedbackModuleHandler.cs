@@ -13,6 +13,12 @@ namespace AiService.Application.Handler.AiSummary
         IRequestClient<UpdateModuleFeedbackEvent> _moduleFeedbackClient
         ) : IRequestHandler<AiSummaryFeedbackModuleRequest, AiSummaryFeedbackModuleResponse>
     {
+        /// <summary>
+        /// Generate markdown progress of module and publish message to StudentDB save to database
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         public async Task<AiSummaryFeedbackModuleResponse> Handle(AiSummaryFeedbackModuleRequest request, CancellationToken cancellationToken)
         {
             var @event = new GetModuleProgressEvents(request.CourseId, request.StudentId, request.ModuleId);

@@ -15,6 +15,7 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
         public int TotalVideos { get; set; }
         public int TotalQuizzes { get; set; }
         public DateTime StartDate { get; set; }
+        public int Level { get; set; }
         public ProgressSection Progress { get; set; } = new();
         public string AiEvaluationMarkdown { get; set; } = string.Empty;
         public PerformanceSection Performance { get; set; } = new();
@@ -32,9 +33,6 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
     }
     public sealed class PerformanceSection
     {
-        public double AverageQuizScore { get; set; }
-        public double AiPerformanceScore { get; set; }
-        public int Level { get; set; }
         public double avgMinutesPerLesson { get; set; }
         public int Rank { get; set; }
         public int FasterCount { get; set; }

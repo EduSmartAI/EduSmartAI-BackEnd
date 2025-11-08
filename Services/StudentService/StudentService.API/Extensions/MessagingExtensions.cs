@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
@@ -90,6 +91,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
             x.AddRequestClient<GetOverviewCourseEvents>();
+            x.AddRequestClient<SearchAiRecommendImproveEvents>();
         });
 
         return services;
