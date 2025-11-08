@@ -609,46 +609,56 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("lesson_transcripts_lesson_id_fkey");
         });
 
-        modelBuilder.Entity<Major>(entity =>
-        {
-            entity.HasKey(e => e.MajorId).HasName("majors_pkey");
+		modelBuilder.Entity<Major>(entity =>
+		{
+			entity.HasKey(e => e.MajorId).HasName("majors_pkey");
 
-            entity.ToTable("majors");
+			entity.ToTable("majors");
 
-            entity.HasIndex(e => e.ParentMajorId, "idx_majors_parent");
+			entity.HasIndex(e => e.CreatedBy, "idx_majors_created_by");
 
-            entity.HasIndex(e => e.MajorCode, "majors_major_code_key").IsUnique();
+			entity.HasIndex(e => e.ParentMajorId, "idx_majors_parent");
 
-            entity.Property(e => e.MajorId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("major_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.Description).HasColumnName("description");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.MajorCode)
-                .IsRequired()
-                .HasMaxLength(15)
-                .HasColumnName("major_code");
-            entity.Property(e => e.MajorName)
-                .IsRequired()
-                .HasMaxLength(150)
-                .HasColumnName("major_name");
-            entity.Property(e => e.ParentMajorId).HasColumnName("parent_major_id");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
+			entity.HasIndex(e => e.UpdatedBy, "idx_majors_updated_by");
 
-            entity.HasOne(d => d.ParentMajor).WithMany(p => p.InverseParentMajor)
-                .HasForeignKey(d => d.ParentMajorId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_majors_parent");
-        });
+			entity.HasIndex(e => e.MajorCode, "majors_major_code_key").IsUnique();
 
-        modelBuilder.Entity<Module>(entity =>
+			entity.Property(e => e.MajorId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("major_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("created_by");
+			entity.Property(e => e.Description).HasColumnName("description");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.MajorCode)
+				.IsRequired()
+				.HasMaxLength(15)
+				.HasColumnName("major_code");
+			entity.Property(e => e.MajorName)
+				.IsRequired()
+				.HasMaxLength(150)
+				.HasColumnName("major_name");
+			entity.Property(e => e.ParentMajorId).HasColumnName("parent_major_id");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("updated_by");
+
+			entity.HasOne(d => d.ParentMajor).WithMany(p => p.InverseParentMajor)
+				.HasForeignKey(d => d.ParentMajorId)
+				.OnDelete(DeleteBehavior.SetNull)
+				.HasConstraintName("fk_majors_parent");
+		});
+
+		modelBuilder.Entity<Module>(entity =>
         {
             entity.HasKey(e => e.ModuleId).HasName("modules_pkey");
 
@@ -1005,45 +1015,55 @@ public partial class CourseDbContext : AppDbContext
                     });
         });
 
-        modelBuilder.Entity<Syllabus>(entity =>
-        {
-            entity.HasKey(e => e.SyllabusId).HasName("syllabus_pkey");
+		modelBuilder.Entity<Syllabus>(entity =>
+		{
+			entity.HasKey(e => e.SyllabusId).HasName("syllabus_pkey");
 
-            entity.ToTable("syllabus");
+			entity.ToTable("syllabus");
 
-            entity.HasIndex(e => e.IsActive, "idx_syllabus_active");
+			entity.HasIndex(e => e.IsActive, "idx_syllabus_active");
 
-            entity.HasIndex(e => e.MajorId, "idx_syllabus_major");
+			entity.HasIndex(e => e.CreatedBy, "idx_syllabus_created_by");
 
-            entity.HasIndex(e => new { e.MajorId, e.VersionLabel }, "uq_syllabus_major_version").IsUnique();
+			entity.HasIndex(e => e.MajorId, "idx_syllabus_major");
 
-            entity.Property(e => e.SyllabusId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("syllabus_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.EffectiveFrom).HasColumnName("effective_from");
-            entity.Property(e => e.EffectiveTo).HasColumnName("effective_to");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.MajorId).HasColumnName("major_id");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.VersionLabel)
-                .IsRequired()
-                .HasMaxLength(30)
-                .HasColumnName("version_label");
+			entity.HasIndex(e => e.UpdatedBy, "idx_syllabus_updated_by");
 
-            entity.HasOne(d => d.Major).WithMany(p => p.Syllabi)
-                .HasForeignKey(d => d.MajorId)
-                .OnDelete(DeleteBehavior.Restrict)
-                .HasConstraintName("fk_syllabus_major");
-        });
+			entity.HasIndex(e => new { e.MajorId, e.VersionLabel }, "uq_syllabus_major_version").IsUnique();
 
-        modelBuilder.Entity<SyllabusSemester>(entity =>
+			entity.Property(e => e.SyllabusId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("syllabus_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("created_by");
+			entity.Property(e => e.EffectiveFrom).HasColumnName("effective_from");
+			entity.Property(e => e.EffectiveTo).HasColumnName("effective_to");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.MajorId).HasColumnName("major_id");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("updated_by");
+			entity.Property(e => e.VersionLabel)
+				.IsRequired()
+				.HasMaxLength(30)
+				.HasColumnName("version_label");
+
+			entity.HasOne(d => d.Major).WithMany(p => p.Syllabi)
+				.HasForeignKey(d => d.MajorId)
+				.OnDelete(DeleteBehavior.Restrict)
+				.HasConstraintName("fk_syllabus_major");
+		});
+
+		modelBuilder.Entity<SyllabusSemester>(entity =>
         {
             entity.HasKey(e => new { e.SyllabusId, e.SemesterId }).HasName("syllabus_semesters_pkey");
 

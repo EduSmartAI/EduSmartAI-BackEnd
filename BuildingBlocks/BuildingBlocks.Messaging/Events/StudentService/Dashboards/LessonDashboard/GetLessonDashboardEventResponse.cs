@@ -1,10 +1,6 @@
 ﻿using BaseService.Common.ApiEntities;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashboard
@@ -41,7 +37,8 @@ namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashbo
 		public string? VideoUrl { get; init; }
 
 		// progress
-		public LessonStatus Status { get; init; }
+		[JsonConverter(typeof(JsonStringEnumConverter))]
+		public LessonStatus Status { get; init; } = LessonStatus.NotStarted;
 		public int? CurrentSecond { get; init; }
 		public int VideoDurationSeconds { get; init; }
 		public int ActualStudyMinutes { get; init; }

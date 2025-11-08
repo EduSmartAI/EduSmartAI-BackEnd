@@ -16,6 +16,12 @@ namespace StudentService.Infrastructure.Implements
 		IAiQuizEvaluateStudentService _aiService
 	) : IDashboardService
 	{
+		/// <summary>
+		/// Get Lesson Dashboard
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardAsync(GetLessonDashboardQuery request, CancellationToken ct = default)
 		{
 			var response = new GetLessonDashboardEventResponse { Success = false };

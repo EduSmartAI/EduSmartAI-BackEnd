@@ -38,8 +38,8 @@ namespace StudentService.API.Controllers
 		[HttpGet("[action]")]
 		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Lấy Module Dashboard",
-			Description = "Trả về Module Dashboard theo tham số query. Cần xác thực Bearer."
+			Summary = "Lấy Lesson Dashboard",
+			Description = "Trả về Lesson Dashboard theo tham số query. Cần xác thực Bearer."
 		)]
 		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardProcess([FromQuery] GetLessonDashboardQuery request)
 		{
