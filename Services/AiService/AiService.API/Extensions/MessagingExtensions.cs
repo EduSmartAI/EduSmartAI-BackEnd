@@ -1,12 +1,17 @@
 using AiService.Application.Consumers.AiQuizEvaluates;
+using AiService.Application.Consumers.AiSearch;
+using AiService.Application.Consumers.AiSummaryAndFeedback;
 using AiService.Application.Consumers.CourseService;
 using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiFeedback;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.GetLessonInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using MassTransit;
 
@@ -28,6 +33,9 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInterestSurveyAnalysisConsumer>();
             x.AddConsumer<QuizEvaluableCreatedEventConsumer>();
             x.AddConsumer<TranscribeBatchRequestedConsumer>();
+            x.AddConsumer<QuizAiFeedBackOverviewEventConsumer>();
+            x.AddConsumer<QuizAiFeedBackModuleEventConsumer>();
+            x.AddConsumer<SearchAiRecommendImproveConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
 
@@ -54,6 +62,8 @@ public static class MessagingExtensions
             x.AddRequestClient<UpdateBatchExternalMajorEvent>(TimeSpan.FromSeconds(230));
             x.AddRequestClient<GetLessonInfoEvent>(TimeSpan.FromSeconds(230));
             x.AddRequestClient<InternalMajorEvent>(TimeSpan.FromSeconds(170));
+            x.AddRequestClient<InsertAiFeedbackEvents>();
+            x.AddRequestClient<GetModuleProgressEvents>();
         });
 
         return services;

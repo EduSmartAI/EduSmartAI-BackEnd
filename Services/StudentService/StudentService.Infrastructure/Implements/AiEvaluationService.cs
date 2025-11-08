@@ -1,155 +1,287 @@
-﻿using BaseService.Application.Interfaces.Repositories;
+﻿using BaseService.Application.Interfaces.IdentityHepers;
+using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
+using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using StudentService.Application.Applications.Dashboards.Commands;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.WriteModels;
+using System.Text.Json;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace StudentService.Infrastructure.Implements
 {
-	public class AiEvaluationService(ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository, IRequestClient<GetAllDetailCourseEvent> requestClient) : IAiEvaluationService
-	{
-		/// <summary>
-		/// Get and map info evaluation
-		/// </summary>
-		/// <param name="studentId"></param>
-		/// <param name="courseId"></param>
-		/// <param name="cancellationToken"></param>
-		/// <returns></returns>
-		public async Task<GetInfoEvaluationEventResponse> GetAllEvaluationByCourseId(Guid studentId, Guid courseId, CancellationToken cancellationToken)
-		{
-			try
-			{
-				// 1) Lấy thông tin course hierarchy (Module + Lesson)
-				var evt = new GetAllDetailCourseEvent(courseId, studentId);
-				var courseInfoResp = await requestClient.GetResponse<GetAllDetailCourseResponse>(evt, cancellationToken);
+    public class AiEvaluationService(
+        IIdentityService _identityService,
+        ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository,
+        ICommandRepository<AiEvaluationImprovement> _aiEvaluationImprovementRepository,
+        IRequestClient<GetAllDetailCourseEvent> requestClient,
+        IRequestClient<GetUserCourseProgressEvent> _courseProgressClient,
+        IRequestClient<SearchAiRecommendImproveEvents> _aiSearchClient,
+        ILogger<AiEvaluationService> _logger,
+        IUnitOfWork _unitOfWork) : IAiEvaluationService
+    {
+        /// <summary>
+        /// Get and map info evaluation
+        /// </summary>
+        /// <param name="studentId"></param>
+        /// <param name="courseId"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        public async Task<GetInfoEvaluationEventResponse> GetAllEvaluationByCourseId(Guid studentId, Guid courseId, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // 1) Lấy thông tin course hierarchy (Module + Lesson)
+                var evt = new GetAllDetailCourseEvent(courseId, studentId);
+                var courseInfoResp = await requestClient.GetResponse<GetAllDetailCourseResponse>(evt, cancellationToken);
 
-				var courseInfo = courseInfoResp.Message.Response;
+                var courseInfo = courseInfoResp.Message.Response;
 
-				// Phòng null
-				var modules = courseInfo?.Modules ?? new List<CourseModuleDto>();
+                // Phòng null
+                var modules = courseInfo?.Modules ?? new List<CourseModuleDto>();
 
-				// 2) Build dictionary để tra nhanh tên theo Id
-				var moduleNameById = modules.ToDictionary(m => m.ModuleId, m => m.ModuleName);
-				var lessonNameById = modules
-					.SelectMany(m => m.Lessons ?? new List<LessonInfor>())
-					.ToDictionary(l => l.LessonId, l => l.LessonTitle);
+                // 2) Build dictionary để tra nhanh tên theo Id
+                var moduleNameById = modules.ToDictionary(m => m.ModuleId, m => m.ModuleName);
+                var lessonNameById = modules
+                    .SelectMany(m => m.Lessons ?? new List<LessonInfor>())
+                    .ToDictionary(l => l.LessonId, l => l.LessonTitle);
 
-				var raw = await _aiEvaluateCommandRepository
-				.Find(x => x.UserId == studentId && x.CourseId == courseId, isTracking: false)
-				.OrderByDescending(x => x.CreatedAt)
-				.ThenByDescending(x => x.EvaluationId)
-				.Select(x => new
-				{
-					x.EvaluationId,
-					x.AttemptId,
-					x.QuizId,
-					x.Score100,
-					x.Score100Raw,
-					x.Summary,
-					x.Strengths,
-					x.Improvements,
-					x.Actions,
-					x.SkillGaps,
-					x.Model,
-					x.RubricVersion,
-					x.Confidence,
-					x.Scope,
-					x.ScopeId,
-					x.CreatedAt
-				})
-				.ToListAsync(cancellationToken);
+                var raw = await _aiEvaluateCommandRepository
+                .Find(x => x.UserId == studentId && x.CourseId == courseId && x.Scope != (short)QuizScope.Overview, isTracking: false)
+                .OrderByDescending(x => x!.CreatedAt)
+                .ThenByDescending(x => x!.EvaluationId)
+                .Select(x => new
+                {
+                    x.EvaluationId,
+                    x.AttemptId,
+                    x.QuizId,
+                    x.Score100,
+                    x.Score100Raw,
+                    x.Summary,
+                    x.Strengths,
+                    x.Improvements,
+                    x.Actions,
+                    x.SkillGaps,
+                    x.Model,
+                    x.RubricVersion,
+                    x.Confidence,
+                    x.Scope,
+                    x.ScopeId,
+                    x.CreatedAt
+                })
+                .ToListAsync();
 
-				// B2: group và lấy bản ghi mới nhất cho mỗi (Scope, ScopeId, QuizId) ở memory
-				var flatItems = raw
-					.GroupBy(x => new { x.Scope, x.ScopeId, x.QuizId })
-					.Select(g => g.First()) // vì đã order desc ở B1
-					.Select(x => new GetInfoEvaluationItemDto
-					{
-						EvaluationId = x.EvaluationId,
-						AttemptId = x.AttemptId,
-						QuizId = x.QuizId,
-						Name = string.Empty, // sẽ set ở bước 4
-						Score100 = x.Score100,
-						Score100Raw = x.Score100Raw,
-						Summary = x.Summary ?? string.Empty,
-						Strengths = x.Strengths ?? string.Empty,
-						Improvements = x.Improvements ?? string.Empty,
-						Actions = x.Actions ?? string.Empty,
-						SkillGaps = x.SkillGaps ?? string.Empty,
-						Model = x.Model ?? string.Empty,
-						RubricVersion = x.RubricVersion ?? string.Empty,
-						Confidence = x.Confidence,
-						Scope = x.Scope,
-						ScopeId = x.ScopeId,
-						CreatedAt = x.CreatedAt
-					})
-					.ToList();
+                // B2: group và lấy bản ghi mới nhất cho mỗi (Scope, ScopeId, QuizId) ở memory
+                var flatItems = raw
+                    .GroupBy(x => new { x.Scope, x.ScopeId, x.QuizId })
+                    .Select(g => g.First()) // vì đã order desc ở B1
+                    .Select(x => new GetInfoEvaluationItemDto
+                    {
+                        EvaluationId = x.EvaluationId,
+                        AttemptId = x.AttemptId,
+                        QuizId = x.QuizId,
+                        Name = string.Empty, // sẽ set ở bước 4
+                        Score100 = x.Score100,
+                        Score100Raw = x.Score100Raw,
+                        Summary = x.Summary ?? string.Empty,
+                        Strengths = x.Strengths ?? string.Empty,
+                        Improvements = x.Improvements ?? string.Empty,
+                        Actions = x.Actions ?? string.Empty,
+                        SkillGaps = x.SkillGaps ?? string.Empty,
+                        Model = x.Model ?? string.Empty,
+                        RubricVersion = x.RubricVersion ?? string.Empty,
+                        Confidence = x.Confidence,
+                        Scope = x.Scope,
+                        ScopeId = x.ScopeId,
+                        CreatedAt = x.CreatedAt
+                    })
+                    .ToList();
 
-				// 4) Map Name theo (Scope, ScopeId) — thực hiện ở memory để tránh EF translate
-				foreach (var item in flatItems)
-				{
-					if (item.Scope == (short)ConstantEnum.QuizScope.Lesson && item.ScopeId.HasValue)
-					{
-						if (!lessonNameById.TryGetValue(item.ScopeId.Value, out var lessonName))
-							lessonName = string.Empty;
-						item.Name = lessonName;
-					}
-					else if (item.Scope == (short)ConstantEnum.QuizScope.Module && item.ScopeId.HasValue)
-					{
-						if (!moduleNameById.TryGetValue(item.ScopeId.Value, out var moduleName))
-							moduleName = string.Empty;
-						item.Name = moduleName;
-					}
-					else
-					{
-						item.Name = string.Empty;
-					}
-				}
+                // 4) Map Name theo (Scope, ScopeId) — thực hiện ở memory để tránh EF translate
+                foreach (var item in flatItems)
+                {
+                    if (item.Scope == (short)ConstantEnum.QuizScope.Lesson && item.ScopeId.HasValue)
+                    {
+                        if (!lessonNameById.TryGetValue(item.ScopeId.Value, out var lessonName))
+                            lessonName = string.Empty;
+                        item.Name = lessonName;
+                    }
+                    else if (item.Scope == (short)ConstantEnum.QuizScope.Module && item.ScopeId.HasValue)
+                    {
+                        if (!moduleNameById.TryGetValue(item.ScopeId.Value, out var moduleName))
+                            moduleName = string.Empty;
+                        item.Name = moduleName;
+                    }
+                    else
+                    {
+                        item.Name = string.Empty;
+                    }
+                }
 
-				// 5) Group theo ScopeId cho từng scope để trả về đúng schema
-				var lessons = flatItems
-						.Where(i => i.Scope == (short)ConstantEnum.QuizScope.Lesson && i.ScopeId.HasValue)
-						.GroupBy(i => i.ScopeId) // key: Guid?
-						.Select(g => new EvaluationGroupDto
-						{
-						ScopeId = g.Key, // LessonId
-							Evaluations = g.OrderByDescending(e => e.CreatedAt).ToList()
-						})
-						.ToList();
+                // 5) Group theo ScopeId cho từng scope để trả về đúng schema
+                var lessons = flatItems
+                        .Where(i => i.Scope == (short)ConstantEnum.QuizScope.Lesson && i.ScopeId.HasValue)
+                        .GroupBy(i => i.ScopeId) // key: Guid?
+                        .Select(g => new EvaluationGroupDto
+                        {
+                            ScopeId = g.Key, // LessonId
+                            Evaluations = g.OrderByDescending(e => e.CreatedAt).ToList()
+                        })
+                        .ToList();
 
-				var modulesGrouped = flatItems
-						.Where(i => i.Scope == (short)ConstantEnum.QuizScope.Module && i.ScopeId.HasValue)
-						.GroupBy(i => i.ScopeId) // key: Guid?
-						.Select(g => new EvaluationGroupDto
-						{
-						ScopeId = g.Key, // ModuleId
-							Evaluations = g.OrderByDescending(e => e.CreatedAt).ToList()
-						})
-						.ToList();
+                var modulesGrouped = flatItems
+                        .Where(i => i.Scope == (short)ConstantEnum.QuizScope.Module && i.ScopeId.HasValue)
+                        .GroupBy(i => i.ScopeId) // key: Guid?
+                        .Select(g => new EvaluationGroupDto
+                        {
+                            ScopeId = g.Key, // ModuleId
+                            Evaluations = g.OrderByDescending(e => e.CreatedAt).ToList()
+                        })
+                        .ToList();
 
-				return new GetInfoEvaluationEventResponse
-				{
-					Response = new GetInfoEvaluationGroupedDto
-					{
-						Lessons = lessons,
-						Modules = modulesGrouped
-					}
-				};
-			}
-			catch (Exception)
-			{
-				return new GetInfoEvaluationEventResponse
-				{
-					Response = new GetInfoEvaluationGroupedDto
-					{
-						Lessons = [],
-						Modules = []
-					}
-				};
-			}
-		}
-	}
+                return new GetInfoEvaluationEventResponse
+                {
+                    Response = new GetInfoEvaluationGroupedDto
+                    {
+                        Lessons = lessons,
+                        Modules = modulesGrouped
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetAllEvaluationByCourseId failed for student {StudentId}, course {CourseId}", studentId, courseId);
+                return new GetInfoEvaluationEventResponse
+                {
+                    Response = new GetInfoEvaluationGroupedDto
+                    {
+                        Lessons = [],
+                        Modules = []
+                    }
+                };
+            }
+        }
+        /// <summary>
+        /// Get evaluation
+        /// </summary>
+        /// <param name="studentId"></param>
+        /// <param name="courseId"></param>
+        /// <param name="moduleId"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        public async Task<ModuleProgressDto> GetModuleProgressAsync(Guid studentId, Guid courseId, Guid moduleId, CancellationToken cancellationToken)
+        {
+            var evalQuery = _aiEvaluateCommandRepository.Find(
+                x => x.UserId == studentId
+                     && x.CourseId == courseId
+                     && x.Scope == (short)QuizScope.Module
+                     && x.ScopeId == moduleId,
+                isTracking: false,
+                cancellationToken: cancellationToken);
+
+            var eval = await evalQuery
+                .OrderByDescending(x => x!.CreatedAt)
+                .ThenByDescending(x => x!.EvaluationId)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            // 2) Gọi CourseService lấy progress
+            var courseReq = new GetUserCourseProgressEvent(courseId, studentId);
+            var courseResp = await _courseProgressClient
+                .GetResponse<GetUserCourseProgressResponse>(courseReq, cancellationToken);
+
+            var cp = courseResp.Message.Response ?? new UserCourseProgressDto();
+
+            var dto = new ModuleProgressDto
+            {
+                LessonsTotal = (int)cp.LessonsTotal,
+                LessonsCompleted = (int)cp.LessonsCompleted,
+                PercentCompleted = cp.PercentCompleted,
+                Score100Raw = 0d,
+                Score100 = 0d,
+                Strengths = Enumerable.Empty<string>(),
+                Improvements = Enumerable.Empty<string>(),
+                Actions = Enumerable.Empty<string>(),
+                SkillGaps = Enumerable.Empty<string>()
+            };
+
+            if (eval is not null)
+            {
+                dto.Score100 = eval.Score100.GetValueOrDefault();
+
+                dto.Score100Raw = eval.Score100Raw.HasValue
+                    ? eval.Score100Raw.Value
+                    : eval.Score100.GetValueOrDefault();
+
+                dto.Strengths = ParseList(eval.Strengths);
+                dto.Improvements = ParseList(eval.Improvements);
+                dto.Actions = ParseList(eval.Actions);
+                dto.SkillGaps = ParseList(eval.SkillGaps);
+            }
+
+            return dto;
+        }
+        private static IEnumerable<string> ParseList(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return Enumerable.Empty<string>();
+            try
+            {
+                var list = JsonSerializer.Deserialize<List<string>>(raw);
+                if (list is { Count: > 0 })
+                    return list;
+            }
+            catch
+            {
+                // ignore, fallback phía dưới
+            }
+            return raw
+                .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0);
+        }
+
+        public async Task<SearchAiRecommendResponse> GenAndInsertImprovement(Guid ImprovementId, CancellationToken cancellationToken)
+        {
+            var userId = _identityService.GetCurrentUser()!.UserId;
+            var improvementQuery = _aiEvaluationImprovementRepository
+            .Find(
+                x => x.ImprovementId == ImprovementId
+                  && x.Evaluation.UserId == userId,
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                i => i.Evaluation
+            );
+
+            var improvement = await improvementQuery.FirstOrDefaultAsync(cancellationToken);
+            if (improvement is null)
+            {
+                return new SearchAiRecommendResponse
+                {
+                    Success = false
+                };
+            }
+            var @event = new SearchAiRecommendImproveEvents(improvement.ImprovementsText);
+            var resultSearch = await _aiSearchClient.GetResponse<SearchAiRecommendImproveResponse>(@event, cancellationToken);
+            var msg = resultSearch.Message;
+            if (msg.Success && !string.IsNullOrWhiteSpace(msg.Response))
+            {
+                improvement.ContentMarkdown = msg.Response;
+                improvement.UpdatedAt = DateTime.UtcNow;
+
+                _aiEvaluationImprovementRepository.Update(improvement);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            return new SearchAiRecommendResponse
+            {
+                Success = msg.Success,
+                Response = msg.Response
+            };
+        }
+    }
 }

@@ -147,6 +147,10 @@
          "ObjectType": 3
       },
       {
+         "Name": "public.vw_overview_course_progress",
+         "ObjectType": 3
+      },
+      {
          "Name": "public.fn_recalc_course_progress",
          "ObjectType": 1
       },

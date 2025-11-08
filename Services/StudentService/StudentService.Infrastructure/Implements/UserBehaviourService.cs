@@ -5,6 +5,7 @@ using StudentService.Application.Applications.UserBehaviours.Commands;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
+using System.Text.Json;
 
 namespace StudentService.Infrastructure.Implements;
 
@@ -25,11 +26,21 @@ public class UserBehaviourService : IUserBehaviourService
     }
 
     public async Task<UserBehaviourInsertResponse> InsertUserBehaviourAsync(
-        UserBehaviourInsertCommand request, 
+        UserBehaviourInsertCommand request,
         CancellationToken cancellationToken)
     {
         var response = new UserBehaviourInsertResponse { Success = false };
+        if (request.ActionType == ConstantEnum.UserBehaviourActionType.PlayVideo)
+        {
+            var now = DateTimeOffset.Now;
 
+            var offset = now.Offset;
+            var offsetSign = offset < TimeSpan.Zero ? "-" : "+";
+            var offsetStr = $"{offsetSign}{Math.Abs(offset.Hours):00}{Math.Abs(offset.Minutes):00}";
+
+            var rawTimestamp = $"{now:yyyy-MM-dd HH:mm:ss.fff} {offsetStr}";
+            request.Metadata = JsonSerializer.Serialize(rawTimestamp);
+        }
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             var currentUser = _identityService.GetCurrentUser();
@@ -42,6 +53,7 @@ public class UserBehaviourService : IUserBehaviourService
                 ActionType = request.ActionType.ToString(),
                 TargetId = request.TargetId,
                 TargetType = request.TargetType.ToString(),
+                ParentTargetId = request.ParentTargetId,
                 Metadata = request.Metadata
             };
 

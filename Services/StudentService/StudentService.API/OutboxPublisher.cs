@@ -1,6 +1,4 @@
-using System.Text.Json;
 using BaseService.Common.Utils;
-using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using NLog;
@@ -8,6 +6,7 @@ using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
+using System.Text.Json;
 
 namespace StudentService.API;
 
@@ -15,13 +14,12 @@ public class OutboxPublisher : BackgroundService
 {
     private readonly IServiceProvider _services;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
-
     public OutboxPublisher(IServiceProvider services)
     {
         _services = services;
     }
 
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var logging = new LoggingUtil(_logger, "OutboxPublisher-StudentService");
 
@@ -40,7 +38,7 @@ public class OutboxPublisher : BackgroundService
                 try
                 {
                     logging.InfoLog($"Processing event with Type: '{e.Type}' and Id: {e.Id}");
-                    
+
                     switch (e.Type)
                     {
                         case nameof(StudentInformationUpdatedEvent):
@@ -61,7 +59,7 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e3!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentCollectionEvent for StudentId: {e3.Student.StudentId}");
                             break;
-						default:
+                        default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;
                     }
@@ -72,7 +70,7 @@ public class OutboxPublisher : BackgroundService
                     logging.ErrorLog($"Failed to publish event with Id {e.Id}: {ex.Message}");
                 }
             }
-            
+
             await db.SaveChangesAsync(stoppingToken);
             await Task.Delay(3000, stoppingToken);
         }

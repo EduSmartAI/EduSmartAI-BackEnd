@@ -50,7 +50,7 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<Test> Tests { get; set; }
 
     public virtual DbSet<TestCase> TestCases { get; set; }
-    
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>

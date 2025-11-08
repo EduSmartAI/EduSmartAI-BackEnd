@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace QuizService.Domain.WriteModels;
+﻿namespace QuizService.Domain.WriteModels;
 
 public partial class OutboxMessage
 {

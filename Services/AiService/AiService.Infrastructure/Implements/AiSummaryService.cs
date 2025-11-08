@@ -1,6 +1,5 @@
 ﻿using AiService.Application.Features.AiSummary;
 using AiService.Application.Interfaces;
-using BaseService.Application.Interfaces.IdentityHepers;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse; // NEW
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
@@ -10,20 +9,17 @@ using System.Text.Json.Serialization;
 
 namespace AiService.Infrastructure.Implements
 {
-	public class AiSummaryService(
-		IRequestClient<GetInfoEvaluationEvent> requestClient,
-		IRequestClient<GetAllDetailCourseEvent> courseClient, // NEW
-		ChatClient chat
-	) : IAiSummaryService
-	{
-		public async Task<AiSummaryResponse> FeedBackCourseByAI(AiSummaryRequest req, CancellationToken ct)
-		{
-			// var currentUserId = identityService.GetCurrentUser()!.UserId
-
-			// 1) Gọi StudentService để lấy dữ liệu đã group sẵn (Lessons/Modules)
-			var @event = new GetInfoEvaluationEvent(req.StudentId, req.CourseId);
-			var busResp = await requestClient.GetResponse<GetInfoEvaluationEventResponse>(@event, ct);
-			var data = busResp.Message?.Response;
+    public class AiSummaryService(
+        IRequestClient<GetInfoEvaluationEvent> requestClient,
+        IRequestClient<GetAllDetailCourseEvent> courseClient,
+        ChatClient chat
+    ) : IAiSummaryService
+    {
+        public async Task<AiSummaryResponse> FeedBackCourseByAI(AiSummaryRequest req, CancellationToken ct)
+        {
+            var @event = new GetInfoEvaluationEvent(req.StudentId, req.CourseId);
+            var busResp = await requestClient.GetResponse<GetInfoEvaluationEventResponse>(@event, ct);
+            var data = busResp.Message?.Response;
 
 			// 2) Xử lý trường hợp không có dữ liệu
 			if (data is null ||
@@ -112,16 +108,14 @@ namespace AiService.Infrastructure.Implements
 				.OrderByDescending(x => x.avg)
 				.ToList();
 
-			var topLessons = lessonGroups.Take(3).ToList();
-			var lowLessons = lessonGroups.Where(x => x.avg <= RISK_ABS)
-							 .OrderBy(x => x.avg)
-							 .Take(3).ToList();
-			var topModules = moduleGroups.Take(3).ToList();
-			var lowModules = moduleGroups
-				.Where(x => x.avg <= RISK_ABS)
-				.OrderBy(x => x.avg)
-				.Take(3)
-				.ToList();
+            var lowLessons = lessonGroups.Where(x => x.avg <= RISK_ABS)
+                             .OrderBy(x => x.avg)
+                             .Take(3).ToList();
+            var lowModules = moduleGroups
+                .Where(x => x.avg <= RISK_ABS)
+                .OrderBy(x => x.avg)
+                .Take(3)
+                .ToList();
 
 			// 3.1) Map Lesson -> ModuleName để hiển thị "Module liên quan"
 			var lessonModuleMap = new Dictionary<Guid, string>();
@@ -461,5 +455,222 @@ namespace AiService.Infrastructure.Implements
         - Tập trung ôn các nhóm có điểm trung bình thấp trước.
         - Lên kế hoạch luyện 2–3 bài/ngày trong 1–2 tuần, theo đúng chủ đề còn yếu.
         """;
-	}
+
+        public async Task<string> GenerateProgressFeedbackMarkdownAsync(
+            AiSummaryFeedbackModuleDto req,
+            CancellationToken ct = default)
+        {
+            // đảm bảo không null
+            var strengths = req.Strengths ?? Enumerable.Empty<string>();
+            var improvements = req.Improvements ?? Enumerable.Empty<string>();
+            var actions = req.Actions ?? Enumerable.Empty<string>();
+            var skillGaps = req.SkillGaps ?? Enumerable.Empty<string>();
+
+            // Lấy detail course để biết module + lesson
+            var courseEvt = new GetAllDetailCourseEvent(req.CourseId, req.StudentId);
+            var courseResp = await courseClient.GetResponse<GetAllDetailCourseResponse>(courseEvt, ct);
+            var course = courseResp.Message?.Response;
+
+            // Module hiện tại
+            var targetModule = course?.Modules
+                .FirstOrDefault(m => m.ModuleId == req.ModuleId && m.Lessons.Any());
+
+            // Chuẩn hoá moduleInfo (để AI đề xuất học lại theo link)
+            var moduleInfo = targetModule == null
+                ? null
+                : new
+                {
+                    moduleId = targetModule.ModuleId,
+                    moduleName = targetModule.ModuleName,
+                    lessons = targetModule.Lessons.Select(l => new
+                    {
+                        lessonId = l.LessonId,
+                        lessonName = l.LessonTitle,
+                        url = $"https://www.edusmart.pro.vn/course/{req.CourseId}/learn?lessonId={l.LessonId}",
+                    })
+                    .ToList()
+                };
+
+            string masteryLevel;
+
+            if (req.Score100 >= 95)
+            {
+                masteryLevel = "excellent";
+            }
+            else if (req.Score100 >= 85)
+            {
+                masteryLevel = "strong";
+            }
+            else if (req.Score100 >= 70)
+            {
+                masteryLevel = "solid";
+            }
+            else if (req.Score100 >= 50)
+            {
+                masteryLevel = "weak";
+            }
+            else
+            {
+                masteryLevel = "struggling";
+            }
+            if (masteryLevel is "excellent" or "strong")
+            {
+                improvements = improvements
+                    .Where(x => !x.Contains("đọc lại", StringComparison.OrdinalIgnoreCase)
+                             && !x.Contains("xem lại", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                actions = actions
+                    .Where(x => !x.Contains("đọc lại", StringComparison.OrdinalIgnoreCase)
+                             && !x.Contains("xem lại", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+            var payload = new
+            {
+                lessonsTotal = req.LessonsTotal,
+                lessonsCompleted = req.LessonsCompleted,
+                percentCompleted = req.PercentCompleted,
+                score100Raw = req.Score100Raw,   // điểm gốc
+                score100 = req.Score100,      // điểm do AI chấm (đã hiệu chỉnh)
+                strengths = strengths.ToList(),
+                improvements = improvements.ToList(),
+                actions = actions.ToList(),
+                skillGaps = skillGaps.ToList(),
+                moduleInfo = moduleInfo,            // ⬅️ thêm vào JSON
+                masteryLevel = masteryLevel,
+            };
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false
+            });
+
+            var systemPrompt = """
+            Bạn là trợ giảng AI, nhiệm vụ là viết feedback tiến độ học cho người học bằng tiếng Việt, dạng Markdown.
+
+            QUY TẮC:
+            - Chỉ trả về **Markdown**, không giải thích thêm.
+            - Gọi `score100Raw` là **"điểm gốc"**.
+            - Gọi `score100` là **"điểm do AI chấm (đã hiệu chỉnh theo độ khó)"**.
+            - Không nhắc lại tên field kỹ thuật (score100Raw, score100...) trong nội dung; chỉ dùng cách gọi tự nhiên ở trên.
+            - Viết ngắn gọn, rõ ràng, ưu tiên gạch đầu dòng hành động cụ thể.
+            - Dựa vào `masteryLevel` trong JSON:
+            - Nếu `masteryLevel` = "excellent" hoặc "strong":
+            - Không dùng các cụm như "xem lại bài cơ bản", "củng cố kiến thức nền" trừ khi JSON có skillGaps rõ ràng.
+            - Phần "Cần cải thiện" chỉ nói về tinh chỉnh hoặc thử thách nâng cao (chiến lược làm bài, tốc độ, áp dụng thực tế...).
+            - Phần "Hành động đề xuất" và "Mục tiêu 7–14 ngày tới" phải ưu tiên mở rộng: làm bài khó hơn, áp dụng vào mini-project, luyện thêm dạng nâng cao.
+            - Nếu `masteryLevel` = "weak" hoặc "struggling":
+            - Ưu tiên gợi ý ôn lại, củng cố nền tảng, luyện các bài cơ bản.
+            """;
+
+            var userPrompt = $$"""
+        DỮ LIỆU TIẾN ĐỘ (JSON):
+
+        ```json
+        {{json}}
+        ```
+
+        Hãy viết feedback tổng hợp cho **1 học viên** theo bố cục:
+
+        ## Tổng quan tiến độ
+        - 2–3 câu nhận xét về số bài đã hoàn thành, phần trăm hoàn thành và mức độ nỗ lực.
+        - 1 câu so sánh ngắn giữa *điểm gốc* và *điểm do AI chấm (đã hiệu chỉnh theo độ khó)*, nhấn mạnh ý nghĩa (ví dụ: giữ vững, cải thiện, cần cố gắng hơn).
+
+        ## Điểm mạnh
+        - 3–5 gạch đầu dòng, tổng hợp từ danh sách strengths (nếu có). Nếu không có dữ liệu, hãy ghi 1–2 ý tích cực chung dựa trên tiến độ.
+
+        ## Cần cải thiện
+        - 3–5 gạch đầu dòng từ improvements/skillGaps (nếu có), tập trung vào lỗi, thói quen hoặc kỹ năng còn yếu.
+
+        ## Hành động đề xuất (1–2 tuần tới)
+        - 4–6 gạch đầu dòng, bắt đầu bằng động từ (Ôn, Luyện, Làm, Viết, Thực hành…).
+        - Mỗi bullet nên có: nội dung cần làm + khối lượng gợi ý (ví dụ: "mỗi ngày 2–3 bài", "luyện 15–20 phút").
+        - Nếu JSON có `moduleInfo.lessons`, hãy ưu tiên gợi ý cụ thể các bài trong module này.
+
+        ## Mục tiêu 7–14 ngày tới
+        - Viết 2–3 bullet, mỗi bullet là 1 mục tiêu cụ thể, đo được
+          (ví dụ: “Hoàn thành thêm 3 bài trong chương X”, 
+          “Mỗi ngày dành 20 phút luyện lại dạng bài Y”).
+        - Mỗi mục tiêu nên kèm mốc thời gian rõ ràng (trong 7 ngày / 2 tuần).
+
+        ## Câu hỏi tự phản chiếu
+        - Đưa ra 2–3 câu hỏi ngắn để người học tự suy nghĩ
+          (ví dụ: “Phần nào bạn thấy tốn nhiều thời gian nhất?”, 
+          “Thói quen học nào khiến bạn dễ xao nhãng?”,
+          “Nếu chỉ chọn 1 kỹ năng để cải thiện tuần này, bạn sẽ chọn gì?”).
+        - Viết theo kiểu thân thiện, không phán xét.
+
+        ## Bài học nên ưu tiên trong module hiện tại
+        - Nếu `moduleInfo` khác null:
+          - Duyệt `moduleInfo.lessons`.
+          - Nếu `masteryLevel` = "excellent" hoặc "strong":
+            - Chọn tối đa 3–5 bài từ `moduleInfo.lessons`.
+            - Mỗi bullet **bắt buộc** dùng cú pháp link Markdown:
+              `[Tên bài]({url}) – 1 câu lý do theo hướng đào sâu / luyện nâng cao`.
+          - Nếu `masteryLevel` = "weak" hoặc "struggling":
+            - Chọn tối đa 3–5 bài từ `moduleInfo.lessons`.
+            - Mỗi bullet **bắt buộc** dùng cú pháp link Markdown:
+              `[Tên bài]({url}) – 1 câu lý do theo hướng củng cố nền tảng`.
+        - Nếu không có `moduleInfo` hoặc không có `moduleInfo.lessons` thì bỏ qua mục này.
+
+        Kết thúc bằng 1 câu động viên ngắn gọn, tích cực.
+        """;
+
+            try
+            {
+                ChatCompletion result = await chat.CompleteChatAsync(
+                    new ChatMessage[]
+                    {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(userPrompt)
+                    },
+                    new ChatCompletionOptions
+                    {
+                        Temperature = 0.25f
+                    },
+                    ct
+                );
+
+                var text = (result?.Content?.Count > 0)
+                    ? string.Concat(result.Content.Select(c => c.Text))
+                    : null;
+
+                return string.IsNullOrWhiteSpace(text)
+                    ? BasicProgressFallbackMarkdown(
+                        req.LessonsTotal,
+                        req.LessonsCompleted,
+                        req.PercentCompleted,
+                        req.Score100Raw,
+                        req.Score100)
+                    : text!;
+            }
+            catch
+            {
+                return BasicProgressFallbackMarkdown(
+                    req.LessonsTotal,
+                    req.LessonsCompleted,
+                    req.PercentCompleted,
+                    req.Score100Raw,
+                    req.Score100);
+            }
+        }
+
+        private static string BasicProgressFallbackMarkdown(
+            int lessonsTotal,
+            int lessonsCompleted,
+            double percentCompleted,
+            double score100Raw,
+            double score100) => $"""
+            ## Tổng quan tiến độ (bản rút gọn)
+
+            - Bài đã hoàn thành: **{lessonsCompleted}/{lessonsTotal}** (~{percentCompleted:F1}%).
+            - Điểm gốc: **{score100Raw:F1}**.
+            - Điểm do AI chấm (đã hiệu chỉnh theo độ khó): **{score100:F1}**.
+
+            **Gợi ý nhanh**
+            - Duy trì nhịp học đều mỗi ngày.
+            - Ưu tiên ôn lại các phần còn cảm thấy khó, kết hợp làm thêm bài luyện tập ngắn.
+            """;
+    }
 }

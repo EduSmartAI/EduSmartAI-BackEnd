@@ -85,15 +85,15 @@ public static class ConstantEnum
         Completed = 2
     }
 
-	public enum CourseStatus
-	{
-		NotStarted = 0, // Nguoi hoc chua mo lesson nao trong course
-		InProgress = 1, // Nguoi hoc da bat dau it nhat mot lesson
-		Completed = 2,
-		Archived = 3 // khong con active de hoc moi, nhung nguoi hoc cu van thay trong profile
-	}
+    public enum CourseStatus
+    {
+        NotStarted = 0, // Nguoi hoc chua mo lesson nao trong course
+        InProgress = 1, // Nguoi hoc da bat dau it nhat mot lesson
+        Completed = 2,
+        Archived = 3 // khong con active de hoc moi, nhung nguoi hoc cu van thay trong profile
+    }
 
-	public enum LearningPathStatus
+    public enum LearningPathStatus
     {
         Generating = 0,
         Choosing = 1,
@@ -110,7 +110,7 @@ public static class ConstantEnum
         EnrollCourse = 2,
         CompleteCourse = 3,
         PauseCourse = 4,
-        
+
         // Lesson actions
         ViewLesson = 10,
         StartLesson = 11,
@@ -118,29 +118,31 @@ public static class ConstantEnum
         PauseLesson = 13,
         ResumeLesson = 14,
         SkipLesson = 15,
-        
+        RetryLesson = 16,
+
         // Video actions
         PlayVideo = 20,
         PauseVideo = 21,
         SeekVideo = 22,
         CompleteVideo = 23,
-        
+        ScrollVideo = 24,
+
         // Quiz/Test actions
         StartQuiz = 30,
         SubmitQuiz = 31,
         ViewQuizResult = 32,
         RetakeQuiz = 33,
-        
+
         // Learning path actions
         ViewLearningPath = 40,
         StartLearningPath = 41,
         CompleteLearningPath = 42,
-        
+
         // Search & Navigation
         Search = 50,
         ClickSearchResult = 51,
         Navigate = 52,
-        
+
         // Content interaction
         Like = 60,
         Unlike = 61,
@@ -148,7 +150,7 @@ public static class ConstantEnum
         RemoveBookmark = 63,
         Share = 64,
         Comment = 65,
-        
+
         // System actions
         Login = 70,
         Logout = 71,
@@ -169,11 +171,11 @@ public static class ConstantEnum
 
     public enum QuizScope
     {
-        Lesson = 1, 
+        Lesson = 1,
         Module = 2,
         Overview = 3
-	}
-    
+    }
+
     public enum StudentLearningPathCourseStatus
     {
         NotStarted = 0,
@@ -181,24 +183,24 @@ public static class ConstantEnum
         Completed = 2,
         Skipped = 3,
     }
-    
+
     public enum SuggestionType
     {
         LowerLevel = 1,
         SameLevel = 2,
         HigherLevel = 3
     }
-    
+
     // Course Suggestion Constants
     public const decimal SUGGESTION_THRESHOLD_PERCENTAGE = 0.4m;
     public const decimal PASSING_SCORE = 4.0m;
-    
-	public enum ModuleProgressStatus : short
-	{
-		NotStarted = 0,
-		InProgress = 1,
-		Completed = 2
-	}
+
+    public enum ModuleProgressStatus : short
+    {
+        NotStarted = 0,
+        InProgress = 1,
+        Completed = 2
+    }
 
     public enum Gender
     {
@@ -240,4 +242,20 @@ public static class ConstantEnum
         ExecFormatError = 14
     }
 
+    public enum CourseLevel
+    {
+        Beginner = 1,
+        Intermidiate = 2,
+        Advanced = 3
+    }
+    public enum OverviewTypeRequest
+    {
+        StudentOverview = 1,
+        Stats = 2,
+    }
+    public enum OutboxEnvType
+    {
+        Production = 1,
+        Development = 2,
+    }
 }

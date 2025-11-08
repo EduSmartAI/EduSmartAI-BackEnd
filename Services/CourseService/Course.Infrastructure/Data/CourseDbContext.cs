@@ -74,8 +74,12 @@ public partial class CourseDbContext : AppDbContext
     public virtual DbSet<VUserCourseProgress> VUserCourseProgresses { get; set; }
 
     public virtual DbSet<VUserModuleProgress> VUserModuleProgresses { get; set; }
+
     public virtual DbSet<VMajorSemesterSubjectCourses> VMajorSemesterSubjectCoursess { get; set; }
+
 	public virtual DbSet<VwCourseInfo> VwCourseInfos { get; set; }
+
+	public virtual DbSet<VwOverviewCourseProgress> VwOverviewCourseProgresses { get; set; }
 
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1364,6 +1368,43 @@ public partial class CourseDbContext : AppDbContext
 			entity.Property(e => e.TranscriptText).HasColumnName("transcript_text");
 			entity.Property(e => e.VideoDurationSec).HasColumnName("video_duration_sec");
 			entity.Property(e => e.VideoUrl).HasColumnName("video_url");
+		});
+
+		modelBuilder.Entity<VwOverviewCourseProgress>(entity =>
+		{
+			entity
+				.HasNoKey()
+				.ToView("vw_overview_course_progress");
+
+			entity.Property(e => e.CompletedAt).HasColumnName("completed_at");
+			entity.Property(e => e.CourseId).HasColumnName("course_id");
+			entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+			entity.Property(e => e.DurationHours)
+				.HasPrecision(8, 2)
+				.HasColumnName("duration_hours");
+			entity.Property(e => e.DurationMinutes).HasColumnName("duration_minutes");
+			entity.Property(e => e.LearnerCount).HasColumnName("learner_count");
+			entity.Property(e => e.LessonProgressList)
+				.HasColumnType("json")
+				.HasColumnName("lesson_progress_list");
+			entity.Property(e => e.LessonsCompleted).HasColumnName("lessons_completed");
+			entity.Property(e => e.LessonsTotal).HasColumnName("lessons_total");
+			entity.Property(e => e.Level).HasColumnName("level");
+			entity.Property(e => e.PercentCompleted)
+				.HasPrecision(5, 2)
+				.HasColumnName("percent_completed");
+			entity.Property(e => e.StartedAt).HasColumnName("started_at");
+			entity.Property(e => e.Status).HasColumnName("status");
+			entity.Property(e => e.TeacherId).HasColumnName("teacher_id");
+			entity.Property(e => e.Title)
+				.HasMaxLength(100)
+				.HasColumnName("title");
+			entity.Property(e => e.TotalDurationWatchedSec).HasColumnName("total_duration_watched_sec");
+			entity.Property(e => e.TotalLessonQuizzes).HasColumnName("total_lesson_quizzes");
+			entity.Property(e => e.TotalModuleQuizzes).HasColumnName("total_module_quizzes");
+			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+			entity.Property(e => e.UserCourseProgressId).HasColumnName("user_course_progress_id");
+			entity.Property(e => e.UserId).HasColumnName("user_id");
 		});
 
 		OnModelCreatingPartial(modelBuilder);

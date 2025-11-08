@@ -7,49 +7,83 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
+using StudentService.Application.Applications.Dashboards.Commands;
 using StudentService.Application.Applications.Dashboards.Queries;
+using StudentService.Application.Applications.Dashboards.Queries.GetOverviewCourseDashboard;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers
 {
-	[Route("api/[controller]")]
-	[ApiController]
-	public class StudentDashboardsController(ISender sender) : ControllerBase
-	{
-		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+    [Route("api/[controller]")]
+    [ApiController]
+    public class StudentDashboardsController(ISender sender) : ControllerBase
+    {
+        private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
-		[HttpGet("[action]")]
-		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Lấy Module Dashboard",
-			Description = "Trả về Module Dashboard theo tham số query. Cần xác thực Bearer."
-		)]
-		public async Task<GetModuleDashboardEventResponse> GetModuleDashboardProcess([FromQuery] GetModuleDashboardQuery request)
-		{
-			return await ApiControllerHelper.HandleRequest<GetModuleDashboardQuery, GetModuleDashboardEventResponse, ModuleDashboardContract>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new GetModuleDashboardEventResponse()
-			);
-		}
+        [HttpGet("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Lấy Module Dashboard",
+            Description = "Trả về Module Dashboard theo tham số query. Cần xác thực Bearer."
+        )]
+        public async Task<GetModuleDashboardEventResponse> GetModuleDashboardProcess([FromQuery] GetModuleDashboardQuery request)
+        {
+            return await ApiControllerHelper.HandleRequest<GetModuleDashboardQuery, GetModuleDashboardEventResponse, ModuleDashboardContract>(
+                request,
+                _logger,
+                ModelState,
+                async () => await sender.Send(request),
+                new GetModuleDashboardEventResponse()
+            );
+        }
 
-		[HttpGet("[action]")]
-		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-			Summary = "Lấy Lesson Dashboard",
-			Description = "Trả về Lesson Dashboard theo tham số query. Cần xác thực Bearer."
+        [HttpGet("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Lấy Lesson Dashboard",
+            Description = "Trả về Lesson Dashboard theo tham số query. Cần xác thực Bearer."
 		)]
-		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardProcess([FromQuery] GetLessonDashboardQuery request)
-		{
-			return await ApiControllerHelper.HandleRequest<GetLessonDashboardQuery, GetLessonDashboardEventResponse, LessonDashboardContract>(
-				request,
-				_logger,
-				ModelState,
-				async () => await sender.Send(request),
-				new GetLessonDashboardEventResponse()
-			);
-		}
-	}
+        public async Task<GetLessonDashboardEventResponse> GetLessonDashboardProcess([FromQuery] GetLessonDashboardQuery request)
+        {
+            return await ApiControllerHelper.HandleRequest<GetLessonDashboardQuery, GetLessonDashboardEventResponse, LessonDashboardContract>(
+                request,
+                _logger,
+                ModelState,
+                async () => await sender.Send(request),
+                new GetLessonDashboardEventResponse()
+            );
+        }
+        [HttpGet("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Lấy Overview Dashboard",
+            Description = "Trả về Overview Dashboard theo tham số query. Cần xác thực Bearer."
+        )]
+        public async Task<GetOverviewCourseDashboardResponse> GetOverviewCourseDashboardProcess([FromQuery] GetOverviewCourseDashboardQuery request)
+        {
+            return await ApiControllerHelper.HandleRequest<GetOverviewCourseDashboardQuery, GetOverviewCourseDashboardResponse, OverviewCourseContract>(
+                request,
+                _logger,
+                ModelState,
+                async () => await sender.Send(request),
+                new GetOverviewCourseDashboardResponse()
+            );
+        }
+        [HttpPost("[action]")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Tìm tài liệu improvement",
+            Description = "Trả về tài liệu dạng markdown. Cần xác thực Bearer."
+        )]
+        public async Task<SearchAiRecommendResponse> GenAndInsertImprovementByAI([FromQuery] SearchAiRecommendRequest request)
+        {
+            return await ApiControllerHelper.HandleRequest<SearchAiRecommendRequest, SearchAiRecommendResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await sender.Send(request),
+                new SearchAiRecommendResponse()
+            );
+        }
+    }
 }
