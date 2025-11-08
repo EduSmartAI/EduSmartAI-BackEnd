@@ -451,9 +451,23 @@ namespace StudentService.Infrastructure.Implements
                 .OfType<VwUserPlayvideoTimeSlot>()
                 .ToList();
 
-            var mostActiveSlot = timeSlots
+            var mostActiveSlotEntity = timeSlots
                 .OrderByDescending(x => x.PlayCount)
-                .FirstOrDefault()?.Slot ?? string.Empty;
+                .FirstOrDefault();
+
+            short mostActiveSlot = (short)LearningTimeSlot.None;
+
+            if (mostActiveSlotEntity is not null && !string.IsNullOrWhiteSpace(mostActiveSlotEntity.Slot))
+            {
+                mostActiveSlot = mostActiveSlotEntity.Slot.ToLowerInvariant() switch
+                {
+                    "morning" => (short)LearningTimeSlot.Morning,
+                    "afternoon" => (short)LearningTimeSlot.Afternoon,
+                    "evening" => (short)LearningTimeSlot.Evening,
+                    "late_night" => (short)LearningTimeSlot.LateNight,
+                    _ => (short)LearningTimeSlot.None
+                };
+            }
 
             // tổng Pause / Scroll / Rewind
             var actionsRaw = await _videoActionRepo
