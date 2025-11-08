@@ -13,6 +13,7 @@ public class UserBehaviourCollection
     public string? TargetType { get; set; }
 
     public string? Metadata { get; set; }
+    public Guid? ParentTargetId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -25,7 +26,7 @@ public class UserBehaviourCollection
     public bool IsActive { get; set; }
 
     public virtual StudentCollection Student { get; set; } = null!;
-    
+
     public static UserBehaviourCollection FromWriteModel(WriteModels.UserBehaviour model, StudentCollection? student = null)
     {
         var userBehaviourCollection = new UserBehaviourCollection
@@ -36,6 +37,7 @@ public class UserBehaviourCollection
             TargetId = model.TargetId,
             TargetType = model.TargetType,
             Metadata = model.Metadata,
+            ParentTargetId = model.ParentTargetId,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

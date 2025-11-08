@@ -75,10 +75,11 @@ public static class ConstEnv
     public const string FastMode = "FAST_MODE";
 
     public const string TavilyApiKey = "TAVILY_API_KEY";
-    
+
     public const string TeacherServiceDb = "TEACHER_SERVICE_DB";
     
     public const string Judge0ApiKey = "JUDGE0_API_KEY";
     
     public const string Judge0BaseUrl = "JUDGE0_BASE_URL";
+    public const string OutboxEnvironment = "OUTBOX_ENVIRONMENT";
 }

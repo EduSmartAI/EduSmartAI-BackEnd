@@ -1,9 +1,9 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
-using BuildingBlocks.Messaging.Events.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashboard;
@@ -11,6 +11,7 @@ using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetOverviewCourse;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
 using StudentService.Application.Applications.ExternalConsumers;
@@ -18,6 +19,7 @@ using StudentService.Application.Applications.Students.Consumers;
 using StudentService.Application.Applications.Students.Consumers.StudentInformationUpdateds;
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Application.Consumers;
+using StudentService.Application.Consumers.DashboardCourse;
 
 namespace StudentService.API.Extensions;
 
@@ -45,11 +47,14 @@ public static class MessagingExtensions
             x.AddConsumer<StudentInformationSelectsEventConsumer>();
             x.AddConsumer<InternalMajorEventConsumer>();
             x.AddConsumer<LearningPathUpdateStatusEventConsumer>();
-			x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
-			x.AddConsumer<SuggestCourseCollectionEventConsumer>();
-			x.AddConsumer<SuggestCourseForStudentEventConsumer>();
-			x.AddConsumer<StudentCollectionEventConsumer>();
+            x.AddConsumer<UpsertAiQuizEvaluationEventConsumer>();
+            x.AddConsumer<SuggestCourseCollectionEventConsumer>();
+            x.AddConsumer<SuggestCourseForStudentEventConsumer>();
+            x.AddConsumer<StudentCollectionEventConsumer>();
             x.AddConsumer<GetInfoEvaluationConsumer>();
+            x.AddConsumer<InsertAiFeedbackOverViewConsumer>();
+            x.AddConsumer<GetModuleProgressEventsConsumer>();
+            x.AddConsumer<UpdateModuleFeedbackEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -85,6 +90,8 @@ public static class MessagingExtensions
             x.AddRequestClient<SemesterIdSelectsEvent>();
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
+            x.AddRequestClient<GetOverviewCourseEvents>();
+            x.AddRequestClient<SearchAiRecommendImproveEvents>();
         });
 
         return services;

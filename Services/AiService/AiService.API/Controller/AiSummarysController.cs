@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace AiService.API.Controller
 {
@@ -48,6 +49,30 @@ namespace AiService.API.Controller
                 placeholder,
                 _httpContextAccessor,
                 new AiSummaryResponse());
+        }
+        /// <summary>
+        /// Gen and summary feedback module
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("feedback-module")]
+        [SwaggerOperation(
+            Summary = "Generate AI summary feedback module",
+            Description = "Generates an AI-powered summary feedback module based on the provided request data. Requires authentication."
+        )]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<AiSummaryFeedbackModuleResponse> GenFeedbackModule(AiSummaryFeedbackModuleRequest request)
+        {
+            var placeholder = new IdentityEntity();
+            return await ApiControllerHelper.HandleRequest<AiSummaryFeedbackModuleRequest, AiSummaryFeedbackModuleResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                placeholder,
+                _httpContextAccessor,
+                new AiSummaryFeedbackModuleResponse());
         }
     }
 }

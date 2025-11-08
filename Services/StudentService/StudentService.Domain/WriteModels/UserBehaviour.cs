@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-
-namespace StudentService.Domain.WriteModels;
+﻿namespace StudentService.Domain.WriteModels;
 
 public partial class UserBehaviour
 {
@@ -16,6 +13,7 @@ public partial class UserBehaviour
     public string? TargetType { get; set; }
 
     public string? Metadata { get; set; }
+    public Guid? ParentTargetId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BaseService.Common.Utils;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
@@ -9,6 +8,7 @@ using NLog;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 using QuizService.Infrastructure.Contexts;
+using System.Text.Json;
 
 namespace QuizService.API;
 
@@ -41,7 +41,7 @@ public class OutboxPublisher : BackgroundService
                 try
                 {
                     logging.InfoLog($"Processing event with Type: '{e.Type}' and Id: {e.Id}");
-                    
+
                     switch (e.Type)
                     {
                         case nameof(StudentQuizCollectionInsertEvent):
@@ -79,7 +79,7 @@ public class OutboxPublisher : BackgroundService
                             var e6 = JsonSerializer.Deserialize<StudentQuizCourseInsertEvent>(e.Content);
                             await publishEndpoint.Publish(e6!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentQuizCourseInsertEvent for QuizId: {e6.StudentQuiz.QuizId}");
-                            break; 
+                            break;
                         case nameof(QuizEvaluableCreatedEvent):
                             logging.InfoLog("Processing QuizEvaluableCreatedEvent");
                             var e8 = JsonSerializer.Deserialize<QuizEvaluableCreatedEvent>(e.Content);
@@ -92,7 +92,7 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e9!, stoppingToken);
                             logging.InfoLog($"Successfully published SuggestCourseForStudentEvent for StudentId: {e9!.SuggestCourses.First().StudentId}");
                             break;
-						default:
+                        default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;
                     }
@@ -103,7 +103,7 @@ public class OutboxPublisher : BackgroundService
                     logging.ErrorLog($"Failed to publish event with Id {e.Id}: {ex.Message}");
                 }
             }
-            
+
             await db.SaveChangesAsync(stoppingToken);
             await Task.Delay(3000, stoppingToken);
         }

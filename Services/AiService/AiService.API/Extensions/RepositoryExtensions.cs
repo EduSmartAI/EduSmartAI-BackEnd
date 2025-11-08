@@ -29,6 +29,7 @@ public static class RepositoryExtensions
         services.AddScoped<IChatBotService, ChatBotService>();
         services.AddScoped<ITavilyService, TavilyService>();
         services.AddScoped<IAiSummaryService, AiSummaryService>();
+        services.AddScoped<IAiQuizEvaluatorService, AiQuizEvaluatorService>();
 
         // Services
         services.AddMediatR(cfg =>
