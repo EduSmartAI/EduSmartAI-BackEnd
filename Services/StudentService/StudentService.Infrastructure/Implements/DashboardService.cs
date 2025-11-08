@@ -27,7 +27,13 @@ namespace StudentService.Infrastructure.Implements
         IUnitOfWork _unitOfWork
     ) : IDashboardService
     {
-        public async Task<GetLessonDashboardEventResponse> GetLessonDashboardAsync(GetLessonDashboardQuery request, CancellationToken ct = default)
+		/// <summary>
+		/// Get Lesson Dashboard
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardAsync(GetLessonDashboardQuery request, CancellationToken ct = default)
         {
             var response = new GetLessonDashboardEventResponse { Success = false };
             var userId = _identityService.GetCurrentUser()!.UserId;
@@ -358,6 +364,7 @@ namespace StudentService.Infrastructure.Implements
 
             return response;
         }
+
         /// <summary>
         /// Get overview of course
         /// </summary>

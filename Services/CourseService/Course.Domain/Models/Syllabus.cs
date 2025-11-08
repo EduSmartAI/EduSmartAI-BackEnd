@@ -23,6 +23,10 @@ public partial class Syllabus
 
     public bool IsActive { get; set; }
 
+    public string CreatedBy { get; set; }
+
+    public string UpdatedBy { get; set; }
+
     public virtual Major Major { get; set; }
 
     public virtual ICollection<SyllabusSemester> SyllabusSemesters { get; set; } = new List<SyllabusSemester>();

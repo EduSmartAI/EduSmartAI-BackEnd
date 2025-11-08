@@ -23,6 +23,10 @@ public partial class Major
 
     public string Description { get; set; }
 
+    public string CreatedBy { get; set; }
+
+    public string UpdatedBy { get; set; }
+
     public virtual ICollection<Major> InverseParentMajor { get; set; } = new List<Major>();
 
     public virtual Major ParentMajor { get; set; }

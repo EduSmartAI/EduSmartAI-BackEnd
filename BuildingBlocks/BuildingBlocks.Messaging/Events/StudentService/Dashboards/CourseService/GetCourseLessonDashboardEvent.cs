@@ -1,4 +1,5 @@
 ﻿using BaseService.Common.ApiEntities;
+using System.Text.Json.Serialization;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.CourseService
@@ -36,6 +37,7 @@ namespace BuildingBlocks.Messaging.Events.StudentService.Dashboards.CourseServic
 		public string? VideoUrl { get; init; }
 
 		// progress
+		[JsonConverter(typeof(JsonStringEnumConverter))]
 		public LessonStatus Status { get; init; }
 		public int? CurrentSecond { get; init; }
 		public int VideoDurationSeconds { get; init; }
