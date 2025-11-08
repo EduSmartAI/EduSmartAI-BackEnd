@@ -93,7 +93,7 @@ namespace Course.Infrastructure.Implements
 
 			// 7. Return success response
 			response.Success = true;
-			response.Message = "Module updated successfully";
+			response.SetMessage(MessageId.I00001, "Cập nhật module");
 
 			return response;
 		}

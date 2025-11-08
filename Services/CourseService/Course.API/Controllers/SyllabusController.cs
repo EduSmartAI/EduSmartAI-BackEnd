@@ -1,4 +1,5 @@
 ﻿using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Subjects.Commands.CreateSubject;
 
 namespace Course.API.Controllers
 {
@@ -22,6 +23,23 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new CreateMajorResponse()
+			);
+		}
+
+		[HttpPost("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Tạo mới môn học",
+			Description = "Tạo mới môn học. Cần xác thực Bearer."
+		)]
+		public async Task<CreateSubjectResponse> CreateSubjectProcess([FromBody] CreateSubjectCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<CreateSubjectCommand, CreateSubjectResponse, bool>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new CreateSubjectResponse()
 			);
 		}
 	}
