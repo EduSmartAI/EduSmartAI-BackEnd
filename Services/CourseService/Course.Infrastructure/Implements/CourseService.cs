@@ -878,7 +878,7 @@ namespace Course.Infrastructure.Implements
 
             // 9. Return updated course detail
             response.Success = true;
-            response.SetMessage(MessageId.I00001, "Cập nhật khóa học thành công");
+            response.SetMessage(MessageId.I00001, "Cập nhật khóa học");
             return response;
         }
 
@@ -990,7 +990,7 @@ namespace Course.Infrastructure.Implements
 
 			response.Response = true;
 			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Xóa khóa học thành công");
+			response.SetMessage(MessageId.I00001, "Xóa khóa học");
 			return response;
 		}
 
