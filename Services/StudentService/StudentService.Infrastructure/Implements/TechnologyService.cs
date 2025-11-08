@@ -203,7 +203,7 @@ public class TechnologyService(ICommandRepository<Technology> technologyReposito
         }
     
         // Filter by technology type
-        if (request.TechnologyType.HasValue)
+        if (request.TechnologyType.HasValue && request.TechnologyType != null)
         {
             query = query.Where(x => x.TechnologyType == request.TechnologyType.Value).ToList();
         }
