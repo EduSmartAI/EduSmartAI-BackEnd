@@ -211,10 +211,10 @@ public static class ConstantEnum
     }
 
     public enum TranscriptStatus : short
-	{
+    {
         Succeeded = 1,
         Failed = 2,
-	}
+    }
 
     public enum PracticeTestSubmissionStatus
     {
@@ -257,5 +257,13 @@ public static class ConstantEnum
     {
         Production = 1,
         Development = 2,
+    }
+    public enum LearningTimeSlot : short
+    {
+        None = 0,
+        Morning = 1,
+        Afternoon = 2,
+        Evening = 3,
+        LateNight = 4
     }
 }

@@ -42,7 +42,7 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
     public sealed class LearningBehaviorSection
     {
         public DateTime LastAccessed { get; set; }
-        public string MostActiveSlot { get; set; } = string.Empty;
+        public short MostActiveSlot { get; set; }
         public long TotalPauseCount { get; set; }
         public long ScrollVideoCount { get; set; }
         public int RewindTimes { get; set; }
