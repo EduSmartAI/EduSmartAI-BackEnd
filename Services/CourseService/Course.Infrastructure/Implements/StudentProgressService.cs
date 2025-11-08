@@ -184,7 +184,7 @@ namespace Course.Infrastructure.Implements
 
 			// 2) Nạp course + modules + lessons (y hệt bản lecture)
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.Find(x => x.CourseId == courseId, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
@@ -325,7 +325,7 @@ namespace Course.Infrastructure.Implements
 
 			// Tìm courseId từ slug
 			var courseEntity = await _courseRepository
-				.Find(x => x.Slug == courseSlug && x.IsActive, isTracking: false, ct)
+				.Find(x => x.Slug == courseSlug, isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
 			if (courseEntity is null)
@@ -348,7 +348,7 @@ namespace Course.Infrastructure.Implements
 
 			// 2) Nạp course + modules + lessons (y hệt bản lecture)
 			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.Find(x => x.CourseId == courseId, isTracking: false, ct)
 				.Cast<CourseEntity>()
 				.Include(x => x.Subject)
 				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
