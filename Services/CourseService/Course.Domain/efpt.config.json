@@ -47,6 +47,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.course_wishlists",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.courses",
          "ObjectType": 0
       },
@@ -160,6 +164,10 @@
       },
       {
          "Name": "public.fn_validate_enrollment_for_lesson_progress",
+         "ObjectType": 1
+      },
+      {
+         "Name": "public.tg_set_timestamp",
          "ObjectType": 1
       },
       {

@@ -63,6 +63,8 @@ public partial class Course
 
     public virtual ICollection<CourseTag> CourseTags { get; set; } = new List<CourseTag>();
 
+    public virtual ICollection<CourseWishlist> CourseWishlists { get; set; } = new List<CourseWishlist>();
+
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
 
     public virtual Subject Subject { get; set; }

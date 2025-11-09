@@ -58,6 +58,8 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<VwOverviewCourseProgress>, CommandRepository<VwOverviewCourseProgress>>();
             services.AddScoped<ICommandRepository<VUserCourseProgress>, CommandRepository<VUserCourseProgress>>();
             services.AddScoped<ICommandRepository<LessonTranscript>, CommandRepository<LessonTranscript>>();
+            services.AddScoped<ICommandRepository<CourseWishlist>, CommandRepository<CourseWishlist>>();
+            services.AddScoped<ICommandRepository<CourseComment>, CommandRepository<CourseComment>>();
 
 
             // Services
@@ -72,6 +74,8 @@ namespace Course.Infrastructure
             services.AddScoped<IVwCourseInforService, VwCourseInfoService>();
             services.AddScoped<IOverviewCourseService, OverviewCourseService>();
             services.AddScoped<IVUserModuleProgressService, VUserModuleProgressService>();
+            services.AddScoped<IWishlistService, WishlistService>();
+            services.AddScoped<ICommentService, CommentService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
@@ -98,7 +102,11 @@ namespace Course.Infrastructure
                 // UserLessonProgressCollection
                 options.Schema.For<UserLessonProgressCollection>()
                     .Identity(x => x.UserLessonProgressId);
-            });
+
+				// CourseWishlistCollection
+				options.Schema.For<CourseWishlistCollection>()
+					.Identity(x => x.WishlistId);
+			});
 
             return services;
         }

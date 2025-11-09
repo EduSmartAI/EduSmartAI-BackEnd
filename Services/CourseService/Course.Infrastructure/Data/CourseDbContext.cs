@@ -33,6 +33,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<CourseTag> CourseTags { get; set; }
 
+    public virtual DbSet<CourseWishlist> CourseWishlists { get; set; }
+
     public virtual DbSet<Lesson> Lessons { get; set; }
 
     public virtual DbSet<LessonQuiz> LessonQuizzes { get; set; }
@@ -487,7 +489,49 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("fk_course_tags_tag");
         });
 
-        modelBuilder.Entity<Lesson>(entity =>
+		modelBuilder.Entity<CourseWishlist>(entity =>
+		{
+			entity.HasKey(e => e.WishlistId).HasName("course_wishlists_pkey");
+
+			entity.ToTable("course_wishlists");
+
+			entity.HasIndex(e => e.CourseId, "ix_course_wishlists_course").HasFilter("(is_active = true)");
+
+			entity.HasIndex(e => e.UserId, "ix_course_wishlists_user").HasFilter("(is_active = true)");
+
+			entity.HasIndex(e => new { e.UserId, e.CourseId }, "uq_course_wishlist_active")
+				.IsUnique()
+				.HasFilter("(is_active = true)");
+
+			entity.Property(e => e.WishlistId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("wishlist_id");
+			entity.Property(e => e.CourseId).HasColumnName("course_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.IsRequired()
+				.HasDefaultValueSql("'system'::text")
+				.HasColumnName("created_by");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.IsRequired()
+				.HasDefaultValueSql("'system'::text")
+				.HasColumnName("updated_by");
+			entity.Property(e => e.UserId).HasColumnName("user_id");
+
+			entity.HasOne(d => d.Course).WithMany(p => p.CourseWishlists)
+				.HasForeignKey(d => d.CourseId)
+				.HasConstraintName("fk_wishlist_course");
+		});
+
+		modelBuilder.Entity<Lesson>(entity =>
         {
             entity.HasKey(e => e.LessonId).HasName("lessons_pkey");
 
