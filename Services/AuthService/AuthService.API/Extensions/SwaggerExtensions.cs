@@ -1,3 +1,4 @@
+using BaseService.API;
 using Microsoft.OpenApi.Models;
 
 namespace AuthService.API.Extensions;
@@ -38,6 +39,8 @@ public static class SwaggerExtensions
                     []
                 }
             });
+            // Add custom document filter to order operations by action name
+            c.DocumentFilter<SwaggerOrderByActionFilter>();
         });
         
         return services;

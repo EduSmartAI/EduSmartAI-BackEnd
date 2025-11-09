@@ -1,4 +1,5 @@
-﻿using Microsoft.OpenApi.Models;
+﻿using BaseService.API;
+using Microsoft.OpenApi.Models;
 
 namespace Course.API.Extensions
 {
@@ -40,8 +41,10 @@ namespace Course.API.Extensions
 						[]
 					}
 				});
+				// Add custom document filter to order operations by action name
+				c.DocumentFilter<SwaggerOrderByActionFilter>();
 			});
-
+		
 			return services;
 		}
 	}

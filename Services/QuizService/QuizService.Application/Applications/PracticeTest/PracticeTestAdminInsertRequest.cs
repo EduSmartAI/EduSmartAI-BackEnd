@@ -1,15 +1,20 @@
+using System.ComponentModel.DataAnnotations;
 using MediatR;
 
 namespace QuizService.Application.Applications.PracticeTest;
 
 public class PracticeTestAdminInsertRequest : IRequest<PracticeTestAdminInsertResponse>
 {
+    [Required(ErrorMessage = "Problem information is required.")]
     public PracticeTestAdminProblemInsertRequest Problem { get; set; } = null!;
     
+    [Required(ErrorMessage = "Testcases information is required.")]
     public List<PracticeTestAdminProblemTestcaseInsertRequest> Testcases { get; set; } = null!;
     
+    [Required(ErrorMessage = "Templates information is required.")]
     public List<PracticeTestAdminProblemTemplateInsertRequest> Templates { get; set; } = null!;
     
+    [Required(ErrorMessage = "Examples information is required.")]
     public List<PracticeTestAdminProblemExampleInsertRequest> Examples { get; set; } = null!;
 }
 

@@ -18,6 +18,8 @@ public class PracticeTestService
         ICommandRepository<CodeLanguage> codeLanguageRepository,
         ICommandRepository<Submission> submissionRepository,
         ICommandRepository<ProblemTemplate> problemTemplateRepository,
+        ICommandRepository<ProblemExample> problemExampleRepository,
+        ICommandRepository<TestCase> tescaseRepository,
         IIdentityService identityService,
         IUnitOfWork unitOfWork,
         IJudge0ApiLogic judge0ApiLogic) 
@@ -191,7 +193,6 @@ public class PracticeTestService
             // Create submission
             var submission = new Submission
             {
-                SubmissionId = Guid.NewGuid(),
                 ProblemId = request.ProblemId,
                 StudentId = currentUser.UserId,
                 Code = request.SourceCode,
@@ -313,24 +314,23 @@ public class PracticeTestService
     {
         var response = new PracticeTestUserTemplateCodeSelectResponse { Success = false };
         
-        // // Select problem stub code
-        // var problemTemplate = await problemTemplateRepository
-        //     .Find(predicate: x => x.ProblemId == request.ProblemId && x.LanguageId == request.LanguageId && x.IsActive,
-        //         isTracking: false,
-        //         cancellationToken: cancellationToken)
-        //     .FirstOrDefaultAsync(cancellationToken: cancellationToken);
-        // if (problemTemplate == null)
-        // {
-        //     response.SetMessage(MessageId.E00000, "Không tìm thấy source code mẫu");
-        //     return response;
-        // }
+        // Select problem stub code
+        var problemTemplate = await problemTemplateRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.LanguageId == request.LanguageId && x.IsActive,
+                isTracking: false,
+                cancellationToken: cancellationToken)
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        if (problemTemplate == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy source code mẫu");
+            return response;
+        }
         
         // True
         response.Success = true;
         response.Response = new PracticeTestUserTemplateCodeSelectResponseEntity
         {
-            // UserTemplateCode = problemTemplate.UserStubCode,
-            UserTemplateCode = "    static int[] TwoSum(int[] nums, int target)\n    {\n        // YOUR CODE HERE\n        \n        return new int[] { };\n    }",
+            UserTemplateCode = problemTemplate.UserStubCode
         };
         response.SetMessage(MessageId.I00001, "Lấy source code mẫu");
         return response;
@@ -346,9 +346,536 @@ public class PracticeTestService
     {
          var response = new PracticeTestAdminInsertResponse { Success = false };
          
-         // True
-         response.Success = true;
-         response.SetMessage(MessageId.I00001, "Tạo bài kiểm tra thực hành mới");
+         var currentUser = identityService.GetCurrentUser()!;
+         
+         // Begin transaction
+         await unitOfWork.BeginTransactionAsync(async () =>
+         {
+             // Create problem
+             var problem = new Problem
+             {
+                 Title = request.Problem.Title,
+                 Description = request.Problem.Description,
+                 Difficulty = request.Problem.Difficulty
+             };
+             
+             // Add test cases
+             foreach (var publicTestcase in request.Testcases.FirstOrDefault()?.PublicTestcases ?? new List<PracticeTestAdminProblemTestcasePublicInsertRequest>())
+             {
+                 problem.TestCases.Add(new TestCase
+                 {
+                     ProblemId = problem.ProblemId,
+                     InputData = publicTestcase.InputData,
+                     ExpectedOutput = publicTestcase.ExpectedOutput,
+                     IsPublic = true
+                 });
+             }
+             
+             foreach (var privateTestcase in request.Testcases.FirstOrDefault()?.PrivateTestcases ?? new List<PracticeTestAdminProblemTestcasePrivateInsertRequest>())
+             {
+                 problem.TestCases.Add(new TestCase
+                 {
+                     ProblemId = problem.ProblemId,
+                     InputData = privateTestcase.InputData,
+                     ExpectedOutput = privateTestcase.ExpectedOutput,
+                     IsPublic = false
+                 });
+             }
+             
+             // Add templates
+             foreach (var template in request.Templates)
+             {
+                 problem.ProblemTemplates.Add(new ProblemTemplate
+                 {
+                     ProblemId = problem.ProblemId,
+                     LanguageId = template.LanguageId,
+                     TemplatePrefix = template.UserTemplatePrefix,
+                     TemplateSuffix = template.UserTemplateSuffix,
+                     UserStubCode = template.UserStubCode
+                 });
+             }
+             
+             // Add examples
+             foreach (var example in request.Examples)
+             {
+                 problem.ProblemExamples.Add(new ProblemExample
+                 {
+                     ProblemId = problem.ProblemId,
+                     ExampleOrder = example.ExampleOrder,
+                     InputData = example.InputData,
+                     OutputData = example.OutputData,
+                     Explanation = example.Explanation
+                 });
+             }
+             
+             await problemCommandRepository.AddAsync(problem);
+             await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+             
+             // True
+             response.Success = true;
+             response.SetMessage(MessageId.I00001, "Tạo bài kiểm tra thực hành mới");
+             return true;
+         }, cancellationToken);
+         
+        return response;
+    }
+
+    /// <summary>
+    /// Update Practice Test for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestAdminUpdateResponse> UpdatePracticeTestAsync(PracticeTestAdminUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestAdminUpdateResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken,
+                x => x.TestCases,
+                x => x.ProblemTemplates,
+                x => x.ProblemExamples)
+            .FirstOrDefaultAsync(cancellationToken);
+        
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
+            return response;
+        }
+        
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // STEP 1: Update problem basic info
+            if (!string.IsNullOrWhiteSpace(request.Problem.Title) && request.Problem.Title != null)
+                problem.Title = request.Problem.Title;
+            
+            if (!string.IsNullOrWhiteSpace(request.Problem.Description) && request.Problem.Description != null)
+                problem.Description = request.Problem.Description;
+            
+            if (!string.IsNullOrWhiteSpace(request.Problem.Difficulty) && request.Problem.Difficulty != null)
+                problem.Difficulty = request.Problem.Difficulty;
+            
+            // STEP 2: Update test cases (only update existing items)
+            if (request.Testcases != null && request.Testcases.Any())
+            {
+                foreach (var testcaseRequest in request.Testcases)
+                {
+                    var existingTestcase = problem.TestCases.FirstOrDefault(t => t.TestcaseId == testcaseRequest.TestcaseId);
+                    if (existingTestcase != null)
+                    {
+                        existingTestcase.InputData = testcaseRequest.InputData;
+                        existingTestcase.ExpectedOutput = testcaseRequest.ExpectedOutput;
+                        existingTestcase.IsPublic = testcaseRequest.IsPublic;
+                    }
+                }
+            }
+            
+            // STEP 3: Update templates (only update existing items)
+            if (request.Templates != null && request.Templates.Any())
+            {
+                foreach (var templateRequest in request.Templates)
+                {
+                    var existingTemplate = problem.ProblemTemplates.FirstOrDefault(t => t.TemplateId == templateRequest.TemplateId);
+                    if (existingTemplate != null)
+                    {
+                        existingTemplate.LanguageId = templateRequest.LanguageId;
+                        existingTemplate.TemplatePrefix = templateRequest.UserTemplatePrefix;
+                        existingTemplate.TemplateSuffix = templateRequest.UserTemplateSuffix;
+                        existingTemplate.UserStubCode = templateRequest.UserStubCode;
+                    }
+                }
+            }
+            
+            // STEP 4: Update examples (only update existing items)
+            if (request.Examples != null && request.Examples.Any())
+            {
+                foreach (var exampleRequest in request.Examples)
+                {
+                    var existingExample = problem.ProblemExamples.FirstOrDefault(e => e.ExampleId == exampleRequest.ExampleId);
+                    if (existingExample != null)
+                    {
+                        existingExample.ExampleOrder = exampleRequest.ExampleOrder;
+                        existingExample.InputData = exampleRequest.InputData;
+                        existingExample.OutputData = exampleRequest.OutputData;
+                        existingExample.Explanation = exampleRequest.Explanation;
+                    }
+                }
+            }
+            
+            //  Save changes
+            problemCommandRepository.Update(problem);
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Mark test cases not in request as inactive
+            if (request.Testcases != null)
+            {
+                if (request.Testcases.Any())
+                {
+                    var requestTestcaseIds = request.Testcases.Select(t => t.TestcaseId).ToList();
+                    var testcasesToRemove = problem.TestCases
+                        .Where(t => t.IsActive && !requestTestcaseIds.Contains(t.TestcaseId))
+                        .ToList();
+                    
+                    foreach (var testcase in testcasesToRemove)
+                    {
+                        tescaseRepository.Update(testcase);
+                    }
+                }
+                else
+                {
+                    // If empty list is sent, delete all testcases but keep at least 1
+                    var activeTestcases = problem.TestCases.Where(t => t.IsActive).ToList();
+                    if (activeTestcases.Count > 1)
+                    {
+                        foreach (var testcase in activeTestcases.Skip(1))
+                        {
+                            tescaseRepository.Update(testcase);
+                        }
+                    }
+                    else
+                    {
+                        response.SetMessage(MessageId.E00000, "Phải có ít nhất 1 test case còn tồn tại trong hệ thống");
+                        return false;
+                    }
+                }
+                await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, true);
+            }
+            
+            // Mark templates not in request as inactive
+            if (request.Templates != null && request.Templates.Any())
+            {
+                var requestTemplateIds = request.Templates.Select(t => t.TemplateId).ToList();
+                var templatesToRemove = problem.ProblemTemplates
+                    .Where(t => t.IsActive && !requestTemplateIds.Contains(t.TemplateId))
+                    .ToList();
+                
+                foreach (var template in templatesToRemove)
+                {
+                    problemTemplateRepository.Update(template);
+                }
+                await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, true);
+            }
+            
+            // Mark examples not in request as inactive
+            if (request.Examples != null)
+            {
+                if (request.Examples.Any())
+                {
+                    var requestExampleIds = request.Examples.Select(e => e.ExampleId).ToList();
+                    var examplesToRemove = problem.ProblemExamples
+                        .Where(e => e.IsActive && !requestExampleIds.Contains(e.ExampleId))
+                        .ToList();
+                    
+                    foreach (var example in examplesToRemove)
+                    {
+                        problemExampleRepository.Update(example);
+                    }
+                }
+                else
+                {
+                    // If empty list is sent, delete all examples but keep at least 1
+                    var activeExamples = problem.ProblemExamples.Where(e => e.IsActive).ToList();
+                    if (activeExamples.Count > 1)
+                    {
+                        foreach (var example in activeExamples.Skip(1))
+                        {
+                            problemExampleRepository.Update(example);
+                        }
+                    }
+                    else
+                    {
+                        response.SetMessage(MessageId.E00000, "Phải có ít nhất 1 ví dụ mẫu còn tồn tại trong hệ thống");
+                        return false;
+                    }
+                }
+                await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, true);
+            }
+            
+            // STEP 6: Clear cache
+            var cacheKey = CacheKey.PracticeTestSelect(problem.ProblemId);
+            await unitOfWork.CacheRemoveAsync(cacheKey);
+            
+            // Success
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Cập nhật bài kiểm tra thực hành");
+            return true;
+        }, cancellationToken);
+        
+        return response;
+    }
+
+    /// <summary>
+    /// Delete Practice Test for Admin (Soft Delete)
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestAdminDeleteResponse> DeletePracticeTestAsync(PracticeTestAdminDeleteRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestAdminDeleteResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists and load all related entities
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken,
+                x => x.TestCases,
+                x => x.ProblemTemplates,
+                x => x.ProblemExamples)
+            .FirstOrDefaultAsync(cancellationToken);
+        
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
+            return response;
+        }
+        
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Mark all test cases as inactive
+            foreach (var testCase in problem.TestCases.Where(t => t.IsActive))
+            {
+                tescaseRepository.Update(testCase);
+            }
+            
+            // Mark all templates as inactive
+            foreach (var template in problem.ProblemTemplates.Where(t => t.IsActive))
+            {
+                problemTemplateRepository.Update(template);
+            }
+            
+            // Mark all examples as inactive
+            foreach (var example in problem.ProblemExamples.Where(e => e.IsActive))
+            {
+                problemExampleRepository.Update(example);
+            }
+            
+            // Soft delete the problem itself
+            problemCommandRepository.Update(problem);
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
+            
+            // Clear cache
+            var cacheKey = CacheKey.PracticeTestSelect(problem.ProblemId);
+            await unitOfWork.CacheRemoveAsync(cacheKey);
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Xóa bài kiểm tra thực hành và tất cả dữ liệu liên quan");
+            return true;
+        }, cancellationToken);
+        
+        return response;
+    }
+
+    /// <summary>
+    /// Add Testcases to Practice Test for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestTestcasesInsertResponse> InsertPracticeTestTestcasesAsync(PracticeTestTestcasesInsertRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestTestcasesInsertResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken)
+            .FirstOrDefaultAsync(cancellationToken);
+        
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
+            return response;
+        }
+        
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Add public test cases
+            if (request.PublicTestcases != null && request.PublicTestcases.Any())
+            {
+                foreach (var testcase in request.PublicTestcases)
+                {
+                    var newTestcase = new TestCase
+                    {
+                        ProblemId = problem.ProblemId,
+                        InputData = testcase.InputData,
+                        ExpectedOutput = testcase.ExpectedOutput,
+                        IsPublic = true
+                    };
+                    await tescaseRepository.AddAsync(newTestcase);
+                }
+            }
+            
+            // Add private test cases
+            if (request.PrivateTestcases != null && request.PrivateTestcases.Any())
+            {
+                foreach (var testcase in request.PrivateTestcases)
+                {
+                    var newTestcase = new TestCase
+                    {
+                        ProblemId = problem.ProblemId,
+                        InputData = testcase.InputData,
+                        ExpectedOutput = testcase.ExpectedOutput,
+                        IsPublic = false
+                    };
+                    await tescaseRepository.AddAsync(newTestcase);
+                }
+            }
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Clear cache
+            var cacheKey = CacheKey.PracticeTestSelect(problem.ProblemId);
+            await unitOfWork.CacheRemoveAsync(cacheKey);
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm test cases");
+            return true;
+        }, cancellationToken);
+        
+        return response;
+    }
+
+    /// <summary>
+    /// Add Templates to Practice Test for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestTemplatesResponse> InsertPracticeTestTemplatesAsync(PracticeTestTemplatesInsertRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestTemplatesResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken)
+            .FirstOrDefaultAsync(cancellationToken);
+        
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
+            return response;
+        }
+        
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Add templates
+            if (request.Templates.Any())
+            {
+                foreach (var template in request.Templates)
+                {
+                    // Check if template for this language already exists
+                    var existingTemplate = problem.ProblemTemplates
+                        .FirstOrDefault(t => t.LanguageId == template.LanguageId && t.IsActive);
+                    
+                    if (existingTemplate != null)
+                    {
+                        response.SetMessage(MessageId.E00000, $"Template cho ngôn ngữ ID {template.LanguageId} đã tồn tại");
+                        return false;
+                    }
+                    
+                    var newProblemTemplate = new ProblemTemplate
+                    {
+                        ProblemId = problem.ProblemId,
+                        LanguageId = template.LanguageId,
+                        TemplatePrefix = template.UserTemplatePrefix,
+                        TemplateSuffix = template.UserTemplateSuffix,
+                        UserStubCode = template.UserStubCode
+                    };
+                    await problemTemplateRepository.AddAsync(newProblemTemplate);
+                }
+            }
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Clear cache
+            var cacheKey = CacheKey.PracticeTestSelect(problem.ProblemId);
+            await unitOfWork.CacheRemoveAsync(cacheKey);
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm code mẫu");
+            return true;
+        }, cancellationToken);
+        
+        return response;
+    }
+
+    /// <summary>
+    /// Add Examples to Practice Test for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestExamplesInsertResponse> InsertPracticeTestExamplesAsync(PracticeTestExamplesInsertRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestExamplesInsertResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken)
+            .FirstOrDefaultAsync(cancellationToken);
+        
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
+            return response;
+        }
+        
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Add examples
+            if (request.Examples.Any())
+            {
+                foreach (var example in request.Examples)
+                {
+                    var newProblemExample = new ProblemExample
+                    {
+                        ProblemId = problem.ProblemId,
+                        ExampleOrder = example.ExampleOrder,
+                        InputData = example.InputData,
+                        OutputData = example.OutputData,
+                        Explanation = example.Explanation
+                    };
+                    await problemExampleRepository.AddAsync(newProblemExample);
+                }
+            }
+            
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Clear cache
+            var cacheKey = CacheKey.PracticeTestSelect(problem.ProblemId);
+            await unitOfWork.CacheRemoveAsync(cacheKey);
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm ví dụ mẫu");
+            return true;
+        }, cancellationToken);
+        
         return response;
     }
 

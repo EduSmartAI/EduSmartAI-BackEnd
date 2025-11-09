@@ -25,4 +25,7 @@ public class CommonMessages
     public const string StudentTestNotFound = "Không tìm thấy bài kiểm tra của học sinh";
     
     public const string SubjectNotFound = "Không tìm thấy môn học";
+
+    public const string NotFoundPracticeTestMessage = "Không tìm thấy bài kiểm tra thực hành";
+
 }
