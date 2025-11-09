@@ -25,6 +25,70 @@ public class PracticeTestService
         IJudge0ApiLogic judge0ApiLogic) 
     : IPracticeTestService
 {
+    public async Task<PracticeTestAdminLanguageInsertResponse> InsertPracticeLanguageAsync(PracticeTestAdminLanguageInsertRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestAdminLanguageInsertResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+     
+        // Begin transaction
+        await unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // STEP 1: Get languages from Judge0 API
+            var languageJudge0Selects = await judge0ApiLogic.GetLanguagesAsync();
+            
+            if (!languageJudge0Selects.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Không thể lấy danh sách ngôn ngữ từ Judge0");
+                return false;
+            }
+            
+            // STEP 2: Get existing language IDs from database
+            var existingLanguageIds = await codeLanguageRepository
+                .Find(predicate: x => x.IsActive, isTracking: false)
+                .Select(x => x.LanguageId)
+                .ToListAsync(cancellationToken);
+            
+            // STEP 3: Filter out languages that already exist in database
+            var newLanguages = languageJudge0Selects
+                .Where(lang => !existingLanguageIds.Contains(lang.LanguageId))
+                .ToList();
+            
+            if (!newLanguages.Any())
+            {
+                response.SetMessage(MessageId.I00001, "Tất cả ngôn ngữ lập trình đã tồn tại trong hệ thống");
+                response.Success = true;
+                response.Response = new PracticeTestAdminLanguageInsertResponseEntity
+                {
+                    TotalLanguagesFromJudge0 = languageJudge0Selects.Count,
+                    ExistingLanguages = existingLanguageIds.Count,
+                    NewLanguagesInserted = 0
+                };
+                return true;
+            }
+            
+            // STEP 4: Insert new languages into database
+            foreach (var language in newLanguages)
+            {
+                await codeLanguageRepository.AddAsync(language);
+            }
+            
+            await unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            // Success
+            response.Success = true;
+            response.Response = new PracticeTestAdminLanguageInsertResponseEntity
+            {
+                TotalLanguagesFromJudge0 = languageJudge0Selects.Count,
+                ExistingLanguages = existingLanguageIds.Count,
+                NewLanguagesInserted = newLanguages.Count
+            };
+            response.SetMessage(MessageId.I00001, $"Thêm thành công {newLanguages.Count} ngôn ngữ lập trình mới");
+            return true;
+        }, cancellationToken);
+        return response;
+    }
+
     /// <summary>
     /// Select Practice Test
     /// </summary>
@@ -682,9 +746,9 @@ public class PracticeTestService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<PracticeTestTestcasesInsertResponse> InsertPracticeTestTestcasesAsync(PracticeTestTestcasesInsertRequest request, CancellationToken cancellationToken)
+    public async Task<PracticeTestAdminTestcasesInsertResponse> InsertPracticeTestTestcasesAsync(PracticeTestAdminTestcasesInsertRequest request, CancellationToken cancellationToken)
     {
-        var response = new PracticeTestTestcasesInsertResponse { Success = false };
+        var response = new PracticeTestAdminTestcasesInsertResponse { Success = false };
         
         var currentUser = identityService.GetCurrentUser()!;
         
@@ -756,9 +820,9 @@ public class PracticeTestService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<PracticeTestTemplatesResponse> InsertPracticeTestTemplatesAsync(PracticeTestTemplatesInsertRequest request, CancellationToken cancellationToken)
+    public async Task<PracticeTestAdminTemplatesInsertResponse> InsertPracticeTestTemplatesAsync(PracticeTestAdminTemplatesInsertRequest request, CancellationToken cancellationToken)
     {
-        var response = new PracticeTestTemplatesResponse { Success = false };
+        var response = new PracticeTestAdminTemplatesInsertResponse { Success = false };
         
         var currentUser = identityService.GetCurrentUser()!;
         
@@ -825,9 +889,9 @@ public class PracticeTestService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<PracticeTestExamplesInsertResponse> InsertPracticeTestExamplesAsync(PracticeTestExamplesInsertRequest request, CancellationToken cancellationToken)
+    public async Task<PracticeTestAdminExamplesInsertResponse> InsertPracticeTestExamplesAsync(PracticeTestAdminExamplesInsertRequest request, CancellationToken cancellationToken)
     {
-        var response = new PracticeTestExamplesInsertResponse { Success = false };
+        var response = new PracticeTestAdminExamplesInsertResponse { Success = false };
         
         var currentUser = identityService.GetCurrentUser()!;
         

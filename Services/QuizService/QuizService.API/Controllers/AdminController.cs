@@ -247,9 +247,9 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(Summary = "Thêm test cases vào bài tập thực hành", Description = "Thêm public và private test cases vào bài tập thực hành đã tồn tại. Cần cấp quyền Admin cho API")]
-    public async Task<PracticeTestTestcasesInsertResponse> InsertPracticeTestTestcases([FromBody] PracticeTestTestcasesInsertRequest request)
+    public async Task<PracticeTestAdminTestcasesInsertResponse> InsertPracticeTestTestcases([FromBody] PracticeTestAdminTestcasesInsertRequest request)
     {
-        return await ApiControllerHelper.HandleRequest<PracticeTestTestcasesInsertRequest, PracticeTestTestcasesInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<PracticeTestAdminTestcasesInsertRequest, PracticeTestAdminTestcasesInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -257,7 +257,7 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
             identityService,
             _identityEntity,
             httpContextAccessor,
-            new PracticeTestTestcasesInsertResponse());
+            new PracticeTestAdminTestcasesInsertResponse());
     }
     
     /// <summary>
@@ -268,9 +268,9 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(Summary = "Thêm code templates vào bài tập thực hành", Description = "Thêm code templates cho các ngôn ngữ lập trình vào bài tập thực hành đã tồn tại. Mỗi ngôn ngữ chỉ có thể có 1 template. Cần cấp quyền Admin cho API")]
-    public async Task<PracticeTestTemplatesResponse> InsertPracticeTestTemplates([FromBody] PracticeTestTemplatesInsertRequest request)
+    public async Task<PracticeTestAdminTemplatesInsertResponse> InsertPracticeTestTemplates([FromBody] PracticeTestAdminTemplatesInsertRequest request)
     {
-        return await ApiControllerHelper.HandleRequest<PracticeTestTemplatesInsertRequest, PracticeTestTemplatesResponse, string>(
+        return await ApiControllerHelper.HandleRequest<PracticeTestAdminTemplatesInsertRequest, PracticeTestAdminTemplatesInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -278,7 +278,7 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
             identityService,
             _identityEntity,
             httpContextAccessor,
-            new PracticeTestTemplatesResponse());
+            new PracticeTestAdminTemplatesInsertResponse());
     }
     
     /// <summary>
@@ -289,9 +289,9 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     [HttpPost("[action]")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(Summary = "Thêm ví dụ vào bài tập thực hành", Description = "Thêm các ví dụ minh họa input/output vào bài tập thực hành đã tồn tại. Cần cấp quyền Admin cho API")]
-    public async Task<PracticeTestExamplesInsertResponse> InsertPracticeTestExamples([FromBody] PracticeTestExamplesInsertRequest request)
+    public async Task<PracticeTestAdminExamplesInsertResponse> InsertPracticeTestExamples([FromBody] PracticeTestAdminExamplesInsertRequest request)
     {
-        return await ApiControllerHelper.HandleRequest<PracticeTestExamplesInsertRequest, PracticeTestExamplesInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<PracticeTestAdminExamplesInsertRequest, PracticeTestAdminExamplesInsertResponse, string>(
             request,
             _logger,
             ModelState,
@@ -299,7 +299,29 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
             identityService,
             _identityEntity,
             httpContextAccessor,
-            new PracticeTestExamplesInsertResponse());
+            new PracticeTestAdminExamplesInsertResponse());
+    }
+    
+    /// <summary>
+    /// Import programming languages from Judge0
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("[action]")]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Đồng bộ ngôn ngữ lập trình từ Judge0 (Không spam API này)", Description = "Lấy danh sách ngôn ngữ lập trình từ Judge0 API và thêm các ngôn ngữ mới vào hệ thống. Các ngôn ngữ đã tồn tại sẽ được bỏ qua. (Không spam API này). Cần cấp quyền Admin cho API")]
+    public async Task<PracticeTestAdminLanguageInsertResponse> InsertPracticeLanguage()
+    {
+        var request = new PracticeTestAdminLanguageInsertRequest();
+        return await ApiControllerHelper.HandleRequest<PracticeTestAdminLanguageInsertRequest, PracticeTestAdminLanguageInsertResponse, PracticeTestAdminLanguageInsertResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new PracticeTestAdminLanguageInsertResponse());
     }
     
     /// <summary>

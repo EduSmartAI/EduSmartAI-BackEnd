@@ -2,7 +2,7 @@ using MediatR;
 
 namespace QuizService.Application.Applications.PracticeTest;
 
-public class PracticeTestTemplatesInsertRequest : IRequest<PracticeTestTemplatesResponse>
+public class PracticeTestAdminTemplatesInsertRequest : IRequest<PracticeTestAdminTemplatesInsertResponse>
 {
     public Guid ProblemId { get; set; }
     
