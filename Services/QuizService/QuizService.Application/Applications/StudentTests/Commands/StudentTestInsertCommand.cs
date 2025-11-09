@@ -1,9 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using BuildingBlocks.CQRS;
+using QuizService.Application.Applications.PracticeTest;
 
 namespace QuizService.Application.Applications.StudentTests.Commands;
 
-public record StudentTestInsertCommand : ICommand<StudentTestInsertResponse>
+public class StudentTestInsertCommand : ICommand<StudentTestInsertResponse>
 {
     [Required(ErrorMessage = "TestId is required")]
     public Guid TestId { get; set; }

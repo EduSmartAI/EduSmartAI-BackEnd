@@ -27,5 +27,7 @@ public partial class CodeLanguage
 
     public bool IsActive { get; set; }
 
+    public virtual ICollection<ProblemTemplate> ProblemTemplates { get; set; } = new List<ProblemTemplate>();
+
     public virtual ICollection<Submission> Submissions { get; set; } = new List<Submission>();
 }

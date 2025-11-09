@@ -17,6 +17,7 @@ public class PracticeTestService
         IDatabase cache,
         ICommandRepository<CodeLanguage> codeLanguageRepository,
         ICommandRepository<Submission> submissionRepository,
+        ICommandRepository<ProblemTemplate> problemTemplateRepository,
         IIdentityService identityService,
         IUnitOfWork unitOfWork,
         IJudge0ApiLogic judge0ApiLogic) 
@@ -301,7 +302,56 @@ public class PracticeTestService
         }, cancellationToken);
         return response;
     }
+
+    /// <summary>
+    /// Select User Stub Code
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestUserTemplateCodeSelectResponse> SelectUserStubCodeAsync(PracticeTestUserTemplateCodeSelectRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestUserTemplateCodeSelectResponse { Success = false };
+        
+        // // Select problem stub code
+        // var problemTemplate = await problemTemplateRepository
+        //     .Find(predicate: x => x.ProblemId == request.ProblemId && x.LanguageId == request.LanguageId && x.IsActive,
+        //         isTracking: false,
+        //         cancellationToken: cancellationToken)
+        //     .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        // if (problemTemplate == null)
+        // {
+        //     response.SetMessage(MessageId.E00000, "Không tìm thấy source code mẫu");
+        //     return response;
+        // }
+        
+        // True
+        response.Success = true;
+        response.Response = new PracticeTestUserTemplateCodeSelectResponseEntity
+        {
+            // UserTemplateCode = problemTemplate.UserStubCode,
+            UserTemplateCode = "    static int[] TwoSum(int[] nums, int target)\n    {\n        // YOUR CODE HERE\n        \n        return new int[] { };\n    }",
+        };
+        response.SetMessage(MessageId.I00001, "Lấy source code mẫu");
+        return response;
+    }
     
+    /// <summary>
+    /// Insert Practice Test for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestAdminInsertResponse> InsertPracticeTestAsync(PracticeTestAdminInsertRequest request, CancellationToken cancellationToken)
+    {
+         var response = new PracticeTestAdminInsertResponse { Success = false };
+         
+         // True
+         response.Success = true;
+         response.SetMessage(MessageId.I00001, "Tạo bài kiểm tra thực hành mới");
+        return response;
+    }
+
     private string DetermineStatus(List<SubmissionResult> results)
     {
         if (results.All(r => r.Status.Id == (short) ConstantEnum.Judge0Status.Accepted))

@@ -89,6 +89,29 @@ public class PracticeTestController : ControllerBase
             _httpContextAccessor,
             new PracticeTestLanguageSelectsResponse());
     }
+
+    /// <summary>
+    /// Select user template code for practice test
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy source code mẫu cho user tương ứng với problem và ngôn ngữ lập trình tương ứng",
+        Description = "API này trả về hàm mẫu dành cho người dùng, dựa trên bài tập (problem) và ngôn ngữ lập trình được chọn. Người dùng có thể sử dụng mã nguồn này để code phần bài tập thực hành của mình."
+    )]
+    public async Task<PracticeTestUserTemplateCodeSelectResponse> SelectUserTemplateCode([FromQuery] PracticeTestUserTemplateCodeSelectRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<PracticeTestUserTemplateCodeSelectRequest, PracticeTestUserTemplateCodeSelectResponse, PracticeTestUserTemplateCodeSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new PracticeTestUserTemplateCodeSelectResponse());
+    }
     
     /// <summary>
     /// Insert practice test submit

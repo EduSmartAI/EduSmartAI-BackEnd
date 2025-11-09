@@ -46,9 +46,7 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(
-            $"{_baseUrl}/submissions?base64_encoded=true&wait=false", 
-            content);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=false", content);
         
         response.EnsureSuccessStatusCode();
         
@@ -82,9 +80,7 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(
-            $"{_baseUrl}/submissions?base64_encoded=true&wait=true", 
-            content);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=true", content);
         
         response.EnsureSuccessStatusCode();
         
@@ -102,8 +98,7 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     /// </summary>
     public async Task<SubmissionResult> GetSubmissionAsync(string token)
     {
-        var response = await _httpClient.GetAsync(
-            $"{_baseUrl}/submissions/{token}?base64_encoded=true");
+        var response = await _httpClient.GetAsync($"{_baseUrl}/submissions/{token}?base64_encoded=true");
         
         response.EnsureSuccessStatusCode();
         
@@ -142,9 +137,7 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync(
-            $"{_baseUrl}/submissions/batch?base64_encoded=true", 
-            content);
+        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions/batch?base64_encoded=true", content);
         
         response.EnsureSuccessStatusCode();
         
@@ -164,8 +157,7 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     /// </summary>
     public async Task<List<SubmissionResult>> GetBatchSubmissionAsync(string tokens)
     {
-        var response = await _httpClient.GetAsync(
-            $"{_baseUrl}/submissions/batch?tokens={tokens}&base64_encoded=true");
+        var response = await _httpClient.GetAsync($"{_baseUrl}/submissions/batch?tokens={tokens}&base64_encoded=true");
         
         response.EnsureSuccessStatusCode();
         

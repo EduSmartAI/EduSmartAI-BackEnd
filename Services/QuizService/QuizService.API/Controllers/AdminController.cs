@@ -10,6 +10,7 @@ using OpenIddict.Validation.AspNetCore;
 using QuizService.Application.Applications.Admin.Queries.Quizzes;
 using QuizService.Application.Applications.Admin.Queries.StudentSurveys;
 using QuizService.Application.Applications.Admin.Queries.StudentTests;
+using QuizService.Application.Applications.PracticeTest;
 using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Tests.Commands;
@@ -33,12 +34,8 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost("[action]")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Tạo bài kiểm tra đầu vào mới",
-        Description = "Cần cấp quyền Admin cho API"
-    )]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Tạo bài kiểm tra đầu vào mới", Description = "Cần cấp quyền Admin cho API")]
     public async Task<TestInsertResponse> InsertTest(TestInsertCommand request)
     {
         return await ApiControllerHelper.HandleRequest<TestInsertCommand, TestInsertResponse, string>(
@@ -58,12 +55,8 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost("[action]")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Tạo khảo sát mới",
-        Description = "Tạo khảo sát mới với các câu hỏi và câu trả lời tương ứng"
-    )]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Tạo khảo sát mới", Description = "Tạo khảo sát mới với các câu hỏi và câu trả lời tương ứng")]
     public async Task<SurveyInsertResponse> InsertSurvey(SurveyInsertCommand request)
     {
         var response = new SurveyInsertResponse { Success = false };
@@ -104,12 +97,8 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpGet("[action]")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Lấy danh sách tất cả khảo sát của học sinh",
-        Description = "Hỗ trợ phân trang và lọc theo StudentId hoặc SurveyId"
-    )]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Lấy danh sách tất cả khảo sát của học sinh", Description = "Hỗ trợ phân trang và lọc theo StudentId hoặc SurveyId")]
     public async Task<AdminStudentSurveysSelectResponse> SelectStudentSurveys([FromQuery] AdminStudentSurveysSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<AdminStudentSurveysSelectQuery, AdminStudentSurveysSelectResponse, AdminStudentSurveysSelectResponseEntity>(
@@ -129,12 +118,8 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpGet("[action]")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Lấy danh sách tất cả bài kiểm tra của học sinh",
-        Description = "Hỗ trợ phân trang và lọc theo StudentId hoặc TestId"
-    )]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Lấy danh sách tất cả bài kiểm tra của học sinh", Description = "Hỗ trợ phân trang và lọc theo StudentId hoặc TestId")]
     public async Task<AdminStudentTestsSelectResponse> SelectStudentTests([FromQuery] AdminStudentTestsSelectQuery request)
     {
         return await ApiControllerHelper.HandleRequest<AdminStudentTestsSelectQuery, AdminStudentTestsSelectResponse, AdminStudentTestsSelectResponseEntity>(
@@ -154,11 +139,8 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpGet("[action]")]
-    [Authorize(Roles = ConstRole.Admin,
-        AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Chi tiết một bài kiểm tra đầu vào của sinh viên"
-    )]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Chi tiết một bài kiểm tra đầu vào của sinh viên")]
     public async Task<AdminStudentTestSelectDetailResponse> SelectStudentTestDetail([FromQuery] AdminStudentTestSelectDetailQuery request)
     {
         return await ApiControllerHelper.HandleRequest<AdminStudentTestSelectDetailQuery, AdminStudentTestSelectDetailResponse, StudentTestSelectResponseEntity>(
@@ -195,5 +177,26 @@ public class AdminController(IMediator mediator, IIdentityService identityServic
             _identityEntity,
             httpContextAccessor,
             new AdminQuizzesSelectResponse());
+    }
+    
+    /// <summary>
+    /// Create new practice test
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("[action]")]
+    [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Tạo bài tập thực hành mới", Description = "Cần cấp quyền Admin cho API")]
+    public async Task<PracticeTestAdminInsertResponse> InsertPracticeTest([FromBody] PracticeTestAdminInsertRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<PracticeTestAdminInsertRequest, PracticeTestAdminInsertResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new PracticeTestAdminInsertResponse());
     }
 }

@@ -27,6 +27,8 @@ public partial class QuizServiceContext : AppDbContext
 
     public virtual DbSet<ProblemExample> ProblemExamples { get; set; }
 
+    public virtual DbSet<ProblemTemplate> ProblemTemplates { get; set; }
+
     public virtual DbSet<Question> Questions { get; set; }
 
     public virtual DbSet<Quiz> Quizzes { get; set; }
@@ -51,6 +53,10 @@ public partial class QuizServiceContext : AppDbContext
 
     public virtual DbSet<TestCase> TestCases { get; set; }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
+        => optionsBuilder.UseNpgsql("Server=157.66.25.29;Database=QuizServiceDB;User Id=edusmart;Password=Edusmart@123;TrustServerCertificate=True;");
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -58,8 +64,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.AnswerId).HasName("answers_pkey");
 
             entity.ToTable("answers");
-
-            entity.HasIndex(e => e.QuestionId, "IX_answers_question_id");
 
             entity.Property(e => e.AnswerId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -87,8 +91,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.RuleId).HasName("answer_rules_pkey");
 
             entity.ToTable("answer_rules");
-
-            entity.HasIndex(e => e.AnswerId, "IX_answer_rules_answer_id");
 
             entity.Property(e => e.RuleId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -124,9 +126,7 @@ public partial class QuizServiceContext : AppDbContext
 
             entity.ToTable("code_languages");
 
-            entity.Property(e => e.LanguageId)
-                .ValueGeneratedNever()
-                .HasColumnName("language_id");
+            entity.Property(e => e.LanguageId).HasColumnName("language_id");
             entity.Property(e => e.CompileCmd).HasColumnName("compile_cmd");
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
@@ -185,7 +185,7 @@ public partial class QuizServiceContext : AppDbContext
                 .HasForeignKey<CourseQuizSetting>(d => d.QuizId)
                 .HasConstraintName("course_quiz_settings_quiz_id_fkey");
         });
-
+        
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -314,13 +314,44 @@ public partial class QuizServiceContext : AppDbContext
                 .HasConstraintName("problem_examples_problem_id_fkey");
         });
 
+        modelBuilder.Entity<ProblemTemplate>(entity =>
+        {
+            entity.HasKey(e => e.TemplateId).HasName("problem_templates_pkey");
+
+            entity.ToTable("problem_templates");
+
+            entity.Property(e => e.TemplateId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("template_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.LanguageId).HasColumnName("language_id");
+            entity.Property(e => e.ProblemId).HasColumnName("problem_id");
+            entity.Property(e => e.UserTemplatePrefix).HasColumnName("user_template_prefix");
+            entity.Property(e => e.UserTemplateSuffix).HasColumnName("user_template_suffix");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.UserStubCode).HasColumnName("user_stub_code");
+
+            entity.HasOne(d => d.Language).WithMany(p => p.ProblemTemplates)
+                .HasForeignKey(d => d.LanguageId)
+                .HasConstraintName("problem_templates_language_id_fkey");
+
+            entity.HasOne(d => d.Problem).WithMany(p => p.ProblemTemplates)
+                .HasForeignKey(d => d.ProblemId)
+                .HasConstraintName("problem_templates_problem_id_fkey");
+        });
+
         modelBuilder.Entity<Question>(entity =>
         {
             entity.HasKey(e => e.QuestionId).HasName("questions_pkey");
 
             entity.ToTable("questions");
-
-            entity.HasIndex(e => e.QuizId, "IX_questions_quiz_id");
 
             entity.Property(e => e.QuestionId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -355,8 +386,6 @@ public partial class QuizServiceContext : AppDbContext
 
             entity.ToTable("quizzes");
 
-            entity.HasIndex(e => e.TestId, "IX_quizzes_test_id");
-
             entity.Property(e => e.QuizId)
                 .HasDefaultValueSql("gen_random_uuid()")
                 .HasColumnName("quiz_id");
@@ -385,12 +414,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.StudentAnswerId).HasName("student_answers_pkey");
 
             entity.ToTable("student_answers");
-
-            entity.HasIndex(e => e.AnswerId, "IX_student_answers_answer_id");
-
-            entity.HasIndex(e => e.QuestionId, "IX_student_answers_question_id");
-
-            entity.HasIndex(e => e.StudentTestId, "IX_student_answers_student_test_id");
 
             entity.Property(e => e.StudentAnswerId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -427,7 +450,9 @@ public partial class QuizServiceContext : AppDbContext
 
             entity.ToTable("student_quizzes");
 
-            entity.HasIndex(e => e.QuizId, "IX_student_quizzes_quiz_id");
+            entity.HasIndex(e => e.CreatedAt, "idx_student_quiz_created").IsDescending();
+
+            entity.HasIndex(e => new { e.StudentId, e.CourseId, e.Scope, e.ScopeId }, "idx_student_quiz_user_course_scope");
 
             entity.Property(e => e.StudentQuizId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -461,12 +486,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.StudentQuizAnswerId).HasName("student_quiz_answers_pkey");
 
             entity.ToTable("student_quiz_answers");
-
-            entity.HasIndex(e => e.AnswerId, "IX_student_quiz_answers_answer_id");
-
-            entity.HasIndex(e => e.QuestionId, "IX_student_quiz_answers_question_id");
-
-            entity.HasIndex(e => e.StudentQuizId, "IX_student_quiz_answers_student_quiz_id");
 
             entity.Property(e => e.StudentQuizAnswerId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -503,8 +522,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.StudentTestId).HasName("student_tests_pkey");
 
             entity.ToTable("student_tests");
-
-            entity.HasIndex(e => e.TestId, "IX_student_tests_test_id");
 
             entity.Property(e => e.StudentTestId)
                 .HasDefaultValueSql("gen_random_uuid()")
@@ -620,8 +637,6 @@ public partial class QuizServiceContext : AppDbContext
             entity.HasKey(e => e.QuizId).HasName("survey_quiz_settings_pkey");
 
             entity.ToTable("survey_quiz_settings");
-
-            entity.HasIndex(e => e.SurveyTypeId, "IX_survey_quiz_settings_survey_type_id");
 
             entity.Property(e => e.QuizId)
                 .ValueGeneratedNever()

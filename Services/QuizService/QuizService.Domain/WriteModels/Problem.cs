@@ -25,6 +25,8 @@ public partial class Problem
 
     public virtual ICollection<ProblemExample> ProblemExamples { get; set; } = new List<ProblemExample>();
 
+    public virtual ICollection<ProblemTemplate> ProblemTemplates { get; set; } = new List<ProblemTemplate>();
+
     public virtual ICollection<Submission> Submissions { get; set; } = new List<Submission>();
 
     public virtual ICollection<TestCase> TestCases { get; set; } = new List<TestCase>();
