@@ -36,6 +36,8 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<CodeLanguage>, CommandRepository<CodeLanguage>>();
         services.AddScoped<ICommandRepository<Submission>, CommandRepository<Submission>>();
         services.AddScoped<ICommandRepository<ProblemTemplate>, CommandRepository<ProblemTemplate>>();
+        services.AddScoped<ICommandRepository<ProblemExample>, CommandRepository<ProblemExample>>();
+        services.AddScoped<ICommandRepository<TestCase>, CommandRepository<TestCase>>();
         
         services.AddScoped<IQueryRepository<TestCollection>, QueryRepository<TestCollection>>();
         services.AddScoped<IQueryRepository<QuizCollection>, QueryRepository<QuizCollection>>();

@@ -10,3 +10,4 @@ public class PracticeTestAdminInsertHandler(IPracticeTestService practiceTestSer
         return await practiceTestService.InsertPracticeTestAsync(request, cancellationToken);
     }
 }
+

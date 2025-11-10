@@ -1,3 +1,4 @@
+using BaseService.API;
 using Microsoft.OpenApi.Models;
 
 namespace NotificationService.API.Extensions;
@@ -37,6 +38,8 @@ public static class SwaggerExtensions
                 }
             });
             c.EnableAnnotations();
+            // Add custom document filter to order operations by action name
+            c.DocumentFilter<SwaggerOrderByActionFilter>();
         });
         
         return services;

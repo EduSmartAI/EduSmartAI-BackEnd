@@ -11,9 +11,9 @@ public partial class ProblemTemplate
 
     public int LanguageId { get; set; }
 
-    public string UserTemplatePrefix { get; set; } = null!;
+    public string TemplatePrefix { get; set; } = null!;
     
-    public string UserTemplateSuffix { get; set; } = null!;
+    public string TemplateSuffix { get; set; } = null!;
     
     public string UserStubCode { get; set; } = null!;
 

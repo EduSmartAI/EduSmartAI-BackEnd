@@ -171,18 +171,61 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     }
 
     /// <summary>
-    /// Get available languages
+    /// Get available languages with detailed information
     /// </summary>
     public async Task<List<CodeLanguage>> GetLanguagesAsync()
     {
+        // STEP 1: Get list of all languages (only id and name)
         var response = await _httpClient.GetAsync($"{_baseUrl}/languages");
         response.EnsureSuccessStatusCode();
         
         var responseBody = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<List<CodeLanguage>>(responseBody, new JsonSerializerOptions 
+        var languages = JsonSerializer.Deserialize<List<LanguageBasicInfo>>(responseBody, new JsonSerializerOptions 
         { 
             PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower 
         })!;
+        
+        // STEP 2: Get detailed information for each language
+        var detailedLanguages = new List<CodeLanguage>();
+        
+        foreach (var lang in languages)
+        {
+            try
+            {
+                var detailResponse = await _httpClient.GetAsync($"{_baseUrl}/languages/{lang.Id}");
+                detailResponse.EnsureSuccessStatusCode();
+                
+                var detailBody = await detailResponse.Content.ReadAsStringAsync();
+                var judge0Lang = JsonSerializer.Deserialize<Judge0LanguageDetail>(detailBody, new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower 
+                });
+                
+                if (judge0Lang != null)
+                {
+                    // Convert Judge0LanguageDetail to CodeLanguage entity
+                    var codeLanguage = new CodeLanguage
+                    {
+                        LanguageId = judge0Lang.Id,
+                        Name = judge0Lang.Name,
+                        IsArchived = judge0Lang.IsArchived,
+                        SourceFile = judge0Lang.SourceFile ?? "",
+                        CompileCmd = judge0Lang.CompileCmd ?? "",
+                        RunCmd = judge0Lang.RunCmd ?? "",
+                        IsActive = true
+                    };
+                    
+                    detailedLanguages.Add(codeLanguage);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue with other languages
+                Console.WriteLine($"Failed to get details for language {lang.Id}: {ex.Message}");
+            }
+        }
+        
+        return detailedLanguages;
     }
 
     private SubmissionResult DecodeSubmissionResult(SubmissionResultEncoded encoded)
@@ -276,3 +319,34 @@ internal class BatchSubmissionResultEncoded
     [JsonPropertyName("submissions")]
     public List<SubmissionResultEncoded> Submissions { get; set; }
 }
+
+internal class LanguageBasicInfo
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+}
+
+internal class Judge0LanguageDetail
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+    
+    [JsonPropertyName("name")]
+    public string Name { get; set; }
+    
+    [JsonPropertyName("is_archived")]
+    public bool IsArchived { get; set; }
+    
+    [JsonPropertyName("source_file")]
+    public string SourceFile { get; set; }
+    
+    [JsonPropertyName("compile_cmd")]
+    public string CompileCmd { get; set; }
+    
+    [JsonPropertyName("run_cmd")]
+    public string RunCmd { get; set; }
+}
+

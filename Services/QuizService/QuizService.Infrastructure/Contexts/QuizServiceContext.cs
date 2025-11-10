@@ -330,8 +330,8 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.IsActive).HasColumnName("is_active");
             entity.Property(e => e.LanguageId).HasColumnName("language_id");
             entity.Property(e => e.ProblemId).HasColumnName("problem_id");
-            entity.Property(e => e.UserTemplatePrefix).HasColumnName("user_template_prefix");
-            entity.Property(e => e.UserTemplateSuffix).HasColumnName("user_template_suffix");
+            entity.Property(e => e.TemplatePrefix).HasColumnName("template_prefix");
+            entity.Property(e => e.TemplateSuffix).HasColumnName("template_suffix");
             entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
             entity.Property(e => e.UpdatedBy)
                 .HasMaxLength(100)
