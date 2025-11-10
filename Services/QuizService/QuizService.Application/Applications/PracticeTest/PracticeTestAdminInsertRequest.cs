@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BaseService.Common.Utils.Const;
 using MediatR;
 
 namespace QuizService.Application.Applications.PracticeTest;
@@ -24,7 +25,7 @@ public class PracticeTestAdminProblemInsertRequest
 
     public string Description { get; set; } = null!;
 
-    public string Difficulty { get; set; } = null!;
+    public ConstantEnum.ProblemDifficultyLevel Difficulty { get; set; }
 }
 
 public class PracticeTestAdminProblemTemplateInsertRequest

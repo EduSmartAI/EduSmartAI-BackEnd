@@ -8,6 +8,7 @@ using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEve
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using QuizService.Application.Applications.Admin.Queries.StudentTests;
+using QuizService.Application.Applications.PracticeTest;
 using QuizService.Application.Applications.StudentTests.Commands;
 using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
@@ -30,12 +31,16 @@ public class StudentTestService : IStudentTestService
     private readonly IRequestClient<StudentInformationSelectsEvent> _requestStudentInformationSelectsClient;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPracticeTestService _practiceTestService;
+    private readonly ICommandRepository<Problem> _problemRepository;
 
     /// <summary>
     /// Constructor
     /// </summary>
     /// <param name="deps"></param>
-    public StudentTestService(StudentTestServiceDependencies deps)
+    /// <param name="practiceTestService"></param>
+    /// <param name="problemRepository"></param>
+    public StudentTestService(StudentTestServiceDependencies deps, IPracticeTestService practiceTestService, ICommandRepository<Problem> problemRepository)
     {
         _studentQuizCollectionRepository = deps.StudentQuizCollectionRepository;
         _studentTestRepository = deps.StudentTestRepository;
@@ -48,6 +53,8 @@ public class StudentTestService : IStudentTestService
         _requestStudentInformationSelectsClient = deps.RequestStudentInformationSelectsClient;
         _identityService = deps.IdentityService;
         _unitOfWork = deps.UnitOfWork;
+        _practiceTestService = practiceTestService;
+        _problemRepository = problemRepository;
     }
 
     /// <summary>
@@ -187,8 +194,60 @@ public class StudentTestService : IStudentTestService
             _unitOfWork.Store(studentTestCollection);
             await _unitOfWork.SessionSaveChangesAsync();
             
-            // Calculate score 
-            var studentLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList());
+            // Calculate level from Quiz (60% weight)
+            var quizLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList());
+            
+            int finalStudentLevel = quizLevel;
+            
+            // If PracticeTestAnswers is provided, calculate combined level (60% quiz + 40% practice test)
+            if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
+            {
+                // Validate that we have exactly 3 problems (Easy, Medium, Hard)
+                if (request.PracticeTestAnswers.Count != 3)
+                {
+                    response.SetMessage(MessageId.E00000, "PracticeTestAnswers phải có đúng 3 bài: Dễ, Trung bình, Khó");
+                    return false;
+                }
+                
+                // Submit each practice test answer and collect results
+                var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
+                
+                foreach (var practiceAnswer in request.PracticeTestAnswers)
+                {
+                    var submitRequest = new PracticeTestSubmitInsertRequest
+                    {
+                        ProblemId = practiceAnswer.ProblemId,
+                        SourceCode = practiceAnswer.CodeSubmission,
+                        LanguageId = practiceAnswer.LanguageId
+                    };
+                    
+                    var submitResponse = await _practiceTestService.InsertPracticeTestSubmitAsync(submitRequest, cancellationToken);
+                    
+                    if (!submitResponse.Success)
+                    {
+                        response.SetMessage(MessageId.E00000, $"Không thể submit bài practice test: {submitResponse.Message}");
+                        return false;
+                    }
+                    
+                    // Get problem difficulty from database to map the result
+                    var problem = await _problemRepository.FirstOrDefaultAsync(p => p.ProblemId == practiceAnswer.ProblemId, cancellationToken: cancellationToken);
+                    if (problem != null)
+                    {
+                        practiceTestResults[problem.Difficulty] = submitResponse;
+                    }
+                }
+                
+                // Calculate practice test level
+                var practiceTestLevel = DeterminePracticeTestLevel(practiceTestResults);
+                
+                // Combine levels: 60% quiz + 40% practice test
+                finalStudentLevel = (int)Math.Round(quizLevel * 0.6 + practiceTestLevel * 0.4);
+                
+                // Ensure level is between 1 and 3
+                finalStudentLevel = Math.Max(1, Math.Min(3, finalStudentLevel));
+            }
+            
+            var studentLevel = finalStudentLevel;
             
             // Send message to StudentService to get student information
             var studentInformationSelectsEvent = new StudentInformationSelectsEvent
@@ -459,7 +518,7 @@ public class StudentTestService : IStudentTestService
     /// </summary>
     /// <param name="studentAnswers">Student's answers</param>
     /// <param name="quizzes">List of quizzes in the test</param>
-    /// <returns>Student level (1-5): 1=Beginner, 2=Elementary, 3=Intermediate, 4=Advanced, 5=Expert</returns>
+    /// <returns>Student level (1-3)</returns>
     private int DetermineStudentLevel(List<StudentAnswerCollection> studentAnswers, List<QuizCollection> quizzes)
     {
         var difficultyPerformance = new Dictionary<int, (int correct, int total)>();
@@ -524,6 +583,54 @@ public class StudentTestService : IStudentTestService
             }
         }
 
+        return studentLevel;
+    }
+    
+    /// <summary>
+    /// Determine student level based on practice test results (Easy, Medium, Hard)
+    /// Logic: Find highest difficulty level where student passed (>= 70% test cases)
+    /// </summary>
+    /// <param name="practiceTestResults">Dictionary with difficulty as key and submission response as value</param>
+    /// <returns>Level from 1 (Easy) to 3 (Hard)</returns>
+    private int DeterminePracticeTestLevel(Dictionary<string, PracticeTestSubmitInsertResponse> practiceTestResults)
+    {
+        var difficultyLevelMap = new Dictionary<string, int>
+        {
+            { nameof(ConstantEnum.ProblemDifficultyLevel.Easy), 1 },
+            { nameof(ConstantEnum.ProblemDifficultyLevel.Medium), 2 },
+            { nameof(ConstantEnum.ProblemDifficultyLevel.Hard), 3 }
+        };
+        
+        int studentLevel = 1; // Default to Easy
+        
+        // Check from hardest to easiest
+        var difficulties = new[] 
+        { 
+            nameof(ConstantEnum.ProblemDifficultyLevel.Easy), 
+            nameof(ConstantEnum.ProblemDifficultyLevel.Medium), 
+            nameof(ConstantEnum.ProblemDifficultyLevel.Hard) 
+        };
+        
+        foreach (var difficulty in difficulties)
+        {
+            if (practiceTestResults.ContainsKey(difficulty))
+            {
+                var result = practiceTestResults[difficulty];
+                {
+                    double passRate = result.Response.TotalTests > 0 
+                        ? (double)result.Response.PassedTests / result.Response.TotalTests 
+                        : 0;
+                    
+                    // If student passed >= 70% test cases at this difficulty
+                    if (passRate >= 0.7)
+                    {
+                        studentLevel = difficultyLevelMap[difficulty];
+                        break;
+                    }
+                }
+            }
+        }
+        
         return studentLevel;
     }
     

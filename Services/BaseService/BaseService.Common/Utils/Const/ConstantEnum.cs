@@ -266,4 +266,11 @@ public static class ConstantEnum
         Evening = 3,
         LateNight = 4
     }
+    
+    public enum ProblemDifficultyLevel
+    {
+        Easy = 1,
+        Medium = 2,
+        Hard = 3
+    }
 }

@@ -243,11 +243,19 @@ public class PracticeTestService
             .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: true,
                 cancellationToken: cancellationToken,
-                includes: x => x.TestCases)
+                x => x.TestCases,
+                x => x.ProblemTemplates)
             .FirstOrDefaultAsync(cancellationToken);
         if (problem == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+            return response;
+        }
+        
+        var problemTemplate = problem.ProblemTemplates.FirstOrDefault(pt => pt.LanguageId == request.LanguageId && pt.IsActive);
+        if (problemTemplate == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
             return response;
         }
         
@@ -268,7 +276,7 @@ public class PracticeTestService
             {
                 Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
                 {
-                    SourceCode = request.SourceCode,
+                    SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
                     LanguageId = request.LanguageId,
                     Stdin = tc.InputData,
                     ExpectedOutput = tc.ExpectedOutput,
@@ -420,7 +428,7 @@ public class PracticeTestService
              {
                  Title = request.Problem.Title,
                  Description = request.Problem.Description,
-                 Difficulty = request.Problem.Difficulty
+                 Difficulty = request.Problem.Difficulty.ToString()
              };
              
              // Add test cases
