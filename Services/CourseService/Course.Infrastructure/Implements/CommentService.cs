@@ -3,7 +3,6 @@ using Course.Application.Comments.Commands.CreateComment;
 using Course.Application.Comments.Commands.ReplyToComment;
 using Course.Application.Comments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
-using MassTransit;
 
 namespace Course.Infrastructure.Implements
 {
@@ -28,7 +27,7 @@ namespace Course.Infrastructure.Implements
 
 			var user = _identityService.GetCurrentUser();
 
-			if ( user == null )
+			if (user == null)
 			{
 				response.SetMessage(MessageId.E00000, "User not authenticated.");
 				return response;
@@ -37,7 +36,7 @@ namespace Course.Infrastructure.Implements
 			// check user da enroll khoa hoc hay chua
 			var enrolled = await _enrollCmd.FirstOrDefaultAsync(x => x.CourseId == courseId && x.UserId == user.UserId && x.IsActive, ct);
 
-			if ( enrolled == null )
+			if (enrolled == null)
 			{
 				response.SetMessage(MessageId.E00000, "Bạn chưa tham gia khóa học này");
 				return response;
@@ -47,15 +46,13 @@ namespace Course.Infrastructure.Implements
 			{
 				CourseId = courseId,
 				UserId = user.UserId,
+				UserDisplayName = user.FullName,
 				Content = content,
-				ParentCommentId = null,
-				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow,
-				IsActive = true
+				ParentCommentId = null
 			};
 
-			await _commentCmd.AddAsync(entity);
-			await unitOfWork.SaveChangesAsync(ct);
+			await _commentCmd.AddAsync(entity, user.Email);
+			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
 			response.Response = new CommentDto(
@@ -69,7 +66,6 @@ namespace Course.Infrastructure.Implements
 		/// Get Course Comment
 		/// </summary>
 		/// <param name="courseId"></param>
-		/// <param name="threaded"></param>
 		/// <param name="page"></param>
 		/// <param name="size"></param>
 		/// <param name="ct"></param>
@@ -78,14 +74,6 @@ namespace Course.Infrastructure.Implements
 		{
 			var response = new GetCourseCommentsResponse { Success = false };
 
-			var user = _identityService.GetCurrentUser();
-
-			if (user == null)
-			{
-				response.SetMessage(MessageId.E00000, "User not authenticated.");
-				return response;
-			}
-
 			var paged = await _commentCmd.PagedAsync(
 			page, size,
 			predicate: x => x.CourseId == courseId && x.IsActive,
@@ -93,8 +81,52 @@ namespace Course.Infrastructure.Implements
 			orderByDescending: true,
 			cancellationToken: ct);
 
-			var items = paged.Items.Select(x => new CommentDto(
-			x.CommentId, x.CourseId, x.UserId, user.Email, x.Content, x.ParentCommentId, x.IsActive, 0, x.CreatedAt)).ToList();
+			var currentIds = paged.Items.Select(c => c.CommentId).ToList();
+
+			if (currentIds.Count == 0)
+			{
+				response.Success = true;
+				response.Response = new PagedResult<CommentDto>
+				{
+					Items = new List<CommentDto>(),
+					TotalCount = paged.TotalCount,
+					PageNumber = paged.PageNumber,
+					PageSize = paged.PageSize
+				};
+				return response;
+			}
+
+			var replyCountRows = await _commentCmd
+										.Find(
+											predicate: x => x.CourseId == courseId
+														 && x.IsActive
+														 && x.ParentCommentId != null
+														 && currentIds.Contains(x.ParentCommentId.Value),
+											isTracking: false,
+											cancellationToken: ct
+										)
+										.GroupBy(x => x.ParentCommentId)
+										.Select(g => new { ParentId = g.Key!.Value, Count = g.Count() })
+										.ToListAsync(ct);
+
+			var replyCountDict = replyCountRows.ToDictionary(x => x.ParentId, x => x.Count);
+
+			var items = paged.Items.Select(x =>
+			{
+				var replyCount = replyCountDict.TryGetValue(x.CommentId, out var n) ? n : 0;
+
+				return new CommentDto(
+					x.CommentId,
+					x.CourseId,
+					x.UserId,
+					x.UserDisplayName,
+					x.Content, 
+					x.ParentCommentId,
+					x.IsActive,
+					replyCount,
+					x.CreatedAt
+				);
+			}).ToList();
 
 			response.Success = true;
 			response.Response = new PagedResult<CommentDto>
@@ -144,15 +176,13 @@ namespace Course.Infrastructure.Implements
 				CommentId = Guid.NewGuid(),
 				CourseId = courseId,
 				UserId = user.UserId,
+				UserDisplayName = user.FullName,
 				Content = content,
-				ParentCommentId = parentCommentId,
-				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow,
-				IsActive = true
+				ParentCommentId = parentCommentId
 			};
 
-			await _commentCmd.AddAsync(reply);
-			await unitOfWork.SaveChangesAsync(ct);
+			await _commentCmd.AddAsync(reply, user.Email);
+			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
 			response.Response = new CommentDto(
