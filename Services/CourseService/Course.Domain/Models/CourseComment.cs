@@ -23,6 +23,21 @@ public partial class CourseComment
 
     public bool IsActive { get; set; }
 
+    /// <summary>
+    /// Email người tạo comment
+    /// </summary>
+    public string CreatedBy { get; set; }
+
+    /// <summary>
+    /// Email người cập nhật comment
+    /// </summary>
+    public string UpdatedBy { get; set; }
+
+    /// <summary>
+    /// Tên hiển thị của người tạo comment
+    /// </summary>
+    public string UserDisplayName { get; set; }
+
     public virtual Course Course { get; set; }
 
     public virtual ICollection<CourseComment> InverseParentComment { get; set; } = new List<CourseComment>();

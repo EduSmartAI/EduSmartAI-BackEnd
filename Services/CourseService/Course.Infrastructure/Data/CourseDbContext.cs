@@ -202,48 +202,60 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("course_audiences_course_id_fkey");
         });
 
-        modelBuilder.Entity<CourseComment>(entity =>
-        {
-            entity.HasKey(e => e.CommentId).HasName("course_comments_pkey");
+		modelBuilder.Entity<CourseComment>(entity =>
+		{
+			entity.HasKey(e => e.CommentId).HasName("course_comments_pkey");
 
-            entity.ToTable("course_comments");
+			entity.ToTable("course_comments");
 
-            entity.HasIndex(e => e.CourseId, "idx_comments_course");
+			entity.HasIndex(e => e.CourseId, "idx_comments_course");
 
-            entity.HasIndex(e => e.IsActive, "idx_comments_is_active");
+			entity.HasIndex(e => e.IsActive, "idx_comments_is_active");
 
-            entity.HasIndex(e => e.ParentCommentId, "idx_comments_parent");
+			entity.HasIndex(e => e.ParentCommentId, "idx_comments_parent");
 
-            entity.Property(e => e.CommentId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("comment_id");
-            entity.Property(e => e.Content)
-                .IsRequired()
-                .HasColumnName("content");
-            entity.Property(e => e.CourseId).HasColumnName("course_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.ParentCommentId).HasColumnName("parent_comment_id");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+			entity.Property(e => e.CommentId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("comment_id");
+			entity.Property(e => e.Content)
+				.IsRequired()
+				.HasColumnName("content");
+			entity.Property(e => e.CourseId).HasColumnName("course_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(100)
+				.HasComment("Email người tạo comment")
+				.HasColumnName("created_by");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.ParentCommentId).HasColumnName("parent_comment_id");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(100)
+				.HasComment("Email người cập nhật comment")
+				.HasColumnName("updated_by");
+			entity.Property(e => e.UserDisplayName)
+				.HasMaxLength(150)
+				.HasComment("Tên hiển thị của người tạo comment")
+				.HasColumnName("user_display_name");
+			entity.Property(e => e.UserId).HasColumnName("user_id");
 
-            entity.HasOne(d => d.Course).WithMany(p => p.CourseComments)
-                .HasForeignKey(d => d.CourseId)
-                .HasConstraintName("fk_comments_course");
+			entity.HasOne(d => d.Course).WithMany(p => p.CourseComments)
+				.HasForeignKey(d => d.CourseId)
+				.HasConstraintName("fk_comments_course");
 
-            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
-                .HasForeignKey(d => d.ParentCommentId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("fk_comments_parent");
-        });
+			entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
+				.HasForeignKey(d => d.ParentCommentId)
+				.OnDelete(DeleteBehavior.SetNull)
+				.HasConstraintName("fk_comments_parent");
+		});
 
-        modelBuilder.Entity<CourseObjective>(entity =>
+		modelBuilder.Entity<CourseObjective>(entity =>
         {
             entity.HasKey(e => e.ObjectiveId).HasName("course_objectives_pkey");
 
