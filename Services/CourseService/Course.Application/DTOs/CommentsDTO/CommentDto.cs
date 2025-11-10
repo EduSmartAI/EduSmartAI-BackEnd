@@ -7,7 +7,6 @@
 		string UserDisplayName,
 		string Content,
 		Guid? ParentCommentId,
-		bool IsAnswer,
 		bool IsActive,
 		int ReplyCount,
 		DateTimeOffset CreatedAt

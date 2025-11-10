@@ -14,17 +14,17 @@ namespace Course.API.Controllers
 
 		[HttpGet]
 		[AllowAnonymous]
-		[SwaggerOperation(Summary = "List comments (threaded) - Not implemented yet")]
-		public async Task<GetCourseCommentsResponse> Get(Guid courseId, [FromQuery] bool? threaded, [FromQuery] int? page, [FromQuery] int? size)
+		[SwaggerOperation(Summary = "List comments")]
+		public async Task<GetCourseCommentsResponse> Get(Guid courseId, [FromQuery] int? page, [FromQuery] int? size)
 		{
-			var q = new GetCourseCommentsQuery(courseId, threaded ?? true, page, size);
+			var q = new GetCourseCommentsQuery(courseId, page, size);
 			return await ApiControllerHelper.HandleRequest<GetCourseCommentsQuery, GetCourseCommentsResponse, PagedResult<CommentDto>>(
 				q, _logger, ModelState, async () => await sender.Send(q), new());
 		}
 
 		[HttpPost]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(Summary = "Create a comment (root) - Not implemented yet")]
+		[SwaggerOperation(Summary = "Create a comment (root)")]
 		public async Task<CreateCommentResponse> Create(Guid courseId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new CreateCommentCommand(courseId, body.Content);
@@ -34,7 +34,7 @@ namespace Course.API.Controllers
 
 		[HttpPost("{parentCommentId:guid}/replies")]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(Summary = "Reply to a comment - Not implemented yet")]
+		[SwaggerOperation(Summary = "Reply to a comment")]
 		public async Task<ReplyToCommentResponse> Reply(Guid courseId, Guid parentCommentId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new ReplyToCommentCommand(courseId, parentCommentId, body.Content);
