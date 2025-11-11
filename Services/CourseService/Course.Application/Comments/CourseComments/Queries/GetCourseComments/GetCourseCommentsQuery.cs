@@ -5,8 +5,8 @@ namespace Course.Application.Comments.CourseComments.Queries.GetCourseComments
 {
 	public record GetCourseCommentsQuery(Guid CourseId, int? Page = 1, int? Size = 20) : IQuery<GetCourseCommentsResponse>;
 
-	public sealed record GetCourseCommentsResponse : AbstractApiResponse<PagedResult<CourseCommentDto>>
+	public sealed record GetCourseCommentsResponse : AbstractApiResponse<PagedResult<CourseCommentDetailsDto>>
 	{
-		public override PagedResult<CourseCommentDto> Response { get; set; } = new();
+		public override PagedResult<CourseCommentDetailsDto> Response { get; set; } = new();
 	}
 }

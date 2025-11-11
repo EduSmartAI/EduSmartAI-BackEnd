@@ -4,8 +4,8 @@ namespace Course.Application.Comments.CourseComments.Commands.CreateComment
 {
 	public record CreateCommentCommand(Guid CourseId, string Content) : ICommand<CreateCommentResponse>;
 
-	public sealed record CreateCommentResponse : AbstractApiResponse<CourseCommentDto>
+	public sealed record CreateCommentResponse : AbstractApiResponse<CourseCommentDetailsDto>
 	{
-		public override CourseCommentDto Response { get; set; } = default!;
+		public override CourseCommentDetailsDto Response { get; set; } = default!;
 	}
 }

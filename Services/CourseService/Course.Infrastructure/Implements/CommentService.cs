@@ -55,7 +55,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
-			response.Response = new CourseCommentDto(
+			response.Response = new CourseCommentDetailsDto(
 				entity.CommentId, courseId, user.UserId, user.Email, content, null, true, 0, DateTimeOffset.UtcNow);
 			response.SetMessage(MessageId.I00001, "Đã tạo bình luận");
 
@@ -86,9 +86,9 @@ namespace Course.Infrastructure.Implements
 			if (currentIds.Count == 0)
 			{
 				response.Success = true;
-				response.Response = new PagedResult<CourseCommentDto>
+				response.Response = new PagedResult<CourseCommentDetailsDto>
 				{
-					Items = new List<CourseCommentDto>(),
+					Items = new List<CourseCommentDetailsDto>(),
 					TotalCount = paged.TotalCount,
 					PageNumber = paged.PageNumber,
 					PageSize = paged.PageSize
@@ -115,7 +115,7 @@ namespace Course.Infrastructure.Implements
 			{
 				var replyCount = replyCountDict.TryGetValue(x.CommentId, out var n) ? n : 0;
 
-				return new CourseCommentDto(
+				return new CourseCommentDetailsDto(
 					x.CommentId,
 					x.CourseId,
 					x.UserId,
@@ -129,7 +129,7 @@ namespace Course.Infrastructure.Implements
 			}).ToList();
 
 			response.Success = true;
-			response.Response = new PagedResult<CourseCommentDto>
+			response.Response = new PagedResult<CourseCommentDetailsDto>
 			{
 				Items = items,
 				TotalCount = paged.TotalCount,
@@ -185,7 +185,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
-			response.Response = new CourseCommentDto(
+			response.Response = new CourseCommentDetailsDto(
 				reply.CommentId,
 				reply.CourseId,
 				reply.UserId,

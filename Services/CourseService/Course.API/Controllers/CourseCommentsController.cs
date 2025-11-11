@@ -18,7 +18,7 @@ namespace Course.API.Controllers
 		public async Task<GetCourseCommentsResponse> Get(Guid courseId, [FromQuery] int? page, [FromQuery] int? size)
 		{
 			var q = new GetCourseCommentsQuery(courseId, page, size);
-			return await ApiControllerHelper.HandleRequest<GetCourseCommentsQuery, GetCourseCommentsResponse, PagedResult<CourseCommentDto>>(
+			return await ApiControllerHelper.HandleRequest<GetCourseCommentsQuery, GetCourseCommentsResponse, PagedResult<CourseCommentDetailsDto>>(
 				q, _logger, ModelState, async () => await sender.Send(q), new());
 		}
 
@@ -28,7 +28,7 @@ namespace Course.API.Controllers
 		public async Task<CreateCommentResponse> Create(Guid courseId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new CreateCommentCommand(courseId, body.Content);
-			return await ApiControllerHelper.HandleRequest<CreateCommentCommand, CreateCommentResponse, CourseCommentDto>(
+			return await ApiControllerHelper.HandleRequest<CreateCommentCommand, CreateCommentResponse, CourseCommentDetailsDto>(
 				cmd, _logger, ModelState, async () => await sender.Send(cmd), new());
 		}
 
@@ -38,7 +38,7 @@ namespace Course.API.Controllers
 		public async Task<ReplyToCommentResponse> Reply(Guid courseId, Guid parentCommentId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new ReplyToCommentCommand(courseId, parentCommentId, body.Content);
-			return await ApiControllerHelper.HandleRequest<ReplyToCommentCommand, ReplyToCommentResponse, CourseCommentDto>(
+			return await ApiControllerHelper.HandleRequest<ReplyToCommentCommand, ReplyToCommentResponse, CourseCommentDetailsDto>(
 				cmd, _logger, ModelState, async () => await sender.Send(cmd), new());
 		}
 
