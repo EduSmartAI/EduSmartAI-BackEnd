@@ -47,6 +47,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<ModuleDiscussion> ModuleDiscussions { get; set; }
 
+    public virtual DbSet<ModuleDiscussionComment> ModuleDiscussionComments { get; set; }
+
     public virtual DbSet<ModuleMaterial> ModuleMaterials { get; set; }
 
     public virtual DbSet<ModuleObjective> ModuleObjectives { get; set; }
@@ -821,6 +823,59 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("fk_module_discussions_module");
         });
 
+        modelBuilder.Entity<ModuleDiscussionComment>(entity =>
+        {
+            entity.HasKey(e => e.CommentId).HasName("module_discussion_comments_pkey");
+
+            entity.ToTable("module_discussion_comments");
+
+            entity.HasIndex(e => e.DiscussionId, "idx_module_discussion_comments_discussion_id");
+
+            entity.HasIndex(e => e.IsActive, "idx_module_discussion_comments_is_active");
+
+            entity.HasIndex(e => e.ParentCommentId, "idx_module_discussion_comments_parent_comment_id");
+
+            entity.HasIndex(e => e.UserId, "idx_module_discussion_comments_user_id");
+
+            entity.Property(e => e.CommentId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("comment_id");
+            entity.Property(e => e.Content)
+                .IsRequired()
+                .HasColumnName("content");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(255)
+                .HasColumnName("created_by");
+            entity.Property(e => e.DiscussionId).HasColumnName("discussion_id");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.ParentCommentId).HasColumnName("parent_comment_id");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(255)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.UserDisplayName)
+                .IsRequired()
+                .HasMaxLength(255)
+                .HasColumnName("user_display_name");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+
+            entity.HasOne(d => d.Discussion).WithMany(p => p.ModuleDiscussionComments)
+                .HasForeignKey(d => d.DiscussionId)
+                .HasConstraintName("module_discussion_comments_discussion_id_fkey");
+
+            entity.HasOne(d => d.ParentComment).WithMany(p => p.InverseParentComment)
+                .HasForeignKey(d => d.ParentCommentId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("module_discussion_comments_parent_comment_id_fkey");
+        });
+
         modelBuilder.Entity<ModuleMaterial>(entity =>
         {
             entity.HasKey(e => e.MaterialId).HasName("module_materials_pkey");
@@ -940,43 +995,47 @@ public partial class CourseDbContext : AppDbContext
                 .HasConstraintName("fk_module_quizzes_module");
         });
 
-        modelBuilder.Entity<Note>(entity =>
-        {
-            entity.HasKey(e => e.NoteId).HasName("notes_pkey");
+		modelBuilder.Entity<Note>(entity =>
+		{
+			entity.HasKey(e => e.NoteId).HasName("notes_pkey");
 
-            entity.ToTable("notes");
+			entity.ToTable("notes");
 
-            entity.HasIndex(e => e.IsDeleted, "idx_notes_is_deleted");
+			entity.HasIndex(e => e.LessonId, "idx_notes_lesson");
 
-            entity.HasIndex(e => e.LessonId, "idx_notes_lesson");
+			entity.HasIndex(e => e.UserId, "idx_notes_user");
 
-            entity.HasIndex(e => e.UserId, "idx_notes_user");
+			entity.Property(e => e.NoteId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("note_id");
+			entity.Property(e => e.Content)
+				.IsRequired()
+				.HasColumnName("content");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(255)
+				.HasColumnName("created_by");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.LessonId).HasColumnName("lesson_id");
+			entity.Property(e => e.TimeSeconds).HasColumnName("time_seconds");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(255)
+				.HasColumnName("updated_by");
+			entity.Property(e => e.UserId).HasColumnName("user_id");
 
-            entity.Property(e => e.NoteId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("note_id");
-            entity.Property(e => e.Content)
-                .IsRequired()
-                .HasColumnName("content");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.IsDeleted)
-                .HasDefaultValue(false)
-                .HasColumnName("is_deleted");
-            entity.Property(e => e.LessonId).HasColumnName("lesson_id");
-            entity.Property(e => e.TimeSeconds).HasColumnName("time_seconds");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UserId).HasColumnName("user_id");
+			entity.HasOne(d => d.Lesson).WithMany(p => p.Notes)
+				.HasForeignKey(d => d.LessonId)
+				.HasConstraintName("fk_notes_lesson");
+		});
 
-            entity.HasOne(d => d.Lesson).WithMany(p => p.Notes)
-                .HasForeignKey(d => d.LessonId)
-                .HasConstraintName("fk_notes_lesson");
-        });
-
-        modelBuilder.Entity<Semester>(entity =>
+		modelBuilder.Entity<Semester>(entity =>
         {
             entity.HasKey(e => e.SemesterId).HasName("semesters_pkey");
 

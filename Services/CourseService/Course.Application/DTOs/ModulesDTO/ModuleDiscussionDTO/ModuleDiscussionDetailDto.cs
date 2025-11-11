@@ -7,5 +7,5 @@
 		string DiscussionQuestion,
 		DateTime CreatedAt,
 		DateTime? UpdatedAt
-		);
+	);
 }
