@@ -62,7 +62,7 @@ public class PracticeTestService
             
             if (!newLanguages.Any())
             {
-                response.SetMessage(MessageId.I00001, "Tất cả ngôn ngữ lập trình đã tồn tại trong hệ thống");
+                response.SetMessage(MessageId.I00001, "Tất cả ngôn ngữ lập trình đã tồn tại trong hệ thống. Thêm");
                 response.Success = true;
                 response.Response = new PracticeTestAdminLanguageInsertResponseEntity
                 {
@@ -420,6 +420,153 @@ public class PracticeTestService
             response.SetMessage(MessageId.I00001, "Nộp bài kiểm tra thực hành");
             return true;
         }, cancellationToken);
+        return response;
+    }
+
+    /// <summary>
+    /// Insert Practice Test Submit WITHOUT Transaction (for use within existing transactions)
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestSubmitInsertResponse> InsertPracticeTestSubmitWithoutTransactionAsync(PracticeTestSubmitInsertRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestSubmitInsertResponse { Success = false };
+
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken,
+                x => x.TestCases,
+                x => x.ProblemTemplates)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+            return response;
+        }
+        
+        var problemTemplate = problem.ProblemTemplates.FirstOrDefault(pt => pt.LanguageId == request.LanguageId && pt.IsActive);
+        if (problemTemplate == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
+            return response;
+        }
+        
+        // Create submission
+        var submission = new Submission
+        {
+            SubmissionId = Guid.NewGuid(),
+            ProblemId = request.ProblemId,
+            StudentId = currentUser.UserId,
+            Code = request.SourceCode,
+            LanguageId = request.LanguageId,
+        };
+        
+        // Submit to Judge0 API
+        var batchRequest = new BatchSubmissionRequest
+        {
+            Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
+            {
+                SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
+                LanguageId = request.LanguageId,
+                Stdin = tc.InputData,
+                ExpectedOutput = tc.ExpectedOutput,
+                CpuTimeLimit = 2.0,
+                MemoryLimit = 128000
+            }).ToList()
+        };
+        
+        // Call Judge0 API to submit batch
+        var submissResult = await judge0ApiLogic.SubmitBatchAsync(batchRequest);
+        var tokens = string.Join(",", submissResult.Submissions.Select(s => s.Token));
+        
+        List<SubmissionResult>? pollResults = null;
+        int maxRetries = 10;
+        int retryCount = 0;
+        
+        do
+        {
+            await Task.Delay(1000, cancellationToken);
+            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(tokens);
+        
+            // Check all results are completed
+            bool allCompleted = batchResult.All(s => s.Status.Id > (short) ConstantEnum.Judge0Status.Processing);
+            if (allCompleted)
+            {
+                pollResults = batchResult;
+                break;
+            }
+        
+            retryCount++;
+        }
+        while (retryCount < maxRetries);
+
+        if (retryCount >= maxRetries)
+        {
+            submission.Status = nameof(ConstantEnum.PracticeTestSubmissionStatus.TimeOut);
+        }
+        
+        // Processing results
+        int passedCount = 0;
+        long totalTimeMs = 0;
+        var testResults = new List<SubmissionTestResultResponse>();
+
+        for (int i = 0; i < pollResults.Count; i++)
+        {
+            var result = pollResults[i];
+            var testCase = problem.TestCases.ToList()[i];
+
+            bool passed = result.Status.Id == (short) ConstantEnum.Judge0Status.Accepted;
+            if (passed) passedCount++;
+
+            totalTimeMs += (long)((result.Time ?? 0) * 1000);
+
+            // Insert SubmissionTestResult
+            var testResult = new SubmissionTestResult
+            {
+                SubmissionTestId = Guid.NewGuid(),
+                SubmissionId = submission.SubmissionId,
+                TestcaseId = testCase.TestcaseId,
+                Passed = passed,
+                ActualOutput = result.Stdout?.Trim() ?? result.Stderr,
+            };
+            submission.SubmissionTestResults.Add(testResult);
+
+            testResults.Add(new SubmissionTestResultResponse
+            {
+                TestCaseId = testCase.TestcaseId,
+                IsPublic = testCase.IsPublic ?? false,
+                InputData = (testCase.IsPublic ?? false) ? testCase.InputData : "Hidden",
+                ExpectedOutput = (testCase.IsPublic ?? false) ? testCase.ExpectedOutput : "Hidden",
+                ActualOutput = testResult.ActualOutput,
+                Passed = passed,
+                Status = result.Status.Description,
+            });
+        }
+
+        // Add submission to repository (will be saved by parent transaction)
+        await submissionRepository.AddAsync(submission);
+
+        // Update submission status
+        submission.Status = DetermineStatus(pollResults);
+        
+        // Build response
+        response.Success = true;
+        response.Response = new PracticeTestSubmitInsertResponseEntity
+        {
+            SubmissionId = submission.SubmissionId,
+            Status = DetermineStatus(pollResults),
+            PassedTests = passedCount,
+            TotalTests = problem.TestCases.Count,
+            AverageTimeMs = pollResults.Count > 0 ? (int) (totalTimeMs / pollResults.Count) : 0,
+            TestResults = testResults
+        };
+        response.SetMessage(MessageId.I00001, "Nộp bài kiểm tra thực hành");
+        
         return response;
     }
 
@@ -996,6 +1143,149 @@ public class PracticeTestService
         }, cancellationToken);
         
         return response;
+    }
+
+    /// <summary>
+    /// Check Practice Test Code with user input without saving to database
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<PracticeTestCodeCheckResponse> CheckPracticeTestCodeAsync(PracticeTestCodeCheckRequest request, CancellationToken cancellationToken)
+    {
+        var response = new PracticeTestCodeCheckResponse { Success = false };
+
+        // Check problem exists
+        var problem = await problemCommandRepository
+            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                x => x.ProblemTemplates)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (problem == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+            return response;
+        }
+
+        var problemTemplate = problem.ProblemTemplates.FirstOrDefault(pt => pt.LanguageId == request.LanguageId && pt.IsActive);
+        if (problemTemplate == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
+            return response;
+        }
+
+        // Submit to Judge0 API with user input
+        var submissionRequest = new SubmissionRequest
+        {
+            SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
+            LanguageId = request.LanguageId,
+            Stdin = request.Input,
+            CpuTimeLimit = 2.0,
+            MemoryLimit = 128000
+        };
+
+        // Call Judge0 API to submit
+        var submissionResult = await judge0ApiLogic.SubmitCodeAsync(submissionRequest);
+        
+        // Poll for result
+        SubmissionResult result;
+        int maxRetries = 10;
+        int retryCount = 0;
+
+        do
+        {
+            await Task.Delay(1000, cancellationToken);
+            result = await judge0ApiLogic.GetSubmissionAsync(submissionResult.Token);
+
+            // Check if completed
+            if (result.Status.Id > (short)ConstantEnum.Judge0Status.Processing)
+            {
+                break;
+            }
+
+            retryCount++;
+        }
+        while (retryCount < maxRetries);
+
+        if (retryCount >= maxRetries)
+        {
+            response.SetMessage(MessageId.E00000, "Timeout khi thực thi code");
+            return response;
+        }
+
+        // Build response
+        response.Success = true;
+        response.Response = new PracticeTestCodeCheckResponseEntity
+        {
+            Status = result.Status.Description,
+            Output = result.Stdout,
+            Error = CleanErrorMessage(result.Stderr, result.CompileOutput),
+            ExecutionTime = result.Time,
+            Memory = result.Memory
+        };
+        response.SetMessage(MessageId.I00001, "Thực thi code");
+
+        return response;
+    }
+
+    /// <summary>
+    /// Clean and shorten error message to keep only essential information
+    /// </summary>
+    private string CleanErrorMessage(string? stderr, string? compileOutput)
+    {
+        var errorMessage = stderr ?? compileOutput ?? string.Empty;
+        
+        if (string.IsNullOrWhiteSpace(errorMessage))
+            return string.Empty;
+
+        var lines = errorMessage.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var cleanedLines = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var trimmedLine = line.Trim();
+            
+            // Skip lines containing stack trace paths
+            if (trimmedLine.Contains("[0x") || 
+                trimmedLine.Contains(":0") || 
+                trimmedLine.StartsWith("at System.") ||
+                trimmedLine.Contains("<") && trimmedLine.Contains(">:0"))
+                continue;
+
+            // Keep important lines
+            if (trimmedLine.StartsWith("Unhandled Exception:") ||
+                trimmedLine.Contains("Exception:") ||
+                trimmedLine.StartsWith("[ERROR]") ||
+                trimmedLine.Contains("error CS") || // C# compile errors
+                trimmedLine.Contains("error:") || // General errors
+                trimmedLine.Contains("Error:") ||
+                !trimmedLine.Contains("at ")) // Non-stack-trace lines
+            {
+                // Clean up redundant prefixes
+                var cleanLine = trimmedLine
+                    .Replace("Unhandled Exception:", "")
+                    .Replace("[ERROR] FATAL UNHANDLED EXCEPTION:", "")
+                    .Trim();
+                
+                if (!string.IsNullOrWhiteSpace(cleanLine) && !cleanedLines.Contains(cleanLine))
+                {
+                    cleanedLines.Add(cleanLine);
+                }
+            }
+        }
+
+        // Limit to first 5 most important lines
+        var result = string.Join("\n", cleanedLines.Take(5));
+        
+        // If still too long, truncate
+        if (result.Length > 500)
+        {
+            result = result.Substring(0, 500) + "...";
+        }
+
+        return result;
     }
 
     private string DetermineStatus(List<SubmissionResult> results)

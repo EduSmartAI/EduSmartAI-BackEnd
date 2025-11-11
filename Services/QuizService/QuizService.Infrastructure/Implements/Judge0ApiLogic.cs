@@ -32,8 +32,12 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         {
             SourceCode = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.SourceCode)),
             LanguageId = request.LanguageId,
-            Stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Stdin)),
-            ExpectedOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.ExpectedOutput)),
+            Stdin = !string.IsNullOrEmpty(request.Stdin) 
+                ? Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Stdin)) 
+                : null,
+            ExpectedOutput = !string.IsNullOrEmpty(request.ExpectedOutput) 
+                ? Convert.ToBase64String(Encoding.UTF8.GetBytes(request.ExpectedOutput)) 
+                : null,
             CpuTimeLimit = request.CpuTimeLimit,
             WallTimeLimit = request.WallTimeLimit,
             MemoryLimit = request.MemoryLimit
@@ -66,8 +70,12 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         {
             SourceCode = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.SourceCode)),
             LanguageId = request.LanguageId,
-            Stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Stdin)),
-            ExpectedOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes(request.ExpectedOutput)),
+            Stdin = !string.IsNullOrEmpty(request.Stdin) 
+                ? Convert.ToBase64String(Encoding.UTF8.GetBytes(request.Stdin)) 
+                : null,
+            ExpectedOutput = !string.IsNullOrEmpty(request.ExpectedOutput) 
+                ? Convert.ToBase64String(Encoding.UTF8.GetBytes(request.ExpectedOutput)) 
+                : null,
             CpuTimeLimit = request.CpuTimeLimit,
             WallTimeLimit = request.WallTimeLimit,
             MemoryLimit = request.MemoryLimit
@@ -122,8 +130,12 @@ public class Judge0ApiLogic : IJudge0ApiLogic
             {
                 SourceCode = Convert.ToBase64String(Encoding.UTF8.GetBytes(s.SourceCode)),
                 LanguageId = s.LanguageId,
-                Stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(s.Stdin)),
-                ExpectedOutput = Convert.ToBase64String(Encoding.UTF8.GetBytes(s.ExpectedOutput)),
+                Stdin = !string.IsNullOrEmpty(s.Stdin) 
+                    ? Convert.ToBase64String(Encoding.UTF8.GetBytes(s.Stdin)) 
+                    : null,
+                ExpectedOutput = !string.IsNullOrEmpty(s.ExpectedOutput) 
+                    ? Convert.ToBase64String(Encoding.UTF8.GetBytes(s.ExpectedOutput)) 
+                    : null,
                 CpuTimeLimit = s.CpuTimeLimit,
                 WallTimeLimit = s.WallTimeLimit,
                 MemoryLimit = s.MemoryLimit
@@ -238,21 +250,34 @@ public class Judge0ApiLogic : IJudge0ApiLogic
             Stderr = DecodeBase64(encoded.Stderr),
             CompileOutput = DecodeBase64(encoded.CompileOutput),
             Message = DecodeBase64(encoded.Message),
-            Time = Double.Parse(encoded.Time),
+            Time = ParseNullableDouble(encoded.Time),
             Memory = encoded.Memory
         };
     }
-
-    private string DecodeBase64(string base64String)
+    
+    private double? ParseNullableDouble(string? value)
     {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (double.TryParse(value, out double result))
+            return result;
+
+        return null;
+    }
+
+    private string? DecodeBase64(string? base64)
+    {
+        if (string.IsNullOrWhiteSpace(base64))
+            return null;
+
         try
         {
-            var bytes = Convert.FromBase64String(base64String);
-            return Encoding.UTF8.GetString(bytes);
+            return Encoding.UTF8.GetString(Convert.FromBase64String(base64));
         }
         catch
         {
-            return base64String;
+            return base64;
         }
     }
 }
@@ -260,16 +285,16 @@ public class Judge0ApiLogic : IJudge0ApiLogic
 internal class SubmissionRequestEncoded
 {
     [JsonPropertyName("source_code")]
-    public string SourceCode { get; set; }
+    public string SourceCode { get; set; } = null!;
         
     [JsonPropertyName("language_id")]
     public int LanguageId { get; set; }
         
     [JsonPropertyName("stdin")]
-    public string Stdin { get; set; }
+    public string? Stdin { get; set; }
         
     [JsonPropertyName("expected_output")]
-    public string ExpectedOutput { get; set; }
+    public string? ExpectedOutput { get; set; }
         
     [JsonPropertyName("cpu_time_limit")]
     public double? CpuTimeLimit { get; set; }

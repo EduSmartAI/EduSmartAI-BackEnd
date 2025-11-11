@@ -14,7 +14,11 @@ public interface IPracticeTestService
 
     Task<PracticeTestSubmitInsertResponse> InsertPracticeTestSubmitAsync(PracticeTestSubmitInsertRequest request, CancellationToken cancellationToken);
     
+    Task<PracticeTestSubmitInsertResponse> InsertPracticeTestSubmitWithoutTransactionAsync(PracticeTestSubmitInsertRequest request, CancellationToken cancellationToken);
+    
     Task<PracticeTestAdminLanguageInsertResponse> InsertPracticeLanguageAsync(PracticeTestAdminLanguageInsertRequest request, CancellationToken cancellationToken);
+
+    Task<PracticeTestCodeCheckResponse> CheckPracticeTestCodeAsync(PracticeTestCodeCheckRequest request, CancellationToken cancellationToken);
 
     Task<PracticeTestSelectResponse> SelectPracticeTestAsync(PracticeTestSelectRequest request, CancellationToken cancellationToken);
     
