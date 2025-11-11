@@ -1146,7 +1146,7 @@ public class PracticeTestService
     }
 
     /// <summary>
-    /// Check Practice Test Code with user input without saving to database
+    /// Check Practice Test Code with multiple user inputs without saving to database
     /// </summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
@@ -1176,32 +1176,40 @@ public class PracticeTestService
             return response;
         }
 
-        // Submit to Judge0 API with user input
-        var submissionRequest = new SubmissionRequest
+        // Prepare batch submission with multiple inputs
+        var fullSourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}";
+        
+        var batchRequest = new BatchSubmissionRequest
         {
-            SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
-            LanguageId = request.LanguageId,
-            Stdin = request.Input,
-            CpuTimeLimit = 2.0,
-            MemoryLimit = 128000
+            Submissions = request.Inputs.Select(input => new SubmissionRequest
+            {
+                SourceCode = fullSourceCode,
+                LanguageId = request.LanguageId,
+                Stdin = input,
+                CpuTimeLimit = 2.0,
+                MemoryLimit = 128000
+            }).ToList()
         };
 
-        // Call Judge0 API to submit
-        var submissionResult = await judge0ApiLogic.SubmitCodeAsync(submissionRequest);
+        // Call Judge0 API to submit batch
+        var submissionResult = await judge0ApiLogic.SubmitBatchAsync(batchRequest);
+        var tokens = string.Join(",", submissionResult.Submissions.Select(s => s.Token));
         
-        // Poll for result
-        SubmissionResult result;
+        // Poll for results
+        List<SubmissionResult>? pollResults = null;
         int maxRetries = 10;
         int retryCount = 0;
 
         do
         {
             await Task.Delay(1000, cancellationToken);
-            result = await judge0ApiLogic.GetSubmissionAsync(submissionResult.Token);
+            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(tokens);
 
-            // Check if completed
-            if (result.Status.Id > (short)ConstantEnum.Judge0Status.Processing)
+            // Check all results are completed
+            bool allCompleted = batchResult.All(s => s.Status.Id > (short)ConstantEnum.Judge0Status.Processing);
+            if (allCompleted)
             {
+                pollResults = batchResult;
                 break;
             }
 
@@ -1209,23 +1217,63 @@ public class PracticeTestService
         }
         while (retryCount < maxRetries);
 
-        if (retryCount >= maxRetries)
+        if (retryCount >= maxRetries || pollResults == null)
         {
             response.SetMessage(MessageId.E00000, "Timeout khi thực thi code");
             return response;
+        }
+
+        // Process results for each test case
+        var testCaseResults = new List<TestCaseExecutionResult>();
+        int passedCount = 0;
+
+        for (int i = 0; i < pollResults.Count; i++)
+        {
+            var result = pollResults[i];
+            var input = request.Inputs[i];
+            
+            bool isPassed = result.Status.Id == (short)ConstantEnum.Judge0Status.Accepted;
+            if (isPassed) passedCount++;
+
+            testCaseResults.Add(new TestCaseExecutionResult
+            {
+                TestCaseNumber = i + 1,
+                Input = input,
+                Status = result.Status.Description,
+                Output = result.Stdout ?? string.Empty,
+                Error = CleanErrorMessage(result.Stderr, result.CompileOutput),
+                ExecutionTime = result.Time,
+                Memory = result.Memory
+            });
+        }
+
+        // Determine overall status
+        string overallStatus;
+        if (passedCount == pollResults.Count)
+        {
+            overallStatus = "All Tests Passed";
+        }
+        else if (passedCount == 0)
+        {
+            overallStatus = pollResults.Any(r => r.Status.Id == (short)ConstantEnum.Judge0Status.CompilationError)
+                ? "Compilation Error"
+                : "All Tests Failed";
+        }
+        else
+        {
+            overallStatus = $"Partially Passed ({passedCount}/{pollResults.Count})";
         }
 
         // Build response
         response.Success = true;
         response.Response = new PracticeTestCodeCheckResponseEntity
         {
-            Status = result.Status.Description,
-            Output = result.Stdout,
-            Error = CleanErrorMessage(result.Stderr, result.CompileOutput),
-            ExecutionTime = result.Time,
-            Memory = result.Memory
+            OverallStatus = overallStatus,
+            TotalTests = pollResults.Count,
+            PassedTests = passedCount,
+            TestCaseResults = testCaseResults
         };
-        response.SetMessage(MessageId.I00001, "Thực thi code");
+        response.SetMessage(MessageId.I00001, "Thực thi code thành công");
 
         return response;
     }

@@ -14,7 +14,8 @@ public class PracticeTestCodeCheckRequest : IRequest<PracticeTestCodeCheckRespon
     [Required(ErrorMessage = "LanguageId is required")]
     public int LanguageId { get; set; }
     
-    [Required(ErrorMessage = "Input is required")]
-    public string Input { get; set; } = null!;
+    [Required(ErrorMessage = "Inputs is required")]
+    [MinLength(1, ErrorMessage = "At least one input is required")]
+    public List<string> Inputs { get; set; } = null!;
 }
 

@@ -134,14 +134,14 @@ public class PracticeTestController : ControllerBase
     }
     
     /// <summary>
-    /// Check practice test code with custom input without saving to database
+    /// Check practice test code with multiple custom inputs without saving to database
     /// </summary>
     /// <returns></returns>
     [HttpPost("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
-        Summary = "Kiểm tra code với input tự nhập mà không lưu vào database", 
-        Description = "API này cho phép student kiểm tra code của mình với input tự nhập để xem kết quả thực thi trước khi nộp bài chính thức. Kết quả chỉ trả về output, lỗi (nếu có), thời gian thực thi và memory mà không lưu vào database. Cần cấp quyền cho API")]
+        Summary = "Kiểm tra code với nhiều input tự nhập mà không lưu vào database", 
+        Description = "API này cho phép student kiểm tra code của mình với nhiều test cases (inputs) cùng lúc để xem kết quả thực thi trước khi nộp bài chính thức. Student có thể gửi 1 hoặc nhiều inputs trong một request. Kết quả trả về bao gồm status, output, lỗi (nếu có), thời gian thực thi và memory cho từng test case mà không lưu vào database. Cần cấp quyền cho API")]
     public async Task<PracticeTestCodeCheckResponse> CheckPracticeTestCode([FromBody] PracticeTestCodeCheckRequest request)
     {
         return await ApiControllerHelper.HandleRequest<PracticeTestCodeCheckRequest, PracticeTestCodeCheckResponse, PracticeTestCodeCheckResponseEntity>(
