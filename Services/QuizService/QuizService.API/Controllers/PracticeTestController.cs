@@ -29,12 +29,12 @@ public class PracticeTestController : ControllerBase
     }
     
     /// <summary>
-    /// Select all practice tests
+    /// Select 3 random practice tests with all difficulty levels
     /// </summary>
     /// <returns></returns>
     [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(Summary = "Lấy danh sách bài tập thực hành", Description = "Cần cấp quyền cho API")]
+    [SwaggerOperation(Summary = "Lấy 3 bài tập thực hành ngẫu nhiên", Description = "Lấy 3 bài tập thực hành ngẫu nhiên có đủ 3 level: Dễ (Easy), Trung bình (Medium), Khó (Hard). Cần cấp quyền cho API")]
     public async Task<PracticeTestSelectsResponse> SelectPracticeTests()
     {
         var request = new PracticeTestSelectsRequest();

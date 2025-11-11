@@ -25,6 +25,12 @@ public class PracticeTestService
         IJudge0ApiLogic judge0ApiLogic) 
     : IPracticeTestService
 {
+    /// <summary>
+    /// Insert Practice Languages from Judge0 API
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<PracticeTestAdminLanguageInsertResponse> InsertPracticeLanguageAsync(PracticeTestAdminLanguageInsertRequest request, CancellationToken cancellationToken)
     {
         var response = new PracticeTestAdminLanguageInsertResponse { Success = false };
@@ -166,7 +172,7 @@ public class PracticeTestService
     }
 
     /// <summary>
-    /// Select Practice Tests
+    /// Select 3 random Practice Tests with all difficulty levels (Easy, Medium, Hard)
     /// </summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
@@ -175,37 +181,72 @@ public class PracticeTestService
     {
         var response = new PracticeTestSelectsResponse { Success = false };
 
-        // Select problems from DB
-        var pagedProblems = await problemCommandRepository.PagedAsync<int>(
-            pageNumber: request.PageNumber,
-            pageSize: request.PageSize,
-            predicate: x => x.IsActive,
-            orderBy: null,
-            orderByDescending: false,
-            cancellationToken: cancellationToken,
-            includes: x => x.ProblemExamples);
+        // Get all active problems grouped by difficulty
+        var allProblems = await problemCommandRepository
+            .Find(predicate: x => x.IsActive, isTracking: false, cancellationToken: cancellationToken)
+            .ToListAsync(cancellationToken);
+
+        // Group by difficulty level
+        var easyProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Easy), StringComparison.OrdinalIgnoreCase)).ToList();
+        var mediumProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Medium), StringComparison.OrdinalIgnoreCase)).ToList();
+        var hardProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Hard), StringComparison.OrdinalIgnoreCase)).ToList();
+
+        // Validate that we have at least 1 problem of each difficulty
+        if (!easyProblems.Any())
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra thực hành ở mức độ Dễ");
+            return response;
+        }
+        
+        if (!mediumProblems.Any())
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra thực hành ở mức độ Trung bình");
+            return response;
+        }
+        
+        if (!hardProblems.Any())
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra thực hành ở mức độ Khó");
+            return response;
+        }
+
+        // Select 1 random problem from each difficulty level
+        var random = new Random();
+        
+        var selectedEasy = easyProblems[random.Next(easyProblems.Count)];
+        var selectedMedium = mediumProblems[random.Next(mediumProblems.Count)];
+        var selectedHard = hardProblems[random.Next(hardProblems.Count)];
+
+        // Create result list with 3 problems (Easy, Medium, Hard)
+        var selectedProblems = new List<Problem> { selectedEasy!, selectedMedium!, selectedHard! };
 
         var mapped = new PagedResult<PracticeTestSelectsResponseEntity>
         {
-            Items = pagedProblems.Items.Select(x => new PracticeTestSelectsResponseEntity
+            Items = selectedProblems.Select(x => new PracticeTestSelectsResponseEntity
             {
                 ProblemId = x.ProblemId,
                 Title = x.Title,
                 Description = x.Description,
                 Difficulty = x.Difficulty
             }).ToList(),
-            TotalCount = pagedProblems.TotalCount,
-            PageNumber = pagedProblems.PageNumber,
-            PageSize = pagedProblems.PageSize
+            TotalCount = 3,
+            PageNumber = 1,
+            PageSize = 3
         };
         
-        // True
+        // Success
         response.Success = true;
         response.Response = mapped;
-        response.SetMessage(MessageId.I00001, "Lấy danh sách các bài kiểm tra thực hành");
+        response.SetMessage(MessageId.I00001, "Lấy 3 bài kiểm tra thực hành ngẫu nhiên (Dễ, Trung bình, Khó)");
         return response;
     }
 
+    /// <summary>
+    /// Select Practice Test Languages
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<PracticeTestLanguageSelectsResponse> SelectPracticeTestLanguagesAsync(PracticeTestLanguageSelectsRequest request, CancellationToken cancellationToken)
     {
         var response = new PracticeTestLanguageSelectsResponse { Success = false };
@@ -232,6 +273,12 @@ public class PracticeTestService
         return response;
     }
 
+    /// <summary>
+    /// Determine overall submission status
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
     public async Task<PracticeTestSubmitInsertResponse> InsertPracticeTestSubmitAsync(PracticeTestSubmitInsertRequest request, CancellationToken cancellationToken)
     {
         var response = new PracticeTestSubmitInsertResponse { Success = false };
@@ -243,11 +290,19 @@ public class PracticeTestService
             .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: true,
                 cancellationToken: cancellationToken,
-                includes: x => x.TestCases)
+                x => x.TestCases,
+                x => x.ProblemTemplates)
             .FirstOrDefaultAsync(cancellationToken);
         if (problem == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+            return response;
+        }
+        
+        var problemTemplate = problem.ProblemTemplates.FirstOrDefault(pt => pt.LanguageId == request.LanguageId && pt.IsActive);
+        if (problemTemplate == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
             return response;
         }
         
@@ -268,7 +323,7 @@ public class PracticeTestService
             {
                 Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
                 {
-                    SourceCode = request.SourceCode,
+                    SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
                     LanguageId = request.LanguageId,
                     Stdin = tc.InputData,
                     ExpectedOutput = tc.ExpectedOutput,
@@ -420,7 +475,7 @@ public class PracticeTestService
              {
                  Title = request.Problem.Title,
                  Description = request.Problem.Description,
-                 Difficulty = request.Problem.Difficulty
+                 Difficulty = request.Problem.Difficulty.ToString()
              };
              
              // Add test cases
