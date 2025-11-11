@@ -1,7 +1,7 @@
 ﻿using BaseService.Application.Common;
-using Course.Application.Comments.Commands.CreateComment;
-using Course.Application.Comments.Commands.ReplyToComment;
-using Course.Application.Comments.Queries.GetCourseComments;
+using Course.Application.Comments.CourseComments.Commands.CreateComment;
+using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
+using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
 
 namespace Course.API.Controllers
@@ -18,7 +18,7 @@ namespace Course.API.Controllers
 		public async Task<GetCourseCommentsResponse> Get(Guid courseId, [FromQuery] int? page, [FromQuery] int? size)
 		{
 			var q = new GetCourseCommentsQuery(courseId, page, size);
-			return await ApiControllerHelper.HandleRequest<GetCourseCommentsQuery, GetCourseCommentsResponse, PagedResult<CommentDto>>(
+			return await ApiControllerHelper.HandleRequest<GetCourseCommentsQuery, GetCourseCommentsResponse, PagedResult<CourseCommentDto>>(
 				q, _logger, ModelState, async () => await sender.Send(q), new());
 		}
 
@@ -28,7 +28,7 @@ namespace Course.API.Controllers
 		public async Task<CreateCommentResponse> Create(Guid courseId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new CreateCommentCommand(courseId, body.Content);
-			return await ApiControllerHelper.HandleRequest<CreateCommentCommand, CreateCommentResponse, CommentDto>(
+			return await ApiControllerHelper.HandleRequest<CreateCommentCommand, CreateCommentResponse, CourseCommentDto>(
 				cmd, _logger, ModelState, async () => await sender.Send(cmd), new());
 		}
 
@@ -38,7 +38,7 @@ namespace Course.API.Controllers
 		public async Task<ReplyToCommentResponse> Reply(Guid courseId, Guid parentCommentId, [FromBody] CreateCommentBody body)
 		{
 			var cmd = new ReplyToCommentCommand(courseId, parentCommentId, body.Content);
-			return await ApiControllerHelper.HandleRequest<ReplyToCommentCommand, ReplyToCommentResponse, CommentDto>(
+			return await ApiControllerHelper.HandleRequest<ReplyToCommentCommand, ReplyToCommentResponse, CourseCommentDto>(
 				cmd, _logger, ModelState, async () => await sender.Send(cmd), new());
 		}
 

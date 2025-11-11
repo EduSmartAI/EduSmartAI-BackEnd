@@ -1,4 +1,4 @@
-﻿namespace Course.Application.Comments.Commands.CreateComment
+﻿namespace Course.Application.Comments.CourseComments.Commands.CreateComment
 {
 	public sealed class CreateCommentHandler(ICommentService _commentService): ICommandHandler<CreateCommentCommand, CreateCommentResponse>
 	{

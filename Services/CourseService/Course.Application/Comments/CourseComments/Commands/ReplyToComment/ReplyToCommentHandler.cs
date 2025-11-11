@@ -1,4 +1,4 @@
-﻿namespace Course.Application.Comments.Commands.ReplyToComment
+﻿namespace Course.Application.Comments.CourseComments.Commands.ReplyToComment
 {
 	public sealed class ReplyToCommentHandler(ICommentService _commentService)
 	: ICommandHandler<ReplyToCommentCommand, ReplyToCommentResponse>

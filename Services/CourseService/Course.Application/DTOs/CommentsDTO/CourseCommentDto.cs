@@ -1,6 +1,6 @@
 ﻿namespace Course.Application.DTOs.CommentsDTO
 {
-	public record CommentDto(
+	public record CourseCommentDto(
 		Guid CommentId,
 		Guid CourseId,
 		Guid UserId,

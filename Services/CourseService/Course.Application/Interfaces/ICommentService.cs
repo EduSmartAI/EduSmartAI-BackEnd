@@ -1,6 +1,6 @@
-﻿using Course.Application.Comments.Commands.CreateComment;
-using Course.Application.Comments.Commands.ReplyToComment;
-using Course.Application.Comments.Queries.GetCourseComments;
+﻿using Course.Application.Comments.CourseComments.Commands.CreateComment;
+using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
+using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 
 namespace Course.Application.Interfaces
 {

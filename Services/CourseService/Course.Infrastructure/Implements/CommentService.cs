@@ -1,7 +1,7 @@
 ﻿using BaseService.Application.Common;
-using Course.Application.Comments.Commands.CreateComment;
-using Course.Application.Comments.Commands.ReplyToComment;
-using Course.Application.Comments.Queries.GetCourseComments;
+using Course.Application.Comments.CourseComments.Commands.CreateComment;
+using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
+using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
 
 namespace Course.Infrastructure.Implements
@@ -55,7 +55,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
-			response.Response = new CommentDto(
+			response.Response = new CourseCommentDto(
 				entity.CommentId, courseId, user.UserId, user.Email, content, null, true, 0, DateTimeOffset.UtcNow);
 			response.SetMessage(MessageId.I00001, "Đã tạo bình luận");
 
@@ -86,9 +86,9 @@ namespace Course.Infrastructure.Implements
 			if (currentIds.Count == 0)
 			{
 				response.Success = true;
-				response.Response = new PagedResult<CommentDto>
+				response.Response = new PagedResult<CourseCommentDto>
 				{
-					Items = new List<CommentDto>(),
+					Items = new List<CourseCommentDto>(),
 					TotalCount = paged.TotalCount,
 					PageNumber = paged.PageNumber,
 					PageSize = paged.PageSize
@@ -115,7 +115,7 @@ namespace Course.Infrastructure.Implements
 			{
 				var replyCount = replyCountDict.TryGetValue(x.CommentId, out var n) ? n : 0;
 
-				return new CommentDto(
+				return new CourseCommentDto(
 					x.CommentId,
 					x.CourseId,
 					x.UserId,
@@ -129,7 +129,7 @@ namespace Course.Infrastructure.Implements
 			}).ToList();
 
 			response.Success = true;
-			response.Response = new PagedResult<CommentDto>
+			response.Response = new PagedResult<CourseCommentDto>
 			{
 				Items = items,
 				TotalCount = paged.TotalCount,
@@ -185,7 +185,7 @@ namespace Course.Infrastructure.Implements
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
 			response.Success = true;
-			response.Response = new CommentDto(
+			response.Response = new CourseCommentDto(
 				reply.CommentId,
 				reply.CourseId,
 				reply.UserId,
