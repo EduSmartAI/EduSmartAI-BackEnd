@@ -3,7 +3,6 @@ using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BaseService.Domain.Snapshort;
-using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -36,7 +35,6 @@ public class StudentSurveyService : IStudentSurveyService
     /// <param name="unitOfWork"></param>
     /// <param name="quizQueryRepository"></param>
     /// <param name="requestCourseMajorSemesterClient"></param>
-    /// <param name="requestStudentInterestAnalysisClient"></param>
     /// <param name="outboxService"></param>
     public StudentSurveyService(ICommandRepository<StudentQuiz> studentQuizCommandRepository,
         IQueryRepository<StudentQuizCollection> studentQuizQueryRepository,
@@ -44,9 +42,7 @@ public class StudentSurveyService : IStudentSurveyService
         IUnitOfWork unitOfWork,
         IQueryRepository<QuizCollection> quizQueryRepository,
         IRequestClient<CourseMajorSemesterSelectEvent> requestCourseMajorSemesterClient,
-        IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient,
-        ICommandRepository<OutboxMessage> outboxService, 
-        IPublishEndpoint publishEndpoint)
+        ICommandRepository<OutboxMessage> outboxService)
     {
         _studentQuizCommandRepository = studentQuizCommandRepository;
         _studentQuizQueryRepository = studentQuizQueryRepository;

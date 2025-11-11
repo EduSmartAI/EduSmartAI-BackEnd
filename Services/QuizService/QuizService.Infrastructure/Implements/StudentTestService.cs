@@ -118,7 +118,17 @@ public class StudentTestService : IStudentTestService
             response.SetMessage(MessageId.E00000, "Có câu trả lời không hợp lệ trong danh sách trả lời");
             return response;
         }
-        
+
+        if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
+        {
+            // Validate that we have exactly 3 problems (Easy, Medium, Hard)
+            if (request.PracticeTestAnswers.Count != 3)
+            {
+                response.SetMessage(MessageId.E00000, "PracticeTestAnswers phải có đúng 3 bài: Dễ, Trung bình, Khó");
+                return response;
+            }
+        }
+
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
@@ -202,13 +212,6 @@ public class StudentTestService : IStudentTestService
             // If PracticeTestAnswers is provided, calculate combined level (60% quiz + 40% practice test)
             if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
             {
-                // Validate that we have exactly 3 problems (Easy, Medium, Hard)
-                if (request.PracticeTestAnswers.Count != 3)
-                {
-                    response.SetMessage(MessageId.E00000, "PracticeTestAnswers phải có đúng 3 bài: Dễ, Trung bình, Khó");
-                    return false;
-                }
-                
                 // Submit each practice test answer and collect results
                 var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
                 
@@ -221,7 +224,7 @@ public class StudentTestService : IStudentTestService
                         LanguageId = practiceAnswer.LanguageId
                     };
                     
-                    var submitResponse = await _practiceTestService.InsertPracticeTestSubmitAsync(submitRequest, cancellationToken);
+                    var submitResponse = await _practiceTestService.InsertPracticeTestSubmitWithoutTransactionAsync(submitRequest, cancellationToken);
                     
                     if (!submitResponse.Success)
                     {
