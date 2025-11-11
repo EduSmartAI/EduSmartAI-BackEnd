@@ -28,4 +28,6 @@ public partial class ModuleDiscussion
     public bool IsActive { get; set; }
 
     public virtual Module Module { get; set; }
+
+    public virtual ICollection<ModuleDiscussionComment> ModuleDiscussionComments { get; set; } = new List<ModuleDiscussionComment>();
 }

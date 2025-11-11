@@ -71,6 +71,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "public.module_discussion_comments",
+         "ObjectType": 0
+      },
+      {
          "Name": "public.module_discussions",
          "ObjectType": 0
       },

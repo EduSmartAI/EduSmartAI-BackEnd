@@ -1,4 +1,4 @@
-﻿namespace Course.Application.Comments.Queries.GetCourseComments
+﻿namespace Course.Application.Comments.CourseComments.Queries.GetCourseComments
 {
 	public sealed class GetCourseCommentsHandler(ICommentService _commentService) : IQueryHandler<GetCourseCommentsQuery, GetCourseCommentsResponse>
 	{

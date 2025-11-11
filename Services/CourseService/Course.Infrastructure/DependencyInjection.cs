@@ -60,6 +60,8 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<LessonTranscript>, CommandRepository<LessonTranscript>>();
             services.AddScoped<ICommandRepository<CourseWishlist>, CommandRepository<CourseWishlist>>();
             services.AddScoped<ICommandRepository<CourseComment>, CommandRepository<CourseComment>>();
+            services.AddScoped<ICommandRepository<ModuleDiscussionComment>, CommandRepository<ModuleDiscussionComment>>();
+            services.AddScoped<ICommandRepository<ModuleDiscussion>, CommandRepository<ModuleDiscussion>>();
 
 
             // Services
@@ -76,6 +78,7 @@ namespace Course.Infrastructure
             services.AddScoped<IVUserModuleProgressService, VUserModuleProgressService>();
             services.AddScoped<IWishlistService, WishlistService>();
             services.AddScoped<ICommentService, CommentService>();
+            services.AddScoped<IModuleDiscussionCommentService, ModuleDiscussionCommentService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
