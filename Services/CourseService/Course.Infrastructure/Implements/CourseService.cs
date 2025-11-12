@@ -38,7 +38,8 @@ namespace Course.Infrastructure.Implements
         IQuizGateway _quizGateway,
         ICommandRepository<Semester> _semesterRepository,
         ICommandRepository<VMajorSemesterSubjectCourses> _viewCourseRepo,
-        IQuizEventFactory _quizEventFactory) : ICourseService
+        IQuizEventFactory _quizEventFactory,
+        ICommandRepository<CourseWishlist> _courseWishlistRepository) : ICourseService
     {
         #region Service for Lecture & Guest
 
@@ -186,10 +187,21 @@ namespace Course.Infrastructure.Implements
         {
             var response = new GetCourseByIdForGuestResponse() { Success = false };
 
-            var cacheKey = $"CourseDetailForGuest:{Id}";
+            var user = _identityService.GetCurrentUser();
+
+			var cacheKey = $"CourseDetailForGuest:{Id}";
             var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
             if (cached is not null)
             {
+                if (user is not null)
+                {
+                    var inWishlist = await _courseWishlistRepository
+                        .Find(x => x.CourseId == Id && x.UserId == user.UserId && x.IsActive, isTracking: false, ct)
+                        .AnyAsync(ct);
+
+                    cached.IsWishlist = inWishlist;
+                }
+
                 response.Success = true;
                 response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
                 response.Response = cached;
@@ -207,7 +219,8 @@ namespace Course.Infrastructure.Implements
                 .Include(x => x.CourseComments.Where(c => c.IsActive))
                 .Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
                 .Include(x => x.CourseRatings)
-                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+                .Include(x => x.CourseWishlists.Where(cw => cw.IsActive))
+				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
                 .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
             var entity = await baseQuery.FirstOrDefaultAsync(ct);
@@ -219,7 +232,13 @@ namespace Course.Infrastructure.Implements
             }
 
             var detail = _courseMapper.MapCourseDetailForGuest(entity);
-            await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+
+			if (user is not null)
+			{
+				detail.IsWishlist = entity.CourseWishlists.Any(cw => cw.UserId == user.UserId && cw.IsActive);
+			}
+
+			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
             var modulesCount = entity.Modules.Count(m => m.IsActive);
             var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
 

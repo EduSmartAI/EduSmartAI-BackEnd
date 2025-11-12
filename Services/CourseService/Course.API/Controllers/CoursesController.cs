@@ -313,7 +313,7 @@ namespace Course.API.Controllers
 		#endregion
 
 		[HttpGet("[action]")]
-		//[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 			Summary = "Get in-progress courses by student ID",
 			Description = "Retrieve a list of courses that are currently in progress for a specific student."
