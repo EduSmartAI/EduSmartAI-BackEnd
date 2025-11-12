@@ -738,15 +738,9 @@ namespace Course.Infrastructure.Implements
 
 		}
 
-		/// <summary>
-		/// Helpers
-		/// </summary>
-		/// <param name="value"></param>
-		/// <param name="max"></param>
-		/// <returns></returns>
+		#region Helpers
 		private static int ClampNonNeg(int value, int max) => Math.Clamp(value, 0, max);
 
-		// Helpers
 		private static T? SafeDeserialize<T>(string json)
 		{
 			try { return JsonSerializer.Deserialize<T>(json); }
@@ -761,6 +755,7 @@ namespace Course.Infrastructure.Implements
 				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 			});
 		}
+		#endregion
 
 	}
 }
