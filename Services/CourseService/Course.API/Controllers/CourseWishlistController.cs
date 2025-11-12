@@ -18,7 +18,7 @@ namespace Course.API.Controllers
 		public async Task<AddToWishlistResponse> Add(Guid courseId)
 		{
 			var command = new AddToWishlistCommand(courseId);
-			return await ApiControllerHelper.HandleRequest<AddToWishlistCommand, AddToWishlistResponse, WishlistItemDto>(
+			return await ApiControllerHelper.HandleRequest<AddToWishlistCommand, AddToWishlistResponse, bool>(
 				command,
 				_logger,
 				ModelState,

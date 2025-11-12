@@ -1,19 +1,21 @@
 ﻿using BaseService.Application.Common;
 using Course.Application.DTOs.CoursesDTO.WishlistDTO;
+using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Application.Wishlists.Commands.AddToWishlist;
 using Course.Application.Wishlists.Commands.RemoveFromWishlist;
 using Course.Application.Wishlists.Queries.GetWishlistByUserId;
 using Course.Domain.ReadModels;
+using Course.Infrastructure.Caching;
 
 namespace Course.Infrastructure.Implements
 {
 	public sealed class WishlistService(
-		IDatabase cache,
+		IDatabase _cache,
 		IIdentityService _identityService,
 		IUnitOfWork unitOfWork,
 		ICommandRepository<CourseWishlist> _wishlistCommandRepository,
 		ICommandRepository<CourseEntity> _courseCommandRepository,
-		ICourseCache courseCache
+		IWishlistCache _wishlistCache
 	) : IWishlistService
 	{
 		/// <summary>
@@ -52,8 +54,6 @@ namespace Course.Infrastructure.Implements
 			{
 				existingWishlistItem.IsActive = true;
 				_wishlistCommandRepository.Update(existingWishlistItem, user.Email);
-
-				unitOfWork.Store(CourseWishlistCollection.FromWriteModel(existingWishlistItem));
 			}
 			else
 			{
@@ -61,20 +61,18 @@ namespace Course.Infrastructure.Implements
 				newWishlistItem.CourseId = courseId;
 
 				await _wishlistCommandRepository.AddAsync(newWishlistItem, user.Email);
-				unitOfWork.Store(CourseWishlistCollection.FromWriteModel(newWishlistItem));
 			}
 
 			await unitOfWork.BeginTransactionAsync(async () =>
 			{
 				await unitOfWork.SaveChangesAsync(user.Email, ct);
-
-				await unitOfWork.SessionSaveChangesAsync();
-
 				return true;
 			}, ct);
 
+			await _wishlistCache.ClearUserWishlistAsync(userId);
+
 			response.Success = true;
-			response.Response = new WishlistItemDto(existingWishlistItem != null ? existingWishlistItem.WishlistId : newWishlistItem.WishlistId, course.CourseId, course.Title, course.Slug, true, DateTime.Now);
+			response.Response = true;
 			response.SetMessage(MessageId.I00001, "Thêm wishlist");
 			return response;
 
@@ -99,7 +97,23 @@ namespace Course.Infrastructure.Implements
 			}
 			var userId = user.UserId;
 
-			var searchLower = (search ?? string.Empty).Trim().ToLower();
+			var pageNumber = page.GetValueOrDefault(1);
+			var pageSize = size.GetValueOrDefault(20);
+			var searchNorm = (search ?? string.Empty).Trim().ToLower();
+
+			var searchHash = string.IsNullOrEmpty(searchNorm) ? "0" : Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(searchNorm))).Substring(0, 16);
+			var cacheKey = $"Wishlist:{user.UserId}:p{pageNumber}:s{pageSize}:q{searchHash}";
+			var ttl = TimeSpan.FromMinutes(5);
+
+			var	cached = await _cache.GetAsync<PagedResult<WishlistItemDto>>(cacheKey);
+			
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.Response = cached;
+				response.SetMessage(MessageId.I00001, "Lấy wishlist của tôi (cache)");
+				return response;
+			}
 
 			// Lấy danh sách wishlist theo trang, sort mới nhất trước, include Course
 			var paged = await _wishlistCommandRepository.PagedAsync<DateTime>(
@@ -109,9 +123,9 @@ namespace Course.Infrastructure.Implements
 					x.UserId == userId &&
 					x.IsActive &&
 					(
-						string.IsNullOrEmpty(searchLower) ||
-						(x.Course.Title != null && x.Course.Title.ToLower().Contains(searchLower)) ||
-						(x.Course.Slug != null && x.Course.Slug.ToLower().Contains(searchLower))
+						string.IsNullOrEmpty(searchNorm) ||
+						(x.Course.Title != null && x.Course.Title.ToLower().Contains(searchNorm)) ||
+						(x.Course.Slug != null && x.Course.Slug.ToLower().Contains(searchNorm))
 					),
 				orderBy: x => x.CreatedAt,
 				orderByDescending: true,
@@ -127,6 +141,16 @@ namespace Course.Infrastructure.Implements
 				true,
 				w.CreatedAt
 			)).ToList();
+
+			var result = new PagedResult<WishlistItemDto>
+			{
+				Items = wishlistItems,
+				TotalCount = paged.TotalCount,
+				PageNumber = paged.PageNumber,
+				PageSize = paged.PageSize
+			};
+
+			await _cache.SetAsync(cacheKey, result, ttl);
 
 
 			response.Success = true;
@@ -171,6 +195,8 @@ namespace Course.Infrastructure.Implements
 
 			_wishlistCommandRepository.Update(wishlistItem, user.Email, needLogicalDelete: true);
 			await unitOfWork.SaveChangesAsync(ct);
+
+			await _wishlistCache.ClearUserWishlistAsync(userId);
 
 			response.Success = true;
 			response.Response = "removed";

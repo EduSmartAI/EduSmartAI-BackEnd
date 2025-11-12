@@ -1,9 +1,11 @@
 ﻿using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
+using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Helpers.Courses;
+using Course.Infrastructure.Helpers.Wishlists;
 using Course.Infrastructure.Implements;
 using JasperFx;
 using Marten;
@@ -89,6 +91,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICourseMapper, CourseMapper>();
             services.AddScoped<IQuizGateway, QuizGateway>();
             services.AddScoped<IQuizEventFactory, QuizEventFactory>();
+            services.AddScoped<IWishlistCache, WishlistCache>();
 
             // Unit of Work
             services.AddScoped<IUnitOfWork, UnitOfWork>();
