@@ -537,7 +537,8 @@ namespace Course.Infrastructure.Helpers.Courses
 			Tags: e.CourseTags.Select(t => new CourseTagDto(
 				t.TagId,
 				t.Tag?.TagName ?? string.Empty
-			)).ToList()
+			)).ToList(),
+			IsWishlist: false
 		);
 
 		/// <summary>

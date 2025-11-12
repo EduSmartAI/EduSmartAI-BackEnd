@@ -19,7 +19,8 @@
 		bool IsActive,
 		DateTime CreatedAt,
 		DateTime UpdatedAt,
-		List<CourseTagDto> Tags
+		List<CourseTagDto> Tags,
+		bool IsWishlist
 	);
 
 }
