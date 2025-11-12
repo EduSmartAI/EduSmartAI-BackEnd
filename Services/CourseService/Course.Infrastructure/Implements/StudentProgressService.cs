@@ -1,4 +1,5 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
 using Course.Application.DTOs.ModulesDTO.ModuleStudentDTO;
@@ -8,8 +9,10 @@ using Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
+using Course.Application.UserLessonProgresses.Queries.GetMyLearningCourses;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
+using System.Text.Json;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 using static Course.Infrastructure.Helpers.StudentLessonProgress.LessonProgressPolicy;
 
@@ -536,7 +539,7 @@ namespace Course.Infrastructure.Implements
 				await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
 				var result = new UserLessonProgressEntity(
-					progress.LessonId, 
+					progress.LessonId,
 					progress.Status,
 					progress.LastPositionSec ?? 0,
 					progress.DurationWatchedSec,
@@ -626,6 +629,115 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		public async Task<GetMyLearningCoursesResponse> GetMyLearningAsync(GetMyLearningCoursesQuery request, CancellationToken ct = default)
+		{
+			var response = new GetMyLearningCoursesResponse() { Success = false };
+			var currentUser = _identityService.GetCurrentUser()!;
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			var userId = currentUser.UserId;
+
+			var pageNumber = request.Page.GetValueOrDefault(1);
+			var pageSize = request.Size.GetValueOrDefault(20);
+			if (pageNumber <= 0) pageNumber = 1;
+			if (pageSize <= 0) pageSize = 20;
+			if (pageSize > 100) pageSize = 100;
+
+			var searchNorm = (request.Search ?? string.Empty).Trim();
+			var pageIndexZeroBased = pageNumber - 1;
+
+			var cacheKey = $"mylearning:{userId}:p{pageNumber}:s{pageSize}:q:{searchNorm.ToLower()}";
+			if (!request.NoCache)
+			{
+				var cached = await _cache.StringGetAsync(cacheKey);
+				if (cached.HasValue)
+				{
+					var cachedRes = SafeDeserialize<GetMyLearningCoursesResponse>(cached!);
+					if (cachedRes is not null) return cachedRes;
+				}
+			}
+
+			var enrollQ = _enrollmentRepository.Find(x => x.UserId == userId && x.IsActive, isTracking: false, ct);
+			var courseQ = _courseRepository.Find(x => x.IsActive, isTracking: false, ct);
+			var progressQ = _userCourseProgressQuery.Find(x => x.UserId == userId, isTracking: false, ct);
+
+			var baseQ =
+				from e in enrollQ
+				join c in courseQ on e.CourseId equals c.CourseId
+				join ucp in progressQ on c.CourseId equals ucp.CourseId
+				where string.IsNullOrEmpty(searchNorm) || EF.Functions.ILike(c.Title, $"%{searchNorm}%")
+				select new
+				{
+					c.CourseId,
+					c.Title,
+					c.Slug,
+					ImageUrl = c.CourseImageUrl,
+					PercentCompleted = ucp.PercentCompleted ?? 0m,
+					LessonsTotal = ucp.LessonsTotal,
+					LessonsCompleted = ucp.LessonsCompleted,
+					StartedAt = ucp.StartedAt,      // DateTime?
+					CompletedAt = ucp.CompletedAt,    // DateTime?
+
+					// updatedAt: lấy mốc mới nhất giữa progress và course (không dùng ?? với DateTime)
+					UpdatedAt = (ucp.UpdatedAt > c.UpdatedAt) ? ucp.UpdatedAt : c.UpdatedAt,
+
+					// Lấy trực tiếp từ enum short
+					Status = (ucp.Status == (short)CourseProgressStatus.Completed || ucp.CompletedAt != null)
+								? CourseProgressStatus.Completed
+							: (ucp.Status == (short)CourseProgressStatus.InProgress)
+								? CourseProgressStatus.InProgress
+								: CourseProgressStatus.NotStarted
+				};
+
+			var totalCount = await baseQ.CountAsync(ct);
+
+			var pageItems = await baseQ
+				.OrderByDescending(x => x.UpdatedAt)
+				.Skip(pageIndexZeroBased * pageSize)
+				.Take(pageSize)
+				.ToListAsync(ct);
+
+			var dtoItems = pageItems.Select(x => new MyLearningCourseItemDto
+			{
+				CourseId = x.CourseId,
+				Title = x.Title,
+				Slug = x.Slug,
+				ImageUrl = x.ImageUrl,
+				PercentCompleted = x.PercentCompleted,
+				LessonsTotal = x.LessonsTotal,
+				LessonsCompleted = x.LessonsCompleted,
+				StartedAt = x.StartedAt,
+				CompletedAt = x.CompletedAt,
+				LastUpdatedAt = x.UpdatedAt,
+				Status = x.Status
+			}).ToList();
+
+			var paged = new PaginatedResult<MyLearningCourseItemDto>(
+				pageIndex: pageIndexZeroBased,
+				pageSize: pageSize,
+				totalCount: totalCount,
+				data: dtoItems
+			);
+
+
+
+			response.Response = paged;
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy danh sách khóa đang học thành công.");
+
+			if (totalCount > 0 && !request.NoCache)
+			{
+				await _cache.StringSetAsync(cacheKey, SafeSerialize(response), TimeSpan.FromMinutes(2));
+			}
+
+			return response;
+
+		}
+
 		/// <summary>
 		/// Helpers
 		/// </summary>
@@ -633,6 +745,22 @@ namespace Course.Infrastructure.Implements
 		/// <param name="max"></param>
 		/// <returns></returns>
 		private static int ClampNonNeg(int value, int max) => Math.Clamp(value, 0, max);
+
+		// Helpers
+		private static T? SafeDeserialize<T>(string json)
+		{
+			try { return JsonSerializer.Deserialize<T>(json); }
+			catch { return default; }
+		}
+
+		private static string SafeSerialize<T>(T obj)
+		{
+			return JsonSerializer.Serialize(obj, new JsonSerializerOptions
+			{
+				PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+			});
+		}
 
 	}
 }

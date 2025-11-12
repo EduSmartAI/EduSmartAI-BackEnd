@@ -1,9 +1,12 @@
-﻿using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
+﻿using BuildingBlocks.Pagination;
+using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
+using Course.Application.UserLessonProgresses.Queries.GetMyLearningCourses;
 
 namespace Course.API.Controllers
 {
@@ -126,6 +129,24 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new GetDetailsProgressByCourseSlugForStudentResponse()
+			);
+		}
+
+		[HttpGet("in-progress-courses")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get my learning courses",
+			Description = "Retrieve a list of courses that the authenticated student is currently learning."
+		)]
+		public async Task<GetMyLearningCoursesResponse> GetMyLearningCoursesAsync(int? Page = 1, int? Size = 10, string? Search = null)
+		{
+			var query = new GetMyLearningCoursesQuery(Page, Size, Search);
+			return await ApiControllerHelper.HandleRequest<GetMyLearningCoursesQuery, GetMyLearningCoursesResponse, PaginatedResult<MyLearningCourseItemDto>>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetMyLearningCoursesResponse()
 			);
 		}
 	}

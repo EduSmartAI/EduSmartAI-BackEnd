@@ -273,4 +273,11 @@ public static class ConstantEnum
         Medium = 2,
         Hard = 3
     }
+
+	public enum CourseProgressStatus : short
+	{
+		NotStarted = 0,
+		InProgress = 1,
+		Completed = 2
+	}
 }
