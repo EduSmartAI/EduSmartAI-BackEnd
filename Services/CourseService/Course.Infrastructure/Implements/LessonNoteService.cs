@@ -89,6 +89,13 @@ namespace Course.Infrastructure.Implements
 			throw new NotImplementedException();
 		}
 
+		/// <summary>
+		/// Update Note
+		/// </summary>
+		/// <param name="noteId"></param>
+		/// <param name="content"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<UpdateNoteResponse> UpdateAsync(Guid noteId, string content, CancellationToken ct = default)
 		{
 			var response = new UpdateNoteResponse { Success = false };

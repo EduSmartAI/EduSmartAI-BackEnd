@@ -4,6 +4,7 @@ using Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseIdForStudents;
 using Course.Application.UserLessonProgresses.Queries.GetDetailsProgressByCourseSlugForStudents;
+using Course.Application.UserLessonProgresses.Queries.GetMyLearningCourses;
 
 namespace Course.Application.Interfaces
 {
@@ -18,6 +19,8 @@ namespace Course.Application.Interfaces
 		Task<GetDetailsProgressByCourseSlugForStudentResponse> GetCourseBySlugForStudentAsync(string courseSlug, CancellationToken ct = default);
 
 		Task<UpsertUserLessonProgressResponse> UpsertUserLessonProgressAsync(Guid lessonId, UpsertUserLessonProgressDto dto, CancellationToken ct = default);
+
+		Task<GetMyLearningCoursesResponse> GetMyLearningAsync(GetMyLearningCoursesQuery request, CancellationToken ct = default);
 
 	}
 }
