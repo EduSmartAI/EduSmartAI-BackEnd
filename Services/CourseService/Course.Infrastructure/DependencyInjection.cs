@@ -62,6 +62,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<CourseComment>, CommandRepository<CourseComment>>();
             services.AddScoped<ICommandRepository<ModuleDiscussionComment>, CommandRepository<ModuleDiscussionComment>>();
             services.AddScoped<ICommandRepository<ModuleDiscussion>, CommandRepository<ModuleDiscussion>>();
+            services.AddScoped<ICommandRepository<Note>, CommandRepository<Note>>();
 
 
             // Services
@@ -79,6 +80,7 @@ namespace Course.Infrastructure
             services.AddScoped<IWishlistService, WishlistService>();
             services.AddScoped<ICommentService, CommentService>();
             services.AddScoped<IModuleDiscussionCommentService, ModuleDiscussionCommentService>();
+            services.AddScoped<ILessonNoteService, LessonNoteService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
