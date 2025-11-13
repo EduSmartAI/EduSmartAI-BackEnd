@@ -1,6 +1,7 @@
-﻿using Course.API.Extensions;
+﻿using Microsoft.OpenApi;
+using PaymentService.API.Extensions;
 
-namespace Course.API
+namespace PaymentService.API
 {
 	public static class DependencyInjection
 	{
@@ -21,7 +22,7 @@ namespace Course.API
 		public static WebApplication UseApiServices(this WebApplication app)
 		{
 			// Configure the HTTP request pipeline here, e.g., app.UseSwagger(), app.UseAuthorization(), etc.
-			app.UsePathBase("/course");
+			app.UsePathBase("/payment");
 
 			app.UseExceptionHandler();
 
@@ -37,10 +38,10 @@ namespace Course.API
 
 			app.UseAuthorization();
 
-			app.UseSwagger();
+			app.UseSwagger(c => c.OpenApiVersion = OpenApiSpecVersion.OpenApi2_0);
 			app.UseSwaggerUI(settings =>
 			{
-				settings.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Service v1");
+				settings.SwaggerEndpoint("/swagger/v1/swagger.json", "Payment Service v1");
 				settings.RoutePrefix = "swagger";
 			});
 
