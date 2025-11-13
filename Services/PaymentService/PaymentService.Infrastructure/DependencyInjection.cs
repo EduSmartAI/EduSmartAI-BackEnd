@@ -10,7 +10,10 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using PaymentService.Application.Interfaces;
+using PaymentService.Domain.Models;
 using PaymentService.Infrastructure.Data;
+using PaymentService.Infrastructure.Implements;
 using StackExchange.Redis;
 
 namespace PaymentService.Infrastructure
@@ -37,10 +40,11 @@ namespace PaymentService.Infrastructure
 			services.AddScoped<IIdentityService, IdentityService>();
 
 			// Repositories
-
+			services.AddScoped<ICommandRepository<Cart>, CommandRepository<Cart>>();
+			services.AddScoped<ICommandRepository<CartItem>, CommandRepository<CartItem>>();
 
 			// Services
-
+			services.AddScoped<ICartService, CartService>();
 
 			// Helpers
 
