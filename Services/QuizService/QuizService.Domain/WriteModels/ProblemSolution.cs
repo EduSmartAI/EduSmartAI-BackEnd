@@ -3,19 +3,15 @@ using System.Collections.Generic;
 
 namespace QuizService.Domain.WriteModels;
 
-public partial class ProblemTemplate
+public partial class ProblemSolution
 {
-    public Guid TemplateId { get; set; }
+    public Guid SolutionId { get; set; }
 
     public Guid ProblemId { get; set; }
 
     public int LanguageId { get; set; }
 
-    public string TemplatePrefix { get; set; } = null!;
-
-    public string TemplateSuffix { get; set; } = null!;
-
-    public string UserStubCode { get; set; } = null!;
+    public string SolutionCode { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; }
 

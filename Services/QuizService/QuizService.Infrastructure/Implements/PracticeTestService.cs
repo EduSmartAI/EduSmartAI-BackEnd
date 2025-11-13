@@ -52,7 +52,7 @@ public class PracticeTestService
             // STEP 2: Get existing language IDs from database
             var existingLanguageIds = await codeLanguageRepository
                 .Find(predicate: x => x.IsActive, isTracking: false)
-                .Select(x => x.LanguageId)
+                .Select(x => x!.LanguageId)
                 .ToListAsync(cancellationToken);
             
             // STEP 3: Filter out languages that already exist in database
@@ -127,7 +127,7 @@ public class PracticeTestService
                 x => x.TestCases)
             .Select(x => new PracticeTestSelectResponseEntity
             {
-                ProblemId = x.ProblemId,
+                ProblemId = x!.ProblemId,
                 Title = x.Title,
                 Description = x.Description,
                 Difficulty = x.Difficulty,
@@ -156,7 +156,7 @@ public class PracticeTestService
 
         if (problem == null)
         {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+            response.SetMessage(MessageId.E00000, CommonMessages.NotFoundPracticeTestMessage);
             return response;
         }
 
@@ -187,9 +187,9 @@ public class PracticeTestService
             .ToListAsync(cancellationToken);
 
         // Group by difficulty level
-        var easyProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Easy), StringComparison.OrdinalIgnoreCase)).ToList();
-        var mediumProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Medium), StringComparison.OrdinalIgnoreCase)).ToList();
-        var hardProblems = allProblems.Where(p => p.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Hard), StringComparison.OrdinalIgnoreCase)).ToList();
+        var easyProblems = allProblems.Where(p => p!.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Easy), StringComparison.OrdinalIgnoreCase)).ToList();
+        var mediumProblems = allProblems.Where(p => p!.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Medium), StringComparison.OrdinalIgnoreCase)).ToList();
+        var hardProblems = allProblems.Where(p => p!.Difficulty.Equals(nameof(ConstantEnum.ProblemDifficultyLevel.Hard), StringComparison.OrdinalIgnoreCase)).ToList();
 
         // Validate that we have at least 1 problem of each difficulty
         if (!easyProblems.Any())
@@ -256,7 +256,7 @@ public class PracticeTestService
             .Find(predicate: x => x.IsActive, isTracking: false)
             .Select(x => new PracticeTestLanguageSelectsResponseEntity
             {
-                LanguageId = x.LanguageId,
+                LanguageId = x!.LanguageId,
                 Name = x.Name
             })
             .ToListAsync(cancellationToken: cancellationToken);
@@ -367,7 +367,7 @@ public class PracticeTestService
             long totalTimeMs = 0;
             var testResults = new List<SubmissionTestResultResponse>();
 
-            for (int i = 0; i < pollResults.Count; i++)
+            for (int i = 0; i < pollResults!.Count; i++)
             {
                 var result = pollResults[i];
                 var testCase = problem.TestCases.ToList()[i];
@@ -515,7 +515,7 @@ public class PracticeTestService
         long totalTimeMs = 0;
         var testResults = new List<SubmissionTestResultResponse>();
 
-        for (int i = 0; i < pollResults.Count; i++)
+        for (int i = 0; i < pollResults!.Count; i++)
         {
             var result = pollResults[i];
             var testCase = problem.TestCases.ToList()[i];
@@ -1032,7 +1032,8 @@ public class PracticeTestService
         var problem = await problemCommandRepository
             .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: true,
-                cancellationToken: cancellationToken)
+                cancellationToken: cancellationToken,
+                x => x.ProblemTemplates)
             .FirstOrDefaultAsync(cancellationToken);
         
         if (problem == null)
@@ -1160,7 +1161,8 @@ public class PracticeTestService
             .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: false,
                 cancellationToken: cancellationToken,
-                x => x.ProblemTemplates)
+                x => x.ProblemTemplates,
+                x => x.ProblemSolutions)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (problem == null)
@@ -1176,14 +1178,20 @@ public class PracticeTestService
             return response;
         }
 
-        // Prepare batch submission with multiple inputs
-        var fullSourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}";
-        
-        var batchRequest = new BatchSubmissionRequest
+        // Check if solution code exists
+        var problemSolution = problem.ProblemSolutions.FirstOrDefault(ps => ps.LanguageId == request.LanguageId && ps.IsActive);
+        if (problemSolution == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy solution code cho ngôn ngữ lập trình này");
+            return response;
+        }
+
+        // Run solution code to get expected outputs
+        var solutionBatchRequest = new BatchSubmissionRequest
         {
             Submissions = request.Inputs.Select(input => new SubmissionRequest
             {
-                SourceCode = fullSourceCode,
+                SourceCode = problemSolution.SolutionCode,
                 LanguageId = request.LanguageId,
                 Stdin = input,
                 CpuTimeLimit = 2.0,
@@ -1191,25 +1199,23 @@ public class PracticeTestService
             }).ToList()
         };
 
-        // Call Judge0 API to submit batch
-        var submissionResult = await judge0ApiLogic.SubmitBatchAsync(batchRequest);
-        var tokens = string.Join(",", submissionResult.Submissions.Select(s => s.Token));
+        // Submit solution code
+        var solutionSubmissionResult = await judge0ApiLogic.SubmitBatchAsync(solutionBatchRequest);
+        var solutionTokens = string.Join(",", solutionSubmissionResult.Submissions.Select(s => s.Token));
         
-        // Poll for results
-        List<SubmissionResult>? pollResults = null;
+        // Poll for solution results
+        List<SubmissionResult>? solutionResults = null;
         int maxRetries = 10;
         int retryCount = 0;
 
         do
         {
-            await Task.Delay(1000, cancellationToken);
-            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(tokens);
+            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(solutionTokens);
 
-            // Check all results are completed
             bool allCompleted = batchResult.All(s => s.Status.Id > (short)ConstantEnum.Judge0Status.Processing);
             if (allCompleted)
             {
-                pollResults = batchResult;
+                solutionResults = batchResult;
                 break;
             }
 
@@ -1217,51 +1223,108 @@ public class PracticeTestService
         }
         while (retryCount < maxRetries);
 
-        if (retryCount >= maxRetries || pollResults == null)
+        if (retryCount >= maxRetries || solutionResults == null)
         {
-            response.SetMessage(MessageId.E00000, "Timeout khi thực thi code");
+            response.SetMessage(MessageId.E00000, "Timeout khi thực thi solution code");
             return response;
         }
 
-        // Process results for each test case
+        // Check if solution code ran successfully
+        if (solutionResults.Any(r => r.Status.Id != (short) ConstantEnum.Judge0Status.Accepted))
+        {
+            response.SetMessage(MessageId.E00000, "Solution code không chạy thành công. Vui lòng liên hệ hệ thống kiểm tra lại solution code");
+            return response;
+        }
+
+        // Run student code with template
+         var fullStudentCode = $"{problemTemplate.TemplatePrefix}\n{request.SourceCode}\n{problemTemplate.TemplateSuffix}";
+        
+        var studentBatchRequest = new BatchSubmissionRequest
+        {
+            Submissions = request.Inputs.Select(input => new SubmissionRequest
+            {
+                SourceCode = fullStudentCode,
+                LanguageId = request.LanguageId,
+                Stdin = input,
+                CpuTimeLimit = 2.0,
+                MemoryLimit = 128000
+            }).ToList()
+        };
+
+        // Submit student code
+        var studentSubmissionResult = await judge0ApiLogic.SubmitBatchAsync(studentBatchRequest);
+        var studentTokens = string.Join(",", studentSubmissionResult.Submissions.Select(s => s.Token));
+        
+        // Poll for student results
+        List<SubmissionResult>? studentResults = null;
+        retryCount = 0;
+
+        do
+        {
+            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(studentTokens);
+
+            bool allCompleted = batchResult.All(s => s.Status.Id > (short)ConstantEnum.Judge0Status.Processing);
+            if (allCompleted)
+            {
+                studentResults = batchResult;
+                break;
+            }
+
+            retryCount++;
+        }
+        while (retryCount < maxRetries);
+
+        if (retryCount >= maxRetries || studentResults == null)
+        {
+            response.SetMessage(MessageId.E00000, "Timeout khi thực thi code của bạn");
+            return response;
+        }
+
+        // STEP 3: Compare outputs
         var testCaseResults = new List<TestCaseExecutionResult>();
         int passedCount = 0;
 
-        for (int i = 0; i < pollResults.Count; i++)
+        for (int i = 0; i < studentResults.Count; i++)
         {
-            var result = pollResults[i];
+            var studentResult = studentResults[i];
+            var expectedOutput = solutionResults[i].Stdout?.Trim() ?? string.Empty;
+            var actualOutput = studentResult.Stdout?.Trim() ?? string.Empty;
             var input = request.Inputs[i];
             
-            bool isPassed = result.Status.Id == (short)ConstantEnum.Judge0Status.Accepted;
+            // Check if student code has errors
+            bool hasError = studentResult.Status.Id != (short)ConstantEnum.Judge0Status.Accepted;
+            bool isPassed = !hasError && expectedOutput == actualOutput;
+            
             if (isPassed) passedCount++;
 
             testCaseResults.Add(new TestCaseExecutionResult
             {
                 TestCaseNumber = i + 1,
                 Input = input,
-                Status = result.Status.Description,
-                Output = result.Stdout ?? string.Empty,
-                Error = CleanErrorMessage(result.Stderr, result.CompileOutput),
-                ExecutionTime = result.Time,
-                Memory = result.Memory
+                ExpectedOutput = expectedOutput,
+                Status = isPassed ? "Passed" : (hasError ? studentResult.Status.Description : "Wrong Answer"),
+                Output = actualOutput,
+                Error = CleanErrorMessage(studentResult.Stderr, studentResult.CompileOutput),
+                ExecutionTime = studentResult.Time,
+                Memory = studentResult.Memory
             });
         }
 
         // Determine overall status
         string overallStatus;
-        if (passedCount == pollResults.Count)
+        if (passedCount == studentResults.Count)
         {
             overallStatus = "All Tests Passed";
         }
         else if (passedCount == 0)
         {
-            overallStatus = pollResults.Any(r => r.Status.Id == (short)ConstantEnum.Judge0Status.CompilationError)
+            overallStatus = studentResults.Any(r => r.Status.Id == (short)ConstantEnum.Judge0Status.CompilationError)
                 ? "Compilation Error"
                 : "All Tests Failed";
         }
         else
         {
-            overallStatus = $"Partially Passed ({passedCount}/{pollResults.Count})";
+            overallStatus = $"Partially Passed ({passedCount}/{studentResults.Count})";
         }
 
         // Build response
@@ -1269,7 +1332,7 @@ public class PracticeTestService
         response.Response = new PracticeTestCodeCheckResponseEntity
         {
             OverallStatus = overallStatus,
-            TotalTests = pollResults.Count,
+            TotalTests = studentResults.Count,
             PassedTests = passedCount,
             TestCaseResults = testCaseResults
         };
