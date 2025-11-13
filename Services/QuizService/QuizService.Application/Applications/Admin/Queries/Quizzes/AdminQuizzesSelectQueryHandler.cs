@@ -33,7 +33,7 @@ public class AdminQuizzesSelectQueryHandler : IQueryHandler<AdminQuizzesSelectQu
         }
 
         // Filter by SubjectCode if provided (for Placement Test/Quiz)
-        if (!request.SubjectCode.HasValue)
+        if (request.SubjectCode.HasValue)
         {
             query = query.Where(q => q.PlacementTestQuizSetting != null && q.PlacementTestQuizSetting.SubjectCode == request.SubjectCode).ToList();
         }
