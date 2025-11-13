@@ -35,6 +35,7 @@ public class PracticeTestAdminProblemTemplateUpdateRequest
     public string UserTemplateSuffix { get; set; } = null!;
     
     public string UserStubCode { get; set; } = null!;
+
 }
 
 public class PracticeTestAdminProblemExampleUpdateRequest

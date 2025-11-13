@@ -18,7 +18,7 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<CodeLanguage> CodeLanguages { get; set; }
 
     public virtual DbSet<CourseQuizSetting> CourseQuizSettings { get; set; }
-
+    
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<PlacementTestQuizSetting> PlacementTestQuizSettings { get; set; }
@@ -26,6 +26,8 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<Problem> Problems { get; set; }
 
     public virtual DbSet<ProblemExample> ProblemExamples { get; set; }
+
+    public virtual DbSet<ProblemSolution> ProblemSolutions { get; set; }
 
     public virtual DbSet<ProblemTemplate> ProblemTemplates { get; set; }
 
@@ -52,11 +54,7 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<Test> Tests { get; set; }
 
     public virtual DbSet<TestCase> TestCases { get; set; }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-#warning To protect potentially sensitive information in your connection string, you should move it out of source code. You can avoid scaffolding the connection string by using the Name= syntax to read it from configuration - see https://go.microsoft.com/fwlink/?linkid=2131148. For more guidance on storing connection strings, see https://go.microsoft.com/fwlink/?LinkId=723263.
-        => optionsBuilder.UseNpgsql("Server=157.66.25.29;Database=QuizServiceDB;User Id=edusmart;Password=Edusmart@123;TrustServerCertificate=True;");
-
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -312,6 +310,37 @@ public partial class QuizServiceContext : AppDbContext
                 .HasForeignKey(d => d.ProblemId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("problem_examples_problem_id_fkey");
+        });
+
+        modelBuilder.Entity<ProblemSolution>(entity =>
+        {
+            entity.HasKey(e => e.SolutionId).HasName("problem_solutions_pkey");
+
+            entity.ToTable("problem_solutions");
+
+            entity.Property(e => e.SolutionId)
+                .HasDefaultValueSql("gen_random_uuid()")
+                .HasColumnName("solution_id");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.LanguageId).HasColumnName("language_id");
+            entity.Property(e => e.ProblemId).HasColumnName("problem_id");
+            entity.Property(e => e.SolutionCode).HasColumnName("solution_code");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+
+            entity.HasOne(d => d.Language).WithMany(p => p.ProblemSolutions)
+                .HasForeignKey(d => d.LanguageId)
+                .HasConstraintName("problem_solutions_language_id_fkey");
+
+            entity.HasOne(d => d.Problem).WithMany(p => p.ProblemSolutions)
+                .HasForeignKey(d => d.ProblemId)
+                .HasConstraintName("problem_solutions_problem_id_fkey");
         });
 
         modelBuilder.Entity<ProblemTemplate>(entity =>
