@@ -7,6 +7,7 @@ using OpenIddict.Validation.AspNetCore;
 using PaymentService.Application.Applications.Carts.Commands.AddToCart;
 using PaymentService.Application.Applications.Carts.Commands.RemoveCart;
 using PaymentService.Application.Applications.Carts.Commands.UpdateCart;
+using PaymentService.Application.Applications.Carts.Queries.CheckCourseInMyCart;
 using PaymentService.Application.Applications.Carts.Queries.GetMyCart;
 using PaymentService.Application.DTOs.Carts;
 using Swashbuckle.AspNetCore.Annotations;
@@ -110,6 +111,21 @@ namespace PaymentService.API.Controllers
 				async () => await sender.Send(request),
 				new RemoveCartItemResponse()
 			);
+		}
+
+		[HttpGet("items/check")]
+		public async Task<CheckCourseInCartResponse> CheckCourseInMyCart([FromQuery] Guid courseId)
+		{
+			var request = new CheckCourseInMyCartQuery(courseId);
+
+			return await ApiControllerHelper
+				.HandleRequest<CheckCourseInMyCartQuery, CheckCourseInCartResponse, CheckCourseInCartDto>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new CheckCourseInCartResponse()
+				);
 		}
 	}
 

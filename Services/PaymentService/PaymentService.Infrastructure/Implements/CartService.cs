@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Carts.Commands.AddToCart;
 using PaymentService.Application.Applications.Carts.Commands.RemoveCart;
 using PaymentService.Application.Applications.Carts.Commands.UpdateCart;
+using PaymentService.Application.Applications.Carts.Queries.CheckCourseInMyCart;
 using PaymentService.Application.Applications.Carts.Queries.GetMyCart;
 using PaymentService.Application.DTOs.Carts;
 using PaymentService.Application.Interfaces;
@@ -115,6 +116,65 @@ namespace PaymentService.Infrastructure.Implements
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Thêm khóa học vào giỏ hàng");
 
+			return response;
+		}
+
+		/// <summary>
+		/// Check course in my cart
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CheckCourseInCartResponse> CheckCourseInMyCartAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new CheckCourseInCartResponse { Success = false };
+
+			var currentUser = _identityService.GetCurrentUser();
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			// Lấy cart Active của user
+			var cart = await _cartRepository
+				.Find(x => x.UserId == currentUser.UserId &&
+						   x.Status == (short)CartStatus.Active,
+					isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (cart is null)
+			{
+				// Không có cart -> chắc chắn chưa có trong cart
+				response.Success = true;
+				response.Response = new CheckCourseInCartDto
+				{
+					IsInCart = false,
+					CartId = null,
+					CartItemId = null
+				};
+				response.SetMessage(MessageId.I00001, "Giỏ hàng trống");
+				return response;
+			}
+
+			var cartItem = await _cartItemRepository
+				.Find(x => x.CartId == cart.CartId &&
+						   x.CourseId == courseId &&
+						   x.Status == (short)CartItemStatus.Active,
+					isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			var isInCart = cartItem is not null;
+
+			response.Success = true;
+			response.Response = new CheckCourseInCartDto
+			{
+				IsInCart = isInCart,
+				CartId = isInCart ? cart.CartId : null,
+				CartItemId = isInCart ? cartItem!.CartItemId : null
+			};
+
+			response.SetMessage(MessageId.I00001, "Kiểm tra khóa học trong giỏ hàng");
 			return response;
 		}
 
