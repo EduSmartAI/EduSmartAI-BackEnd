@@ -274,10 +274,80 @@ public static class ConstantEnum
         Hard = 3
     }
 
-	public enum CourseProgressStatus : short
-	{
-		NotStarted = 0,
-		InProgress = 1,
-		Completed = 2
-	}
+    public enum CourseProgressStatus : short
+    {
+        NotStarted = 0,
+        InProgress = 1,
+        Completed = 2
+    }
+
+    public enum CartStatus : short
+    {
+        /// <summary>
+        /// Cart dang hoat dong, user co the them/xoa item.
+        /// </summary>
+        Active = 0,
+
+        /// <summary>
+        /// Mot phan hoac toan bo cart da duoc chuyen thanh order.
+        /// </summary>
+        ConvertedToOrder = 1,
+
+        /// <summary>
+        /// User khong su dung cart nua hoac qua lau khong tuong tac.
+        /// </summary>
+        Abandoned = 2
+    }
+
+    public enum CartItemStatus : short
+    {
+        /// <summary>
+        /// Item dang nam trong cart va co the checkout.
+        /// </summary>
+        Active = 0,
+
+        /// <summary>
+        /// User xoa item khoi cart (soft delete).
+        /// </summary>
+        Removed = 1,
+
+        /// <summary>
+        /// Item da duoc thanh toan va chuyen thanh order item.
+        /// </summary>
+        Purchased = 2
+    }
+
+    public enum OrderStatus : short
+    {
+        /// <summary>
+        /// Order moi duoc tao, chua gui sang cong thanh toan.
+        /// </summary>
+        Pending = 0,
+
+        /// <summary>
+        /// Da tao payment transaction va redirect sang gateway.
+        /// </summary>
+        WaitingForPayment = 1,
+
+        /// <summary>
+        /// Thanh toan thanh cong, da nhan callback xac thuc.
+        /// </summary>
+        Paid = 2,
+
+        /// <summary>
+        /// Order bi user huy hoac timeout truoc khi thanh toan.
+        /// </summary>
+        Cancelled = 3,
+
+        /// <summary>
+        /// Thanh toan that bai (gateway tra ve error hoac verify signature fail).
+        /// </summary>
+        Failed = 4,
+
+        /// <summary>
+        /// Order da duoc hoan tien (full hoac partial).
+        /// </summary>
+        Refunded = 5
+    }
+
 }
