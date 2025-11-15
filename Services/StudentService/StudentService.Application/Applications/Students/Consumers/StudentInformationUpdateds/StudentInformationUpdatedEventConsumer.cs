@@ -20,14 +20,18 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             student.SemesterId = message.Student.SemesterId;
             student.SemesterName = message.Student.SemesterName;
             
-            // Update Learning Goal - always replace with latest from event
+            // Update Learning Goal - if not exist, add new list
             if (message.StudentLearningGoal != null)
             {
-                student.LearningGoals = new List<StudentLearningGoalCollection> { message.StudentLearningGoal };
-            }
-            else
-            {
-                student.LearningGoals = new List<StudentLearningGoalCollection>();
+                var learningGoalExist = student.LearningGoals?.Any(x => x.GoalId == message.StudentLearningGoal.GoalId);
+                if (learningGoalExist != true)
+                {
+                    if (student.LearningGoals == null)
+                    {
+                        student.LearningGoals = new List<StudentLearningGoalCollection>();
+                    }
+                    student.LearningGoals.Add(message.StudentLearningGoal);
+                }
             }
             
             // Update Technologies - always replace with latest from event

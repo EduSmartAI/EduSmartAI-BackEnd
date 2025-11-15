@@ -30,6 +30,9 @@ public class IdentityService(IHttpContextAccessor httpContextAccessor) : IIdenti
         // Get the role
         var role = identity.FindFirst(OpenIddictConstants.Claims.Role)?.Value;
         
+        // Get avatar url
+        var avatarUrl = identity.FindFirst(OpenIddictConstants.Claims.Picture)?.Value;
+        
         // Create IdentityEntity
         var identityEntity = new IdentityEntity
         {
@@ -37,6 +40,7 @@ public class IdentityService(IHttpContextAccessor httpContextAccessor) : IIdenti
             Email = email,
             FullName = name!,
             RoleName = role!,
+            AvatarUrl = avatarUrl
         };
         return identityEntity;
     }

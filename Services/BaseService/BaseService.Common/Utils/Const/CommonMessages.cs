@@ -6,7 +6,7 @@ public class CommonMessages
     
     public const string ECourseNotFound = "Không tìm thấy khóa học";
 
-    public const string EStudentNotFound = "Không tìm thấy sinh viên";
+    public const string EStudentNotFound = "Không tìm thấy thông tin sinh viên";
     
     public const string UserNotFound = "Không tìm thấy người dùng";
     

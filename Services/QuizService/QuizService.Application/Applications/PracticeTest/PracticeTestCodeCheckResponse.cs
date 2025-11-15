@@ -19,6 +19,8 @@ public class TestCaseExecutionResult
 {
     public int TestCaseNumber { get; set; }
     public string Input { get; set; } = null!;
+    
+    public string? ExpectedOutput { get; set; }
     public string Status { get; set; } = null!;
     public string Output { get; set; } = null!;
     public string? Error { get; set; }
