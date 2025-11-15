@@ -92,7 +92,8 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
                     UserId: account.AccountId,
                     FullName: $"{teacherMsg.FirstName} {teacherMsg.LastName}",
                     Email: account.Email,
-                    RoleName: roleName
+                    RoleName: roleName,
+                    AvatarUrl: teacherMsg.AvatarUrl
                 );
             }
             else if (roleName == nameof(ConstantEnum.UserRole.Student))
@@ -112,7 +113,8 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
                     UserId: account.AccountId,
                     FullName: $"{studentMsg.FirstName} {studentMsg.LastName}",
                     Email: account.Email,
-                    RoleName: roleName
+                    RoleName: roleName,
+                    AvatarUrl: studentMsg.AvatarUrl
                 );
             }
             else if (roleName == nameof(ConstantEnum.UserRole.Admin))
@@ -127,7 +129,8 @@ public class UserLoginCommandHandler : ICommandHandler<UserLoginCommand, UserLog
                     UserId: account.AccountId,
                     FullName: adminAccount.FullName,
                     Email: account.Email,
-                    RoleName: roleName
+                    RoleName: roleName,
+                    AvatarUrl: null
                 );
             }
             else
