@@ -106,4 +106,26 @@ public class StudentController(IIdentityService identityService, IMediator media
             new StudentTranscriptSelectResponse()
         );
     }
+    
+    /// <summary>
+    /// Select student technologies and learning goals
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Hiển thị công nghệ và mục tiêu học tập của sinh viên", Description = "Cần cấp quyền Student")]
+    public async Task<StudentTechnologyGoalSelectResponse> SelectStudentTechnologyGoal()
+    {
+        var request = new StudentTechnologyGoalSelectQuery();
+        return await ApiControllerHelper.HandleRequest<StudentTechnologyGoalSelectQuery, StudentTechnologyGoalSelectResponse, StudentTechnologyGoalSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new StudentTechnologyGoalSelectResponse()
+        );
+    }
 }

@@ -170,7 +170,7 @@ public class StudentService : IStudentService
             .FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive, cancellationToken);
         if (studentExist == null)
         {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin sinh viên");
+            response.SetMessage(MessageId.E00000, CommonMessages.EStudentNotFound);
             return response;
         }
 
@@ -218,8 +218,8 @@ public class StudentService : IStudentService
                 .ToListAsync(cancellationToken: cancellationToken);
 
             var existingTechIds = allExistingStudentTechnologies
-                .Where(st => st.IsActive)
-                .Select(st => st.TechnologyId)
+                .Where(st => st is { IsActive: true })
+                .Select(st => st!.TechnologyId)
                 .ToList();
             
             // Technologies to add (in request but not in database or inactive)
@@ -235,7 +235,7 @@ public class StudentService : IStudentService
                 {
                     // Check if it exists but inactive
                     var inactiveTech = allExistingStudentTechnologies
-                        .FirstOrDefault(st => st.TechnologyId == techId && !st.IsActive);
+                        .FirstOrDefault(st => st != null && st.TechnologyId == techId && !st.IsActive);
                     
                     if (inactiveTech != null)
                     {
@@ -259,12 +259,12 @@ public class StudentService : IStudentService
             if (techIdsToDelete.Any())
             {
                 var techsToDelete = allExistingStudentTechnologies
-                    .Where(st => techIdsToDelete.Contains(st.TechnologyId) && st.IsActive)
+                    .Where(st => st != null && techIdsToDelete.Contains(st.TechnologyId) && st.IsActive)
                     .ToList();
                 
                 foreach (var tech in techsToDelete)
                 {
-                    _studentTechnologyRepository.Update(tech);
+                    if (tech != null) _studentTechnologyRepository.Update(tech);
                 }
                 
                 await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken, needLogicalDelete: true);
@@ -279,35 +279,21 @@ public class StudentService : IStudentService
             var studentTechnologyCollections = updatedStudentTechnologies.Select(studentTech =>
             {
                 var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == studentTech.TechnologyId);
-                return StudentTechnologyCollection.FromWriteModel(studentTech, tech);
+                return StudentTechnologyCollection.FromWriteModel(studentTech!, tech);
             }).ToList();
             
-            // Get all existing learning goals
+            // Get all existing learning goals (including inactive ones)
             var allExistingLearningGoals = await _studentLearningGoalRepository
                 .Find(slg => slg.StudentId == request.StudentId)
                 .ToListAsync(cancellationToken: cancellationToken);
             
-            // Soft delete all learning goals not matching request
-            var goalsToDelete = allExistingLearningGoals
-                .Where(slg => slg.GoalId != request.LearningGoalId && slg.IsActive)
-                .ToList();
-            
-            if (goalsToDelete.Any())
-            {
-                foreach (var goal in goalsToDelete)
-                {
-                    _studentLearningGoalRepository.Update(goal);
-                }
-                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken, needLogicalDelete: true);
-            }
-            
-            // Add or reactivate the requested learning goal
+            // Check if the requested learning goal exists
             var studentLearningGoalExist = allExistingLearningGoals
                 .FirstOrDefault(slg => slg.GoalId == request.LearningGoalId);
             
             if (studentLearningGoalExist == null)
             {
-                // Insert new learning goal
+                // Insert new learning goal if it doesn't exist
                 studentLearningGoalExist = new StudentLearningGoal
                 {
                     StudentId = request.StudentId,
@@ -317,7 +303,7 @@ public class StudentService : IStudentService
             }
             else if (!studentLearningGoalExist.IsActive)
             {
-                // Reactivate
+                // Reactivate if it exists but is inactive
                 _studentLearningGoalRepository.Update(studentLearningGoalExist);
             }
             
@@ -378,9 +364,7 @@ public class StudentService : IStudentService
 
         var studentInfo = new StudentInformationSelectsEventResponseEntity
         {
-            SemesterId = studentCollection!.SemesterId ?? Guid.Empty,
-            LearningGoalName = studentCollection.LearningGoals!.Select(x => x.Goal!.GoalName).FirstOrDefault()!,
-            LearningGoalType = studentCollection.LearningGoals!.Select(x => x.Goal!.LearningGoalType).FirstOrDefault(),
+            SemesterId = studentCollection!.SemesterId ?? Guid.Empty, 
             Technologies = studentTechnologiesCollections.Select(x => new StudentTechnologySelectsEventResponseEntity
             {
                 TechnologyName = x.Technology.TechnologyName,
@@ -794,7 +778,7 @@ public class StudentService : IStudentService
                     continue;
 
                 // If SemesterNumber is not a valid integer, skip the row
-                if (!int.TryParse(row[1]?.ToString(), out int semesterNumber))
+                if (!int.TryParse(row[1]?.ToString(), out _))
                     continue;
                 
                 var subject = new StudentTranscript
@@ -883,6 +867,70 @@ public class StudentService : IStudentService
         response.Success = true;
         response.Response = transcriptItems;
         response.SetMessage(MessageId.I00001, "Lấy bảng điểm");
+        return response;
+    }
+
+    /// <summary>
+    /// Select student technologies and learning goals
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentTechnologyGoalSelectResponse> SelectStudentTechnologyGoalAsync(StudentTechnologyGoalSelectQuery request, CancellationToken cancellationToken)
+    {
+        var response = new StudentTechnologyGoalSelectResponse { Success = false };
+        
+        var currentUser = _identityService.GetCurrentUser();
+        if (currentUser == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
+            return response;
+        }
+
+        // Get student collection with technologies and learning goals
+        var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x =>
+            x.StudentId == currentUser.UserId && x.IsActive);
+        if (studentCollection == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin sinh viên");
+            return response;
+        }
+        
+        // Map technologies
+        var technologies = studentCollection.Technologies?.Select(t => new StudentTechnologyItem
+        {
+            TechnologyId = t.TechnologyId,
+            TechnologyName = t.Technology.TechnologyName,
+            TechnologyType = t.Technology.TechnologyType,
+            TechnologyTypeName = GetTechnologyTypeName(t.Technology.TechnologyType)
+        }).ToList() ?? new List<StudentTechnologyItem>();
+        
+        // Map learning goals
+        var learningGoals = studentCollection.LearningGoals?.Select(lg => new StudentLearningGoalItem
+        {
+            GoalId = lg.GoalId,
+            GoalName = lg.Goal!.GoalName,
+            LearningGoalType = lg.Goal.LearningGoalType,
+            LearningGoalTypeName = GetLearningGoalTypeName(lg.Goal.LearningGoalType)
+        }).ToList() ?? new List<StudentLearningGoalItem>();
+
+        response.Success = true;
+        response.Response = new StudentTechnologyGoalSelectResponseEntity
+        {
+            Semester = new SemesterItem
+            {
+                SemesterId = studentCollection.SemesterId,
+                SemesterName = studentCollection.SemesterName
+            },
+            Major = new MajorItem
+            {
+                MajorId = studentCollection.MajorId,
+                MajorName = studentCollection.MajorName
+            },
+            Technologies = technologies,
+            LearningGoals = learningGoals
+        };
+        response.SetMessage(MessageId.I00001, "Lấy thông tin công nghệ và mục tiêu học tập");
         return response;
     }
 

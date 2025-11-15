@@ -21,4 +21,6 @@ public interface IStudentService
     Task<StudentTranscriptInsertResponse> InsertStudentTranscriptAsync(StudentTranscriptInsertCommand request, CancellationToken cancellationToken);
     
     Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken);
+    
+    Task<StudentTechnologyGoalSelectResponse> SelectStudentTechnologyGoalAsync(StudentTechnologyGoalSelectQuery request, CancellationToken cancellationToken);
 }

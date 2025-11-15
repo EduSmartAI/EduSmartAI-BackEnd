@@ -1,4 +1,5 @@
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.AuthService.UserLoginEvents;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 
 namespace StudentService.Application.Applications.Students.Queries.Logins;
