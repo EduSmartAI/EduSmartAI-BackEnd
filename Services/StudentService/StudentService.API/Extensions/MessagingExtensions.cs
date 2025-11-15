@@ -55,6 +55,7 @@ public static class MessagingExtensions
             x.AddConsumer<InsertAiFeedbackOverViewConsumer>();
             x.AddConsumer<GetModuleProgressEventsConsumer>();
             x.AddConsumer<UpdateModuleFeedbackEventConsumer>();
+            x.AddConsumer<CourseCompletedEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
