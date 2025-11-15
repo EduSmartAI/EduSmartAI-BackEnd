@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+﻿using BuildingBlocks.Messaging.Events.CourseService;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
@@ -24,6 +25,7 @@ namespace Course.Infrastructure.Implements
 		IUnitOfWork unitOfWork,
 		ICommandRepository<CourseEntity> _courseRepository,
 		ICommandRepository<Lesson> _lessonRepository,
+		ICommandRepository<Module> _moduleRepository,
 		ICommandRepository<CourseStudentEnrollment> _enrollmentRepository,
 		IQueryRepository<CourseStudentEnrollmentCollection> _enrollmentQueryRepository,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
@@ -31,6 +33,7 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<UserLessonProgress> _userLessonProgress,
 		ICommandRepository<UserModuleProgress> _userModuleProgressQuery,
 		ICommandRepository<UserCourseProgress> _userCourseProgressQuery,
+		IPublishEndpoint _publishEndpoint,
 		ICourseCache _courseCache,
 		ICourseMapper _courseMapper,
 		IQuizGateway _quizGateway) : IStudentProgressService
@@ -489,6 +492,19 @@ namespace Course.Infrastructure.Implements
 				response.SetMessage(MessageId.E00000, $"Không tìm thấy bài học {lessonId}");
 				return response;
 			}
+
+			var module = await _moduleRepository
+				.Find(x => x.ModuleId == lesson.ModuleId && x.IsActive, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (module is null)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy module cho bài học {lessonId}");
+				return response;
+			}
+
+			var courseId = module.CourseId;
+
 			var videoMax = lesson.VideoDurationSec ?? int.MaxValue;
 
 			// 2) Tìm progress hiện có
@@ -538,6 +554,8 @@ namespace Course.Infrastructure.Implements
 
 				await _courseCache.ClearCourseDetailForStudentCacheAsync();
 
+				await TryPublishCourseCompletedEventAsync(userId, courseId, ct);
+
 				var result = new UserLessonProgressEntity(
 					progress.LessonId,
 					progress.Status,
@@ -574,6 +592,8 @@ namespace Course.Infrastructure.Implements
 				}, ct);
 
 				await _courseCache.ClearCourseDetailForStudentCacheAsync();
+
+				await TryPublishCourseCompletedEventAsync(userId, courseId, ct);
 
 				var result = new UserLessonProgressEntity(
 					progress.LessonId,
@@ -615,6 +635,8 @@ namespace Course.Infrastructure.Implements
 			}, ct);
 
 			await _courseCache.ClearCourseDetailForStudentCacheAsync();
+
+			await TryPublishCourseCompletedEventAsync(userId, courseId, ct);
 
 			var updated = new UserLessonProgressEntity(
 				progress.LessonId,
@@ -755,6 +777,32 @@ namespace Course.Infrastructure.Implements
 				DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
 			});
 		}
+
+		private async Task TryPublishCourseCompletedEventAsync(Guid userId, Guid courseId, CancellationToken ct = default)
+		{
+			// Đọc user_course_progress sau khi trigger đã xử lý
+			var courseProgress = await _userCourseProgressQuery
+				.Find(x => x.UserId == userId && x.CourseId == courseId, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (courseProgress is null)
+				return;
+
+			// Chỉ quan tâm khi đã Completed
+			if (courseProgress.Status != (short)CourseProgressStatus.Completed)
+				return;
+
+			var evt = new CourseCompletedEvent
+			{
+				UserId = userId,
+				CourseId = courseId,
+				CompletedAt = courseProgress.CompletedAt ?? DateTime.UtcNow
+			};
+
+			// Fire-and-forget event sang LearningPath Service
+			await _publishEndpoint.Publish(evt, ct);
+		}
+
 		#endregion
 
 	}

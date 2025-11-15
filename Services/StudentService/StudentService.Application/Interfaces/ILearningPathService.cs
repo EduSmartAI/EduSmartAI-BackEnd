@@ -34,4 +34,6 @@ public interface ILearningPathService
     Task<LearningPathCourseUpdateResponse> UpdateLearningPathCoursesAsync(LearningPathCourseUpdateCommand request, CancellationToken cancellationToken);
     
     Task<UpdateCourseStatusToSkippedResponse> UpdateCourseStatusToSkippedAsync(UpdateCourseStatusToSkippedCommand request, CancellationToken cancellationToken);
+
+	Task UpdateCourseStatusForUserAsync(Guid userId, Guid courseId, short status, CancellationToken cancellationToken = default);
 }
