@@ -39,6 +39,7 @@ namespace Course.Infrastructure.Implements
 			{
 				response.Success = true;
 				response.Response = cached;
+				response.SetMessage(MessageId.I00001, "Lấy chuỗi thảo luận (cache)");
 				return response;
 			}
 
@@ -150,6 +151,7 @@ namespace Course.Infrastructure.Implements
 
 			response.Success = true;
 			response.Response = result;
+			response.SetMessage(MessageId.I00001, "Lấy chuỗi thảo luận");
 			return response;
 		}
 

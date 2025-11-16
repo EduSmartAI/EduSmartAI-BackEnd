@@ -8,22 +8,16 @@ using TeacherService.Domain.WriteModels;
 
 namespace TeacherService.Infrastructure.Implements;
 
-public class TeacherService : ITeacherService
+public class TeacherService(
+	IUnitOfWork _unitOfWork,
+	ICommandRepository<Teacher> _teacherCommandRepository,
+    ICommandRepository<TeacherCertificate> _teacherCertificateCommandRepository,
+    ICommandRepository<TeacherExperience> _teacherExperienceCommandRepository,
+    ICommandRepository<TeacherQualification> _teacherQualificationCommandRepository,
+	IQueryRepository<TeacherCollection> _teacherQueryRepository
+)
+: ITeacherService
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ICommandRepository<Teacher> _teacherCommandRepository;
-    private readonly IQueryRepository<TeacherCollection> _teacherQueryRepository;
-
-    public TeacherService(
-        IUnitOfWork unitOfWork, 
-        ICommandRepository<Teacher> teacherCommandRepository, 
-        IQueryRepository<TeacherCollection> teacherQueryRepository)
-    {
-        _unitOfWork = unitOfWork;
-        _teacherCommandRepository = teacherCommandRepository;
-        _teacherQueryRepository = teacherQueryRepository;
-    }
-
     /// <summary>
     /// Insert new teacher
     /// </summary>
@@ -94,5 +88,4 @@ public class TeacherService : ITeacherService
         
         return response;
     }
-
 }

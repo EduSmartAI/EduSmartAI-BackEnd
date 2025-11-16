@@ -1,8 +1,10 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
+﻿using BaseService.Application.Interfaces.Commons;
+using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
+using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
 using JasperFx;
 using Marten;
@@ -44,6 +46,7 @@ namespace PaymentService.Infrastructure
 			services.AddScoped<ICommandRepository<CartItem>, CommandRepository<CartItem>>();
 
 			// Services
+			services.AddScoped<ICommonLogic, CommonLogic>();
 			services.AddScoped<ICartService, CartService>();
 
 			// Helpers
