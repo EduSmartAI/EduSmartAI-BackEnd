@@ -15,8 +15,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="ModuleDiscussions\Commands\" />
-    <Folder Include="ModuleDiscussions\Queries\" />
     <Folder Include="UserLessonProgresses\Consumers\" />
   </ItemGroup>
 
