@@ -2,9 +2,9 @@
 {
 	public class GetDiscussionThreadHandler(IModuleDiscussionCommentService _moduleDiscussionCommentService) : IQueryHandler<GetDiscussionThreadQuery, GetDiscussionThreadResponse>
 	{
-		public Task<GetDiscussionThreadResponse> Handle(GetDiscussionThreadQuery request, CancellationToken cancellationToken)
+		public async Task<GetDiscussionThreadResponse> Handle(GetDiscussionThreadQuery request, CancellationToken cancellationToken)
 		{
-			throw new NotImplementedException();
+			return await _moduleDiscussionCommentService.GetThreadAsync(request.ModuleId, request.Page, request.Size, cancellationToken);
 		}
 	}
 }
