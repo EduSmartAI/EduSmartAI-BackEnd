@@ -289,6 +289,7 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
 				.Include(x => x.CourseWishlists.Where(cw => cw.IsActive))
+				.Include(x => x.CourseStudentEnrollments.Where(cse => cse.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
@@ -305,6 +306,7 @@ namespace Course.Infrastructure.Implements
 			if (user is not null)
 			{
 				detail.IsWishlist = entity.CourseWishlists.Any(cw => cw.UserId == user.UserId && cw.IsActive);
+				detail.IsEnrolled = entity.CourseStudentEnrollments.Any(cse => cse.UserId == user.UserId && cse.CourseId == Id && cse.IsActive);
 			}
 
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
