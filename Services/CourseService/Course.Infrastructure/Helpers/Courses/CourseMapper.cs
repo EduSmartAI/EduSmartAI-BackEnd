@@ -538,7 +538,8 @@ namespace Course.Infrastructure.Helpers.Courses
 				t.TagId,
 				t.Tag?.TagName ?? string.Empty
 			)).ToList(),
-			IsWishlist: false
+			IsWishlist: false,
+			IsEnrolled: false
 		);
 
 		/// <summary>
