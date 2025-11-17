@@ -32,6 +32,7 @@ namespace Course.Application.DTOs.CoursesDTO
 		public int RatingsCount { get; set; }
 		public double RatingsAverage { get; set; }
 		public bool IsWishlist { get; set; }
+		public bool IsEnrolled { get; set; }
 	}
 
 }

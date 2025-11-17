@@ -119,7 +119,8 @@ namespace Course.Infrastructure.Helpers.Courses
 				Ratings = ratings,
 				RatingsCount = ratingsCount,
 				RatingsAverage = ratingsAverage,
-				IsWishlist = false // sẽ được gán lại theo user khi có token
+				IsWishlist = false, // sẽ được gán lại theo user khi có token,
+				IsEnrolled = false // sẽ được gán lại theo user khi có token
 			};
 		}
 
@@ -538,7 +539,8 @@ namespace Course.Infrastructure.Helpers.Courses
 				t.TagId,
 				t.Tag?.TagName ?? string.Empty
 			)).ToList(),
-			IsWishlist: false
+			IsWishlist: false,
+			IsEnrolled: false
 		);
 
 		/// <summary>

@@ -20,7 +20,8 @@
 		DateTime CreatedAt,
 		DateTime UpdatedAt,
 		List<CourseTagDto> Tags,
-		bool IsWishlist
+		bool IsWishlist,
+		bool IsEnrolled
 	);
 
 }

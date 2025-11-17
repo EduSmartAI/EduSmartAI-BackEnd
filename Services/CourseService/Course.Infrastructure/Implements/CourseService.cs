@@ -39,7 +39,8 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<Semester> _semesterRepository,
 		ICommandRepository<VMajorSemesterSubjectCourses> _viewCourseRepo,
 		IQuizEventFactory _quizEventFactory,
-		ICommandRepository<CourseWishlist> _courseWishlistRepository) : ICourseService
+		ICommandRepository<CourseWishlist> _courseWishlistRepository,
+		ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository) : ICourseService
 	{
 		#region Service for Lecture & Guest
 
@@ -207,6 +208,18 @@ namespace Course.Infrastructure.Implements
 				items = items
 					.Select(d => wishIds.Contains(d.CourseId) ? d with { IsWishlist = true } : d)
 					.ToList();
+
+				// Kiểm tra tiếp IsEnrolled
+				var isEnrolledIds = await _courseStudentEnrollmentCommandRepository
+					.Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
+						  isTracking: false, ct)
+					.Select(x => x.CourseId)
+					.ToListAsync(ct);
+
+				// Cập nhật IsEnrolled cho items
+				items = items
+					.Select(d => isEnrolledIds.Contains(d.CourseId) ? d with { IsEnrolled = true } : d)
+					.ToList();
 			}
 
 			var resultGuest = new PaginatedResult<CourseDto>(
@@ -276,6 +289,7 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
 				.Include(x => x.CourseRatings)
 				.Include(x => x.CourseWishlists.Where(cw => cw.IsActive))
+				.Include(x => x.CourseStudentEnrollments.Where(cse => cse.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
 
@@ -292,6 +306,7 @@ namespace Course.Infrastructure.Implements
 			if (user is not null)
 			{
 				detail.IsWishlist = entity.CourseWishlists.Any(cw => cw.UserId == user.UserId && cw.IsActive);
+				detail.IsEnrolled = entity.CourseStudentEnrollments.Any(cse => cse.UserId == user.UserId && cse.CourseId == Id && cse.IsActive);
 			}
 
 			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));

@@ -4,7 +4,6 @@ using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Application.Wishlists.Commands.AddToWishlist;
 using Course.Application.Wishlists.Commands.RemoveFromWishlist;
 using Course.Application.Wishlists.Queries.GetWishlistByUserId;
-using Course.Domain.ReadModels;
 using Course.Infrastructure.Caching;
 
 namespace Course.Infrastructure.Implements
