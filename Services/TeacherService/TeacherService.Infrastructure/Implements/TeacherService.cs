@@ -5,6 +5,7 @@ using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using Microsoft.EntityFrameworkCore;
 using TeacherService.Application.Applications.Teachers.Commands.Inserts;
 using TeacherService.Application.Applications.Teachers.Commands.UpdateTeacherProfile;
+using TeacherService.Application.Applications.Teachers.Queries.GetTeacherBasicProfile;
 using TeacherService.Application.Applications.Teachers.Queries.GetTeacherDetail;
 using TeacherService.Application.DTOs;
 using TeacherService.Application.Interfaces;
@@ -24,6 +25,50 @@ public class TeacherService(
 )
 : ITeacherService
 {
+	/// <summary>
+	/// Get teacher basic profile by id
+	/// </summary>
+	/// <param name="teacherId"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	public async Task<GetTeacherBasicProfileResponse> GetBasicProfileAsync(Guid teacherId, CancellationToken ct = default)
+	{
+		var response = new GetTeacherBasicProfileResponse { Success = false };
+
+		// Load teacher + child tables
+		var teacher = await _teacherCommandRepository.FirstOrDefaultAsync(
+			x => x.TeacherId == teacherId && x.IsActive,
+			ct
+		);
+
+		if (teacher is null)
+		{
+			response.SetMessage(MessageId.E00000, "Không tìm thấy giảng viên");
+			return response;
+		}
+
+		var result = new TeacherBasicProfileDto(
+			teacher.TeacherId,
+			teacher.DisplayName,
+			teacher.FirstName,
+			teacher.LastName,
+			teacher.ProfilePictureUrl,
+			teacher.Bio
+		);
+
+		response.Success = true;
+		response.Response = result;
+		response.SetMessage(MessageId.I00001, "Lấy thông tin giảng viên");
+
+		return response;
+	}
+
+	/// <summary>
+	/// Get teacher detail by id
+	/// </summary>
+	/// <param name="teacherId"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
 	public async Task<GetTeacherDetailResponse> GetDetailAsync(Guid teacherId, CancellationToken ct = default)
 	{
 		var response = new GetTeacherDetailResponse { Success = false };
@@ -79,7 +124,7 @@ public class TeacherService(
 			)).ToListAsync(ct);
 
 		response.Success = true;
-		response.SetMessage(MessageId.I00001);
+		response.SetMessage(MessageId.I00001, "Lấy thông tin giảng viên");
 
 		response.Response = new TeacherDetailDto(
 			teacher.TeacherId,

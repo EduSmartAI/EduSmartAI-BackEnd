@@ -4,6 +4,12 @@
 		Guid WishlistId,
 		Guid CourseId,
 		string CourseTitle,
+		string CourseDescription,
+		string CourseShortDescription,
+		string CourseImageUrl,
+		short? CourseLevel,
+		decimal CoursePrice,
+		decimal? CourseDealPrice,
 		string CourseSlug,
 		bool IsActive,
 		DateTimeOffset CreatedAt
