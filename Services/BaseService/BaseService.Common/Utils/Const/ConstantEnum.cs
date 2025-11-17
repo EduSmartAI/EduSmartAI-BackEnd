@@ -350,4 +350,23 @@ public static class ConstantEnum
         Refunded = 5
     }
 
+    public enum PaymentGateway
+    {
+        Momo = 1,
+        PayOs = 2
+    }
+
+    /// <summary>
+    /// Status lấy từ PayOs nên chỗ này không đổi tên của các giá trị enum
+    /// </summary>
+    public enum PaymentReturnCode
+    {
+        PENDING = 1,
+        CANCELLED = 2, 
+        UNDERPAID = 3,
+        PAID = 4,
+        EXPIRED = 5,
+        PROCESSING = 6,
+        FAILED = 7
+    }
 }

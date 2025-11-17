@@ -22,6 +22,8 @@ public partial class PaymentTransaction
     public short Status { get; set; }
 
     public string ReturnCode { get; set; }
+    
+    public string? PaymentUrl { get; set; }
 
     public string ReturnMessage { get; set; }
 
