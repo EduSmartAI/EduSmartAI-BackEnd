@@ -1,19 +1,16 @@
 using BaseService.Common.Settings;
-using Microsoft.OpenApi;
-using TeacherService.API.Extensions;
+using TeacherService.API;
+using TeacherService.Application;
+using TeacherService.Infrastructure;
 
 EnvLoader.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
-
-builder.Services.AddDatabaseServices();
-builder.Services.AddAuthenticationServices();
-builder.Services.AddRepositoryServices();
-builder.Services.AddMessagingServices();
-builder.Services.AddSwaggerServices();
-builder.Services.AddCorsServices();
+builder.Services
+	.AddInfrastructure(builder.Configuration)
+	.AddApplication()
+	.AddApiServices();
 
 var app = builder.Build();
 
@@ -24,17 +21,6 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-app.UseHttpsRedirection();
-app.UseCors();
-app.UsePathBase("/teacher");
-app.UseRouting();
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseStatusCodePages();
-app.UseSwagger(c => c.OpenApiVersion = OpenApiSpecVersion.OpenApi2_0);
-app.UseSwaggerUI(settings =>
-{
-    settings.RoutePrefix = "swagger";
-});
-app.MapControllers();
+app.UseApiServices();
+
 app.Run();

@@ -9,6 +9,7 @@ namespace Course.API.Controllers
 		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
 		[HttpPost]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		public async Task<CreateLessonTranscriptResponse> CreateLessonTranscript([FromBody] CreateLessonTranscriptCommand request)
 		{
 			return await ApiControllerHelper.HandleRequest<CreateLessonTranscriptCommand, CreateLessonTranscriptResponse, string>(

@@ -1,11 +1,13 @@
-﻿using Course.API.Extensions;
+﻿using Microsoft.OpenApi;
+using TeacherService.API.Extensions;
 
-namespace Course.API
+namespace TeacherService.API
 {
 	public static class DependencyInjection
 	{
 		public static IServiceCollection AddApiServices(this IServiceCollection services)
 		{
+			// Add API services here, e.g., controllers, Swagger, etc.
 			services.AddControllers();
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
@@ -19,7 +21,7 @@ namespace Course.API
 
 		public static WebApplication UseApiServices(this WebApplication app)
 		{
-			app.UsePathBase("/course");
+			app.UsePathBase("/teacher");
 
 			app.UseExceptionHandler();
 
@@ -35,14 +37,14 @@ namespace Course.API
 
 			app.UseAuthorization();
 
-			app.UseSwagger();
+			app.UseSwagger(c => c.OpenApiVersion = OpenApiSpecVersion.OpenApi2_0);
 			app.UseSwaggerUI(settings =>
 			{
-				settings.SwaggerEndpoint("/swagger/v1/swagger.json", "Course Service v1");
 				settings.RoutePrefix = "swagger";
 			});
 
 			app.MapControllers();
+
 			return app;
 		}
 	}
