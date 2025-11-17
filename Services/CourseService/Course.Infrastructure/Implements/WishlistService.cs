@@ -137,6 +137,12 @@ namespace Course.Infrastructure.Implements
 				w.WishlistId,
 				w.Course.CourseId,
 				w.Course.Title,
+				w.Course.Description,
+				w.Course.ShortDescription,
+				w.Course.CourseImageUrl,
+				w.Course.Level,
+				w.Course.Price,
+				w.Course.DealPrice,
 				w.Course.Slug,
 				true,
 				w.CreatedAt
