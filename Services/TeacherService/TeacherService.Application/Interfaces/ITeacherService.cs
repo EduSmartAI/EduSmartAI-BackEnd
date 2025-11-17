@@ -1,9 +1,14 @@
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using TeacherService.Application.Applications.Teachers.Commands.Inserts;
+using TeacherService.Application.Applications.Teachers.Commands.UpdateTeacherProfile;
+using TeacherService.Application.Applications.Teachers.Queries.GetTeacherDetail;
+using TeacherService.Application.DTOs;
 
 namespace TeacherService.Application.Interfaces;
 
 public interface ITeacherService
 {
     Task<LecturerInsertEventResponse> InsertTeacherAsync(LecturerInsertCommand request, CancellationToken cancellationToken = default);
+	Task<UpdateTeacherProfileResponse> UpdateTeacherProfileAsync(Guid teacherId, UpdateTeacherProfileRequest req, CancellationToken ct = default);
+	Task<GetTeacherDetailResponse> GetDetailAsync(Guid teacherId,  CancellationToken ct = default);
 }
