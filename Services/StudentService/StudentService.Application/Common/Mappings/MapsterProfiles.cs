@@ -36,7 +36,9 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.Level, s => s.info != null && s.info.Level.HasValue ? (int)s.info.Level.Value : 0)
                 .Map(d => d.Price, s => s.info != null && s.info.Price.HasValue ? s.info.Price.Value : 0m)
                 .Map(d => d.DealPrice, s => s.info != null && s.info.DealPrice.HasValue ? s.info.DealPrice.Value : 0m)
-                .Map(d => d.Status, s => s.c.Status);
+                .Map(d => d.Status, s => s.c.Status)
+                .Map(d => d.isEnrolled, s => s.info != null && s.info.isEnrolled)
+                .Map(d => d.isWishList, s => s.info != null && s.info.isWishList);
 
             // Major Internal -> InternalLearningPathDto
             config.NewConfig<LearningPathMajorCollection, InternalLearningPathDto>()

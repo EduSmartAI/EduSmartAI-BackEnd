@@ -84,6 +84,8 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public int Level { get; set; }
         public decimal Price { get; set; }
         public decimal DealPrice { get; set; }
+        public bool isEnrolled { get; set; }
+        public bool isWishList { get; set; }
     }
 
     // NEW: nhóm theo môn
