@@ -12,9 +12,9 @@ public partial class ProblemTemplate
     public int LanguageId { get; set; }
 
     public string TemplatePrefix { get; set; } = null!;
-    
+
     public string TemplateSuffix { get; set; } = null!;
-    
+
     public string UserStubCode { get; set; } = null!;
 
     public DateTime CreatedAt { get; set; }

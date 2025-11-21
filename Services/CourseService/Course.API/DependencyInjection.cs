@@ -1,5 +1,4 @@
-﻿using BuildingBlocks.Exceptions.Handler;
-using Course.API.Extensions;
+﻿using Course.API.Extensions;
 
 namespace Course.API
 {
@@ -7,7 +6,6 @@ namespace Course.API
 	{
 		public static IServiceCollection AddApiServices(this IServiceCollection services)
 		{
-			// Add API services here, e.g., controllers, Swagger, etc.
 			services.AddControllers();
 			services.AddEndpointsApiExplorer();
 			services.AddSwaggerServices();
@@ -15,15 +13,12 @@ namespace Course.API
 			services.AddMessagingServices();
 			services.AddAuthenticationServices();
 			services.AddAuthorization();
-
-			services.AddExceptionHandler<CustomExceptionHandler>();
 			services.AddProblemDetails();
 			return services;
 		}
 
 		public static WebApplication UseApiServices(this WebApplication app)
 		{
-			// Configure the HTTP request pipeline here, e.g., app.UseSwagger(), app.UseAuthorization(), etc.
 			app.UsePathBase("/course");
 
 			app.UseExceptionHandler();
@@ -35,7 +30,9 @@ namespace Course.API
 			app.UseCors();
 
 			app.UseAuthentication();
+
 			app.UseStatusCodePages();
+
 			app.UseAuthorization();
 
 			app.UseSwagger();

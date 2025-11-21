@@ -47,6 +47,7 @@ public class SwaggerController : ControllerBase
             var allSecuritySchemes = new Dictionary<string, object>();
             var allTags = new List<object>();
             var allServers = new List<object>();
+            var serviceEndpointCounts = new Dictionary<string, int>(); // Track endpoint count per service
 
             var baseUrl = Environment.GetEnvironmentVariable(ConstEnv.WebsiteDomain) ?? Environment.GetEnvironmentVariable(ConstEnv.ReverseProxyUrl);
             _logger.LogInformation($"Gateway Base URL: {baseUrl}");
@@ -71,12 +72,8 @@ public class SwaggerController : ControllerBase
                         var jsonContent = await response.Content.ReadAsStringAsync();
                         var serviceSpec = JsonSerializer.Deserialize<JsonElement>(jsonContent);
 
-                        // Add tag for service
-                        allTags.Add(new
-                        {
-                            name = service.Key,
-                            description = $"API endpoints from {service.Key}"
-                        });
+                        // Initialize endpoint count for this service
+                        serviceEndpointCounts[service.Key] = 0;
 
                         // Handle both Swagger 2.0 and OpenAPI 3.0 specs
                         if (serviceSpec.TryGetProperty("paths", out var pathsElement))
@@ -102,6 +99,9 @@ public class SwaggerController : ControllerBase
                                     {
                                         var modifiedPath = ModifyPathWithServiceTag(pathValue, service.Key);
                                         allPaths[fullPath] = modifiedPath;
+                                        
+                                        // Count number of HTTP methods (endpoints) in this path
+                                        serviceEndpointCounts[service.Key] += pathValue.EnumerateObject().Count();
                                     }
                                 }
                             }
@@ -117,6 +117,9 @@ public class SwaggerController : ControllerBase
                                     {
                                         var modifiedPath = ModifyPathWithServiceTag(pathValue, service.Key);
                                         allPaths[pathKey] = modifiedPath;
+                                        
+                                        // Count number of HTTP methods (endpoints) in this path
+                                        serviceEndpointCounts[service.Key] += pathValue.EnumerateObject().Count();
                                     }
                                 }
                             }
@@ -153,7 +156,15 @@ public class SwaggerController : ControllerBase
                             }
                         }
                         
-                        _logger.LogInformation($"Successfully retrieved spec from {service.Key}");
+                        // Add tag for service with endpoint count
+                        var endpointCount = serviceEndpointCounts[service.Key];
+                        allTags.Add(new
+                        {
+                            name = service.Key,
+                            description = $"API endpoints from {service.Key} - Total: {endpointCount} endpoints"
+                        });
+                        
+                        _logger.LogInformation($"Successfully retrieved spec from {service.Key} - {endpointCount} endpoints");
                     }
                     else
                     {
@@ -209,6 +220,17 @@ public class SwaggerController : ControllerBase
                 });
             }
 
+            // Create detailed endpoint breakdown description
+            var totalEndpoints = serviceEndpointCounts.Values.Sum();
+            
+            var detailedDescription = $"API Gateway aggregating all services in EduSmart system.\n\n" +
+                                     $"📊 **Total Endpoints**: {totalEndpoints}\n" +
+                                     $"**Services**: {serviceEndpointCounts.Count}\n\n" +
+                                     $"**Endpoint Breakdown by Service:**\n" +
+                                     string.Join("\n", serviceEndpointCounts
+                                         .OrderByDescending(x => x.Value)
+                                         .Select(x => $"- **{x.Key}**: {x.Value} endpoints"));
+
             // Create final aggregated spec
             var finalSpec = new
             {
@@ -217,7 +239,7 @@ public class SwaggerController : ControllerBase
                 {
                     title = "EduSmart API Gateway - All Services",
                     version = "v1",
-                    description = $"API Gateway aggregating all services in EduSmart system. Total {allPaths.Count} endpoints from {allTags.Count} services."
+                    description = detailedDescription
                 },
                 servers = allServers,
                 paths = allPaths,
@@ -229,7 +251,9 @@ public class SwaggerController : ControllerBase
                 tags = allTags
             };
 
-            _logger.LogInformation($"Completed creating aggregated Swagger spec: {allPaths.Count} endpoints, {allTags.Count} services");
+            var totalEndpointsLogged = serviceEndpointCounts.Values.Sum();
+            _logger.LogInformation($"Completed creating aggregated Swagger spec: {totalEndpointsLogged} total endpoints from {serviceEndpointCounts.Count} services");
+            _logger.LogInformation($"Endpoint breakdown: {string.Join(", ", serviceEndpointCounts.Select(x => $"{x.Key}={x.Value}"))}");
             return Ok(finalSpec);
         }
         catch (Exception ex)

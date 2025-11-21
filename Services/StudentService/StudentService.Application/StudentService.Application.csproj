@@ -14,11 +14,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Applications\LearningPathsMajor\Queries\" />
-      <Folder Include="Applications\Semesters\" />
-    </ItemGroup>
-
-    <ItemGroup>
       <PackageReference Include="Mapster" Version="7.4.0" />
     </ItemGroup>
 

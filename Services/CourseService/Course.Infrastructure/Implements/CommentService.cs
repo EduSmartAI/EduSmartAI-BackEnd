@@ -3,6 +3,7 @@ using Course.Application.Comments.CourseComments.Commands.CreateComment;
 using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
 using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
+using Course.Infrastructure.Caching;
 
 namespace Course.Infrastructure.Implements
 {
@@ -54,6 +55,9 @@ namespace Course.Infrastructure.Implements
 			await _commentCmd.AddAsync(entity, user.Email);
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
+			// Clear cache
+			await ClearCourseCommentsCacheAsync(courseId);
+
 			response.Success = true;
 			response.Response = new CourseCommentDetailsDto(
 				entity.CommentId, courseId, user.UserId, user.Email, content, null, true, 0, DateTimeOffset.UtcNow);
@@ -74,12 +78,27 @@ namespace Course.Infrastructure.Implements
 		{
 			var response = new GetCourseCommentsResponse { Success = false };
 
+			// --- 1) Generate cache key ---
+			var pageNumber = page.GetValueOrDefault(1);
+			var pageSize = size.GetValueOrDefault(20);
+
+			var cacheKey = BuildCommentsCacheKey(courseId, pageNumber, pageSize);
+
+			// --- 2) Try get from cache ---
+			var cached = await _cache.GetAsync<PagedResult<CourseCommentDetailsDto>>(cacheKey);
+			if (cached is not null)
+			{
+				response.Success = true;
+				response.Response = cached;
+				return response;
+			}
+
 			var paged = await _commentCmd.PagedAsync(
-			page, size,
-			predicate: x => x.CourseId == courseId && x.IsActive,
-			orderBy: x => x.CreatedAt,
-			orderByDescending: true,
-			cancellationToken: ct);
+				page, size,
+				predicate: x => x.CourseId == courseId && x.IsActive,
+				orderBy: x => x.CreatedAt,
+				orderByDescending: true,
+				cancellationToken: ct);
 
 			var currentIds = paged.Items.Select(c => c.CommentId).ToList();
 
@@ -128,14 +147,19 @@ namespace Course.Infrastructure.Implements
 				);
 			}).ToList();
 
-			response.Success = true;
-			response.Response = new PagedResult<CourseCommentDetailsDto>
+			var result = new PagedResult<CourseCommentDetailsDto>
 			{
 				Items = items,
 				TotalCount = paged.TotalCount,
 				PageNumber = paged.PageNumber,
 				PageSize = paged.PageSize
 			};
+
+			// --- 3) Set to cache ---
+			await _cache.SetAsync(cacheKey, result, TimeSpan.FromMinutes(5));
+
+			response.Success = true;
+			response.Response = result;
 
 			return response;
 		}
@@ -184,6 +208,9 @@ namespace Course.Infrastructure.Implements
 			await _commentCmd.AddAsync(reply, user.Email);
 			await unitOfWork.SaveChangesAsync(user.Email, ct);
 
+			// Clear cache
+			await ClearCourseCommentsCacheAsync(courseId);
+
 			response.Success = true;
 			response.Response = new CourseCommentDetailsDto(
 				reply.CommentId,
@@ -200,5 +227,32 @@ namespace Course.Infrastructure.Implements
 
 			return response;
 		}
+
+		#region Private Helpers
+		private static string BuildCommentsCacheKey(Guid courseId, int pageNumber, int pageSize)
+			=> $"course:{courseId}:comments:p{pageNumber}:s{pageSize}";
+
+		private async Task ClearCourseCommentsCacheAsync(Guid courseId)
+		{
+			// Tùy dự án, bạn chỉnh các pageSize + số page cần clear
+			int[] commonPageSizes = { 10, 20, 50 };
+			const int MaxPagesToClear = 5;
+
+			var tasks = new List<Task>();
+
+			foreach (var size in commonPageSizes)
+			{
+				for (int page = 1; page <= MaxPagesToClear; page++)
+				{
+					var key = BuildCommentsCacheKey(courseId, page, size);
+					tasks.Add(_cache.KeyDeleteAsync(key));
+				}
+			}
+
+			await Task.WhenAll(tasks);
+		}
+
+
+		#endregion
 	}
 }

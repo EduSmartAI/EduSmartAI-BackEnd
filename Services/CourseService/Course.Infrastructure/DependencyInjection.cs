@@ -1,9 +1,11 @@
 ﻿using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
+using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
 using Course.Infrastructure.Helpers.Courses;
+using Course.Infrastructure.Helpers.Wishlists;
 using Course.Infrastructure.Implements;
 using JasperFx;
 using Marten;
@@ -62,6 +64,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<CourseComment>, CommandRepository<CourseComment>>();
             services.AddScoped<ICommandRepository<ModuleDiscussionComment>, CommandRepository<ModuleDiscussionComment>>();
             services.AddScoped<ICommandRepository<ModuleDiscussion>, CommandRepository<ModuleDiscussion>>();
+            services.AddScoped<ICommandRepository<Note>, CommandRepository<Note>>();
 
 
             // Services
@@ -79,6 +82,7 @@ namespace Course.Infrastructure
             services.AddScoped<IWishlistService, WishlistService>();
             services.AddScoped<ICommentService, CommentService>();
             services.AddScoped<IModuleDiscussionCommentService, ModuleDiscussionCommentService>();
+            services.AddScoped<ILessonNoteService, LessonNoteService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
@@ -87,6 +91,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICourseMapper, CourseMapper>();
             services.AddScoped<IQuizGateway, QuizGateway>();
             services.AddScoped<IQuizEventFactory, QuizEventFactory>();
+            services.AddScoped<IWishlistCache, WishlistCache>();
 
             // Unit of Work
             services.AddScoped<IUnitOfWork, UnitOfWork>();

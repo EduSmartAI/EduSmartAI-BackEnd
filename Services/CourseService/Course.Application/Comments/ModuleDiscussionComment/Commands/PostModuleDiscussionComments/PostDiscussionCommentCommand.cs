@@ -1,6 +1,4 @@
-﻿using Course.Application.DTOs.CommentsDTO;
-
-namespace Course.Application.Comments.ModuleDiscussionComment.Commands.PostModuleDiscussionComments
+﻿namespace Course.Application.Comments.ModuleDiscussionComment.Commands.PostModuleDiscussionComments
 {
 	public record PostDiscussionCommentCommand(Guid ModuleId, string Content) : ICommand<PostDiscussionCommentResponse>;
 

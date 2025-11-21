@@ -2,7 +2,6 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 using BuildingBlocks.Messaging.Events.AuthService.UserLoginEvents;
-using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using TeacherService.Domain.ReadModels;
 
 namespace TeacherService.Application.Applications.Teachers.Queries.Logins;
@@ -42,7 +41,8 @@ public class TeacherLoginQueryHandler : IQueryHandler<TeacherLoginQuery, Teacher
         response.Response = new UserLoginEntity
         (
             FirstName: teacher.FirstName!,
-            LastName: teacher.LastName!
+            LastName: teacher.LastName!,
+            AvatarUrl: teacher.ProfilePictureUrl
         );
             
         // True

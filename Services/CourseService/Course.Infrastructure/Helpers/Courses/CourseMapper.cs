@@ -85,41 +85,43 @@ namespace Course.Infrastructure.Helpers.Courses
 				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
 				: 0.0;
 
-			return new CourseDetailForGuestDto(
-				e.CourseId,
-				e.TeacherId,
-				e.SubjectId,
-				e.Subject?.SubjectCode ?? string.Empty,
-				e.Title ?? string.Empty,
-				e.ShortDescription,
-				e.Description,
-				e.Slug,
-				e.CourseImageUrl,
-				e.LearnerCount,
-				e.DurationMinutes,
-				e.DurationHours,
-				e.Level,
-				e.Price,
-				e.DealPrice,
-				e.IsActive,
-				e.CreatedAt,
-				e.UpdatedAt,
-				e.CourseObjectives
+			return new CourseDetailForGuestDto
+			{
+				CourseId = e.CourseId,
+				TeacherId = e.TeacherId,
+				SubjectId = e.SubjectId,
+				SubjectCode = e.Subject?.SubjectCode ?? string.Empty,
+				Title = e.Title ?? string.Empty,
+				ShortDescription = e.ShortDescription,
+				Description = e.Description,
+				Slug = e.Slug,
+				CourseImageUrl = e.CourseImageUrl,
+				LearnerCount = e.LearnerCount,
+				DurationMinutes = e.DurationMinutes,
+				DurationHours = e.DurationHours,
+				Level = e.Level,
+				Price = e.Price,
+				DealPrice = e.DealPrice,
+				IsActive = e.IsActive,
+				CreatedAt = e.CreatedAt,
+				UpdatedAt = e.UpdatedAt,
+				Objectives = e.CourseObjectives
 					.OrderBy(o => o.PositionIndex)
 					.Select(o => new CourseObjectiveDto(o.ObjectiveId, o.Content, o.PositionIndex, o.IsActive))
 					.ToList(),
-				e.CourseRequirements
+				Requirements = e.CourseRequirements
 					.OrderBy(r => r.PositionIndex)
 					.Select(r => new CourseRequirementDto(r.RequirementId, r.Content, r.PositionIndex, r.IsActive))
 					.ToList(),
-				modules,
-				comments,
-				tags,
-				ratings,
-				ratingsCount,
-				//ratingsAverage
-				5.0
-			);
+				Modules = modules,
+				Comments = comments,
+				Tags = tags,
+				Ratings = ratings,
+				RatingsCount = ratingsCount,
+				RatingsAverage = ratingsAverage,
+				IsWishlist = false, // sẽ được gán lại theo user khi có token,
+				IsEnrolled = false // sẽ được gán lại theo user khi có token
+			};
 		}
 
 		/// <summary>
@@ -128,9 +130,9 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// <param name="e"></param>
 		/// <returns></returns>
 		public CourseDetailForLectureDto MapCourseDetailForLecture(
-			CourseEntity e, 
-			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, 
-			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, 
+			CourseEntity e,
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId,
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId,
 			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId)
 		{
 			var modules = e.Modules
@@ -289,13 +291,13 @@ namespace Course.Infrastructure.Helpers.Courses
 		/// <param name="preferCoreForCourse"></param>
 		/// <returns></returns>
 		public CourseDetailForStudentDto MapCourseDetailForStudent(
-			CourseEntity e, 
-			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId, 
-			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId, 
-			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId, 
-			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId, 
-			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById, 
-			CourseProgressSnap? courseProgress, 
+			CourseEntity e,
+			IReadOnlyDictionary<Guid, Guid>? moduleQuizIdByModuleId,
+			IReadOnlyDictionary<Guid, Guid>? lessonQuizIdByLessonId,
+			IReadOnlyDictionary<Guid, QuizOutDto?>? quizByQuizId,
+			IReadOnlyDictionary<Guid, LessonProgressSnap> progressByLessonId,
+			IReadOnlyDictionary<Guid, ModuleProgressSnap> moduleProgressById,
+			CourseProgressSnap? courseProgress,
 			bool preferCoreForCourse,
 			IReadOnlyDictionary<Guid, QuizCourseCheckAttemptEntity> attemptsByQuizId)
 		{
@@ -504,8 +506,8 @@ namespace Course.Infrastructure.Helpers.Courses
 				5.0,
 				// Progress course
 				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt)
-				// Continue hint – set ở ngoài
-				//continueHint
+			// Continue hint – set ở ngoài
+			//continueHint
 			);
 		}
 
@@ -536,7 +538,9 @@ namespace Course.Infrastructure.Helpers.Courses
 			Tags: e.CourseTags.Select(t => new CourseTagDto(
 				t.TagId,
 				t.Tag?.TagName ?? string.Empty
-			)).ToList()
+			)).ToList(),
+			IsWishlist: false,
+			IsEnrolled: false
 		);
 
 		/// <summary>

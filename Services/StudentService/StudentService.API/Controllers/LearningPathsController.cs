@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
+using StudentService.Application.Applications.LearningPathCourse.Commands.UpdateLearningPathCourseStatus;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
@@ -173,5 +174,23 @@ namespace StudentService.API.Controllers
                 _httpContextAccessor,
                 new UpdateCourseStatusToSkippedResponse());
         }
-    }
+
+		[HttpPost("update-course-status")]
+		[SwaggerOperation(
+		Summary = "Update course status in all learning paths for a user",
+		Description = "Internal debug endpoint - userId lấy từ body, không dùng token")]
+		public async Task<UpdateLearningPathCourseStatusResponse> UpdateCourseStatus(
+		[FromBody] UpdateLearningPathCourseStatusCommand command)
+		{
+			return await ApiControllerHelper.HandleRequest<
+				UpdateLearningPathCourseStatusCommand,
+				UpdateLearningPathCourseStatusResponse,
+				string>(
+				command,
+				_logger,
+				ModelState,
+				async () => await _mediator.Send(command),
+				new UpdateLearningPathCourseStatusResponse());
+		}
+	}
 }

@@ -1,6 +1,6 @@
 using BaseService.Common.ApiEntities;
 
-namespace BuildingBlocks.Messaging.Events.UserLoginEvents;
+namespace BuildingBlocks.Messaging.Events.AuthService.UserLoginEvents;
 
 public record StudentLoginEventResponse : AbstractApiResponse<UserLoginEntity>
 { 
@@ -9,5 +9,6 @@ public record StudentLoginEventResponse : AbstractApiResponse<UserLoginEntity>
 
 public record UserLoginEntity(
     string FirstName,
-    string LastName
+    string LastName,
+    string? AvatarUrl
 );

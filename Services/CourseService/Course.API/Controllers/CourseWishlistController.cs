@@ -1,6 +1,8 @@
-﻿using Course.Application.DTOs.CoursesDTO.WishlistDTO;
+﻿using BaseService.Application.Common;
+using Course.Application.DTOs.CoursesDTO.WishlistDTO;
 using Course.Application.Wishlists.Commands.AddToWishlist;
 using Course.Application.Wishlists.Commands.RemoveFromWishlist;
+using Course.Application.Wishlists.Queries.GetWishlistByUserId;
 
 namespace Course.API.Controllers
 {
@@ -16,7 +18,7 @@ namespace Course.API.Controllers
 		public async Task<AddToWishlistResponse> Add(Guid courseId)
 		{
 			var command = new AddToWishlistCommand(courseId);
-			return await ApiControllerHelper.HandleRequest<AddToWishlistCommand, AddToWishlistResponse, WishlistItemDto>(
+			return await ApiControllerHelper.HandleRequest<AddToWishlistCommand, AddToWishlistResponse, bool>(
 				command,
 				_logger,
 				ModelState,
@@ -35,6 +37,20 @@ namespace Course.API.Controllers
 				_logger,
 				ModelState,
 				async () => await sender.Send(command),
+				new());
+		}
+
+		[HttpGet]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get my wishlist")]
+		public async Task<GetMyWishlistResponse> Get(int? Page = 1, int? Size = 10, string? Search = null)
+		{
+			var query = new GetMyWishlistQuery(Page, Size, Search);
+			return await ApiControllerHelper.HandleRequest<GetMyWishlistQuery, GetMyWishlistResponse, PagedResult<WishlistItemDto>>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
 				new());
 		}
 	}

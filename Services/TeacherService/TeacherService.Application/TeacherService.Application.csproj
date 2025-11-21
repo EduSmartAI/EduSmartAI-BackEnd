@@ -13,10 +13,4 @@
       <ProjectReference Include="..\TeacherService.Domain\TeacherService.Domain.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Applications\Consumers\" />
-      <Folder Include="Applications\Teachers\Commands\" />
-      <Folder Include="Applications\Teachers\Queries\" />
-    </ItemGroup>
-
 </Project>

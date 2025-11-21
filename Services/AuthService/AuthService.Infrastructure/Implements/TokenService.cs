@@ -46,6 +46,7 @@ public class TokenService : ITokenService
         identity.SetClaim(OpenIddictConstants.Claims.Name, user.FullName, OpenIddictConstants.Destinations.AccessToken);
         identity.SetClaim(OpenIddictConstants.Claims.Email, user.Email, OpenIddictConstants.Destinations.AccessToken);
         identity.SetClaim(OpenIddictConstants.Claims.Role, user.RoleName, OpenIddictConstants.Destinations.AccessToken);
+        identity.SetClaim(OpenIddictConstants.Claims.Picture, user.AvatarUrl, OpenIddictConstants.Destinations.AccessToken);
         identity.SetClaim(OpenIddictConstants.Claims.Audience, ConstToken.Audience, OpenIddictConstants.Destinations.AccessToken);
 
         // Destination rules
@@ -62,7 +63,8 @@ public class TokenService : ITokenService
             OpenIddictConstants.Scopes.Roles, 
             OpenIddictConstants.Scopes.OfflineAccess, 
             OpenIddictConstants.Scopes.Profile,
-            OpenIddictConstants.Scopes.OpenId);
+            OpenIddictConstants.Scopes.OpenId
+            );
 
         // Set resources
         var resources = await _scopeManager.ListResourcesAsync(claimsPrincipal.GetScopes()).ToListAsync();
@@ -123,6 +125,10 @@ public class TokenService : ITokenService
                     break;
                 case OpenIddictConstants.Claims.Audience:
                     identity.SetClaim(OpenIddictConstants.Claims.Audience, claim.Value,
+                        OpenIddictConstants.Destinations.AccessToken);
+                    break;
+                case OpenIddictConstants.Claims.Picture:
+                    identity.SetClaim(OpenIddictConstants.Claims.Picture, claim.Value,
                         OpenIddictConstants.Destinations.AccessToken);
                     break;
             }
@@ -204,6 +210,7 @@ public class TokenService : ITokenService
             Name = currentUser.FullName,
             UserId = currentUser.UserId,
             Role = currentUser.RoleName,
+            AvatarUrl = currentUser.AvatarUrl
         };
         
         // True
