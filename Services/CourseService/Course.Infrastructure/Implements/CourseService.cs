@@ -21,2053 +21,2124 @@ using Mapster;
 
 namespace Course.Infrastructure.Implements
 {
-	public class CourseService(
-		ICommandRepository<CourseEntity> _courseRepository,
-		ICommandRepository<Tag> _tagRepository,
-		IUnitOfWork unitOfWork,
-		IDatabase _cache,
-		IIdentityService _identityService,
-		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
-		IPublishEndpoint _publish,
-		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
-		ICommandRepository<LessonQuiz> _lessonQuizRepository,
-		ISlugService _slugService,
-		ICacheKeyFactory _cacheKeyFactory,
-		ICourseCache _courseCache,
-		ICourseMapper _courseMapper,
-		IQuizGateway _quizGateway,
-		ICommandRepository<Semester> _semesterRepository,
-		ICommandRepository<VMajorSemesterSubjectCourses> _viewCourseRepo,
-		IQuizEventFactory _quizEventFactory,
-		ICommandRepository<CourseWishlist> _courseWishlistRepository,
-		ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository) : ICourseService
-	{
-		#region Service for Lecture & Guest
-
-		/// <summary>
-		/// Get all courses with pagination and optional filtering
-		/// </summary>
-		/// <param name="pagination"></param>
-		/// <param name="query"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCoursesResponse> GetAllAsync(PaginationRequest pagination, CourseQuery? query = null, CancellationToken ct = default)
-		{
-			var response = new GetCoursesResponse() { Success = false };
-
-			var user = _identityService.GetCurrentUser();
-
-			// Generate cache key based on pagination and query parameters
-			var cacheKey = _cacheKeyFactory.GenerateCacheKeyForGetAll(pagination, query);
-
-			// Try to get from cache first
-			var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
-			if (cached is not null)
-			{
-				if (user is not null)
-				{
-					var courseIds = cached.Data.Select(d => d.CourseId).ToList();
-					// Query tối giản để biết course nào trong wishlist của user
-					var wishIds = await _courseWishlistRepository
-						.Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
-							  isTracking: false, ct)
-						.Select(x => x.CourseId)
-						.ToListAsync(ct);
-
-					// Vì CourseDto là record positional, dùng `with {}` để tạo bản sao có IsWishlist=true
-					var personalizedData = cached.Data
-						.Select(d => wishIds.Contains(d.CourseId) ? d with { IsWishlist = true } : d)
-						.ToList();
-
-					// Tạo result mới cho response (không động vào cached)
-					var resultCache = new PaginatedResult<CourseDto>(
-						pageIndex: cached.PageIndex,
-						pageSize: cached.PageSize,
-						totalCount: cached.TotalCount,
-						data: personalizedData
-					);
-
-					response.Success = true;
-					response.Message = "OK (from cache, has token)";
-					response.Response = resultCache;
-					return response;
-				}
-
-				response.Success = true;
-				response.Message = "OK (from cache)";
-				response.Response = cached;
-				return response;
-			}
-
-			// Build predicate dynamic theo filter
-			Expression<Func<CourseEntity, bool>>? predicate = null;
-
-			if (query is not null)
-			{
-				// Start with 'true' and &=
-				Expression<Func<CourseEntity, bool>> Acc(Expression<Func<CourseEntity, bool>> left,
-					Expression<Func<CourseEntity, bool>> right)
-					=> left is null ? right : left.AndAlso(right);
-
-				// helpers
-				Expression<Func<CourseEntity, bool>> True() => x => true;
-
-				var pred = True();
-
-				if (!string.IsNullOrWhiteSpace(query.Search))
-				{
-					var search = query.Search.Trim();
-					pred = Acc(pred, x =>
-						EF.Functions.ILike(x.Title ?? "", $"%{search}%") ||
-						EF.Functions.ILike(x.Description ?? "", $"%{search}%") ||
-						EF.Functions.ILike(x.ShortDescription ?? "", $"%{search}%") ||
-						EF.Functions.ILike(x.Slug ?? "", $"%{search}%")
-					);
-				}
-
-				if (!string.IsNullOrWhiteSpace(query.SubjectCode))
-				{
-					var code = query.SubjectCode.Trim();
-
-					pred = Acc(pred, x => x.Subject != null &&
-										  EF.Functions.ILike(x.Subject.SubjectCode ?? "", $"%{code}%"));
-				}
-
-				if (query.IsActive is bool isActive)
-					pred = Acc(pred, x => x.IsActive == isActive);
-
-				if (query.LectureId.HasValue)
-					pred = Acc(pred, x => x.TeacherId == query.LectureId.Value);
-
-				predicate = pred;
-			}
-
-			// Chọn orderBy mặc định theo COurse mới nhất
-			Expression<Func<CourseEntity, object>> orderBy = x => x.UpdatedAt;
-
-			var orderByDescending = true; // mặc định: mới nhất
-
-			switch (query?.SortBy ?? CourseSortBy.Latest)
-			{
-				case CourseSortBy.Popular:
-					orderBy = x => x.LearnerCount;
-					orderByDescending = true;
-					break;
-				case CourseSortBy.TitleAsc:
-					orderBy = x => x.Title!;
-					orderByDescending = false;
-					break;
-				case CourseSortBy.TitleDesc:
-					orderBy = x => x.Title!;
-					orderByDescending = true;
-					break;
-				case CourseSortBy.Latest:
-					orderBy = x => x.UpdatedAt;
-					orderByDescending = true;
-					break;
-				default:
-					orderByDescending = true;
-					break;
-			}
-
-			// PaginationRequest đang 0-based (PageIndex). Chuyển sang 1-based để an toàn.
-			var pageNumber = pagination.PageIndex + 1;
-			var pageSize = pagination.PageSize;
-
-			var page = await _courseRepository.PagedAsync(
-				pageNumber: pageNumber,
-				pageSize: pageSize,
-				predicate: predicate,
-				orderBy: orderBy,
-				orderByDescending: orderByDescending,
-				cancellationToken: ct,
-				include: q => q
-					.Include(x => x.Subject)
-					.Include(x => x.CourseTags)
-						.ThenInclude(ct => ct.Tag)
-			// includes: nếu cần eager load, thêm tại đây: x => x.Subject, x => x.Modules ...
-			);
-
-
-			// Map entity -> DTO
-			var items = page.Items.Select(_courseMapper.ToDto).ToList();
-
-			// Nếu có user, kiểm tra wishlist
-			var itemsForCache = items;
-
-			if (user is not null)
-			{
-				var courseIds = items.Select(i => i.CourseId).ToList();
-				// Query tối giản để biết course nào trong wishlist của user
-				var wishIds = await _courseWishlistRepository
-					.Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
-						  isTracking: false, ct)
-					.Select(x => x.CourseId)
-					.ToListAsync(ct);
-				// Cập nhật IsWishlist cho items
-				items = items
-					.Select(d => wishIds.Contains(d.CourseId) ? d with { IsWishlist = true } : d)
-					.ToList();
-
-				// Kiểm tra tiếp IsEnrolled
-				var isEnrolledIds = await _courseStudentEnrollmentCommandRepository
-					.Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
-						  isTracking: false, ct)
-					.Select(x => x.CourseId)
-					.ToListAsync(ct);
-
-				// Cập nhật IsEnrolled cho items
-				items = items
-					.Select(d => isEnrolledIds.Contains(d.CourseId) ? d with { IsEnrolled = true } : d)
-					.ToList();
-			}
-
-			var resultGuest = new PaginatedResult<CourseDto>(
-				pageIndex: pagination.PageIndex,
-				pageSize: pagination.PageSize,
-				totalCount: page.TotalCount,
-				data: itemsForCache
-			);
-
-			var result = new PaginatedResult<CourseDto>(
-				pageIndex: pagination.PageIndex,
-				pageSize: pagination.PageSize,
-				totalCount: page.TotalCount,
-				data: items
-			);
-
-			// Cache the result for future requests
-			await _cache.SetAsync(cacheKey, resultGuest, TimeSpan.FromMinutes(5));
-
-			response.Success = true;
-			response.Response = result;
-			response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học");
-
-			return response;
-		}
-
-		/// <summary>
-		/// Get course details by ID for guest users
-		/// </summary>
-		/// <param name="Id"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default)
-		{
-			var response = new GetCourseByIdForGuestResponse() { Success = false };
-
-			var user = _identityService.GetCurrentUser();
-
-			var cacheKey = $"CourseDetailForGuest:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
-			if (cached is not null)
-			{
-				if (user is not null)
-				{
-					var inWishlist = await _courseWishlistRepository
-						.Find(x => x.CourseId == Id && x.UserId == user.UserId && x.IsActive, isTracking: false, ct)
-						.AnyAsync(ct);
-
-					cached.IsWishlist = inWishlist;
-				}
-
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.CourseWishlists.Where(cw => cw.IsActive))
-				.Include(x => x.CourseStudentEnrollments.Where(cse => cse.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
-				return response;
-			}
-
-			var detail = _courseMapper.MapCourseDetailForGuest(entity);
-
-			if (user is not null)
-			{
-				detail.IsWishlist = entity.CourseWishlists.Any(cw => cw.UserId == user.UserId && cw.IsActive);
-				detail.IsEnrolled = entity.CourseStudentEnrollments.Any(cse => cse.UserId == user.UserId && cse.CourseId == Id && cse.IsActive);
-			}
-
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Get course details by Slug for guest users
-		/// </summary>
-		/// <param name="Slug"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <exception cref="NotImplementedException"></exception>
-		public async Task<GetCourseBySlugForGuestResponse> GetCourseBySlugForGuestAsync(string Slug, CancellationToken ct = default)
-		{
-			var response = new GetCourseBySlugForGuestResponse() { Success = false };
-
-			var cacheKey = $"CourseDetailBySlugForGuest:{Slug}";
-			var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
-				return response;
-			}
-
-			var detail = _courseMapper.MapCourseDetailForGuest(entity);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Get course details by ID for lecturer (instructor) users
-		/// </summary>
-		/// <param name="id"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default)
-		{
-			var response = new GetCourseByIdForLectureResponse() { Success = false };
-
-			var cacheKey = $"CourseDetailForLecture:{Id}";
-			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học (cached) cho giảng viên");
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.CourseAudiences.Where(ca => ca.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
-				return response;
-			}
-
-			// 1) Lấy tất cả ModuleId & LessonId còn active
-			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
-			var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
-										  .Where(l => l.IsActive)
-										  .Select(l => l.LessonId).ToList();
-
-			// 2) Load mapping (module->quiz, lesson->quiz)
-			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
-												   .Select(x => new { x.ModuleId, x.QuizId })
-												   .ToListAsync(ct);
-
-			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
-												   .Select(x => new { x.LessonId, x.QuizId })
-												   .ToListAsync(ct);
-
-			// 3) Gọi song song QuizService, dedupe quizIds
-			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
-									   .Distinct().ToList();
-
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
-			await Task.WhenAll(quizTasks.Values);
-
-			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
-
-			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
-			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
-
-			var detail = _courseMapper.MapCourseDetailForLecture(
-							entity,
-							moduleQuizIdByModuleId,
-							lessonQuizIdByLessonId,
-							quizDict
-						);
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Get course details by Slug for lecturer (instructor) users
-		/// </summary>
-		/// <param name="Slug"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <exception cref="NotImplementedException"></exception>
-		public async Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default)
-		{
-			var response = new GetCourseBySlugForLectureResponse() { Success = false };
-
-			var cacheKey = $"CourseDetailBySlugForLecture:{Slug}";
-			var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
-				response.Response = cached;
-				response.ModulesCount = cached.Modules.Count;
-				response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
-				return response;
-			}
-
-			var baseQuery = _courseRepository
-				.Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
-				.Cast<CourseEntity>()
-				.Include(x => x.Subject)
-				.Include(x => x.CourseObjectives.Where(o => o.IsActive))
-				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
-				.Include(x => x.CourseComments.Where(c => c.IsActive))
-				.Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
-				.Include(x => x.CourseRatings)
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
-				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
-
-			var entity = await baseQuery.FirstOrDefaultAsync(ct);
-
-			if (entity is null)
-			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
-				return response;
-			}
-
-			// 1) Lấy tất cả ModuleId & LessonId còn active
-			var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
-			var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
-										  .Where(l => l.IsActive)
-										  .Select(l => l.LessonId).ToList();
-
-			// 2) Load mapping (module->quiz, lesson->quiz)
-			var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
-												   .Select(x => new { x.ModuleId, x.QuizId })
-												   .ToListAsync(ct);
-
-			var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
-												   .Select(x => new { x.LessonId, x.QuizId })
-												   .ToListAsync(ct);
-
-			// 3) Gọi song song QuizService, dedupe quizIds
-			var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
-									   .Distinct().ToList();
-
-			var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
-			await Task.WhenAll(quizTasks.Values);
-
-			var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
-
-			var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
-			var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
-
-			var detail = _courseMapper.MapCourseDetailForLecture(
-							entity,
-							moduleQuizIdByModuleId,
-							lessonQuizIdByLessonId,
-							quizDict
-						);
-
-			await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
-			var modulesCount = entity.Modules.Count(m => m.IsActive);
-			var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
-			response.Response = detail;
-			response.ModulesCount = modulesCount;
-			response.LessonsCount = lessonsCount;
-			return response;
-		}
-
-		/// <summary>
-		/// Create course with modules + lessons + quizzes (atomic) and related data (objectives, requirements, tags, audiences)
-		/// </summary>
-		/// <param name="dto"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<CreateCourseResponse> CreateAsync(CreateCourseDto dto, CancellationToken ct = default)
-		{
-			var response = new CreateCourseResponse() { Success = false };
-
-			// Get current user id
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			var title = dto.Title!.Trim();
-
-			var slug = await _slugService.GenerateUniqueSlugAsync(title, ct);
-
-			var course = new CourseEntity
-			{
-				CourseId = Guid.NewGuid(),
-				TeacherId = currentUser.UserId,
-				SubjectId = dto.SubjectId,
-				Title = title,
-				ShortDescription = dto.ShortDescription,
-				Description = dto.Description,
-				Slug = slug,
-				CourseImageUrl = dto.CourseImageUrl,
-				//Status = dto.Status,          // nếu enum: dto.Status; nếu string: giữ nguyên
-				LearnerCount = 0,
-				DurationMinutes = dto.DurationMinutes,
-				Level = dto.Level,
-				Price = dto.Price,
-				DealPrice = dto.DealPrice,
-				CourseIntroVideoUrl = dto.CourseIntroVideoUrl,
-			};
-
-			// Pending quizzes để gửi sau khi commit (module/lesson)
-			var pendingModuleQuizzes = new List<(Guid ModuleId, CreateQuizDto Quiz)>();
-			var pendingLessonQuizzes = new List<(Guid ModuleId, Guid LessonId, CreateQuizDto Quiz)>();
-
-			// 3) Mục tiêu học tập (CourseObjectives) – optional
-			if (dto.Objectives is { Count: > 0 })
-			{
-				foreach (var (obj, idx) in dto.Objectives
-							 .OrderBy(o => o.PositionIndex)
-							 .Select((o, i) => (o, i)))
-				{
-					course.CourseObjectives.Add(new CourseObjective
-					{
-						ObjectiveId = Guid.NewGuid(),
-						CourseId = course.CourseId,
-						Content = obj.Content,
-						PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx,
-					});
-				}
-			}
-
-			// 4) Yêu cầu trước khi học (CourseRequirements) – optional
-			if (dto.Requirements is { Count: > 0 })
-			{
-				foreach (var (req, idx) in dto.Requirements
-							 .OrderBy(r => r.PositionIndex)
-							 .Select((r, i) => (r, i)))
-				{
-					course.CourseRequirements.Add(new CourseRequirement
-					{
-						RequirementId = Guid.NewGuid(),
-						CourseId = course.CourseId,
-						Content = req.Content,
-						PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
-					});
-				}
-			}
-
-			// 5) Course Tags – optional
-			if (dto.CourseTags is { Count: > 0 })
-			{
-				foreach (var courseTag in dto.CourseTags)
-				{
-					course.CourseTags.Add(new CourseTag
-					{
-						CourseId = course.CourseId,
-						TagId = courseTag.TagId,
-					});
-				}
-			}
-
-			// 5.1) Course Audiences – optional (1-N)
-			if (dto.Audiences is { Count: > 0 })
-			{
-				// Validate không trùng PositionIndex trong payload
-				EnsureDistinct(dto.Audiences.Select(a => a.PositionIndex),
-					"Audience PositionIndex must be unique within the course.");
-
-				// Tập position đã dùng (đang rỗng vì course mới)
-				var takenIdx = new HashSet<int>();
-
-				foreach (var (aud, idx) in dto.Audiences
-							 .OrderBy(a => a.PositionIndex)
-							 .Select((a, i) => (a, i)))
-				{
-					// fallback index nếu client gửi <= 0
-					var pos = aud.PositionIndex > 0 ? aud.PositionIndex : NextIndex(takenIdx);
-					if (takenIdx.Contains(pos)) pos = NextIndex(takenIdx);
-					takenIdx.Add(pos);
-
-					course.CourseAudiences.Add(new CourseAudience
-					{
-						AudienceId = Guid.NewGuid(),      // sinh ID ngay
-						CourseId = course.CourseId,
-						Content = aud.Content,
-						PositionIndex = pos,
-					});
-				}
-			}
-
-
-			if (dto.Modules is { Count: > 0 })
-			{
-				// 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
-				foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
-				{
-					var module = new Module
-					{
-						ModuleId = Guid.NewGuid(),
-						CourseId = course.CourseId,
-						ModuleName = m.ModuleName,
-						Description = m.Description,
-						PositionIndex = m.PositionIndex,
-						IsCore = m.IsCore,
-						DurationMinutes = m.DurationMinutes,
-						Level = m.Level,
-					};
-
-					// Module Objectives (optional)
-					if (m.Objectives is { Count: > 0 })
-					{
-						foreach (var (mo, idx) in m.Objectives
-									 .OrderBy(o => o.PositionIndex)
-									 .Select((o, i) => (o, i)))
-						{
-							module.ModuleObjectives.Add(new ModuleObjective
-							{
-								ObjectiveId = Guid.NewGuid(),
-								ModuleId = module.ModuleId,
-								Content = mo.Content,
-								PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
-							});
-						}
-					}
-
-					// Lessons (required, at least 1)
-					if (m.Lessons is { Count: > 0 })
-					{
-						foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
-						{
-							var lesson = new Lesson
-							{
-								LessonId = Guid.NewGuid(),
-								ModuleId = module.ModuleId,
-								Title = l.Title,
-								VideoUrl = l.VideoUrl,
-								VideoDurationSec = l.VideoDurationSec,
-								PositionIndex = l.PositionIndex,
-							};
-
-							module.Lessons.Add(lesson);
-
-							if (l.LessonQuiz is not null)
-								pendingLessonQuizzes.Add((module.ModuleId, lesson.LessonId, l.LessonQuiz));
-						}
-					}
-
-					// Discussions (optional)
-					if (m.Discussions is { Count: > 0 })
-					{
-						foreach (var d in m.Discussions)
-						{
-							module.ModuleDiscussions.Add(new ModuleDiscussion
-							{
-								DiscussionId = Guid.NewGuid(),
-								ModuleId = module.ModuleId,
-								Title = d.Title?.Trim(),
-								Description = d.Description,
-								DiscussionQuestion = d.DiscussionQuestion,
-							});
-						}
-					}
-
-					// Materials (optional)
-					if (m.Materials is { Count: > 0 })
-					{
-						foreach (var mat in m.Materials)
-						{
-							module.ModuleMaterials.Add(new ModuleMaterial
-							{
-								MaterialId = Guid.NewGuid(),
-								ModuleId = module.ModuleId,
-								Title = mat.Title?.Trim(),
-								Description = mat.Description,
-								FileUrl = mat.FileUrl,
-							});
-						}
-					}
-
-					if (m.ModuleQuiz is not null)
-						pendingModuleQuizzes.Add((module.ModuleId, m.ModuleQuiz));
-
-
-					course.Modules.Add(module);
-				}
-			}
-
-			await unitOfWork.BeginTransactionAsync(async () =>
-						{
-							await _courseRepository.AddAsync(course, currentUser.Email);
-							await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
-
-							return true; // yêu cầu của BeginTransactionAsync: trả true để commit
-						}, ct);
-
-
-			// ===== Request/Response tới QuizService theo event QuizCourseInsertEvent (ModuleQuizInsertEvent/LessonQuizInsertEvent) =====
-
-			// Module-level
-
-			foreach (var (moduleId, quizDto) in pendingModuleQuizzes)
-			{
-				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
-					currentUser.Email,
-					quizDto
-				);
-
-				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
-
-				if (!resp.Message.Success)
-				{
-					response.SetMessage(MessageId.E99999, $"Tạo quiz cho module {moduleId} không thành công");
-					//throw new InvalidOperationException ($"{resp.Message.MessageId} : {resp.Message.Message}")
-					return response;
-				}
-
-				var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
-				if (quizId == Guid.Empty)
-					throw new InvalidOperationException("QuizId is empty.");
-
-				await _moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
-				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
-
-
-			}
-
-			// Lesson-level
-			foreach (var (moduleId, lessonId, quizDto) in pendingLessonQuizzes)
-			{
-				var payload = _quizEventFactory.ToQuizCourseInsertEvent(
-					currentUser.Email,
-					quizDto
-				);
-
-				var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
-
-				if (!resp.Message.Success)
-				{
-					response.SetMessage(MessageId.E99999, $"Tạo quiz cho lesson {lessonId} của module {moduleId} không thành công");
-					//throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}")
-					return response;
-				}
-
-				var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
-				if (quizId == Guid.Empty)
-					throw new InvalidOperationException("QuizId is empty.");
-
-				await _lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
-				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
-
-			}
-
-			var transcribeItems = course.Modules
-							.SelectMany(m => m.Lessons)
-							.Where(l => !string.IsNullOrWhiteSpace(l.VideoUrl))
-							.OrderBy(l => l.PositionIndex)
-							.Select(l => new TranscribeItem(l.LessonId, l.VideoUrl!, l.VideoDurationSec))
-							.ToList();
-
-			if (transcribeItems.Count > 0)
-			{
-				var corrId = Guid.NewGuid();
-				var evt = new TranscribeBatchRequested(
-					CorrelationId: corrId,
-					RequestedBy: currentUser.Email,
-					Language: "vi",
-					Items: transcribeItems,
-					RequestedAtUtc: DateTime.UtcNow
-				);
-				await _publish.Publish(evt, ct);
-			}
-
-
-			// Clear cache after successful creation
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseDetailForGuestCacheAsync();
-			await _courseCache.ClearCourseDetailForLectureCacheAsync();
-			await _courseCache.ClearCourseDetailForStudentCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
-
-			response.Response = course.CourseId.ToString();
-			response.Success = true;
-			response.SetMessage(MessageId.I00000, "Tạo khóa học thành công");
-
-			return response;
-		}
-
-		/// <summary>
-		/// Update course and its related data (objectives, requirements, audiences, course-tags)
-		/// Delete Course: Set IsActive = false (soft delete)
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="dto"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
-		{
-			var response = new UpdateCourseResponse() { Success = false };
-			// 1. Validate PositionIndex uniqueness
-			ValidateCourseDetailPositionIndexes(dto);
-
-			// 2. Get existing course with all related data
-			var existingCourse = await _courseRepository
-				.Find(x => x.CourseId == courseId, isTracking: true, ct,
-					x => x.CourseObjectives,
-					x => x.CourseRequirements,
-					x => x.CourseAudiences,
-					x => x.CourseTags)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingCourse is null)
-			{
-				response.Message = $"Course {courseId} not found";
-				return response;
-			}
-
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			// 3. Update basic course properties
-			existingCourse.TeacherId = dto.TeacherId;
-			existingCourse.SubjectId = dto.SubjectId;
-			existingCourse.Title = dto.Title?.Trim() ?? string.Empty;
-			existingCourse.ShortDescription = dto.ShortDescription;
-			existingCourse.Description = dto.Description;
-			existingCourse.CourseImageUrl = dto.CourseImageUrl;
-			existingCourse.DurationMinutes = dto.DurationMinutes;
-			existingCourse.Level = dto.Level;
-			existingCourse.Price = dto.Price;
-			existingCourse.DealPrice = dto.DealPrice;
-			existingCourse.IsActive = dto.IsActive;
-
-			// 4. Handle slug update with uniqueness check
-			if (!string.IsNullOrWhiteSpace(dto.Slug))
-			{
-				var newSlug = dto.Slug.Trim();
-				if (newSlug != existingCourse.Slug)
-				{
-					existingCourse.Slug = await _slugService.EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
-				}
-			}
-
-			// 5. Update CourseObjectives
-			await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.Email);
-
-			// 6. Update CourseRequirements
-			await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
-
-			// 6.1 Update CourseAudiences
-			await UpdateCourseAudiencesAsync(existingCourse, dto.Audiences, currentUser.Email);
-
-			// 6.2 Update CourseTags
-			await UpdateCourseTagsAsync(existingCourse, dto.CourseTags);
-
-			try
-			{
-				// 7. Save changes in transaction
-				await unitOfWork.BeginTransactionAsync(async () =>
-				{
-					_courseRepository.Update(existingCourse, currentUser.Email);
-					await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
-					return true;
-				}, ct);
-			}
-			catch (DbUpdateConcurrencyException)
-			{
-				response.SetMessage(MessageId.E11003, "Cập nhật khóa học thất bại do xung đột dữ liệu. Vui lòng thử lại.");
-				return response;
-			}
-			catch (Exception ex)
-			{
-				response.SetMessage(MessageId.E00000, $"Cập nhật khóa học thất bại: {ex.Message}");
-				return response;
-			}
-
-
-			// 8. Clear cache after successful update
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseDetailForGuestCacheAsync();
-			await _courseCache.ClearCourseDetailForLectureCacheAsync();
-			await _courseCache.ClearCourseDetailForStudentCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
-
-			// 9. Return updated course detail
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Cập nhật khóa học");
-			return response;
-		}
-
-		/// <summary>
-		/// Update multiple modules in a course (bulk update)
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="dto"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
-		{
-			var response = new UpdateCourseModulesResponse() { Success = false };
-			// 1. Validate PositionIndex uniqueness across all modules
-			ValidateCourseModulesPositionIndexes(dto);
-
-			// 2. Get existing course with all modules and related data
-			var existingCourse = await _courseRepository
-				.Find(x => x.CourseId == courseId, isTracking: true, ct,
-					x => x.Modules)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.ModuleObjectives)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.Lessons)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.ModuleDiscussions)
-				.Include(x => x.Modules)
-					.ThenInclude(m => m.ModuleMaterials)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingCourse is null)
-			{
-				response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
-				return response;
-			}
-
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			// 3. Update modules based on payload
-			await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules);
-
-			// 4. Save changes in transaction
-			await unitOfWork.BeginTransactionAsync(async () =>
-			{
-				_courseRepository.Update(existingCourse, currentUser.Email);
-				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
-				return true;
-			}, ct);
-
-			// 5. Clear cache after successful update
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseDetailForGuestCacheAsync();
-			await _courseCache.ClearCourseDetailForLectureCacheAsync();
-			await _courseCache.ClearCourseDetailForStudentCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
-
-			// 6. Return response
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Cập nhật các module của khóa học");
-
-			return response;
-		}
-
-		/// <summary>
-		/// Delete course by setting IsActive = false (soft delete)
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <exception cref="NotImplementedException"></exception>
-		public async Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default)
-		{
-			var response = new DeleteCourseResponse() { Success = false };
-
-			var existingCourse = await _courseRepository
-				.Find(x => x.CourseId == courseId, isTracking: true, ct)
-				.FirstOrDefaultAsync(ct);
-
-			if (existingCourse is null)
-			{
-				response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
-				return response;
-			}
-
-			var currentUser = _identityService.GetCurrentUser()!;
-
-			// Only the teacher who created the course can delete it
-			if (existingCourse.TeacherId != currentUser.UserId)
-			{
-				response.SetMessage(MessageId.E00000, "Bạn không có quyền xóa khóa học này.");
-				return response;
-			}
-
-			await unitOfWork.BeginTransactionAsync(async () =>
-			{
-				// Soft delete by setting IsActive = false
-				// Set needLogicalDelete = true to soft delete
-				_courseRepository.Update(existingCourse, currentUser.Email, true);
-				await unitOfWork.SaveChangesAsync(currentUser.Email, ct, true);
-				return true;
-			}, ct);
-
-			// 5. Clear cache after successful update
-			await _courseCache.ClearGetAllCacheAsync();
-			await _courseCache.ClearCourseDetailForGuestCacheAsync();
-			await _courseCache.ClearCourseDetailForLectureCacheAsync();
-			await _courseCache.ClearCourseDetailForStudentCacheAsync();
-			await _courseCache.ClearCourseTagsCacheAsync();
-
-			response.Response = true;
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Xóa khóa học");
-			return response;
-		}
-
-		/// <summary>
-		/// Get all course tags
-		/// </summary>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default)
-		{
-			var response = new GetCourseTagsResponse() { Success = false };
-
-			// generate cache key for course tags
-			var cacheKey = "CourseTags:GetAll";
-
-			// get from cache first
-			var cached = await _cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
-			if (cached is not null)
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
-				response.Response = cached;
-				return response;
-			}
-
-			// get from database
-			var tags = await _tagRepository
-				.Find(predicate: null, isTracking: false, cancellationToken: ct)
-				.Select(t => new CourseTagDetailsDto(
-					t.TagId,
-					t.TagName
-				))
-				.ToListAsync(ct);
-
-			// Cache the result for future requests
-			await _cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
-			response.Response = tags;
-
-			return response;
-		}
-
-		/// <summary>
-		/// Get course selects response QuizService
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <summary>
-		/// Get course selects response QuizService
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
-			CoursesSelectEvent request, CancellationToken ct = default)
-		{
-			var response = new CoursesSelectEventResponse { Success = false };
-
-			// 1. Validate semester exists
-			var semester = await _semesterRepository
-				.Find(s => s.SemesterId == request.SemesterId)
-				.Select(s => new { s.SemesterId, s.SemesterNumber })
-				.FirstOrDefaultAsync(cancellationToken: ct);
-
-			if (semester == null)
-			{
-				response.SetMessage(MessageId.E00000, "Semester not found");
-				return response;
-			}
-
-			// 2. Determine which major codes to query
-			var majorCodesToQuery = request.MajorCodes.ToList();
-
-			// If semester < 4 and "SE" not in majorCodes, add "SE"
-			if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
-			{
-				majorCodesToQuery.Add("SE");
-			}
-
-			var coursesData = await _courseRepository
-				.Find(c => c.Subject.SyllabusSubjects.Any(
-							   ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) &&
-					  // c.Level == request.StudentLevel &&
-					  c.IsActive,
-
-					includes: c => c.Subject
-				)
-				.Select(c => new
-				{
-					c.CourseId,
-					MajorCodes = c.Subject.SyllabusSubjects
-						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
-						.Select(ss => ss.Syllabus.Major.MajorCode)
-						.Distinct()
-				})
-				.ToListAsync(cancellationToken: ct);
-
-			// 4. Flatten và group by major
-			var groupedCourses = coursesData
-				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
-				.GroupBy(x => x.MajorCode)
-				.Select(g => new CoursesSelectEventResponseEntity
-				{
-					MajorCode = g.Key,
-					CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
-				})
-				.ToList();
-
-			// 4. Build response
-			response.Success = true;
-			response.Response = groupedCourses;
-			response.SetMessage(MessageId.I00001);
-			return response;
-		}
-
-		/// <summary>
-		/// Get all view course by list of CourseIds
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(GetInfoInternalCourseEvents request, CancellationToken ct = default)
-		{
-			var resp = new GetInfoInternalCourseResponse { Success = false };
-
-			try
-			{
-				if (request?.CourseIds == null || request.CourseIds.Count == 0)
-				{
-					resp.Success = true;
-					resp.Message = "Không có CourseId nào được cung cấp.";
-					resp.Response = Array.Empty<InternalCourseInfoDto>();
-					return resp;
-				}
-
-				var idSet = request.CourseIds.ToHashSet();
-
-				// 1) Lấy dữ liệu từ VIEW (AsNoTracking)
-				var rows = await _viewCourseRepo.Find(
-						v => v.CourseId.HasValue && idSet.Contains(v.CourseId.Value),
-						isTracking: false,
-						cancellationToken: ct
-					)
-					.ToListAsync(ct);
-
-				var representatives = rows
-					.Where(r => r?.CourseId != null)
-					.GroupBy(r => r!.CourseId!.Value)
-					.Select(g => g
-						.OrderBy(x => x!.SemesterNumber)
-						.ThenBy(x => x!.SubjectCode)
-						.First()!
-					)
-					.ToList();
-
-				// 3) Mapster: VIEW -> DTO
-				var mapped = representatives.Adapt<List<InternalCourseInfoDto>>();
-
-				// 4) Giữ đúng thứ tự như input CourseIds (chú ý Guid? -> Guid)
-				var order = request.CourseIds
-					.Select((id, idx) => new { id, idx })
-					.ToDictionary(x => x.id, x => x.idx);
-
-				var ordered = mapped
-					.OrderBy(i =>
-					{
-						int idx;
-						return i.CourseId.HasValue && order.TryGetValue(i.CourseId.Value, out idx)
-							? idx
-							: int.MaxValue;
-					})
-					.ToList();
-
-				resp.Response = ordered;
-				resp.Success = true;
-				resp.Message = $"Tìm thấy {ordered.Count}/{idSet.Count} khóa học.";
-				return resp;
-			}
-			catch (Exception ex)
-			{
-				return null;
-			}
-		}
-		#endregion
-
-
-		/// <summary>
-		/// Get in-progress courses by student id
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentIdAsync(GetInProgressCourseByStudentIdQuery request, CancellationToken ct = default)
-		{
-			var response = new GetInProgressCourseByStudentIdResponse { Success = false };
-
-			var currentUser = _identityService.GetCurrentUser();
-			if (currentUser is null)
-			{
-				response.SetMessage(MessageId.E11001);
-				return response;
-			}
-
-			// cd22e142-c775-40f2-ad75-de50acb7291e
-			var userId = currentUser.UserId;
-
-			// Lấy danh sách khóa học đang học của học viên
-			var queryable = _courseRepository.Find(
-											predicate: c =>
-												c.IsActive &&
-												c.CourseStudentEnrollments.Any(e =>
-													e.UserId == userId &&
-													e.IsActive),
-											isTracking: false
-										);
-
-			// Lọc theo CourseIds nếu có trong request
-			var items = await queryable
-				// B1: đưa StartedAt về scalar nullable để EF translate tốt
-				.Select(c => new
-				{
-					c.CourseId,
-					c.Title,
-					c.ShortDescription,
-					c.CourseImageUrl,
-					c.DurationHours,
-					StartedAt = c.CourseStudentEnrollments
-						.Where(e => e.UserId == userId && e.IsActive /* && (e.ExpiresAt == null || e.ExpiresAt > nowUtc)*/)
-						.Select(e => (DateTime?)e.StartedAt)
-						.Max()
-				})
-				// B2: Order by scalar
-				.OrderByDescending(x => x.StartedAt)
-				// B3: Project sang record
-				.Select(x => new InProgressCourseDto(
-					x.CourseId,
-					x.Title,
-					x.ShortDescription,
-					x.CourseImageUrl,
-					x.DurationHours,
-					(x.StartedAt ?? DateTime.MinValue) // hoặc .Value nếu bạn chắc chắn có enrollment
-				))
-				.ToListAsync(ct);
-
-			response.Response = items;
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học đang học của học viên");
-			return response;
-		}
-
-		#region Private Helper Methods
-
-		/// <summary>
-		/// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
-		/// </summary>
-		/// <param name="dto"></param>
-		/// <exception cref="ValidationException"></exception>
-		private static void ValidateCourseDetailPositionIndexes(UpdateCourseDto dto)
-		{
-			// Course Objectives (chỉ active)
-			if (dto.Objectives is { Count: > 0 })
-			{
-				var activeIdx = dto.Objectives
-					.Where(o => o.IsActive)
-					.Select(o => o.PositionIndex)
-					.ToList();
-
-				if (activeIdx.Count != activeIdx.Distinct().Count())
-					throw new ValidationException("Objective PositionIndex must be unique among active objectives.");
-
-				if (activeIdx.Any(i => i <= 0))
-					throw new ValidationException("Objective PositionIndex must be > 0 for active objectives.");
-			}
-
-			// Course Requirements (chỉ active)
-			if (dto.Requirements is { Count: > 0 })
-			{
-				var activeIdx = dto.Requirements
-					.Where(r => r.IsActive)
-					.Select(r => r.PositionIndex)
-					.ToList();
-
-				if (activeIdx.Count != activeIdx.Distinct().Count())
-					throw new ValidationException("Requirement PositionIndex must be unique among active requirements.");
-
-				if (activeIdx.Any(i => i < 0))
-					throw new ValidationException("Requirement PositionIndex must be >= 0 for active requirements.");
-			}
-
-			// Course Audiences (chỉ active)
-			if (dto.Audiences is { Count: > 0 })
-			{
-				var activeIdx = dto.Audiences
-					.Where(a => a.IsActive)
-					.Select(a => a.PositionIndex)
-					.ToList();
-				if (activeIdx.Count != activeIdx.Distinct().Count())
-					throw new ValidationException("Audience PositionIndex must be unique among active audiences.");
-				if (activeIdx.Any(i => i <= 0))
-					throw new ValidationException("Audience PositionIndex must be > 0 for active audiences.");
-			}
-		}
-
-		/// <summary>
-		/// Update CourseObjectives based on payload
-		/// </summary>
-		private Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor)
-		{
-			if (objectives is null || objectives.Count == 0)
-			{
-				// Mark all existing objectives as inactive (soft delete)
-				foreach (var obj in course.CourseObjectives.Where(o => o.IsActive))
-				{
-					obj.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-
-			var now = DateTime.UtcNow;
-			var existingObjectives = course.CourseObjectives.ToDictionary(o => o.ObjectiveId, o => o);
-			var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-
-			// 1. Mark objectives not in payload as inactive (soft delete)
-			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing objectives or create new ones
-			foreach (var objDto in objectives)
-			{
-				if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
-				{
-					// Update existing objective
-					existing.Content = objDto.Content;
-					existing.PositionIndex = objDto.PositionIndex;
-					existing.IsActive = objDto.IsActive;
-				}
-				else
-				{
-					// Create new objective - let EF generate the ID
-					var newObjective = new CourseObjective
-					{
-						CourseId = course.CourseId,
-						Content = objDto.Content,
-						PositionIndex = objDto.PositionIndex,
-						IsActive = objDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
-					};
-					course.CourseObjectives.Add(newObjective);
-				}
-			}
-
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update CourseRequirements based on payload
-		/// </summary>
-		private Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor)
-		{
-			if (requirements is null || requirements.Count == 0)
-			{
-				// Mark all existing requirements as inactive (soft delete)
-				foreach (var req in course.CourseRequirements.Where(r => r.IsActive))
-				{
-					req.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-
-			var now = DateTime.UtcNow;
-			var existingRequirements = course.CourseRequirements.ToDictionary(r => r.RequirementId, r => r);
-			var payloadRequirementIds = requirements.Where(r => r.RequirementId.HasValue).Select(r => r.RequirementId!.Value).ToHashSet();
-
-			// 1. Mark requirements not in payload as inactive (soft delete)
-			foreach (var existing in existingRequirements.Values.Where(r => r.IsActive && !payloadRequirementIds.Contains(r.RequirementId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing requirements or create new ones
-			foreach (var reqDto in requirements)
-			{
-				if (reqDto.RequirementId.HasValue && existingRequirements.TryGetValue(reqDto.RequirementId.Value, out var existing))
-				{
-					// Update existing requirement
-					existing.Content = reqDto.Content;
-					existing.PositionIndex = reqDto.PositionIndex;
-					existing.IsActive = reqDto.IsActive;
-				}
-				else
-				{
-					// Create new requirement - let EF generate the ID
-					var newRequirement = new CourseRequirement
-					{
-						CourseId = course.CourseId,
-						Content = reqDto.Content,
-						PositionIndex = reqDto.PositionIndex,
-						IsActive = reqDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
-					};
-					course.CourseRequirements.Add(newRequirement);
-				}
-			}
-
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update CourseAudiences based on payload
-		/// </summary>
-		/// <param name="course"></param>
-		/// <param name="audiences"></param>
-		/// <param name="actor"></param>
-		/// <returns></returns>
-		private Task UpdateCourseAudiencesAsync(CourseEntity course, List<UpdateCourseAudienceDto>? audiences, string actor)
-		{
-			if (audiences is null || audiences.Count == 0)
-			{
-				// Mark all existing audiences as inactive (soft delete)
-				foreach (var aud in course.CourseAudiences.Where(a => a.IsActive))
-				{
-					aud.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-			var now = DateTime.UtcNow;
-			var existingAudiences = course.CourseAudiences.ToDictionary(a => a.AudienceId, a => a);
-			var payloadAudienceIds = audiences.Where(a => a.AudienceId.HasValue).Select(a => a.AudienceId!.Value).ToHashSet();
-
-			// 1. Mark audiences not in payload as inactive (soft delete)
-			foreach (var existing in existingAudiences.Values.Where(a => a.IsActive && !payloadAudienceIds.Contains(a.AudienceId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing audiences or create new ones
-			foreach (var audDto in audiences)
-			{
-				if (audDto.AudienceId.HasValue && existingAudiences.TryGetValue(audDto.AudienceId.Value, out var existing))
-				{
-					// Update existing audience
-					existing.Content = audDto.Content;
-					existing.PositionIndex = audDto.PositionIndex;
-					existing.IsActive = audDto.IsActive;
-				}
-				else
-				{
-					// Create new audience - let EF generate the ID
-					var newAudience = new CourseAudience
-					{
-						CourseId = course.CourseId,
-						Content = audDto.Content,
-						PositionIndex = audDto.PositionIndex,
-						IsActive = audDto.IsActive,
-						CreatedAt = now,
-						UpdatedAt = now,
-						CreatedBy = actor,
-						UpdatedBy = actor
-					};
-					course.CourseAudiences.Add(newAudience);
-				}
-			}
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update CourseTags based on payload
-		/// </summary>
-		/// <param name="course"></param>
-		/// <param name="courseTags"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <exception cref="ValidationException"></exception>
-		private async Task UpdateCourseTagsAsync(CourseEntity course, List<UpdateCourseTagDto>? courseTags, CancellationToken ct = default)
-		{
-			// Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
-			if (courseTags is null || courseTags.Count == 0)
-			{
-				if (course.CourseTags.Count > 0)
-				{
-					course.CourseTags.Clear(); // EF sẽ xóa các hàng ở bảng CourseTags (nếu cấu hình đúng)
-				}
-				return;
-			}
-
-			// 1) Chuẩn hóa payload: loại trùng và bỏ TagId <= 0
-			var payloadTagIds = courseTags
-				.Select(t => t.TagId)
-				.Where(id => id > 0)
-				.Distinct()
-				.ToHashSet();
-
-			if (payloadTagIds.Count == 0)
-			{
-				// Không còn tag hợp lệ => xóa hết
-				course.CourseTags.Clear();
-				return;
-			}
-
-			// 2) Validate các TagId có tồn tại trong bảng Tag
-			var existedTagIds = await _tagRepository
-				.Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
-				.Select(t => t.TagId)
-				.ToListAsync(ct);
-
-			var notFound = payloadTagIds.Except(existedTagIds).ToList();
-			if (notFound.Count > 0)
-				throw new ValidationException($"TagId không tồn tại: {string.Join(", ", notFound)}");
-
-			// 3) Tập hiện tại trong course
-			var currentTagIds = course.CourseTags.Select(ctg => ctg.TagId).ToHashSet();
-
-			// 4) Tính phần cần xóa và cần thêm
-			var toRemove = currentTagIds.Except(payloadTagIds).ToList();
-			var toAdd = payloadTagIds.Except(currentTagIds).ToList();
-
-			// 5) Hard delete: gỡ các CourseTag không còn trong payload
-			if (toRemove.Count > 0)
-			{
-				// Lấy các entity tương ứng để Remove
-				var removeEntities = course.CourseTags.Where(ctg => toRemove.Contains(ctg.TagId)).ToList();
-				foreach (var rm in removeEntities)
-					course.CourseTags.Remove(rm); // EF sẽ xóa bản ghi join
-			}
-
-			// 6) Thêm mới những TagId chưa có
-			if (toAdd.Count > 0)
-			{
-				foreach (var tagId in toAdd)
-				{
-					course.CourseTags.Add(new CourseTag
-					{
-						CourseId = course.CourseId,
-						TagId = tagId,
-					});
-				}
-			}
-		}
-
-		/// <summary>
-		/// Validate PositionIndex uniqueness across all modules in course
-		/// </summary>
-		private static void ValidateCourseModulesPositionIndexes(UpdateCourseModulesDto dto)
-		{
-			if (dto.Modules is null || dto.Modules.Count == 0)
-				return;
-
-			// Validate module PositionIndex uniqueness
-			var moduleIndexes = dto.Modules
-				.Where(m => m.IsActive)
-				.Select(m => m.PositionIndex)
-				.ToList();
-
-			if (moduleIndexes.Count != moduleIndexes.Distinct().Count())
-				throw new ValidationException("Module PositionIndex must be unique within the course.");
-
-			if (moduleIndexes.Any(i => i <= 0))
-				throw new ValidationException("Module PositionIndex must be > 0 for active modules.");
-
-			// Validate objectives and lessons within each module
-			foreach (var module in dto.Modules.Where(m => m.IsActive))
-			{
-				// Module Objectives
-				if (module.Objectives is { Count: > 0 })
-				{
-					var activeObjIdx = module.Objectives
-						.Where(o => o.IsActive)
-						.Select(o => o.PositionIndex)
-						.ToList();
-
-					if (activeObjIdx.Count != activeObjIdx.Distinct().Count())
-						throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be unique.");
-
-					if (activeObjIdx.Any(i => i <= 0))
-						throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be > 0 for active objectives.");
-				}
-
-				// Lessons
-				if (module.Lessons is { Count: > 0 })
-				{
-					var activeLessonIdx = module.Lessons
-						.Where(l => l.IsActive)
-						.Select(l => l.PositionIndex)
-						.ToList();
-
-					if (activeLessonIdx.Count != activeLessonIdx.Distinct().Count())
-						throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be unique.");
-
-					if (activeLessonIdx.Any(i => i <= 0))
-						throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be > 0 for active lessons.");
-				}
-			}
-		}
-
-		/// <summary>
-		/// Internal method to update course modules
-		/// </summary>
-		private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules)
-		{
-			// If payload is null or empty, mark all existing modules as inactive
-			if (modules is null || modules.Count == 0)
-			{
-				// Mark all existing modules as inactive (soft delete)
-				foreach (var module in course.Modules.Where(m => m.IsActive))
-				{
-					module.IsActive = false;
-				}
-				return;
-			}
-
-			var existingModules = course.Modules.ToDictionary(m => m.ModuleId, m => m);
-			var payloadModuleIds = modules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
-
-			// 1. Mark modules not in payload as inactive (soft delete)
-			foreach (var existing in existingModules.Values.Where(m => m.IsActive && !payloadModuleIds.Contains(m.ModuleId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing modules or create new ones
-			foreach (var moduleDto in modules)
-			{
-				if (moduleDto.ModuleId.HasValue && existingModules.TryGetValue(moduleDto.ModuleId.Value, out var existingModule))
-				{
-					// Update existing module
-					await UpdateExistingModuleAsync(existingModule, moduleDto);
-				}
-				else
-				{
-					// Create new module
-					await CreateNewModuleAsync(course, moduleDto);
-				}
-			}
-		}
-
-		/// <summary>
-		/// Update existing module with its objectives and lessons
-		/// </summary>
-		private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto)
-		{
-			// Update basic module properties
-			existingModule.ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty;
-			existingModule.Description = moduleDto.Description;
-			existingModule.PositionIndex = moduleDto.PositionIndex;
-			existingModule.IsActive = moduleDto.IsActive;
-			existingModule.IsCore = moduleDto.IsCore;
-			existingModule.DurationMinutes = moduleDto.DurationMinutes;
-			existingModule.Level = moduleDto.Level;
-
-			// Update ModuleObjectives
-			await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives);
-
-			// Update Lessons
-			await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons);
-
-			// Update Discussions
-			await UpdateModuleDiscussionInternalAsync(existingModule, moduleDto.Discussions);
-
-			// Update Materials
-			await UpdateModuleMaterialsInternalAsync(existingModule, moduleDto.Materials);
-		}
-
-		/// <summary>
-		/// Create new module with its objectives and lessons
-		/// </summary>
-		private Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto)
-		{
-			var newModule = new Module
-			{
-				CourseId = course.CourseId,
-				ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty,
-				Description = moduleDto.Description,
-				PositionIndex = moduleDto.PositionIndex,
-				IsCore = moduleDto.IsCore,
-				DurationMinutes = moduleDto.DurationMinutes,
-				Level = moduleDto.Level,
-			};
-
-			// Add ModuleObjectives
-			if (moduleDto.Objectives is { Count: > 0 })
-			{
-				foreach (var objDto in moduleDto.Objectives.OrderBy(o => o.PositionIndex))
-				{
-					newModule.ModuleObjectives.Add(new ModuleObjective
-					{
-						ModuleId = newModule.ModuleId,
-						Content = objDto.Content,
-						PositionIndex = objDto.PositionIndex,
-					});
-				}
-			}
-
-			// Add Lessons
-			if (moduleDto.Lessons is { Count: > 0 })
-			{
-				foreach (var lessonDto in moduleDto.Lessons.OrderBy(l => l.PositionIndex))
-				{
-					newModule.Lessons.Add(new Lesson
-					{
-						ModuleId = newModule.ModuleId,
-						Title = lessonDto.Title,
-						VideoUrl = lessonDto.VideoUrl,
-						VideoDurationSec = lessonDto.VideoDurationSec,
-						PositionIndex = lessonDto.PositionIndex,
-					});
-				}
-			}
-
-			// Add Discussions
-			if (moduleDto.Discussions is { Count: > 0 })
-			{
-				foreach (var disDto in moduleDto.Discussions)
-				{
-					newModule.ModuleDiscussions.Add(new ModuleDiscussion
-					{
-						ModuleId = newModule.ModuleId,
-						Title = disDto.Title,
-						Description = disDto.Description,
-						DiscussionQuestion = disDto.DiscussionQuestion,
-					});
-				}
-			}
-
-			// Add Materials
-			if (moduleDto.Materials is { Count: > 0 })
-			{
-				foreach (var matDto in moduleDto.Materials)
-				{
-					newModule.ModuleMaterials.Add(new ModuleMaterial
-					{
-						ModuleId = newModule.ModuleId,
-						Title = matDto.Title,
-						Description = matDto.Description,
-						FileUrl = matDto.FileUrl,
-					});
-				}
-			}
-
-			course.Modules.Add(newModule);
-
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update ModuleObjectives for existing module
-		/// </summary>
-		private Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives)
-		{
-			if (objectives is null || objectives.Count == 0)
-			{
-				// Mark all existing objectives as inactive (soft delete)
-				foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
-				{
-					obj.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-
-			var existingObjectives = module.ModuleObjectives.ToDictionary(o => o.ObjectiveId, o => o);
-			var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
-
-			// 1. Mark objectives not in payload as inactive (soft delete)
-			foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing objectives or create new ones
-			foreach (var objDto in objectives)
-			{
-				if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
-				{
-					// Update existing objective
-					existing.Content = objDto.Content;
-					existing.PositionIndex = objDto.PositionIndex;
-					existing.IsActive = objDto.IsActive;
-				}
-				else
-				{
-					// Create new objective - let EF generate the ID
-					var newObjective = new ModuleObjective
-					{
-						ModuleId = module.ModuleId,
-						Content = objDto.Content,
-						PositionIndex = objDto.PositionIndex,
-					};
-					module.ModuleObjectives.Add(newObjective);
-				}
-			}
-
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update Lessons for existing module
-		/// </summary>
-		private Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons)
-		{
-			if (lessons is null || lessons.Count == 0)
-			{
-				// Mark all existing lessons as inactive (soft delete)
-				foreach (var lesson in module.Lessons.Where(l => l.IsActive))
-				{
-					lesson.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-
-			var existingLessons = module.Lessons.ToDictionary(l => l.LessonId, l => l);
-			var payloadLessonIds = lessons.Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
-
-			// 1. Mark lessons not in payload as inactive (soft delete)
-			foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
-			{
-				existing.IsActive = false;
-			}
-
-			// 2. Update existing lessons or create new ones
-			foreach (var lessonDto in lessons)
-			{
-				if (lessonDto.LessonId.HasValue && existingLessons.TryGetValue(lessonDto.LessonId.Value, out var existing))
-				{
-					// Update existing lesson
-					existing.Title = lessonDto.Title;
-					existing.VideoUrl = lessonDto.VideoUrl;
-					existing.VideoDurationSec = lessonDto.VideoDurationSec;
-					existing.PositionIndex = lessonDto.PositionIndex;
-					existing.IsActive = lessonDto.IsActive;
-				}
-				else
-				{
-					// Create new lesson - let EF generate the ID
-					var newLesson = new Lesson
-					{
-						ModuleId = module.ModuleId,
-						Title = lessonDto.Title,
-						VideoUrl = lessonDto.VideoUrl,
-						VideoDurationSec = lessonDto.VideoDurationSec,
-						PositionIndex = lessonDto.PositionIndex,
-					};
-					module.Lessons.Add(newLesson);
-				}
-			}
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update ModuleDiscussions for existing module
-		/// </summary>
-		/// <param name="module"></param>
-		/// <param name="discussions"></param>
-		/// <param name="actor"></param>
-		/// <returns></returns>
-		private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions)
-		{
-			if (discussions is null || discussions.Count == 0)
-			{
-				// Mark all existing discussions as inactive (soft delete)
-				foreach (var dis in module.ModuleDiscussions.Where(d => d.IsActive))
-				{
-					dis.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-			var existingDiscussions = module.ModuleDiscussions.ToDictionary(d => d.DiscussionId, d => d);
-			var payloadDiscussionIds = discussions.Where(d => d.DiscussionId.HasValue).Select(d => d.DiscussionId!.Value).ToHashSet();
-			// 1. Mark discussions not in payload as inactive (soft delete)
-			foreach (var existing in existingDiscussions.Values.Where(d => d.IsActive && !payloadDiscussionIds.Contains(d.DiscussionId)))
-			{
-				existing.IsActive = false;
-			}
-			// 2. Update existing discussions or create new ones
-			foreach (var disDto in discussions)
-			{
-				if (disDto.DiscussionId.HasValue && existingDiscussions.TryGetValue(disDto.DiscussionId.Value, out var existing))
-				{
-					// Update existing discussion
-					existing.Title = disDto.Title;
-					existing.Description = disDto.Description;
-					existing.DiscussionQuestion = disDto.DiscussionQuestion;
-					existing.IsActive = disDto.IsActive;
-				}
-				else
-				{
-					// Create new discussion - let EF generate the ID
-					var newDiscussion = new ModuleDiscussion
-					{
-						ModuleId = module.ModuleId,
-						Title = disDto.Title,
-						Description = disDto.Description,
-						DiscussionQuestion = disDto.DiscussionQuestion,
-					};
-					module.ModuleDiscussions.Add(newDiscussion);
-				}
-			}
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Update ModuleMaterials for existing module
-		/// </summary>
-		/// <param name="module"></param>
-		/// <param name="materials"></param>
-		/// <param name="actor"></param>
-		/// <returns></returns>
-		private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials)
-		{
-			if (materials is null || materials.Count == 0)
-			{
-				// Mark all existing materials as inactive (soft delete)
-				foreach (var mat in module.ModuleMaterials.Where(m => m.IsActive))
-				{
-					mat.IsActive = false;
-				}
-				return Task.CompletedTask;
-			}
-			var existingMaterials = module.ModuleMaterials.ToDictionary(m => m.MaterialId, m => m);
-			var payloadMaterialIds = materials.Where(m => m.MaterialId.HasValue).Select(m => m.MaterialId!.Value).ToHashSet();
-			// 1. Mark materials not in payload as inactive (soft delete)
-			foreach (var existing in existingMaterials.Values.Where(m => m.IsActive && !payloadMaterialIds.Contains(m.MaterialId)))
-			{
-				existing.IsActive = false;
-			}
-			// 2. Update existing materials or create new ones
-			foreach (var matDto in materials)
-			{
-				if (matDto.MaterialId.HasValue && existingMaterials.TryGetValue(matDto.MaterialId.Value, out var existing))
-				{
-					// Update existing material
-					existing.Title = matDto.Title;
-					existing.Description = matDto.Description;
-					existing.FileUrl = matDto.FileUrl;
-					existing.IsActive = matDto.IsActive;
-				}
-				else
-				{
-					// Create new material - let EF generate the ID
-					var newMaterial = new ModuleMaterial
-					{
-						ModuleId = module.ModuleId,
-						Title = matDto.Title,
-						Description = matDto.Description,
-						FileUrl = matDto.FileUrl,
-					};
-					module.ModuleMaterials.Add(newMaterial);
-				}
-			}
-			return Task.CompletedTask;
-		}
-
-		/// <summary>
-		/// Help validate that a list of integers are all distinct
-		/// </summary>
-		/// <param name="indexes"></param>
-		/// <param name="errorMsg"></param>
-		/// <exception cref="ValidationException"></exception>
-		private static void EnsureDistinct(IEnumerable<int> indexes, string errorMsg)
-		{
-			var list = indexes.ToList();
-			if (list.Count != list.Distinct().Count())
-				throw new ValidationException(errorMsg);
-		}
-
-		/// <summary>
-		/// Check if two lists of integers have any intersection
-		/// </summary>
-		/// <param name="taken"></param>
-		/// <returns></returns>
-		private static int NextIndex(ISet<int> taken)
-		{
-			var next = taken.Count == 0 ? 1 : taken.Max() + 1;
-			while (taken.Contains(next)) next++;
-			return next;
-		}
-
-		#endregion
-
-	}
+    public class CourseService(
+        ICommandRepository<CourseEntity> _courseRepository,
+        ICommandRepository<Tag> _tagRepository,
+        IUnitOfWork unitOfWork,
+        IDatabase _cache,
+        IIdentityService _identityService,
+        IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
+        IPublishEndpoint _publish,
+        ICommandRepository<ModuleQuiz> _moduleQuizRepository,
+        ICommandRepository<LessonQuiz> _lessonQuizRepository,
+        ICommandRepository<CourseWishlist> _courseWishListRepository,
+        ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentRepository,
+        ISlugService _slugService,
+        ICacheKeyFactory _cacheKeyFactory,
+        ICourseCache _courseCache,
+        ICourseMapper _courseMapper,
+        IQuizGateway _quizGateway,
+        ICommandRepository<Semester> _semesterRepository,
+        ICommandRepository<VMajorSemesterSubjectCourses> _viewCourseRepo,
+        IQuizEventFactory _quizEventFactory,
+        ICommandRepository<CourseWishlist> _courseWishlistRepository,
+        ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository) : ICourseService
+    {
+        #region Service for Lecture & Guest
+
+        /// <summary>
+        /// Get all courses with pagination and optional filtering
+        /// </summary>
+        /// <param name="pagination"></param>
+        /// <param name="query"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetCoursesResponse> GetAllAsync(PaginationRequest pagination, CourseQuery? query = null, CancellationToken ct = default)
+        {
+            var response = new GetCoursesResponse() { Success = false };
+
+            var user = _identityService.GetCurrentUser();
+
+            // Generate cache key based on pagination and query parameters
+            var cacheKey = _cacheKeyFactory.GenerateCacheKeyForGetAll(pagination, query);
+
+            // Try to get from cache first
+            var cached = await _cache.GetAsync<PaginatedResult<CourseDto>>(cacheKey);
+            if (cached is not null)
+            {
+                if (user is not null)
+                {
+                    var courseIds = cached.Data.Select(d => d.CourseId).ToList();
+                    // Query tối giản để biết course nào trong wishlist của user
+                    var wishIds = await _courseWishlistRepository
+                        .Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
+                              isTracking: false, ct)
+                        .Select(x => x.CourseId)
+                        .ToListAsync(ct);
+
+                    // Vì CourseDto là record positional, dùng `with {}` để tạo bản sao có IsWishlist=true
+                    var personalizedData = cached.Data
+                        .Select(d => wishIds.Contains(d.CourseId) ? d with { IsWishlist = true } : d)
+                        .ToList();
+
+                    // Tạo result mới cho response (không động vào cached)
+                    var resultCache = new PaginatedResult<CourseDto>(
+                        pageIndex: cached.PageIndex,
+                        pageSize: cached.PageSize,
+                        totalCount: cached.TotalCount,
+                        data: personalizedData
+                    );
+
+                    response.Success = true;
+                    response.Message = "OK (from cache, has token)";
+                    response.Response = resultCache;
+                    return response;
+                }
+
+                response.Success = true;
+                response.Message = "OK (from cache)";
+                response.Response = cached;
+                return response;
+            }
+
+            // Build predicate dynamic theo filter
+            Expression<Func<CourseEntity, bool>>? predicate = null;
+
+            if (query is not null)
+            {
+                // Start with 'true' and &=
+                Expression<Func<CourseEntity, bool>> Acc(Expression<Func<CourseEntity, bool>> left,
+                    Expression<Func<CourseEntity, bool>> right)
+                    => left is null ? right : left.AndAlso(right);
+
+                // helpers
+                Expression<Func<CourseEntity, bool>> True() => x => true;
+
+                var pred = True();
+
+                if (!string.IsNullOrWhiteSpace(query.Search))
+                {
+                    var search = query.Search.Trim();
+                    pred = Acc(pred, x =>
+                        EF.Functions.ILike(x.Title ?? "", $"%{search}%") ||
+                        EF.Functions.ILike(x.Description ?? "", $"%{search}%") ||
+                        EF.Functions.ILike(x.ShortDescription ?? "", $"%{search}%") ||
+                        EF.Functions.ILike(x.Slug ?? "", $"%{search}%")
+                    );
+                }
+
+                if (!string.IsNullOrWhiteSpace(query.SubjectCode))
+                {
+                    var code = query.SubjectCode.Trim();
+
+                    pred = Acc(pred, x => x.Subject != null &&
+                                          EF.Functions.ILike(x.Subject.SubjectCode ?? "", $"%{code}%"));
+                }
+
+                if (query.IsActive is bool isActive)
+                    pred = Acc(pred, x => x.IsActive == isActive);
+
+                if (query.LectureId.HasValue)
+                    pred = Acc(pred, x => x.TeacherId == query.LectureId.Value);
+
+                predicate = pred;
+            }
+
+            // Chọn orderBy mặc định theo COurse mới nhất
+            Expression<Func<CourseEntity, object>> orderBy = x => x.UpdatedAt;
+
+            var orderByDescending = true; // mặc định: mới nhất
+
+            switch (query?.SortBy ?? CourseSortBy.Latest)
+            {
+                case CourseSortBy.Popular:
+                    orderBy = x => x.LearnerCount;
+                    orderByDescending = true;
+                    break;
+                case CourseSortBy.TitleAsc:
+                    orderBy = x => x.Title!;
+                    orderByDescending = false;
+                    break;
+                case CourseSortBy.TitleDesc:
+                    orderBy = x => x.Title!;
+                    orderByDescending = true;
+                    break;
+                case CourseSortBy.Latest:
+                    orderBy = x => x.UpdatedAt;
+                    orderByDescending = true;
+                    break;
+                default:
+                    orderByDescending = true;
+                    break;
+            }
+
+            // PaginationRequest đang 0-based (PageIndex). Chuyển sang 1-based để an toàn.
+            var pageNumber = pagination.PageIndex + 1;
+            var pageSize = pagination.PageSize;
+
+            var page = await _courseRepository.PagedAsync(
+                pageNumber: pageNumber,
+                pageSize: pageSize,
+                predicate: predicate,
+                orderBy: orderBy,
+                orderByDescending: orderByDescending,
+                cancellationToken: ct,
+                include: q => q
+                    .Include(x => x.Subject)
+                    .Include(x => x.CourseTags)
+                        .ThenInclude(ct => ct.Tag)
+            // includes: nếu cần eager load, thêm tại đây: x => x.Subject, x => x.Modules ...
+            );
+
+
+            // Map entity -> DTO
+            var items = page.Items.Select(_courseMapper.ToDto).ToList();
+
+            // Nếu có user, kiểm tra wishlist
+            var itemsForCache = items;
+
+            if (user is not null)
+            {
+                var courseIds = items.Select(i => i.CourseId).ToList();
+                // Query tối giản để biết course nào trong wishlist của user
+                var wishIds = await _courseWishlistRepository
+                    .Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
+                          isTracking: false, ct)
+                    .Select(x => x.CourseId)
+                    .ToListAsync(ct);
+                // Cập nhật IsWishlist cho items
+                items = items
+                    .Select(d => wishIds.Contains(d.CourseId) ? d with { IsWishlist = true } : d)
+                    .ToList();
+
+                // Kiểm tra tiếp IsEnrolled
+                var isEnrolledIds = await _courseStudentEnrollmentCommandRepository
+                    .Find(x => x.UserId == user.UserId && x.IsActive && courseIds.Contains(x.CourseId),
+                          isTracking: false, ct)
+                    .Select(x => x.CourseId)
+                    .ToListAsync(ct);
+
+                // Cập nhật IsEnrolled cho items
+                items = items
+                    .Select(d => isEnrolledIds.Contains(d.CourseId) ? d with { IsEnrolled = true } : d)
+                    .ToList();
+            }
+
+            var resultGuest = new PaginatedResult<CourseDto>(
+                pageIndex: pagination.PageIndex,
+                pageSize: pagination.PageSize,
+                totalCount: page.TotalCount,
+                data: itemsForCache
+            );
+
+            var result = new PaginatedResult<CourseDto>(
+                pageIndex: pagination.PageIndex,
+                pageSize: pagination.PageSize,
+                totalCount: page.TotalCount,
+                data: items
+            );
+
+            // Cache the result for future requests
+            await _cache.SetAsync(cacheKey, resultGuest, TimeSpan.FromMinutes(5));
+
+            response.Success = true;
+            response.Response = result;
+            response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học");
+
+            return response;
+        }
+
+        /// <summary>
+        /// Get course details by ID for guest users
+        /// </summary>
+        /// <param name="Id"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetCourseByIdForGuestResponse> GetCourseByIdForGuestAsync(Guid Id, CancellationToken ct = default)
+        {
+            var response = new GetCourseByIdForGuestResponse() { Success = false };
+
+            var user = _identityService.GetCurrentUser();
+
+            var cacheKey = $"CourseDetailForGuest:{Id}";
+            var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+            if (cached is not null)
+            {
+                if (user is not null)
+                {
+                    var inWishlist = await _courseWishlistRepository
+                        .Find(x => x.CourseId == Id && x.UserId == user.UserId && x.IsActive, isTracking: false, ct)
+                        .AnyAsync(ct);
+
+                    cached.IsWishlist = inWishlist;
+                }
+
+                response.Success = true;
+                response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+                response.Response = cached;
+                response.ModulesCount = cached.Modules.Count;
+                response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+                return response;
+            }
+
+            var baseQuery = _courseRepository
+                .Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
+                .Cast<CourseEntity>()
+                .Include(x => x.Subject)
+                .Include(x => x.CourseObjectives.Where(o => o.IsActive))
+                .Include(x => x.CourseRequirements.Where(r => r.IsActive))
+                .Include(x => x.CourseComments.Where(c => c.IsActive))
+                .Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+                .Include(x => x.CourseRatings)
+                .Include(x => x.CourseWishlists.Where(cw => cw.IsActive))
+                .Include(x => x.CourseStudentEnrollments.Where(cse => cse.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+            var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+            if (entity is null)
+            {
+                response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
+                return response;
+            }
+
+            var detail = _courseMapper.MapCourseDetailForGuest(entity);
+
+            if (user is not null)
+            {
+                detail.IsWishlist = entity.CourseWishlists.Any(cw => cw.UserId == user.UserId && cw.IsActive);
+                detail.IsEnrolled = entity.CourseStudentEnrollments.Any(cse => cse.UserId == user.UserId && cse.CourseId == Id && cse.IsActive);
+            }
+
+            await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+            var modulesCount = entity.Modules.Count(m => m.IsActive);
+            var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+            response.Response = detail;
+            response.ModulesCount = modulesCount;
+            response.LessonsCount = lessonsCount;
+            return response;
+        }
+
+        /// <summary>
+        /// Get course details by Slug for guest users
+        /// </summary>
+        /// <param name="Slug"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async Task<GetCourseBySlugForGuestResponse> GetCourseBySlugForGuestAsync(string Slug, CancellationToken ct = default)
+        {
+            var response = new GetCourseBySlugForGuestResponse() { Success = false };
+
+            var cacheKey = $"CourseDetailBySlugForGuest:{Slug}";
+            var cached = await _cache.GetAsync<CourseDetailForGuestDto>(cacheKey);
+            if (cached is not null)
+            {
+                response.Success = true;
+                response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+                response.Response = cached;
+                response.ModulesCount = cached.Modules.Count;
+                response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+                return response;
+            }
+
+            var baseQuery = _courseRepository
+                .Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+                .Cast<CourseEntity>()
+                .Include(x => x.Subject)
+                .Include(x => x.CourseObjectives.Where(o => o.IsActive))
+                .Include(x => x.CourseRequirements.Where(r => r.IsActive))
+                .Include(x => x.CourseComments.Where(c => c.IsActive))
+                .Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+                .Include(x => x.CourseRatings)
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+            var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+            if (entity is null)
+            {
+                response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
+                return response;
+            }
+
+            var detail = _courseMapper.MapCourseDetailForGuest(entity);
+            await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+            var modulesCount = entity.Modules.Count(m => m.IsActive);
+            var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho khách");
+            response.Response = detail;
+            response.ModulesCount = modulesCount;
+            response.LessonsCount = lessonsCount;
+            return response;
+        }
+
+        /// <summary>
+        /// Get course details by ID for lecturer (instructor) users
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetCourseByIdForLectureResponse> GetCourseByIdForLectureAsync(Guid Id, CancellationToken ct = default)
+        {
+            var response = new GetCourseByIdForLectureResponse() { Success = false };
+
+            var cacheKey = $"CourseDetailForLecture:{Id}";
+            var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+            if (cached is not null)
+            {
+                response.Success = true;
+                response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học (cached) cho giảng viên");
+                response.Response = cached;
+                response.ModulesCount = cached.Modules.Count;
+                response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+                return response;
+            }
+
+            var baseQuery = _courseRepository
+                .Find(x => x.CourseId == Id && x.IsActive, isTracking: false, ct)
+                .Cast<CourseEntity>()
+                .Include(x => x.Subject)
+                .Include(x => x.CourseObjectives.Where(o => o.IsActive))
+                .Include(x => x.CourseRequirements.Where(r => r.IsActive))
+                .Include(x => x.CourseComments.Where(c => c.IsActive))
+                .Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+                .Include(x => x.CourseRatings)
+                .Include(x => x.CourseAudiences.Where(ca => ca.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+            var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+            if (entity is null)
+            {
+                response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {Id}");
+                return response;
+            }
+
+            // 1) Lấy tất cả ModuleId & LessonId còn active
+            var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+            var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
+                                          .Where(l => l.IsActive)
+                                          .Select(l => l.LessonId).ToList();
+
+            // 2) Load mapping (module->quiz, lesson->quiz)
+            var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+                                                   .Select(x => new { x.ModuleId, x.QuizId })
+                                                   .ToListAsync(ct);
+
+            var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+                                                   .Select(x => new { x.LessonId, x.QuizId })
+                                                   .ToListAsync(ct);
+
+            // 3) Gọi song song QuizService, dedupe quizIds
+            var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
+                                       .Distinct().ToList();
+
+            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
+            await Task.WhenAll(quizTasks.Values);
+
+            var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+
+            var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+            var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+            var detail = _courseMapper.MapCourseDetailForLecture(
+                            entity,
+                            moduleQuizIdByModuleId,
+                            lessonQuizIdByLessonId,
+                            quizDict
+                        );
+            await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+            var modulesCount = entity.Modules.Count(m => m.IsActive);
+            var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+            response.Response = detail;
+            response.ModulesCount = modulesCount;
+            response.LessonsCount = lessonsCount;
+            return response;
+        }
+
+        /// <summary>
+        /// Get course details by Slug for lecturer (instructor) users
+        /// </summary>
+        /// <param name="Slug"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async Task<GetCourseBySlugForLectureResponse> GetCourseBySlugForLectureAsync(string Slug, CancellationToken ct = default)
+        {
+            var response = new GetCourseBySlugForLectureResponse() { Success = false };
+
+            var cacheKey = $"CourseDetailBySlugForLecture:{Slug}";
+            var cached = await _cache.GetAsync<CourseDetailForLectureDto>(cacheKey);
+            if (cached is not null)
+            {
+                response.Success = true;
+                response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+                response.Response = cached;
+                response.ModulesCount = cached.Modules.Count;
+                response.LessonsCount = cached.Modules.Sum(m => m.Lessons.Count);
+                return response;
+            }
+
+            var baseQuery = _courseRepository
+                .Find(x => x.Slug == Slug && x.IsActive, isTracking: false, ct)
+                .Cast<CourseEntity>()
+                .Include(x => x.Subject)
+                .Include(x => x.CourseObjectives.Where(o => o.IsActive))
+                .Include(x => x.CourseRequirements.Where(r => r.IsActive))
+                .Include(x => x.CourseComments.Where(c => c.IsActive))
+                .Include(x => x.CourseTags).ThenInclude(ct => ct.Tag)
+                .Include(x => x.CourseRatings)
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
+                .Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.Lessons.Where(l => l.IsActive));
+
+            var entity = await baseQuery.FirstOrDefaultAsync(ct);
+
+            if (entity is null)
+            {
+                response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với Slug {Slug}");
+                return response;
+            }
+
+            // 1) Lấy tất cả ModuleId & LessonId còn active
+            var moduleIds = entity.Modules.Where(m => m.IsActive).Select(m => m.ModuleId).ToList();
+            var lessonIds = entity.Modules.SelectMany(m => m.Lessons)
+                                          .Where(l => l.IsActive)
+                                          .Select(l => l.LessonId).ToList();
+
+            // 2) Load mapping (module->quiz, lesson->quiz)
+            var moduleMaps = await _moduleQuizRepository.Find(x => moduleIds.Contains(x.ModuleId), isTracking: false, ct)
+                                                   .Select(x => new { x.ModuleId, x.QuizId })
+                                                   .ToListAsync(ct);
+
+            var lessonMaps = await _lessonQuizRepository.Find(x => lessonIds.Contains(x.LessonId), isTracking: false, ct)
+                                                   .Select(x => new { x.LessonId, x.QuizId })
+                                                   .ToListAsync(ct);
+
+            // 3) Gọi song song QuizService, dedupe quizIds
+            var allQuizIds = moduleMaps.Select(m => m.QuizId).Concat(lessonMaps.Select(l => l.QuizId))
+                                       .Distinct().ToList();
+
+            var quizTasks = allQuizIds.ToDictionary(id => id, id => _quizGateway.FetchQuizForLectureAsync(id, ct));
+            await Task.WhenAll(quizTasks.Values);
+
+            var quizDict = quizTasks.ToDictionary(k => k.Key, v => v.Value.Result); // Guid -> QuizOutDto?
+
+            var moduleQuizIdByModuleId = moduleMaps.ToDictionary(x => x.ModuleId, x => x.QuizId);
+            var lessonQuizIdByLessonId = lessonMaps.ToDictionary(x => x.LessonId, x => x.QuizId);
+
+            var detail = _courseMapper.MapCourseDetailForLecture(
+                            entity,
+                            moduleQuizIdByModuleId,
+                            lessonQuizIdByLessonId,
+                            quizDict
+                        );
+
+            await _cache.SetAsync(cacheKey, detail, TimeSpan.FromMinutes(10));
+            var modulesCount = entity.Modules.Count(m => m.IsActive);
+            var lessonsCount = entity.Modules.Sum(m => m.Lessons.Count(l => l.IsActive));
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy chi tiết khóa học cho giảng viên");
+            response.Response = detail;
+            response.ModulesCount = modulesCount;
+            response.LessonsCount = lessonsCount;
+            return response;
+        }
+
+        /// <summary>
+        /// Create course with modules + lessons + quizzes (atomic) and related data (objectives, requirements, tags, audiences)
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<CreateCourseResponse> CreateAsync(CreateCourseDto dto, CancellationToken ct = default)
+        {
+            var response = new CreateCourseResponse() { Success = false };
+
+            // Get current user id
+            var currentUser = _identityService.GetCurrentUser()!;
+
+            var title = dto.Title!.Trim();
+
+            var slug = await _slugService.GenerateUniqueSlugAsync(title, ct);
+
+            var course = new CourseEntity
+            {
+                CourseId = Guid.NewGuid(),
+                TeacherId = currentUser.UserId,
+                SubjectId = dto.SubjectId,
+                Title = title,
+                ShortDescription = dto.ShortDescription,
+                Description = dto.Description,
+                Slug = slug,
+                CourseImageUrl = dto.CourseImageUrl,
+                //Status = dto.Status,          // nếu enum: dto.Status; nếu string: giữ nguyên
+                LearnerCount = 0,
+                DurationMinutes = dto.DurationMinutes,
+                Level = dto.Level,
+                Price = dto.Price,
+                DealPrice = dto.DealPrice,
+                CourseIntroVideoUrl = dto.CourseIntroVideoUrl,
+            };
+
+            // Pending quizzes để gửi sau khi commit (module/lesson)
+            var pendingModuleQuizzes = new List<(Guid ModuleId, CreateQuizDto Quiz)>();
+            var pendingLessonQuizzes = new List<(Guid ModuleId, Guid LessonId, CreateQuizDto Quiz)>();
+
+            // 3) Mục tiêu học tập (CourseObjectives) – optional
+            if (dto.Objectives is { Count: > 0 })
+            {
+                foreach (var (obj, idx) in dto.Objectives
+                             .OrderBy(o => o.PositionIndex)
+                             .Select((o, i) => (o, i)))
+                {
+                    course.CourseObjectives.Add(new CourseObjective
+                    {
+                        ObjectiveId = Guid.NewGuid(),
+                        CourseId = course.CourseId,
+                        Content = obj.Content,
+                        PositionIndex = obj.PositionIndex > 0 ? obj.PositionIndex : idx,
+                    });
+                }
+            }
+
+            // 4) Yêu cầu trước khi học (CourseRequirements) – optional
+            if (dto.Requirements is { Count: > 0 })
+            {
+                foreach (var (req, idx) in dto.Requirements
+                             .OrderBy(r => r.PositionIndex)
+                             .Select((r, i) => (r, i)))
+                {
+                    course.CourseRequirements.Add(new CourseRequirement
+                    {
+                        RequirementId = Guid.NewGuid(),
+                        CourseId = course.CourseId,
+                        Content = req.Content,
+                        PositionIndex = req.PositionIndex > 0 ? req.PositionIndex : idx,
+                    });
+                }
+            }
+
+            // 5) Course Tags – optional
+            if (dto.CourseTags is { Count: > 0 })
+            {
+                foreach (var courseTag in dto.CourseTags)
+                {
+                    course.CourseTags.Add(new CourseTag
+                    {
+                        CourseId = course.CourseId,
+                        TagId = courseTag.TagId,
+                    });
+                }
+            }
+
+            // 5.1) Course Audiences – optional (1-N)
+            if (dto.Audiences is { Count: > 0 })
+            {
+                // Validate không trùng PositionIndex trong payload
+                EnsureDistinct(dto.Audiences.Select(a => a.PositionIndex),
+                    "Audience PositionIndex must be unique within the course.");
+
+                // Tập position đã dùng (đang rỗng vì course mới)
+                var takenIdx = new HashSet<int>();
+
+                foreach (var (aud, idx) in dto.Audiences
+                             .OrderBy(a => a.PositionIndex)
+                             .Select((a, i) => (a, i)))
+                {
+                    // fallback index nếu client gửi <= 0
+                    var pos = aud.PositionIndex > 0 ? aud.PositionIndex : NextIndex(takenIdx);
+                    if (takenIdx.Contains(pos)) pos = NextIndex(takenIdx);
+                    takenIdx.Add(pos);
+
+                    course.CourseAudiences.Add(new CourseAudience
+                    {
+                        AudienceId = Guid.NewGuid(),      // sinh ID ngay
+                        CourseId = course.CourseId,
+                        Content = aud.Content,
+                        PositionIndex = pos,
+                    });
+                }
+            }
+
+
+            if (dto.Modules is { Count: > 0 })
+            {
+                // 6) Map Modules + Lessons (giữ thứ tự PositionIndex)
+                foreach (var m in dto.Modules.OrderBy(x => x.PositionIndex))
+                {
+                    var module = new Module
+                    {
+                        ModuleId = Guid.NewGuid(),
+                        CourseId = course.CourseId,
+                        ModuleName = m.ModuleName,
+                        Description = m.Description,
+                        PositionIndex = m.PositionIndex,
+                        IsCore = m.IsCore,
+                        DurationMinutes = m.DurationMinutes,
+                        Level = m.Level,
+                    };
+
+                    // Module Objectives (optional)
+                    if (m.Objectives is { Count: > 0 })
+                    {
+                        foreach (var (mo, idx) in m.Objectives
+                                     .OrderBy(o => o.PositionIndex)
+                                     .Select((o, i) => (o, i)))
+                        {
+                            module.ModuleObjectives.Add(new ModuleObjective
+                            {
+                                ObjectiveId = Guid.NewGuid(),
+                                ModuleId = module.ModuleId,
+                                Content = mo.Content,
+                                PositionIndex = mo.PositionIndex > 0 ? mo.PositionIndex : idx,
+                            });
+                        }
+                    }
+
+                    // Lessons (required, at least 1)
+                    if (m.Lessons is { Count: > 0 })
+                    {
+                        foreach (var l in m.Lessons.OrderBy(x => x.PositionIndex))
+                        {
+                            var lesson = new Lesson
+                            {
+                                LessonId = Guid.NewGuid(),
+                                ModuleId = module.ModuleId,
+                                Title = l.Title,
+                                VideoUrl = l.VideoUrl,
+                                VideoDurationSec = l.VideoDurationSec,
+                                PositionIndex = l.PositionIndex,
+                            };
+
+                            module.Lessons.Add(lesson);
+
+                            if (l.LessonQuiz is not null)
+                                pendingLessonQuizzes.Add((module.ModuleId, lesson.LessonId, l.LessonQuiz));
+                        }
+                    }
+
+                    // Discussions (optional)
+                    if (m.Discussions is { Count: > 0 })
+                    {
+                        foreach (var d in m.Discussions)
+                        {
+                            module.ModuleDiscussions.Add(new ModuleDiscussion
+                            {
+                                DiscussionId = Guid.NewGuid(),
+                                ModuleId = module.ModuleId,
+                                Title = d.Title?.Trim(),
+                                Description = d.Description,
+                                DiscussionQuestion = d.DiscussionQuestion,
+                            });
+                        }
+                    }
+
+                    // Materials (optional)
+                    if (m.Materials is { Count: > 0 })
+                    {
+                        foreach (var mat in m.Materials)
+                        {
+                            module.ModuleMaterials.Add(new ModuleMaterial
+                            {
+                                MaterialId = Guid.NewGuid(),
+                                ModuleId = module.ModuleId,
+                                Title = mat.Title?.Trim(),
+                                Description = mat.Description,
+                                FileUrl = mat.FileUrl,
+                            });
+                        }
+                    }
+
+                    if (m.ModuleQuiz is not null)
+                        pendingModuleQuizzes.Add((module.ModuleId, m.ModuleQuiz));
+
+
+                    course.Modules.Add(module);
+                }
+            }
+
+            await unitOfWork.BeginTransactionAsync(async () =>
+                        {
+                            await _courseRepository.AddAsync(course, currentUser.Email);
+                            await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+                            return true; // yêu cầu của BeginTransactionAsync: trả true để commit
+                        }, ct);
+
+
+            // ===== Request/Response tới QuizService theo event QuizCourseInsertEvent (ModuleQuizInsertEvent/LessonQuizInsertEvent) =====
+
+            // Module-level
+
+            foreach (var (moduleId, quizDto) in pendingModuleQuizzes)
+            {
+                var payload = _quizEventFactory.ToQuizCourseInsertEvent(
+                    currentUser.Email,
+                    quizDto
+                );
+
+                var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+
+                if (!resp.Message.Success)
+                {
+                    response.SetMessage(MessageId.E99999, $"Tạo quiz cho module {moduleId} không thành công");
+                    //throw new InvalidOperationException ($"{resp.Message.MessageId} : {resp.Message.Message}")
+                    return response;
+                }
+
+                var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
+                if (quizId == Guid.Empty)
+                    throw new InvalidOperationException("QuizId is empty.");
+
+                await _moduleQuizRepository.AddAsync(new ModuleQuiz { ModuleId = moduleId, QuizId = quizId });
+                await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+
+            }
+
+            // Lesson-level
+            foreach (var (moduleId, lessonId, quizDto) in pendingLessonQuizzes)
+            {
+                var payload = _quizEventFactory.ToQuizCourseInsertEvent(
+                    currentUser.Email,
+                    quizDto
+                );
+
+                var resp = await _quizCourseClient.GetResponse<QuizCourseInsertEventResponse>(payload, ct);
+
+                if (!resp.Message.Success)
+                {
+                    response.SetMessage(MessageId.E99999, $"Tạo quiz cho lesson {lessonId} của module {moduleId} không thành công");
+                    //throw new InvalidOperationException($"{resp.Message.MessageId}: {resp.Message.Message}")
+                    return response;
+                }
+
+                var quizId = resp.Message.Response?.QuizId ?? Guid.Empty;
+                if (quizId == Guid.Empty)
+                    throw new InvalidOperationException("QuizId is empty.");
+
+                await _lessonQuizRepository.AddAsync(new LessonQuiz { LessonId = lessonId, QuizId = quizId });
+                await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+            }
+
+            var transcribeItems = course.Modules
+                            .SelectMany(m => m.Lessons)
+                            .Where(l => !string.IsNullOrWhiteSpace(l.VideoUrl))
+                            .OrderBy(l => l.PositionIndex)
+                            .Select(l => new TranscribeItem(l.LessonId, l.VideoUrl!, l.VideoDurationSec))
+                            .ToList();
+
+            if (transcribeItems.Count > 0)
+            {
+                var corrId = Guid.NewGuid();
+                var evt = new TranscribeBatchRequested(
+                    CorrelationId: corrId,
+                    RequestedBy: currentUser.Email,
+                    Language: "vi",
+                    Items: transcribeItems,
+                    RequestedAtUtc: DateTime.UtcNow
+                );
+                await _publish.Publish(evt, ct);
+            }
+
+
+            // Clear cache after successful creation
+            await _courseCache.ClearGetAllCacheAsync();
+            await _courseCache.ClearCourseDetailForGuestCacheAsync();
+            await _courseCache.ClearCourseDetailForLectureCacheAsync();
+            await _courseCache.ClearCourseDetailForStudentCacheAsync();
+            await _courseCache.ClearCourseTagsCacheAsync();
+
+            response.Response = course.CourseId.ToString();
+            response.Success = true;
+            response.SetMessage(MessageId.I00000, "Tạo khóa học thành công");
+
+            return response;
+        }
+
+        /// <summary>
+        /// Update course and its related data (objectives, requirements, audiences, course-tags)
+        /// Delete Course: Set IsActive = false (soft delete)
+        /// </summary>
+        /// <param name="courseId"></param>
+        /// <param name="dto"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<UpdateCourseResponse> UpdateAsync(Guid courseId, UpdateCourseDto dto, CancellationToken ct = default)
+        {
+            var response = new UpdateCourseResponse() { Success = false };
+            // 1. Validate PositionIndex uniqueness
+            ValidateCourseDetailPositionIndexes(dto);
+
+            // 2. Get existing course with all related data
+            var existingCourse = await _courseRepository
+                .Find(x => x.CourseId == courseId, isTracking: true, ct,
+                    x => x.CourseObjectives,
+                    x => x.CourseRequirements,
+                    x => x.CourseAudiences,
+                    x => x.CourseTags)
+                .FirstOrDefaultAsync(ct);
+
+            if (existingCourse is null)
+            {
+                response.Message = $"Course {courseId} not found";
+                return response;
+            }
+
+            var currentUser = _identityService.GetCurrentUser()!;
+
+            // 3. Update basic course properties
+            existingCourse.TeacherId = dto.TeacherId;
+            existingCourse.SubjectId = dto.SubjectId;
+            existingCourse.Title = dto.Title?.Trim() ?? string.Empty;
+            existingCourse.ShortDescription = dto.ShortDescription;
+            existingCourse.Description = dto.Description;
+            existingCourse.CourseImageUrl = dto.CourseImageUrl;
+            existingCourse.DurationMinutes = dto.DurationMinutes;
+            existingCourse.Level = dto.Level;
+            existingCourse.Price = dto.Price;
+            existingCourse.DealPrice = dto.DealPrice;
+            existingCourse.IsActive = dto.IsActive;
+
+            // 4. Handle slug update with uniqueness check
+            if (!string.IsNullOrWhiteSpace(dto.Slug))
+            {
+                var newSlug = dto.Slug.Trim();
+                if (newSlug != existingCourse.Slug)
+                {
+                    existingCourse.Slug = await _slugService.EnsureUniqueSlugForUpdateAsync(courseId, newSlug, ct, allowRandomSuffix: true);
+                }
+            }
+
+            // 5. Update CourseObjectives
+            await UpdateCourseObjectivesAsync(existingCourse, dto.Objectives, currentUser.Email);
+
+            // 6. Update CourseRequirements
+            await UpdateCourseRequirementsAsync(existingCourse, dto.Requirements, currentUser.Email);
+
+            // 6.1 Update CourseAudiences
+            await UpdateCourseAudiencesAsync(existingCourse, dto.Audiences, currentUser.Email);
+
+            // 6.2 Update CourseTags
+            await UpdateCourseTagsAsync(existingCourse, dto.CourseTags);
+
+            try
+            {
+                // 7. Save changes in transaction
+                await unitOfWork.BeginTransactionAsync(async () =>
+                {
+                    _courseRepository.Update(existingCourse, currentUser.Email);
+                    await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+                    return true;
+                }, ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                response.SetMessage(MessageId.E11003, "Cập nhật khóa học thất bại do xung đột dữ liệu. Vui lòng thử lại.");
+                return response;
+            }
+            catch (Exception ex)
+            {
+                response.SetMessage(MessageId.E00000, $"Cập nhật khóa học thất bại: {ex.Message}");
+                return response;
+            }
+
+
+            // 8. Clear cache after successful update
+            await _courseCache.ClearGetAllCacheAsync();
+            await _courseCache.ClearCourseDetailForGuestCacheAsync();
+            await _courseCache.ClearCourseDetailForLectureCacheAsync();
+            await _courseCache.ClearCourseDetailForStudentCacheAsync();
+            await _courseCache.ClearCourseTagsCacheAsync();
+
+            // 9. Return updated course detail
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Cập nhật khóa học");
+            return response;
+        }
+
+        /// <summary>
+        /// Update multiple modules in a course (bulk update)
+        /// </summary>
+        /// <param name="courseId"></param>
+        /// <param name="dto"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<UpdateCourseModulesResponse> UpdateCourseModulesAsync(Guid courseId, UpdateCourseModulesDto dto, CancellationToken ct = default)
+        {
+            var response = new UpdateCourseModulesResponse() { Success = false };
+            // 1. Validate PositionIndex uniqueness across all modules
+            ValidateCourseModulesPositionIndexes(dto);
+
+            // 2. Get existing course with all modules and related data
+            var existingCourse = await _courseRepository
+                .Find(x => x.CourseId == courseId, isTracking: true, ct,
+                    x => x.Modules)
+                .Include(x => x.Modules)
+                    .ThenInclude(m => m.ModuleObjectives)
+                .Include(x => x.Modules)
+                    .ThenInclude(m => m.Lessons)
+                .Include(x => x.Modules)
+                    .ThenInclude(m => m.ModuleDiscussions)
+                .Include(x => x.Modules)
+                    .ThenInclude(m => m.ModuleMaterials)
+                .FirstOrDefaultAsync(ct);
+
+            if (existingCourse is null)
+            {
+                response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
+                return response;
+            }
+
+            var currentUser = _identityService.GetCurrentUser()!;
+
+            // 3. Update modules based on payload
+            await UpdateCourseModulesInternalAsync(existingCourse, dto.Modules);
+
+            // 4. Save changes in transaction
+            await unitOfWork.BeginTransactionAsync(async () =>
+            {
+                _courseRepository.Update(existingCourse, currentUser.Email);
+                await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+                return true;
+            }, ct);
+
+            // 5. Clear cache after successful update
+            await _courseCache.ClearGetAllCacheAsync();
+            await _courseCache.ClearCourseDetailForGuestCacheAsync();
+            await _courseCache.ClearCourseDetailForLectureCacheAsync();
+            await _courseCache.ClearCourseDetailForStudentCacheAsync();
+            await _courseCache.ClearCourseTagsCacheAsync();
+
+            // 6. Return response
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Cập nhật các module của khóa học");
+
+            return response;
+        }
+
+        /// <summary>
+        /// Delete course by setting IsActive = false (soft delete)
+        /// </summary>
+        /// <param name="courseId"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        public async Task<DeleteCourseResponse> DeleteCourseAsync(Guid courseId, CancellationToken ct = default)
+        {
+            var response = new DeleteCourseResponse() { Success = false };
+
+            var existingCourse = await _courseRepository
+                .Find(x => x.CourseId == courseId, isTracking: true, ct)
+                .FirstOrDefaultAsync(ct);
+
+            if (existingCourse is null)
+            {
+                response.SetMessage(MessageId.E11001, $"Course {courseId} not found");
+                return response;
+            }
+
+            var currentUser = _identityService.GetCurrentUser()!;
+
+            // Only the teacher who created the course can delete it
+            if (existingCourse.TeacherId != currentUser.UserId)
+            {
+                response.SetMessage(MessageId.E00000, "Bạn không có quyền xóa khóa học này.");
+                return response;
+            }
+
+            await unitOfWork.BeginTransactionAsync(async () =>
+            {
+                // Soft delete by setting IsActive = false
+                // Set needLogicalDelete = true to soft delete
+                _courseRepository.Update(existingCourse, currentUser.Email, true);
+                await unitOfWork.SaveChangesAsync(currentUser.Email, ct, true);
+                return true;
+            }, ct);
+
+            // 5. Clear cache after successful update
+            await _courseCache.ClearGetAllCacheAsync();
+            await _courseCache.ClearCourseDetailForGuestCacheAsync();
+            await _courseCache.ClearCourseDetailForLectureCacheAsync();
+            await _courseCache.ClearCourseDetailForStudentCacheAsync();
+            await _courseCache.ClearCourseTagsCacheAsync();
+
+            response.Response = true;
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Xóa khóa học");
+            return response;
+        }
+
+        /// <summary>
+        /// Get all course tags
+        /// </summary>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetCourseTagsResponse> GetCourseTagsAsync(CancellationToken ct = default)
+        {
+            var response = new GetCourseTagsResponse() { Success = false };
+
+            // generate cache key for course tags
+            var cacheKey = "CourseTags:GetAll";
+
+            // get from cache first
+            var cached = await _cache.GetAsync<List<CourseTagDetailsDto>>(cacheKey);
+            if (cached is not null)
+            {
+                response.Success = true;
+                response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
+                response.Response = cached;
+                return response;
+            }
+
+            // get from database
+            var tags = await _tagRepository
+                .Find(predicate: null, isTracking: false, cancellationToken: ct)
+                .Select(t => new CourseTagDetailsDto(
+                    t.TagId,
+                    t.TagName
+                ))
+                .ToListAsync(ct);
+
+            // Cache the result for future requests
+            await _cache.SetAsync(cacheKey, tags, TimeSpan.FromMinutes(10));
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy danh sách tag của khóa học");
+            response.Response = tags;
+
+            return response;
+        }
+
+        /// <summary>
+        /// Get course selects response QuizService
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <summary>
+        /// Get course selects response QuizService
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
+            CoursesSelectEvent request, CancellationToken ct = default)
+        {
+            var response = new CoursesSelectEventResponse { Success = false };
+
+            // 1. Validate semester exists
+            var semester = await _semesterRepository
+                .Find(s => s.SemesterId == request.SemesterId)
+                .Select(s => new { s.SemesterId, s.SemesterNumber })
+                .FirstOrDefaultAsync(cancellationToken: ct);
+
+            if (semester == null)
+            {
+                response.SetMessage(MessageId.E00000, "Semester not found");
+                return response;
+            }
+
+            // 2. Determine which major codes to query
+            var majorCodesToQuery = request.MajorCodes.ToList();
+
+            // If semester < 4 and "SE" not in majorCodes, add "SE"
+            if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
+            {
+                majorCodesToQuery.Add("SE");
+            }
+
+            var coursesData = await _courseRepository
+                .Find(c => c.Subject.SyllabusSubjects.Any(
+                               ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) &&
+                      // c.Level == request.StudentLevel &&
+                      c.IsActive,
+
+                    includes: c => c.Subject
+                )
+                .Select(c => new
+                {
+                    c.CourseId,
+                    MajorCodes = c.Subject.SyllabusSubjects
+                        .Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
+                        .Select(ss => ss.Syllabus.Major.MajorCode)
+                        .Distinct()
+                })
+                .ToListAsync(cancellationToken: ct);
+
+            // 4. Flatten và group by major
+            var groupedCourses = coursesData
+                .SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
+                .GroupBy(x => x.MajorCode)
+                .Select(g => new CoursesSelectEventResponseEntity
+                {
+                    MajorCode = g.Key,
+                    CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
+                })
+                .ToList();
+
+            // 4. Build response
+            response.Success = true;
+            response.Response = groupedCourses;
+            response.SetMessage(MessageId.I00001);
+            return response;
+        }
+
+        /// <summary>
+        /// Get all view course by list of CourseIds
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(
+            GetInfoInternalCourseEvents request,
+            CancellationToken ct = default)
+        {
+            var resp = new GetInfoInternalCourseResponse { Success = false };
+
+            try
+            {
+                if (request?.CourseIds == null || request.CourseIds.Count == 0)
+                {
+                    resp.Success = true;
+                    resp.Message = "Không có CourseId nào được cung cấp.";
+                    resp.Response = Array.Empty<InternalCourseInfoDto>();
+                    return resp;
+                }
+
+                var idSet = request.CourseIds
+                    .Where(x => x != Guid.Empty)
+                    .ToHashSet();
+
+                if (idSet.Count == 0)
+                {
+                    resp.Success = true;
+                    resp.Message = "Danh sách CourseId không hợp lệ.";
+                    resp.Response = Array.Empty<InternalCourseInfoDto>();
+                    return resp;
+                }
+
+                // 1) Lấy dữ liệu từ VIEW (AsNoTracking)
+                var rows = await _viewCourseRepo.Find(
+                        v => v.CourseId.HasValue && idSet.Contains(v.CourseId.Value),
+                        isTracking: false,
+                        cancellationToken: ct
+                    )
+                    .ToListAsync(ct);
+
+                if (rows.Count == 0)
+                {
+                    resp.Success = true;
+                    resp.Message = "Không tìm thấy khóa học nào trong VIEW tương ứng với các CourseId yêu cầu.";
+                    resp.Response = Array.Empty<InternalCourseInfoDto>();
+                    return resp;
+                }
+
+                // 2) Mỗi CourseId lấy 1 bản ghi đại diện (ưu tiên học kỳ nhỏ hơn, subject code nhỏ hơn)
+                var representatives = rows
+                    .Where(r => r?.CourseId != null)
+                    .GroupBy(r => r!.CourseId!.Value)
+                    .Select(g => g
+                        .OrderBy(x => x!.SemesterNumber)
+                        .ThenBy(x => x!.SubjectCode)
+                        .First()!
+                    )
+                    .ToList();
+
+                // 3) Mapster: VIEW -> DTO
+                var mapped = representatives.Adapt<List<InternalCourseInfoDto>>();
+
+                // 4) Nếu có studentId thì check isEnrolled & isWishList
+                if (request.studentId != Guid.Empty && mapped.Count > 0)
+                {
+                    var studentId = request.studentId;
+
+                    // Enrollment
+                    var enrollQuery = _courseStudentEnrollmentRepository.Find(
+                        predicate: e => e.IsActive
+                                        && e.UserId == studentId
+                                        && idSet.Contains(e.CourseId),
+                        isTracking: false,
+                        cancellationToken: ct
+                    );
+
+                    // Wishlist
+                    var wishlistQuery = _courseWishListRepository.Find(
+                        predicate: w => w.IsActive
+                                        && w.UserId == studentId
+                                        && idSet.Contains(w.CourseId),
+                        isTracking: false,
+                        cancellationToken: ct
+                    );
+
+                    var enrolledCourseIds = await enrollQuery
+                        .Select(e => e.CourseId)
+                        .Distinct()
+                        .ToListAsync(ct);
+
+                    var wishListCourseIds = await wishlistQuery
+                        .Select(w => w.CourseId)
+                        .Distinct()
+                        .ToListAsync(ct);
+
+                    var enrolledSet = enrolledCourseIds.ToHashSet();
+                    var wishListSet = wishListCourseIds.ToHashSet();
+
+                    foreach (var dto in mapped)
+                    {
+                        if (!dto.CourseId.HasValue)
+                            continue;
+
+                        var cid = dto.CourseId.Value;
+                        dto.isEnrolled = enrolledSet.Contains(cid);
+                        dto.isWishList = wishListSet.Contains(cid);
+                    }
+                }
+
+                // 5) Giữ đúng thứ tự như input CourseIds (Guid? -> Guid)
+                var order = request.CourseIds
+                    .Select((id, idx) => new { id, idx })
+                    .ToDictionary(x => x.id, x => x.idx);
+
+                var ordered = mapped
+                    .OrderBy(i =>
+                    {
+                        int idx;
+                        return i.CourseId.HasValue && order.TryGetValue(i.CourseId.Value, out idx)
+                            ? idx
+                            : int.MaxValue;
+                    })
+                    .ToList();
+
+                resp.Response = ordered;
+                resp.Success = true;
+                resp.Message = $"Tìm thấy {ordered.Count}/{idSet.Count} khóa học.";
+                return resp;
+            }
+            catch (Exception)
+            {
+                // Giữ nguyên style return null cho đúng với code gốc
+                return null;
+            }
+        }
+        #endregion
+
+
+        /// <summary>
+        /// Get in-progress courses by student id
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentIdAsync(GetInProgressCourseByStudentIdQuery request, CancellationToken ct = default)
+        {
+            var response = new GetInProgressCourseByStudentIdResponse { Success = false };
+
+            var currentUser = _identityService.GetCurrentUser();
+            if (currentUser is null)
+            {
+                response.SetMessage(MessageId.E11001);
+                return response;
+            }
+
+            // cd22e142-c775-40f2-ad75-de50acb7291e
+            var userId = currentUser.UserId;
+
+            // Lấy danh sách khóa học đang học của học viên
+            var queryable = _courseRepository.Find(
+                                            predicate: c =>
+                                                c.IsActive &&
+                                                c.CourseStudentEnrollments.Any(e =>
+                                                    e.UserId == userId &&
+                                                    e.IsActive),
+                                            isTracking: false
+                                        );
+
+            // Lọc theo CourseIds nếu có trong request
+            var items = await queryable
+                // B1: đưa StartedAt về scalar nullable để EF translate tốt
+                .Select(c => new
+                {
+                    c.CourseId,
+                    c.Title,
+                    c.ShortDescription,
+                    c.CourseImageUrl,
+                    c.DurationHours,
+                    StartedAt = c.CourseStudentEnrollments
+                        .Where(e => e.UserId == userId && e.IsActive /* && (e.ExpiresAt == null || e.ExpiresAt > nowUtc)*/)
+                        .Select(e => (DateTime?)e.StartedAt)
+                        .Max()
+                })
+                // B2: Order by scalar
+                .OrderByDescending(x => x.StartedAt)
+                // B3: Project sang record
+                .Select(x => new InProgressCourseDto(
+                    x.CourseId,
+                    x.Title,
+                    x.ShortDescription,
+                    x.CourseImageUrl,
+                    x.DurationHours,
+                    (x.StartedAt ?? DateTime.MinValue) // hoặc .Value nếu bạn chắc chắn có enrollment
+                ))
+                .ToListAsync(ct);
+
+            response.Response = items;
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học đang học của học viên");
+            return response;
+        }
+
+        #region Private Helper Methods
+
+        /// <summary>
+        /// Validate PositionIndex uniqueness across all modules in UpdateCourseModulesDto
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <exception cref="ValidationException"></exception>
+        private static void ValidateCourseDetailPositionIndexes(UpdateCourseDto dto)
+        {
+            // Course Objectives (chỉ active)
+            if (dto.Objectives is { Count: > 0 })
+            {
+                var activeIdx = dto.Objectives
+                    .Where(o => o.IsActive)
+                    .Select(o => o.PositionIndex)
+                    .ToList();
+
+                if (activeIdx.Count != activeIdx.Distinct().Count())
+                    throw new ValidationException("Objective PositionIndex must be unique among active objectives.");
+
+                if (activeIdx.Any(i => i <= 0))
+                    throw new ValidationException("Objective PositionIndex must be > 0 for active objectives.");
+            }
+
+            // Course Requirements (chỉ active)
+            if (dto.Requirements is { Count: > 0 })
+            {
+                var activeIdx = dto.Requirements
+                    .Where(r => r.IsActive)
+                    .Select(r => r.PositionIndex)
+                    .ToList();
+
+                if (activeIdx.Count != activeIdx.Distinct().Count())
+                    throw new ValidationException("Requirement PositionIndex must be unique among active requirements.");
+
+                if (activeIdx.Any(i => i < 0))
+                    throw new ValidationException("Requirement PositionIndex must be >= 0 for active requirements.");
+            }
+
+            // Course Audiences (chỉ active)
+            if (dto.Audiences is { Count: > 0 })
+            {
+                var activeIdx = dto.Audiences
+                    .Where(a => a.IsActive)
+                    .Select(a => a.PositionIndex)
+                    .ToList();
+                if (activeIdx.Count != activeIdx.Distinct().Count())
+                    throw new ValidationException("Audience PositionIndex must be unique among active audiences.");
+                if (activeIdx.Any(i => i <= 0))
+                    throw new ValidationException("Audience PositionIndex must be > 0 for active audiences.");
+            }
+        }
+
+        /// <summary>
+        /// Update CourseObjectives based on payload
+        /// </summary>
+        private Task UpdateCourseObjectivesAsync(CourseEntity course, List<UpdateCourseObjectiveDto>? objectives, string actor)
+        {
+            if (objectives is null || objectives.Count == 0)
+            {
+                // Mark all existing objectives as inactive (soft delete)
+                foreach (var obj in course.CourseObjectives.Where(o => o.IsActive))
+                {
+                    obj.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+
+            var now = DateTime.UtcNow;
+            var existingObjectives = course.CourseObjectives.ToDictionary(o => o.ObjectiveId, o => o);
+            var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
+
+            // 1. Mark objectives not in payload as inactive (soft delete)
+            foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing objectives or create new ones
+            foreach (var objDto in objectives)
+            {
+                if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
+                {
+                    // Update existing objective
+                    existing.Content = objDto.Content;
+                    existing.PositionIndex = objDto.PositionIndex;
+                    existing.IsActive = objDto.IsActive;
+                }
+                else
+                {
+                    // Create new objective - let EF generate the ID
+                    var newObjective = new CourseObjective
+                    {
+                        CourseId = course.CourseId,
+                        Content = objDto.Content,
+                        PositionIndex = objDto.PositionIndex,
+                        IsActive = objDto.IsActive,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                        CreatedBy = actor,
+                        UpdatedBy = actor
+                    };
+                    course.CourseObjectives.Add(newObjective);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update CourseRequirements based on payload
+        /// </summary>
+        private Task UpdateCourseRequirementsAsync(CourseEntity course, List<UpdateCourseRequirementDto>? requirements, string actor)
+        {
+            if (requirements is null || requirements.Count == 0)
+            {
+                // Mark all existing requirements as inactive (soft delete)
+                foreach (var req in course.CourseRequirements.Where(r => r.IsActive))
+                {
+                    req.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+
+            var now = DateTime.UtcNow;
+            var existingRequirements = course.CourseRequirements.ToDictionary(r => r.RequirementId, r => r);
+            var payloadRequirementIds = requirements.Where(r => r.RequirementId.HasValue).Select(r => r.RequirementId!.Value).ToHashSet();
+
+            // 1. Mark requirements not in payload as inactive (soft delete)
+            foreach (var existing in existingRequirements.Values.Where(r => r.IsActive && !payloadRequirementIds.Contains(r.RequirementId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing requirements or create new ones
+            foreach (var reqDto in requirements)
+            {
+                if (reqDto.RequirementId.HasValue && existingRequirements.TryGetValue(reqDto.RequirementId.Value, out var existing))
+                {
+                    // Update existing requirement
+                    existing.Content = reqDto.Content;
+                    existing.PositionIndex = reqDto.PositionIndex;
+                    existing.IsActive = reqDto.IsActive;
+                }
+                else
+                {
+                    // Create new requirement - let EF generate the ID
+                    var newRequirement = new CourseRequirement
+                    {
+                        CourseId = course.CourseId,
+                        Content = reqDto.Content,
+                        PositionIndex = reqDto.PositionIndex,
+                        IsActive = reqDto.IsActive,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                        CreatedBy = actor,
+                        UpdatedBy = actor
+                    };
+                    course.CourseRequirements.Add(newRequirement);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update CourseAudiences based on payload
+        /// </summary>
+        /// <param name="course"></param>
+        /// <param name="audiences"></param>
+        /// <param name="actor"></param>
+        /// <returns></returns>
+        private Task UpdateCourseAudiencesAsync(CourseEntity course, List<UpdateCourseAudienceDto>? audiences, string actor)
+        {
+            if (audiences is null || audiences.Count == 0)
+            {
+                // Mark all existing audiences as inactive (soft delete)
+                foreach (var aud in course.CourseAudiences.Where(a => a.IsActive))
+                {
+                    aud.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+            var now = DateTime.UtcNow;
+            var existingAudiences = course.CourseAudiences.ToDictionary(a => a.AudienceId, a => a);
+            var payloadAudienceIds = audiences.Where(a => a.AudienceId.HasValue).Select(a => a.AudienceId!.Value).ToHashSet();
+
+            // 1. Mark audiences not in payload as inactive (soft delete)
+            foreach (var existing in existingAudiences.Values.Where(a => a.IsActive && !payloadAudienceIds.Contains(a.AudienceId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing audiences or create new ones
+            foreach (var audDto in audiences)
+            {
+                if (audDto.AudienceId.HasValue && existingAudiences.TryGetValue(audDto.AudienceId.Value, out var existing))
+                {
+                    // Update existing audience
+                    existing.Content = audDto.Content;
+                    existing.PositionIndex = audDto.PositionIndex;
+                    existing.IsActive = audDto.IsActive;
+                }
+                else
+                {
+                    // Create new audience - let EF generate the ID
+                    var newAudience = new CourseAudience
+                    {
+                        CourseId = course.CourseId,
+                        Content = audDto.Content,
+                        PositionIndex = audDto.PositionIndex,
+                        IsActive = audDto.IsActive,
+                        CreatedAt = now,
+                        UpdatedAt = now,
+                        CreatedBy = actor,
+                        UpdatedBy = actor
+                    };
+                    course.CourseAudiences.Add(newAudience);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update CourseTags based on payload
+        /// </summary>
+        /// <param name="course"></param>
+        /// <param name="courseTags"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <exception cref="ValidationException"></exception>
+        private async Task UpdateCourseTagsAsync(CourseEntity course, List<UpdateCourseTagDto>? courseTags, CancellationToken ct = default)
+        {
+            // Nếu payload rỗng hoặc không có => XÓA HẾT (hard delete)
+            if (courseTags is null || courseTags.Count == 0)
+            {
+                if (course.CourseTags.Count > 0)
+                {
+                    course.CourseTags.Clear(); // EF sẽ xóa các hàng ở bảng CourseTags (nếu cấu hình đúng)
+                }
+                return;
+            }
+
+            // 1) Chuẩn hóa payload: loại trùng và bỏ TagId <= 0
+            var payloadTagIds = courseTags
+                .Select(t => t.TagId)
+                .Where(id => id > 0)
+                .Distinct()
+                .ToHashSet();
+
+            if (payloadTagIds.Count == 0)
+            {
+                // Không còn tag hợp lệ => xóa hết
+                course.CourseTags.Clear();
+                return;
+            }
+
+            // 2) Validate các TagId có tồn tại trong bảng Tag
+            var existedTagIds = await _tagRepository
+                .Find(t => payloadTagIds.Contains(t.TagId), isTracking: false, ct)
+                .Select(t => t.TagId)
+                .ToListAsync(ct);
+
+            var notFound = payloadTagIds.Except(existedTagIds).ToList();
+            if (notFound.Count > 0)
+                throw new ValidationException($"TagId không tồn tại: {string.Join(", ", notFound)}");
+
+            // 3) Tập hiện tại trong course
+            var currentTagIds = course.CourseTags.Select(ctg => ctg.TagId).ToHashSet();
+
+            // 4) Tính phần cần xóa và cần thêm
+            var toRemove = currentTagIds.Except(payloadTagIds).ToList();
+            var toAdd = payloadTagIds.Except(currentTagIds).ToList();
+
+            // 5) Hard delete: gỡ các CourseTag không còn trong payload
+            if (toRemove.Count > 0)
+            {
+                // Lấy các entity tương ứng để Remove
+                var removeEntities = course.CourseTags.Where(ctg => toRemove.Contains(ctg.TagId)).ToList();
+                foreach (var rm in removeEntities)
+                    course.CourseTags.Remove(rm); // EF sẽ xóa bản ghi join
+            }
+
+            // 6) Thêm mới những TagId chưa có
+            if (toAdd.Count > 0)
+            {
+                foreach (var tagId in toAdd)
+                {
+                    course.CourseTags.Add(new CourseTag
+                    {
+                        CourseId = course.CourseId,
+                        TagId = tagId,
+                    });
+                }
+            }
+        }
+
+        /// <summary>
+        /// Validate PositionIndex uniqueness across all modules in course
+        /// </summary>
+        private static void ValidateCourseModulesPositionIndexes(UpdateCourseModulesDto dto)
+        {
+            if (dto.Modules is null || dto.Modules.Count == 0)
+                return;
+
+            // Validate module PositionIndex uniqueness
+            var moduleIndexes = dto.Modules
+                .Where(m => m.IsActive)
+                .Select(m => m.PositionIndex)
+                .ToList();
+
+            if (moduleIndexes.Count != moduleIndexes.Distinct().Count())
+                throw new ValidationException("Module PositionIndex must be unique within the course.");
+
+            if (moduleIndexes.Any(i => i <= 0))
+                throw new ValidationException("Module PositionIndex must be > 0 for active modules.");
+
+            // Validate objectives and lessons within each module
+            foreach (var module in dto.Modules.Where(m => m.IsActive))
+            {
+                // Module Objectives
+                if (module.Objectives is { Count: > 0 })
+                {
+                    var activeObjIdx = module.Objectives
+                        .Where(o => o.IsActive)
+                        .Select(o => o.PositionIndex)
+                        .ToList();
+
+                    if (activeObjIdx.Count != activeObjIdx.Distinct().Count())
+                        throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be unique.");
+
+                    if (activeObjIdx.Any(i => i <= 0))
+                        throw new ValidationException($"Module '{module.ModuleName}' objectives' PositionIndex must be > 0 for active objectives.");
+                }
+
+                // Lessons
+                if (module.Lessons is { Count: > 0 })
+                {
+                    var activeLessonIdx = module.Lessons
+                        .Where(l => l.IsActive)
+                        .Select(l => l.PositionIndex)
+                        .ToList();
+
+                    if (activeLessonIdx.Count != activeLessonIdx.Distinct().Count())
+                        throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be unique.");
+
+                    if (activeLessonIdx.Any(i => i <= 0))
+                        throw new ValidationException($"Module '{module.ModuleName}' lessons' PositionIndex must be > 0 for active lessons.");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Internal method to update course modules
+        /// </summary>
+        private async Task UpdateCourseModulesInternalAsync(CourseEntity course, List<UpdateCourseModuleDto> modules)
+        {
+            // If payload is null or empty, mark all existing modules as inactive
+            if (modules is null || modules.Count == 0)
+            {
+                // Mark all existing modules as inactive (soft delete)
+                foreach (var module in course.Modules.Where(m => m.IsActive))
+                {
+                    module.IsActive = false;
+                }
+                return;
+            }
+
+            var existingModules = course.Modules.ToDictionary(m => m.ModuleId, m => m);
+            var payloadModuleIds = modules.Where(m => m.ModuleId.HasValue).Select(m => m.ModuleId!.Value).ToHashSet();
+
+            // 1. Mark modules not in payload as inactive (soft delete)
+            foreach (var existing in existingModules.Values.Where(m => m.IsActive && !payloadModuleIds.Contains(m.ModuleId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing modules or create new ones
+            foreach (var moduleDto in modules)
+            {
+                if (moduleDto.ModuleId.HasValue && existingModules.TryGetValue(moduleDto.ModuleId.Value, out var existingModule))
+                {
+                    // Update existing module
+                    await UpdateExistingModuleAsync(existingModule, moduleDto);
+                }
+                else
+                {
+                    // Create new module
+                    await CreateNewModuleAsync(course, moduleDto);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update existing module with its objectives and lessons
+        /// </summary>
+        private async Task UpdateExistingModuleAsync(Module existingModule, UpdateCourseModuleDto moduleDto)
+        {
+            // Update basic module properties
+            existingModule.ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty;
+            existingModule.Description = moduleDto.Description;
+            existingModule.PositionIndex = moduleDto.PositionIndex;
+            existingModule.IsActive = moduleDto.IsActive;
+            existingModule.IsCore = moduleDto.IsCore;
+            existingModule.DurationMinutes = moduleDto.DurationMinutes;
+            existingModule.Level = moduleDto.Level;
+
+            // Update ModuleObjectives
+            await UpdateModuleObjectivesInternalAsync(existingModule, moduleDto.Objectives);
+
+            // Update Lessons
+            await UpdateLessonsInternalAsync(existingModule, moduleDto.Lessons);
+
+            // Update Discussions
+            await UpdateModuleDiscussionInternalAsync(existingModule, moduleDto.Discussions);
+
+            // Update Materials
+            await UpdateModuleMaterialsInternalAsync(existingModule, moduleDto.Materials);
+        }
+
+        /// <summary>
+        /// Create new module with its objectives and lessons
+        /// </summary>
+        private Task CreateNewModuleAsync(CourseEntity course, UpdateCourseModuleDto moduleDto)
+        {
+            var newModule = new Module
+            {
+                CourseId = course.CourseId,
+                ModuleName = moduleDto.ModuleName?.Trim() ?? string.Empty,
+                Description = moduleDto.Description,
+                PositionIndex = moduleDto.PositionIndex,
+                IsCore = moduleDto.IsCore,
+                DurationMinutes = moduleDto.DurationMinutes,
+                Level = moduleDto.Level,
+            };
+
+            // Add ModuleObjectives
+            if (moduleDto.Objectives is { Count: > 0 })
+            {
+                foreach (var objDto in moduleDto.Objectives.OrderBy(o => o.PositionIndex))
+                {
+                    newModule.ModuleObjectives.Add(new ModuleObjective
+                    {
+                        ModuleId = newModule.ModuleId,
+                        Content = objDto.Content,
+                        PositionIndex = objDto.PositionIndex,
+                    });
+                }
+            }
+
+            // Add Lessons
+            if (moduleDto.Lessons is { Count: > 0 })
+            {
+                foreach (var lessonDto in moduleDto.Lessons.OrderBy(l => l.PositionIndex))
+                {
+                    newModule.Lessons.Add(new Lesson
+                    {
+                        ModuleId = newModule.ModuleId,
+                        Title = lessonDto.Title,
+                        VideoUrl = lessonDto.VideoUrl,
+                        VideoDurationSec = lessonDto.VideoDurationSec,
+                        PositionIndex = lessonDto.PositionIndex,
+                    });
+                }
+            }
+
+            // Add Discussions
+            if (moduleDto.Discussions is { Count: > 0 })
+            {
+                foreach (var disDto in moduleDto.Discussions)
+                {
+                    newModule.ModuleDiscussions.Add(new ModuleDiscussion
+                    {
+                        ModuleId = newModule.ModuleId,
+                        Title = disDto.Title,
+                        Description = disDto.Description,
+                        DiscussionQuestion = disDto.DiscussionQuestion,
+                    });
+                }
+            }
+
+            // Add Materials
+            if (moduleDto.Materials is { Count: > 0 })
+            {
+                foreach (var matDto in moduleDto.Materials)
+                {
+                    newModule.ModuleMaterials.Add(new ModuleMaterial
+                    {
+                        ModuleId = newModule.ModuleId,
+                        Title = matDto.Title,
+                        Description = matDto.Description,
+                        FileUrl = matDto.FileUrl,
+                    });
+                }
+            }
+
+            course.Modules.Add(newModule);
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update ModuleObjectives for existing module
+        /// </summary>
+        private Task UpdateModuleObjectivesInternalAsync(Module module, List<UpdateCourseModuleObjectiveDto>? objectives)
+        {
+            if (objectives is null || objectives.Count == 0)
+            {
+                // Mark all existing objectives as inactive (soft delete)
+                foreach (var obj in module.ModuleObjectives.Where(o => o.IsActive))
+                {
+                    obj.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+
+            var existingObjectives = module.ModuleObjectives.ToDictionary(o => o.ObjectiveId, o => o);
+            var payloadObjectiveIds = objectives.Where(o => o.ObjectiveId.HasValue).Select(o => o.ObjectiveId!.Value).ToHashSet();
+
+            // 1. Mark objectives not in payload as inactive (soft delete)
+            foreach (var existing in existingObjectives.Values.Where(o => o.IsActive && !payloadObjectiveIds.Contains(o.ObjectiveId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing objectives or create new ones
+            foreach (var objDto in objectives)
+            {
+                if (objDto.ObjectiveId.HasValue && existingObjectives.TryGetValue(objDto.ObjectiveId.Value, out var existing))
+                {
+                    // Update existing objective
+                    existing.Content = objDto.Content;
+                    existing.PositionIndex = objDto.PositionIndex;
+                    existing.IsActive = objDto.IsActive;
+                }
+                else
+                {
+                    // Create new objective - let EF generate the ID
+                    var newObjective = new ModuleObjective
+                    {
+                        ModuleId = module.ModuleId,
+                        Content = objDto.Content,
+                        PositionIndex = objDto.PositionIndex,
+                    };
+                    module.ModuleObjectives.Add(newObjective);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update Lessons for existing module
+        /// </summary>
+        private Task UpdateLessonsInternalAsync(Module module, List<UpdateCourseLessonDto> lessons)
+        {
+            if (lessons is null || lessons.Count == 0)
+            {
+                // Mark all existing lessons as inactive (soft delete)
+                foreach (var lesson in module.Lessons.Where(l => l.IsActive))
+                {
+                    lesson.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+
+            var existingLessons = module.Lessons.ToDictionary(l => l.LessonId, l => l);
+            var payloadLessonIds = lessons.Where(l => l.LessonId.HasValue).Select(l => l.LessonId!.Value).ToHashSet();
+
+            // 1. Mark lessons not in payload as inactive (soft delete)
+            foreach (var existing in existingLessons.Values.Where(l => l.IsActive && !payloadLessonIds.Contains(l.LessonId)))
+            {
+                existing.IsActive = false;
+            }
+
+            // 2. Update existing lessons or create new ones
+            foreach (var lessonDto in lessons)
+            {
+                if (lessonDto.LessonId.HasValue && existingLessons.TryGetValue(lessonDto.LessonId.Value, out var existing))
+                {
+                    // Update existing lesson
+                    existing.Title = lessonDto.Title;
+                    existing.VideoUrl = lessonDto.VideoUrl;
+                    existing.VideoDurationSec = lessonDto.VideoDurationSec;
+                    existing.PositionIndex = lessonDto.PositionIndex;
+                    existing.IsActive = lessonDto.IsActive;
+                }
+                else
+                {
+                    // Create new lesson - let EF generate the ID
+                    var newLesson = new Lesson
+                    {
+                        ModuleId = module.ModuleId,
+                        Title = lessonDto.Title,
+                        VideoUrl = lessonDto.VideoUrl,
+                        VideoDurationSec = lessonDto.VideoDurationSec,
+                        PositionIndex = lessonDto.PositionIndex,
+                    };
+                    module.Lessons.Add(newLesson);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update ModuleDiscussions for existing module
+        /// </summary>
+        /// <param name="module"></param>
+        /// <param name="discussions"></param>
+        /// <param name="actor"></param>
+        /// <returns></returns>
+        private Task UpdateModuleDiscussionInternalAsync(Module module, List<UpdateModuleDiscussionDto>? discussions)
+        {
+            if (discussions is null || discussions.Count == 0)
+            {
+                // Mark all existing discussions as inactive (soft delete)
+                foreach (var dis in module.ModuleDiscussions.Where(d => d.IsActive))
+                {
+                    dis.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+            var existingDiscussions = module.ModuleDiscussions.ToDictionary(d => d.DiscussionId, d => d);
+            var payloadDiscussionIds = discussions.Where(d => d.DiscussionId.HasValue).Select(d => d.DiscussionId!.Value).ToHashSet();
+            // 1. Mark discussions not in payload as inactive (soft delete)
+            foreach (var existing in existingDiscussions.Values.Where(d => d.IsActive && !payloadDiscussionIds.Contains(d.DiscussionId)))
+            {
+                existing.IsActive = false;
+            }
+            // 2. Update existing discussions or create new ones
+            foreach (var disDto in discussions)
+            {
+                if (disDto.DiscussionId.HasValue && existingDiscussions.TryGetValue(disDto.DiscussionId.Value, out var existing))
+                {
+                    // Update existing discussion
+                    existing.Title = disDto.Title;
+                    existing.Description = disDto.Description;
+                    existing.DiscussionQuestion = disDto.DiscussionQuestion;
+                    existing.IsActive = disDto.IsActive;
+                }
+                else
+                {
+                    // Create new discussion - let EF generate the ID
+                    var newDiscussion = new ModuleDiscussion
+                    {
+                        ModuleId = module.ModuleId,
+                        Title = disDto.Title,
+                        Description = disDto.Description,
+                        DiscussionQuestion = disDto.DiscussionQuestion,
+                    };
+                    module.ModuleDiscussions.Add(newDiscussion);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Update ModuleMaterials for existing module
+        /// </summary>
+        /// <param name="module"></param>
+        /// <param name="materials"></param>
+        /// <param name="actor"></param>
+        /// <returns></returns>
+        private Task UpdateModuleMaterialsInternalAsync(Module module, List<UpdateModuleMaterialDto>? materials)
+        {
+            if (materials is null || materials.Count == 0)
+            {
+                // Mark all existing materials as inactive (soft delete)
+                foreach (var mat in module.ModuleMaterials.Where(m => m.IsActive))
+                {
+                    mat.IsActive = false;
+                }
+                return Task.CompletedTask;
+            }
+            var existingMaterials = module.ModuleMaterials.ToDictionary(m => m.MaterialId, m => m);
+            var payloadMaterialIds = materials.Where(m => m.MaterialId.HasValue).Select(m => m.MaterialId!.Value).ToHashSet();
+            // 1. Mark materials not in payload as inactive (soft delete)
+            foreach (var existing in existingMaterials.Values.Where(m => m.IsActive && !payloadMaterialIds.Contains(m.MaterialId)))
+            {
+                existing.IsActive = false;
+            }
+            // 2. Update existing materials or create new ones
+            foreach (var matDto in materials)
+            {
+                if (matDto.MaterialId.HasValue && existingMaterials.TryGetValue(matDto.MaterialId.Value, out var existing))
+                {
+                    // Update existing material
+                    existing.Title = matDto.Title;
+                    existing.Description = matDto.Description;
+                    existing.FileUrl = matDto.FileUrl;
+                    existing.IsActive = matDto.IsActive;
+                }
+                else
+                {
+                    // Create new material - let EF generate the ID
+                    var newMaterial = new ModuleMaterial
+                    {
+                        ModuleId = module.ModuleId,
+                        Title = matDto.Title,
+                        Description = matDto.Description,
+                        FileUrl = matDto.FileUrl,
+                    };
+                    module.ModuleMaterials.Add(newMaterial);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// Help validate that a list of integers are all distinct
+        /// </summary>
+        /// <param name="indexes"></param>
+        /// <param name="errorMsg"></param>
+        /// <exception cref="ValidationException"></exception>
+        private static void EnsureDistinct(IEnumerable<int> indexes, string errorMsg)
+        {
+            var list = indexes.ToList();
+            if (list.Count != list.Distinct().Count())
+                throw new ValidationException(errorMsg);
+        }
+
+        /// <summary>
+        /// Check if two lists of integers have any intersection
+        /// </summary>
+        /// <param name="taken"></param>
+        /// <returns></returns>
+        private static int NextIndex(ISet<int> taken)
+        {
+            var next = taken.Count == 0 ? 1 : taken.Max() + 1;
+            while (taken.Contains(next)) next++;
+            return next;
+        }
+
+        #endregion
+
+    }
 }
