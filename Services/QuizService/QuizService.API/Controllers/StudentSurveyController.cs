@@ -51,7 +51,7 @@ public class StudentSurveyController : ControllerBase
     )]
     public async Task<StudentSurveyInsertResponse> InsertStudentSurvey([FromBody] StudentSurveyInsertCommand request)
     {
-        return await ApiControllerHelper.HandleRequest<StudentSurveyInsertCommand, StudentSurveyInsertResponse, string>(
+        return await ApiControllerHelper.HandleRequest<StudentSurveyInsertCommand, StudentSurveyInsertResponse, Guid?>(
             request,
             _logger,
             ModelState,

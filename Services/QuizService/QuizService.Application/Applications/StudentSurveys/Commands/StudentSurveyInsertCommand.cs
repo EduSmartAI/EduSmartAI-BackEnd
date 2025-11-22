@@ -10,6 +10,9 @@ public record StudentSurveyInsertCommand : ICommand<StudentSurveyInsertResponse>
 
     [Required(ErrorMessage = "StudentSurveys is required")]
     public List<StudentSurveyInsertRequest> StudentSurveys { get; set; } = null!;
+    
+    [Required(ErrorMessage = "IsWantToTakeTest is required")]
+    public bool IsWantToTakeTest { get; set; }
 }
 
 public class StudentInformation
@@ -42,6 +45,8 @@ public class LearningGoal
     public Guid LearningGoalId { get; set; }
     
     public short LearningGoalType { get; set; }
+    
+    public string LearningGoalName { get; set; } = null!;
 }
 
 public record StudentSurveyInsertRequest

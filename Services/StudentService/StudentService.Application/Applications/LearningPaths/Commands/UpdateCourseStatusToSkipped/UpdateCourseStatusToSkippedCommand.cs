@@ -5,7 +5,7 @@ namespace StudentService.Application.Applications.LearningPaths.Commands.UpdateC
 
 public class UpdateCourseStatusToSkippedCommand : ICommand<UpdateCourseStatusToSkippedResponse>
 {
-    [Required(ErrorMessage = "LearningPathCourseId is required")]
-    public Guid LearningPathCourseId { get; set; }
+    [Required(ErrorMessage = "SubjectCode is required")]
+    public string SubjectCode { get; set; }
 }
 
