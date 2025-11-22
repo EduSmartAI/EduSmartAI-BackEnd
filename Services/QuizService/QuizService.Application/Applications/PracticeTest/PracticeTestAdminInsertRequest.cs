@@ -10,13 +10,16 @@ public class PracticeTestAdminInsertRequest : IRequest<PracticeTestAdminInsertRe
     public PracticeTestAdminProblemInsertRequest Problem { get; set; } = null!;
     
     [Required(ErrorMessage = "Testcases information is required.")]
-    public List<PracticeTestAdminProblemTestcaseInsertRequest> Testcases { get; set; } = null!;
+    public PracticeTestAdminProblemTestcaseInsertRequest Testcases { get; set; } = null!;
     
     [Required(ErrorMessage = "Templates information is required.")]
     public List<PracticeTestAdminProblemTemplateInsertRequest> Templates { get; set; } = null!;
     
     [Required(ErrorMessage = "Examples information is required.")]
     public List<PracticeTestAdminProblemExampleInsertRequest> Examples { get; set; } = null!;
+    
+    [Required(ErrorMessage = "Solutions information is required.")]
+    public  List<PracticeTestAdminSolutionInsertRequest> Solutions { get; set; } = null!;
 }
 
 public class PracticeTestAdminProblemInsertRequest
@@ -68,4 +71,11 @@ public class PracticeTestAdminProblemTestcasePublicInsertRequest
 public class PracticeTestAdminProblemTestcasePrivateInsertRequest : PracticeTestAdminProblemTestcasePublicInsertRequest
 {
     
+}
+
+public class PracticeTestAdminSolutionInsertRequest
+{
+    public int LanguageId { get; set; }
+
+    public string SolutionCode { get; set; } = null!;
 }

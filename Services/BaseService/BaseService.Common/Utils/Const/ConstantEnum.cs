@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace BaseService.Common.Utils.Const;
 
 public static class ConstantEnum
@@ -368,5 +370,20 @@ public static class ConstantEnum
         EXPIRED = 5,
         PROCESSING = 6,
         FAILED = 7
+    }
+    
+    public enum StudentTranscriptStatus
+    {
+        [Description("Not Started")]
+        NotStarted = 0,
+        
+        [Description("Studying")]
+        Studying = 1,
+        
+        [Description("Passed")]
+        Passed = 2,
+        
+        [Description("Not Passed")]
+        NotPassed = 3
     }
 }
