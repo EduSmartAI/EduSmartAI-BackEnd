@@ -552,8 +552,8 @@ public class LearningPathService : ILearningPathService
             .ToList();
 
         // Call CourseService to get info
-        var @eventInternal = new GetInfoInternalCourseEvents(internalIds);
-        var @eventBasic = new GetInfoInternalCourseEvents(basicIds);
+        var @eventInternal = new GetInfoInternalCourseEvents(internalIds, currentUserId);
+        var @eventBasic = new GetInfoInternalCourseEvents(basicIds, currentUserId);
 
         var resultInternal = await _requestClient.GetResponse<GetInfoInternalCourseResponse>(@eventInternal, cancellationToken);
         var resultBasic = await _requestClient.GetResponse<GetInfoInternalCourseResponse>(@eventBasic, cancellationToken);
