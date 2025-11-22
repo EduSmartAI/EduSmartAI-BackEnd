@@ -301,6 +301,9 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasDefaultValueSql("'system'::character varying")
                 .HasColumnName("updated_by");
+            entity.Property(e => e.SubjectCode)
+                .HasMaxLength(20)
+                .HasColumnName("subject_code");
 
             entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathCourses)
                 .HasForeignKey(d => d.LearningPathMajorId)

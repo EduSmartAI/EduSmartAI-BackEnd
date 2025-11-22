@@ -1174,6 +1174,7 @@ namespace Course.Infrastructure.Implements
 				.Select(c => new
 				{
 					c.CourseId,
+					c.Subject.SubjectCode,
 					MajorCodes = c.Subject.SyllabusSubjects
 						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
 						.Select(ss => ss.Syllabus.Major.MajorCode)
@@ -1183,12 +1184,16 @@ namespace Course.Infrastructure.Implements
 
 			// 4. Flatten và group by major
 			var groupedCourses = coursesData
-				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId }))
+				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
 				.GroupBy(x => x.MajorCode)
 				.Select(g => new CoursesSelectEventResponseEntity
 				{
 					MajorCode = g.Key,
-					CourseCodeIds = g.Select(x => x.CourseId).Distinct().ToList()
+					Courses = g.Select(x => new CoursesSelectEventCourseResponseEntity
+					{
+						CourseId = x.CourseId,
+						SubjectCode = x.SubjectCode
+					}).Distinct().ToList()
 				})
 				.ToList();
 

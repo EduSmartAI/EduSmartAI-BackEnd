@@ -40,4 +40,16 @@ public static class CacheKey
     
     public static string PracticeTestSelect(Guid problemId)
         => $"practice_test:{problemId}";
+    
+    public static string LearningPath(Guid pathId)
+        => $"learning_path:{pathId}";
+    
+    public static string LearningPathSelect(Guid studentId, Guid pathId)
+        => $"learning_path:select:{studentId}:{pathId}";
+    
+    public static string LearningPathMajorList(Guid pathId)
+        => $"learning_path_major:list:{pathId}";
+    
+    public static string LearningPathPaged(Guid studentId, int pageNumber, int pageSize)
+        => $"learning_path:paged:{studentId}:p{pageNumber}:s{pageSize}";
 }
