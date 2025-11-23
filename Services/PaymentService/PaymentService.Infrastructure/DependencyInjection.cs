@@ -13,12 +13,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
-using PaymentService.Infrastructure.Data;
+using PaymentService.Domain.WriteModels;
+using PaymentService.Infrastructure.Contexts;
 using PaymentService.Infrastructure.Implements;
 using StackExchange.Redis;
-using Order = PaymentService.Domain.Models.Order;
-using SystemConfig = PaymentService.Domain.Models.SystemConfig;
+using Order = PaymentService.Domain.WriteModels.Order;
+using SystemConfig = PaymentService.Domain.WriteModels.Systemconfig;
 namespace PaymentService.Infrastructure
 {
 	public static class DependencyInjection
@@ -34,7 +34,7 @@ namespace PaymentService.Infrastructure
 			services.AddScoped(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
 
 			// DbContext (PostgreSQL)
-			services.AddDbContext<AppDbContext, PaymentServiceDBContext>(opt =>
+			services.AddDbContext<AppDbContext, PaymentServiceContext>(opt =>
 				opt.UseNpgsql(connectionString).EnableDetailedErrors().EnableSensitiveDataLogging());
 
 			// Identity
@@ -71,7 +71,7 @@ namespace PaymentService.Infrastructure
 		public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
 		{
 			using var scope = app.Services.CreateScope();
-			var db = scope.ServiceProvider.GetRequiredService<PaymentServiceDBContext>();
+			var db = scope.ServiceProvider.GetRequiredService<PaymentServiceContext>();
 			await db.Database.EnsureCreatedAsync();
 			return app;
 		}

@@ -4,7 +4,7 @@ using BaseService.Common.Utils.Const;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
+using PaymentService.Domain.WriteModels;
 
 namespace PaymentService.Application.Applications.Payments.Commands.ProcessPayment;
 
@@ -44,10 +44,7 @@ public class ProcessPaymentCommandHandler(
         }
         
         // Process payment via PayOS
-        var paymentResult = await paymentServiceClient.ProcessPaymentAsync(
-            request.OrderId, 
-            order.FinalAmount, 
-            cancellationToken);
+        var paymentResult = await paymentServiceClient.ProcessPaymentAsync(order, cancellationToken);
             
         if (!paymentResult.Success)
         {

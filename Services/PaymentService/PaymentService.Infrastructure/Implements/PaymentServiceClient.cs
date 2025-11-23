@@ -7,14 +7,13 @@ using BaseService.Common.Utils.Const;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Payments;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
-using SystemConfig = PaymentService.Domain.Models.SystemConfig;
+using PaymentService.Domain.WriteModels;
+using SystemConfig = PaymentService.Domain.WriteModels.Systemconfig;
 using ConstSystemConfig = BaseService.Common.Utils.Const.SystemConfig;
 namespace PaymentService.Infrastructure.Implements;
 
 public class PaymentServiceClient : IPaymentServiceClient
 {
-    private readonly ICommandRepository<SystemConfig> _systemConfigRepository;
     private readonly ICommandRepository<PaymentTransaction> _paymentTransactionRepository;
     private readonly ICommandRepository<Order> _orderRepository;
     private readonly IUnitOfWork _unitOfWork;
@@ -28,7 +27,6 @@ public class PaymentServiceClient : IPaymentServiceClient
 
     public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService)
     {
-        _systemConfigRepository = systemConfigRepository;
         _paymentTransactionRepository = paymentTransactionRepository;
         _orderRepository = orderRepository;
         _unitOfWork = unitOfWork;
@@ -43,24 +41,12 @@ public class PaymentServiceClient : IPaymentServiceClient
     /// <summary>
     /// Process payment via PayOS
     /// </summary>
-    /// <param name="orderId">Order ID to process payment</param>
-    /// <param name="amount">Amount to pay</param>
+    /// <param name="order"></param>
     /// <param name="ct"></param>
     /// <returns></returns>
-    public async Task<PaymentResponse> ProcessPaymentAsync(Guid orderId, decimal amount, CancellationToken ct = default)
+    public async Task<PaymentResponse> ProcessPaymentAsync(Order order, CancellationToken ct = default)
     {
         var response = new PaymentResponse {Success = false};
-        
-        // Get Order
-        var order = await _orderRepository
-            .Find(x => x.OrderId == orderId, isTracking: true)
-            .FirstOrDefaultAsync(ct);
-            
-        if (order == null)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy đơn hàng");
-            return response;
-        }
         
         // Check if order is already paid or processing
         if (order.Status != (short) ConstantEnum.OrderStatus.Pending)
@@ -76,8 +62,11 @@ public class PaymentServiceClient : IPaymentServiceClient
         var description = $"Thanh toan khoa hoc";
         if (description.Length > 25) description = description.Substring(0, 25);
 
-        var returnUrl = $"{_returnUrl}?orderId={orderId}";
-        var cancelUrl = $"{_cancelUrl}?orderId={orderId}";
+        var returnUrl = $"{_returnUrl}?orderId={order.OrderId}";
+        var cancelUrl = $"{_cancelUrl}?orderId={order.OrderId}";
+        
+        var amountStr = order.FinalAmount.ToString("G29");
+        var amount = int.Parse(amountStr);
         
         // Create signature for PayOS
         var data = $"amount={amount}&cancelUrl={cancelUrl}" +
@@ -130,10 +119,10 @@ public class PaymentServiceClient : IPaymentServiceClient
         var paymentTransaction = new PaymentTransaction
         {
             PaymentId = Guid.NewGuid(),
-            OrderId = orderId,
+            OrderId = order.OrderId,
             Gateway = nameof(ConstantEnum.PaymentGateway.PayOs),
             GatewayTransactionId = orderCode.ToString(),
-            Amount = amount,
+            Amount = decimal.Parse(amountStr),
             Currency = order.Currency,
             Status = (short) ConstantEnum.PaymentStatus.Pending,
             RawResponse = responseContent,
@@ -232,7 +221,7 @@ public class PaymentServiceClient : IPaymentServiceClient
                 _orderRepository.Update(order);
                 
                 // Create new payment link for retry
-                var retryPaymentResponse = await ProcessPaymentAsync(order.OrderId, order.FinalAmount);
+                var retryPaymentResponse = await ProcessPaymentAsync(order, CancellationToken.None);
                 if (retryPaymentResponse.Success)
                 {
                     response.Response = new PaymentCallbackEntity

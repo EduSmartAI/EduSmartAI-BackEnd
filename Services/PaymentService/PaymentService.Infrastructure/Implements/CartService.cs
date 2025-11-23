@@ -9,7 +9,7 @@ using PaymentService.Application.Applications.Carts.Queries.CheckCourseInMyCart;
 using PaymentService.Application.Applications.Carts.Queries.GetMyCart;
 using PaymentService.Application.DTOs.Carts;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
+using PaymentService.Domain.WriteModels;
 using static BaseService.Common.Utils.Const.ConstantEnum;
 using static PaymentService.Infrastructure.Common.Helpers.CartHelper;
 
