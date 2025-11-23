@@ -157,19 +157,9 @@ public class StudentSurveyService : IStudentSurveyService
                 
                 studentLevel = await CalculateStudentLevelFromTranscriptAsync(currentUser.UserId, cancellationToken);
                 var learningPathId = Guid.NewGuid();
-            
-                var studentSurveys = await _studentQuizQueryRepository.GetOrSetListAsync(
-                    CacheKey.StudentSurvey(currentUser.UserId),
-                    async () => await _studentQuizQueryRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
-                    TimeSpan.FromMinutes(10));
-                if (!studentSurveys.Any())
-                {
-                    response.SetMessage(MessageId.E00000, "Sinh viên chưa hoàn thành bài khảo sát nào");
-                    return false;
-                }
                 
                 // Find HABIT survey from student quiz collections
-                var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+                var surveyHabit = studentQuizCollections.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
                 // Get selected answer IDs
                 var selectedAnswerIds = surveyHabit.Quiz.Questions
@@ -192,7 +182,7 @@ public class StudentSurveyService : IStudentSurveyService
                 
                 var prepareStudentLearningProfileForAiRequest = new StudentLearningPathInsertContext
                 {
-                    StudentQuizCollections = studentSurveys,
+                    StudentQuizCollections = studentQuizCollections,
                     CurrentUser = currentUser,
                     InformationResponse = new StudentInformationSelectsEventResponseEntity
                     {
@@ -375,19 +365,25 @@ public class StudentSurveyService : IStudentSurveyService
                 CreatedBy = studentQuiz.CreatedBy,
                 UpdatedBy = studentQuiz.UpdatedBy,
                 Quiz = quizCollection,
-                StudentQuizAnswers = studentQuiz.StudentQuizAnswers.Select(x => new StudentQuizAnswerCollection
+                StudentQuizAnswers = studentQuiz.StudentQuizAnswers.Select(x =>
                 {
-                    StudentQuizAnswerId = x.StudentQuizAnswerId,
-                    StudentQuizId = x.StudentQuizId,
-                    QuestionId = x.QuestionId,
-                    AnswerId = x.AnswerId,
-                    IsActive = x.IsActive,
-                    CreatedAt = x.CreatedAt,
-                    UpdatedAt = x.UpdatedAt,
-                    CreatedBy = x.CreatedBy,
-                    UpdatedBy = x.UpdatedBy,
-                    Question = allQuestions.FirstOrDefault(q => q.QuestionId == x.QuestionId),
-                    Answer = allAnswers.FirstOrDefault(a => a.AnswerId == x.AnswerId)
+                    var question = quizCollection.Questions.FirstOrDefault(q => q.QuestionId == x.QuestionId);
+                    var answer = question?.Answers.FirstOrDefault(a => a.AnswerId == x.AnswerId);
+                    
+                    return new StudentQuizAnswerCollection
+                    {
+                        StudentQuizAnswerId = x.StudentQuizAnswerId,
+                        StudentQuizId = x.StudentQuizId,
+                        QuestionId = x.QuestionId,
+                        AnswerId = x.AnswerId,
+                        IsActive = x.IsActive,
+                        CreatedAt = x.CreatedAt,
+                        UpdatedAt = x.UpdatedAt,
+                        CreatedBy = x.CreatedBy,
+                        UpdatedBy = x.UpdatedBy,
+                        Question = question,
+                        Answer = answer
+                    };
                 }).ToList()
             };
         }).ToList();

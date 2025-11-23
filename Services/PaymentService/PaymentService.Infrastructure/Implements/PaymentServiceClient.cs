@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Payments;
 using PaymentService.Application.Interfaces;
 using PaymentService.Domain.Models;
-using SystemConfig = OrchestratorService.Domain.Entities.SystemConfig;
+using SystemConfig = PaymentService.Domain.Models.SystemConfig;
 using ConstSystemConfig = BaseService.Common.Utils.Const.SystemConfig;
 namespace PaymentService.Infrastructure.Implements;
 

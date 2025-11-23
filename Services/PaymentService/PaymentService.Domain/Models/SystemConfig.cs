@@ -1,4 +1,4 @@
-namespace OrchestratorService.Domain.Entities;
+namespace PaymentService.Domain.Models;
 
 public partial class SystemConfig
 {

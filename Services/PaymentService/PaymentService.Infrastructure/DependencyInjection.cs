@@ -17,7 +17,8 @@ using PaymentService.Domain.Models;
 using PaymentService.Infrastructure.Data;
 using PaymentService.Infrastructure.Implements;
 using StackExchange.Redis;
-
+using Order = PaymentService.Domain.Models.Order;
+using SystemConfig = PaymentService.Domain.Models.SystemConfig;
 namespace PaymentService.Infrastructure
 {
 	public static class DependencyInjection
@@ -44,11 +45,14 @@ namespace PaymentService.Infrastructure
 			// Repositories
 			services.AddScoped<ICommandRepository<Cart>, CommandRepository<Cart>>();
 			services.AddScoped<ICommandRepository<CartItem>, CommandRepository<CartItem>>();
+			services.AddScoped<ICommandRepository<SystemConfig>, CommandRepository<SystemConfig>>();
+			services.AddScoped<ICommandRepository<PaymentTransaction>, CommandRepository<PaymentTransaction>>();
+			services.AddScoped<ICommandRepository<Order>, CommandRepository<Order>>();
 
 			// Services
 			services.AddScoped<ICommonLogic, CommonLogic>();
 			services.AddScoped<ICartService, CartService>();
-
+			services.AddScoped<IPaymentServiceClient, PaymentServiceClient>();
 			// Helpers
 
 
