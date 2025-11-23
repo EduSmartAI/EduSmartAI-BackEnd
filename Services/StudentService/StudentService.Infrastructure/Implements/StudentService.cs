@@ -479,12 +479,14 @@ public class StudentService : IStudentService
                     }
                     else
                     {
-                        // If not exists, add new
-                        studentExist.StudentTechnologies.Add(new StudentTechnology
+                        var newStudentTech = new StudentTechnology
                         {
                             StudentId = studentExist.StudentId,
                             TechnologyId = techId,
-                        });
+                        };
+                        // If not exists, add new
+                        studentExist.StudentTechnologies.Add(newStudentTech);
+                        await _studentTechnologyRepository.AddAsync(newStudentTech);
                     }
                 }
 
@@ -532,12 +534,14 @@ public class StudentService : IStudentService
                     }
                     else
                     {
-                        // If not exists, add new
-                        studentExist.StudentLearningGoals.Add(new StudentLearningGoal
+                        var newLearningGoal = new StudentLearningGoal
                         {
                             StudentId = studentExist.StudentId,
                             GoalId = goalId,
-                        });
+                        };
+                        // If not exists, add new
+                        studentExist.StudentLearningGoals.Add(newLearningGoal);
+                        await _studentLearningGoalRepository.AddAsync(newLearningGoal);
                     }
                 }
                 await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
