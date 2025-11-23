@@ -26,7 +26,7 @@ public class PaymentServiceClient : IPaymentServiceClient
     private readonly string _returnUrl;
     private readonly string _cancelUrl;
 
-    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService, string payOsCheckSumKey, string payOsApiKey, string payOsClientId, string returnUrl, string cancelUrl)
+    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService)
     {
         _systemConfigRepository = systemConfigRepository;
         _paymentTransactionRepository = paymentTransactionRepository;
