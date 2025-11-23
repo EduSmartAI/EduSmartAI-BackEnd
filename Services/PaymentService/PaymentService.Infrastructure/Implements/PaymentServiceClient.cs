@@ -12,13 +12,34 @@ using SystemConfig = PaymentService.Domain.Models.SystemConfig;
 using ConstSystemConfig = BaseService.Common.Utils.Const.SystemConfig;
 namespace PaymentService.Infrastructure.Implements;
 
-public class PaymentServiceClient(
-    ICommandRepository<SystemConfig> systemConfigRepository, 
-    ICommandRepository<PaymentTransaction> paymentTransactionRepository,
-    ICommandRepository<Order> orderRepository,
-    IUnitOfWork unitOfWork,
-    IIdentityService identityService) : IPaymentServiceClient
+public class PaymentServiceClient : IPaymentServiceClient
 {
+    private readonly ICommandRepository<SystemConfig> _systemConfigRepository;
+    private readonly ICommandRepository<PaymentTransaction> _paymentTransactionRepository;
+    private readonly ICommandRepository<Order> _orderRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IIdentityService _identityService;
+    
+    private readonly string _payOsCheckSumKey;
+    private readonly string _payOsApiKey;
+    private readonly string _payOsClientId;
+    private readonly string _returnUrl;
+    private readonly string _cancelUrl;
+
+    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService, string payOsCheckSumKey, string payOsApiKey, string payOsClientId, string returnUrl, string cancelUrl)
+    {
+        _systemConfigRepository = systemConfigRepository;
+        _paymentTransactionRepository = paymentTransactionRepository;
+        _orderRepository = orderRepository;
+        _unitOfWork = unitOfWork;
+        _identityService = identityService;
+        _payOsCheckSumKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsCheckSumKey).FirstOrDefault()!.Value;
+        _payOsApiKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsApiKey).FirstOrDefault()!.Value;
+        _payOsClientId = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsClientId).FirstOrDefault()!.Value;
+        _returnUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentReturnUrl).FirstOrDefault()!.Value;
+        _cancelUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentCancelUrl).FirstOrDefault()!.Value;
+    }
+
     /// <summary>
     /// Process payment via PayOS
     /// </summary>
@@ -31,7 +52,7 @@ public class PaymentServiceClient(
         var response = new PaymentResponse {Success = false};
         
         // Get Order
-        var order = await orderRepository
+        var order = await _orderRepository
             .Find(x => x.OrderId == orderId, isTracking: true)
             .FirstOrDefaultAsync(ct);
             
@@ -48,13 +69,6 @@ public class PaymentServiceClient(
             return response;
         }
         
-        // Get PayOS config
-        var payOsCheckSumKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsCheckSumKey).FirstOrDefault()!.Value;
-        var payOsApiKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsApiKey).FirstOrDefault()!.Value;
-        var payOsClientId = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsClientId).FirstOrDefault()!.Value;
-        var returnUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentReturnUrl).FirstOrDefault()!.Value;
-        var cancelUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentCancelUrl).FirstOrDefault()!.Value;
-
         // Create order code
         var orderCode = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); 
         
@@ -62,15 +76,15 @@ public class PaymentServiceClient(
         var description = $"Thanh toan khoa hoc";
         if (description.Length > 25) description = description.Substring(0, 25);
 
-        returnUrl = $"{returnUrl}?orderId={orderId}";
-        cancelUrl = $"{cancelUrl}?orderId={orderId}";
+        var returnUrl = $"{_returnUrl}?orderId={orderId}";
+        var cancelUrl = $"{_cancelUrl}?orderId={orderId}";
         
         // Create signature for PayOS
         var data = $"amount={amount}&cancelUrl={cancelUrl}" +
                    $"&description={description}" +
                    $"&orderCode={orderCode}" +
                    $"&returnUrl={returnUrl}";
-        string signature = ComputeHmacSha256(data, payOsCheckSumKey);
+        string signature = ComputeHmacSha256(data, _payOsCheckSumKey);
 
         var payRequest = new
         {
@@ -84,8 +98,8 @@ public class PaymentServiceClient(
         
         // Call PayOS API
         var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("x-client-id", payOsClientId);
-        client.DefaultRequestHeaders.Add("x-api-key", payOsApiKey);
+        client.DefaultRequestHeaders.Add("x-client-id", _payOsClientId);
+        client.DefaultRequestHeaders.Add("x-api-key", _payOsApiKey);
 
         var jsonContent = new StringContent(JsonSerializer.Serialize(payRequest), Encoding.UTF8, "application/json");
 
@@ -130,9 +144,9 @@ public class PaymentServiceClient(
         order.Status = (short) ConstantEnum.OrderStatus.WaitingForPayment;
 
         // Save to database
-        await paymentTransactionRepository.AddAsync(paymentTransaction);
-        orderRepository.Update(order);
-        await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, ct);
+        await _paymentTransactionRepository.AddAsync(paymentTransaction);
+        _orderRepository.Update(order);
+        await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, ct);
 
         var entityResponse = new PaymentResultEntity
         {
@@ -158,7 +172,7 @@ public class PaymentServiceClient(
         var response = new PaymentCallbackResponse { Success = false };
         
         // Get Order with PaymentTransactions
-        var order = await orderRepository
+        var order = await _orderRepository
             .Find(predicate:x => x.OrderId == request.OrderId, 
                 isTracking: true, 
                 includes: o => o.PaymentTransactions)
@@ -188,7 +202,7 @@ public class PaymentServiceClient(
         }
         
         // Begin transaction
-        await unitOfWork.BeginTransactionAsync(async () =>
+        await _unitOfWork.BeginTransactionAsync(async () =>
         {
             // User cancelled payment
             if (request.Cancel)
@@ -199,9 +213,9 @@ public class PaymentServiceClient(
                 paymentTransaction.ReturnMessage = "User cancelled payment";
                 paymentTransaction.PaymentUrl = null;
                 
-                orderRepository.Update(order);
-                paymentTransactionRepository.Update(paymentTransaction);
-                await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+                _orderRepository.Update(order);
+                _paymentTransactionRepository.Update(paymentTransaction);
+                await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
                 
                 response.SetMessage(MessageId.I00001, "Thanh toán đã bị hủy bởi người dùng");
                 return true;
@@ -215,7 +229,7 @@ public class PaymentServiceClient(
                 paymentTransaction.ReturnCode = request.Code;
                 paymentTransaction.ReturnMessage = string.IsNullOrEmpty(request.Status) ? "Payment failed" : request.Status;
                 
-                orderRepository.Update(order);
+                _orderRepository.Update(order);
                 
                 // Create new payment link for retry
                 var retryPaymentResponse = await ProcessPaymentAsync(order.OrderId, order.FinalAmount);
@@ -236,8 +250,8 @@ public class PaymentServiceClient(
                 }
                 
                 // Update payment transaction
-                paymentTransactionRepository.Update(paymentTransaction);
-                await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+                _paymentTransactionRepository.Update(paymentTransaction);
+                await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
                 return false;
             }
             
@@ -254,9 +268,9 @@ public class PaymentServiceClient(
                 paymentTransaction.GatewayTransactionId = request.Id;
             }
             
-            orderRepository.Update(order);
-            paymentTransactionRepository.Update(paymentTransaction);
-            await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+            _orderRepository.Update(order);
+            _paymentTransactionRepository.Update(paymentTransaction);
+            await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
             
             // True
             response.Success = true;
