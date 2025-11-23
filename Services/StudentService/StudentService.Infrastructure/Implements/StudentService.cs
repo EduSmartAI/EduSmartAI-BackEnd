@@ -225,7 +225,7 @@ public class StudentService : IStudentService
             // Technologies to add (in request but not in database or inactive)
             var techIdsToAdd = request.TechnologyIds.Except(existingTechIds).ToList();
             
-            // Technologies to soft delete (in database active but not in request)
+            // Technologies to softly delete (in database active but not in request)
             var techIdsToDelete = existingTechIds.Except(request.TechnologyIds).ToList();
             
             // Add new technologies
@@ -452,10 +452,7 @@ public class StudentService : IStudentService
                     response.SetMessage(MessageId.E00000, "Có lỗi xảy ra trong quá trình tải ảnh đại diện");
                     return false;
                 }
-                else
-                {
-                    studentExist.AvatarUrl = avatarUrlResponse.Message.Response.AvatarUrl;
-                }
+                studentExist.AvatarUrl = avatarUrlResponse.Message.Response.AvatarUrl;
             }
 
             _studentRepository.Update(studentExist);
@@ -751,82 +748,163 @@ public class StudentService : IStudentService
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-
+            
             try
             {
                 await using var stream = request.TranscriptFile.OpenReadStream();
                 using var reader = ExcelReaderFactory.CreateReader(stream);
-                
+            
                 var result = reader.AsDataSet();
-
-            var table = result.Tables[0];
-            var studentTranscripts = new List<StudentTranscript>();
-
-            var semesterIdSelectsEvent = new SemesterIdSelectsEvent
-            {
-                SemesterNumbers = new List<int>()
-            };
-            for (int i = 1; i < table.Rows.Count; i++)
-            {
-                var row = table.Rows[i];
-                
-                // Ignore blank lines or comment lines
-                if (row.ItemArray.All(cell => string.IsNullOrWhiteSpace(cell?.ToString())))
-                    continue;
-
-                // Ignore if SubjectCode or SubjectName is empty
-                var subjectCode = row[3]?.ToString()?.Trim();
-                var subjectName = row[6]?.ToString()?.Trim();
-
-                if (string.IsNullOrEmpty(subjectCode) || string.IsNullOrEmpty(subjectName))
-                    continue;
-
-                // If SemesterNumber is not a valid integer, skip the row
-                if (!int.TryParse(row[1]?.ToString(), out _))
-                    continue;
-                
-                var subject = new StudentTranscript
-                {
-                    SemesterNumber = Convert.ToInt32(row[1]),
-                    Semester = row[2].ToString() ?? string.Empty,
-                    SubjectCode = row[3].ToString() ?? string.Empty,
-                    Prerequisite = row[4]?.ToString(),
-                    SubjectName = row[6].ToString() ?? string.Empty,
-                    Credit = string.IsNullOrEmpty(row[7].ToString()) ? 0 : Convert.ToInt32(row[7]),
-                    Grade = string.IsNullOrEmpty(row[8].ToString()) ? 0 : Convert.ToDouble(row[8]),
-                    Status = row[9].ToString() ?? string.Empty,
-                    StudentId = currentUser.UserId
-                };
-                semesterIdSelectsEvent.SemesterNumbers.Add(subject.SemesterNumber);
-                studentTranscripts.Add(subject);
-            }
-            semesterIdSelectsEvent.SemesterNumbers = semesterIdSelectsEvent.SemesterNumbers.Distinct().ToList();
             
-            // Publish event to CourseService to get semester IDs
-            var semesterIdResponse = await _requestClientSemesterIdSelects.GetResponse<SemesterIdSelectsEventResponse>(semesterIdSelectsEvent, cancellationToken);
-            if (!semesterIdResponse.Message.Success)
-            {
-                response.SetMessage(MessageId.E00000, "Có lỗi xảy ra trong quá trình xử lý");
-                return false;
-            }
-            
-            // Map semester IDs to transcripts
-            var semesterIdMap = semesterIdResponse.Message.Response.ToDictionary(x => x.SemesterNumber, x => x.SemesterId);
-            foreach (var transcript in studentTranscripts)
-            {
-                if (semesterIdMap.TryGetValue(transcript.SemesterNumber, out var semesterId))
+                var table = result.Tables[0];
+                
+                // Validate minimum rows (header + at least 1 data row)
+                if (table.Rows.Count < 2)
                 {
-                    transcript.SemesterId = semesterId;
+                    response.SetMessage(MessageId.E00000, "File bảng điểm không có dữ liệu hoặc thiếu header");
+                    return false;
                 }
+            
+                // Validate minimum columns (should have at least 10 columns based on row[9])
+                if (table.Columns.Count < 10)
+                {
+                    response.SetMessage(MessageId.E00000, "File bảng điểm không đúng định dạng. Thiếu các cột bắt buộc");
+                    return false;
+                }
+            
+                var studentTranscripts = new List<StudentTranscript>();
+            
+                var semesterIdSelectsEvent = new SemesterIdSelectsEvent
+                {
+                    SemesterNumbers = new List<int>()
+                };
+                
+                for (int i = 1; i < table.Rows.Count; i++)
+                {
+                    var row = table.Rows[i];
+            
+                    // Ignore blank lines or comment lines
+                    if (row.ItemArray.All(cell => string.IsNullOrWhiteSpace(cell?.ToString())))
+                        continue;
+            
+                    // Validate required columns with descriptive error
+                    try
+                    {
+                        // Validate SemesterNumber (column 1)
+                        if (!int.TryParse(row[1].ToString(), out _))
+                            continue; // Skip invalid rows
+            
+                        var semesterNumber = Convert.ToInt32(row[1]);
+                        
+                        // Validate Semester (column 2)
+                        var semester = row[2].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(semester))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Học kỳ' (cột 3) không được để trống");
+                            return false;
+                        }
+            
+                        // Validate SubjectCode (column 3)
+                        var subjectCode = row[3].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(subjectCode))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Mã môn học' (cột 4) không được để trống");
+                            return false;
+                        }
+            
+                        // Validate SubjectName (column 6)
+                        var subjectName = row[6].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(subjectName))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Tên môn học' (cột 7) không được để trống");
+                            return false;
+                        }
+            
+                        // Validate Credit (column 7)
+                        var creditStr = row[7].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(creditStr) || !int.TryParse(creditStr, out var credit))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Số tín chỉ' (cột 8) phải là số nguyên");
+                            return false;
+                        }
+            
+                        // Validate Grade (column 8)
+                        var gradeStr = row[8].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(gradeStr) || !double.TryParse(gradeStr, out var grade))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
+                            return false;
+                        }
+            
+                        // Validate Status (column 9)
+                        var status = row[9].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(status))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Trạng thái' (cột 10) không được để trống");
+                            return false;
+                        }
+            
+                        var subject = new StudentTranscript
+                        {
+                            SemesterNumber = semesterNumber,
+                            Semester = semester,
+                            SubjectCode = subjectCode,
+                            Prerequisite = row[4].ToString()?.Trim(),
+                            SubjectName = subjectName,
+                            Credit = credit,
+                            Grade = grade,
+                            Status = status,
+                            StudentId = currentUser.UserId
+                        };
+                        
+                        semesterIdSelectsEvent.SemesterNumbers.Add(subject.SemesterNumber);
+                        studentTranscripts.Add(subject);
+                    }
+                    catch (IndexOutOfRangeException)
+                    {
+                        response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: File không đúng định dạng. Thiếu cột bắt buộc");
+                        return false;
+                    }
+                    catch (Exception)
+                    {
+                        response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Lỗi xử lý dữ liệu");
+                        return false;
+                    }
+                }
+            
+                // Validate that we have at least one valid transcript
+                if (!studentTranscripts.Any())
+                {
+                    response.SetMessage(MessageId.E00000, "File không có dữ liệu bảng điểm hợp lệ");
+                    return false;
+                }
+            
+                semesterIdSelectsEvent.SemesterNumbers = semesterIdSelectsEvent.SemesterNumbers.Distinct().ToList();
+            
+                // Publish event to CourseService to get semester IDs
+                var semesterIdResponse = await _requestClientSemesterIdSelects.GetResponse<SemesterIdSelectsEventResponse>(semesterIdSelectsEvent, cancellationToken);
+                if (!semesterIdResponse.Message.Success)
+                {
+                    response.SetMessage(MessageId.E00000, "Có lỗi xảy ra trong quá trình xử lý");
+                    return false;
+                }
+            
+                // Map semester IDs to transcripts
+                var semesterIdMap = semesterIdResponse.Message.Response.ToDictionary(x => x.SemesterNumber, x => x.SemesterId);
+                foreach (var transcript in studentTranscripts)
+                {
+                    if (semesterIdMap.TryGetValue(transcript.SemesterNumber, out var semesterId))
+                    {
+                        transcript.SemesterId = semesterId;
+                    }
+                }
+            
+                await _studentTranscriptRepository.AddRangeAsync(studentTranscripts);
+                await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             }
-
-            await _studentTranscriptRepository.AddRangeAsync(studentTranscripts);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
-
-            }
-            catch (Exception e)
+            catch (Exception)
             {
-                response.SetMessage(MessageId.E00000, "Định dạng file không hợp lệ. Vui lòng kiểm tra lại file bảng điểm");
+                response.SetMessage(MessageId.E00000, $"Định dạng file không hợp lệ");
                 return false;
             }
             
