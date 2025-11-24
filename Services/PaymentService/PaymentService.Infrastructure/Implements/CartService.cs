@@ -1,6 +1,8 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Carts.Commands.AddToCart;
 using PaymentService.Application.Applications.Carts.Commands.RemoveCart;
@@ -16,27 +18,21 @@ using static PaymentService.Infrastructure.Common.Helpers.CartHelper;
 namespace PaymentService.Infrastructure.Implements
 {
 	public class CartService(
-		IIdentityService _identityService,
-		IUnitOfWork _unitOfWork,
-		ICommandRepository<Cart> _cartRepository,
-		ICommandRepository<CartItem> _cartItemRepository
-	) : ICartService
+		IIdentityService identityService,
+		IUnitOfWork unitOfWork,
+		ICommandRepository<Cart> cartRepository,
+		ICommandRepository<CartItem> cartItemRepository,
+		IRequestClient<SelectCourseInfoEvent> requestCourseSelectEvent) : ICartService
 	{
 		public async Task<AddToCartResponse> AddToCartAsync(Guid courseId, CancellationToken ct = default)
 		{
 			var response = new AddToCartResponse { Success = false };
 
-			var currentUser = _identityService.GetCurrentUser();
-			if (currentUser is null)
-			{
-				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
-				return response;
-			}
-
-			// Lấy hoặc tạo cart Active
-			var cart = await _cartRepository
+			var currentUser = identityService.GetCurrentUser()!;
+			
+			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
-						   x.Status == (short)CartStatus.Active,
+						   x.IsActive,
 					isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -45,107 +41,75 @@ namespace PaymentService.Infrastructure.Implements
 				cart = new Cart
 				{
 					UserId = currentUser.UserId,
-					Status = (short)CartStatus.Active,
-					CreatedBy = currentUser.Email,
-					UpdatedBy = currentUser.Email,
-					CreatedAt = DateTime.UtcNow,
-					UpdatedAt = DateTime.UtcNow
 				};
 
-				await _cartRepository.AddAsync(cart);
-				await _unitOfWork.SaveChangesAsync(ct);
+				await cartRepository.AddAsync(cart);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 			}
 
-			// Check item đã tồn tại chưa
-			var existingItem = await _cartItemRepository
+			var existingItem = await cartItemRepository
 				.Find(x => x.CartId == cart.CartId &&
-						   x.CourseId == courseId &&
-						   x.Status == (short)CartItemStatus.Active,
-					isTracking: false, ct)
+						   x.CourseId == courseId && 
+						   x.IsActive
+					,isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
 			if (existingItem is not null)
 			{
-				response.SetMessage(MessageId.E00000, "Khóa học đã có trong giỏ hàng");
+				response.SetMessage(MessageId.I00000, "Khóa học đã có trong giỏ hàng");
 				return response;
 			}
-
-			// Gọi Course Service lấy thông tin snapshot
-			//var courseInfo = await _courseCatalogGateway.GetCourseForCartAsync(courseId, ct);
-			//if (courseInfo is null)
-			//{
-			//	response.SetMessage(MessageId.E00000, "Không tìm thấy khóa học");
-			//	return response;
-			//}
-
-			//var cartItem = new CartItem
-			//{
-			//	CartId = cart.CartId,
-			//	CourseId = courseId,
-			//	CourseTitleSnapshot = courseInfo.Title ?? null,
-			//	CourseImageUrlSnapshot = courseInfo.ImageUrl ?? null,
-			//	PriceSnapshot = courseInfo.Price ?? 0,
-			//	DealPriceSnapshot = courseInfo.DealPrice ?? 0,
-			//	IsSelected = true,
-			//	Status = (short)CartItemStatus.Active,
-			//	CreatedBy = currentUser.Email,
-			//	UpdatedBy = currentUser.Email,
-			//	CreatedAt = DateTime.UtcNow,
-			//	UpdatedAt = DateTime.UtcNow
-			//};
+			
+			// Publish event to CourseService to get course details
+			var couseSelectEvent = await requestCourseSelectEvent
+				.GetResponse<SelectCourseInfoEventResponse>(
+					new SelectCourseInfoEvent{ CourseId = courseId }, ct);
+			if (!couseSelectEvent.Message.Success)
+			{
+				response.SetMessage(MessageId.I00000, couseSelectEvent.Message.Message);
+				return response;
+			}
+			
+			var courseInfo = couseSelectEvent.Message.Response;
 
 			var cartItem = new CartItem
 			{
 				CartId = cart.CartId,
 				CourseId = courseId,
-				CourseTitleSnapshot = "Title",
-				CourseImageUrlSnapshot = "ImageUrl",
-				PriceSnapshot = 100,
-				DealPriceSnapshot = 50,
+				CourseTitleSnapshot = courseInfo.Title,
+				CourseImageUrlSnapshot = courseInfo.ImageUrl,
+				PriceSnapshot = courseInfo.Price,
+				DealPriceSnapshot = courseInfo.DealPrice,
 				IsSelected = true,
-				Status = (short)CartItemStatus.Active,
-				CreatedBy = currentUser.Email,
-				UpdatedBy = currentUser.Email,
-				CreatedAt = DateTime.UtcNow,
-				UpdatedAt = DateTime.UtcNow
 			};
 
-			await _cartItemRepository.AddAsync(cartItem);
-			await _unitOfWork.SaveChangesAsync(ct);
+			await cartItemRepository.AddAsync(cartItem);
+			await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Thêm khóa học vào giỏ hàng");
-
 			return response;
 		}
 
-		/// <summary>
-		/// Check course in my cart
-		/// </summary>
-		/// <param name="courseId"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
 		public async Task<CheckCourseInCartResponse> CheckCourseInMyCartAsync(Guid courseId, CancellationToken ct = default)
 		{
 			var response = new CheckCourseInCartResponse { Success = false };
 
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = identityService.GetCurrentUser();
 			if (currentUser is null)
 			{
 				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
 				return response;
 			}
 
-			// Lấy cart Active của user
-			var cart = await _cartRepository
+			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
-						   x.Status == (short)CartStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
 			if (cart is null)
 			{
-				// Không có cart -> chắc chắn chưa có trong cart
 				response.Success = true;
 				response.Response = new CheckCourseInCartDto
 				{
@@ -157,10 +121,10 @@ namespace PaymentService.Infrastructure.Implements
 				return response;
 			}
 
-			var cartItem = await _cartItemRepository
+			var cartItem = await cartItemRepository
 				.Find(x => x.CartId == cart.CartId &&
 						   x.CourseId == courseId &&
-						   x.Status == (short)CartItemStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -178,16 +142,11 @@ namespace PaymentService.Infrastructure.Implements
 			return response;
 		}
 
-		/// <summary>
-		/// Get my cart
-		/// </summary>
-		/// <param name="ct"></param>
-		/// <returns></returns>
 		public async Task<GetMyCartResponse> GetMyCartAsync(CancellationToken ct = default)
 		{
 			var response = new GetMyCartResponse { Success = false };
 
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = identityService.GetCurrentUser();
 			if (currentUser is null)
 			{
 				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
@@ -195,15 +154,14 @@ namespace PaymentService.Infrastructure.Implements
 			}
 
 			// Lấy cart Active
-			var cart = await _cartRepository
+			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
-						   x.Status == (short)CartStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
 			if (cart is null)
 			{
-				// Không có cart -> trả giỏ rỗng
 				response.Success = true;
 				response.Response = new CartDto
 				{
@@ -215,9 +173,9 @@ namespace PaymentService.Infrastructure.Implements
 				return response;
 			}
 
-			var items = await _cartItemRepository
+			var items = await cartItemRepository
 				.Find(x => x.CartId == cart.CartId &&
-						   x.Status == (short)CartItemStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.ToListAsync(ct);
 
@@ -237,16 +195,16 @@ namespace PaymentService.Infrastructure.Implements
 		{
 			var response = new RemoveCartItemResponse { Success = false };
 
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = identityService.GetCurrentUser();
 			if (currentUser is null)
 			{
 				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
 				return response;
 			}
 
-			var cart = await _cartRepository
+			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
-						   x.Status == (short)CartStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -256,10 +214,10 @@ namespace PaymentService.Infrastructure.Implements
 				return response;
 			}
 
-			var item = await _cartItemRepository
+			var item = await cartItemRepository
 				.Find(x => x.CartItemId == cartItemId &&
 						   x.CartId == cart.CartId &&
-						   x.Status == (short)CartItemStatus.Active,
+						   x.IsActive,
 					isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -268,32 +226,19 @@ namespace PaymentService.Infrastructure.Implements
 				response.SetMessage(MessageId.E00000, "Không tìm thấy item trong giỏ hàng");
 				return response;
 			}
-
-			item.Status = (short)CartItemStatus.Removed;
-
-			// Nếu bạn muốn logical delete luôn (IsActive = false)
-			_cartItemRepository.Update(item);
-
-			await _unitOfWork.SaveChangesAsync(ct);
+			cartItemRepository.Update(item);
+			await unitOfWork.SaveChangesAsync(currentUser.Email, ct, needLogicalDelete: true);
 
 			response.Success = true;
-			response.Response = true;
 			response.SetMessage(MessageId.I00001, "Xóa item khỏi giỏ hàng");
 			return response;
 		}
 
-		/// <summary>
-		/// Update cart item
-		/// </summary>
-		/// <param name="cartItemId"></param>
-		/// <param name="isSelected"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
 		public async Task<UpdateCartItemResponse> UpdateCartItemAsync(Guid cartItemId, bool? isSelected, CancellationToken ct = default)
 		{
 			var response = new UpdateCartItemResponse { Success = false };
 
-			var currentUser = _identityService.GetCurrentUser();
+			var currentUser = identityService.GetCurrentUser();
 			if (currentUser is null)
 			{
 				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
@@ -301,9 +246,9 @@ namespace PaymentService.Infrastructure.Implements
 			}
 
 			// Lấy cart active của user
-			var cart = await _cartRepository
+			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
-						   x.Status == (short)CartStatus.Active,
+						   x.IsActive,
 					isTracking: false, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -313,10 +258,10 @@ namespace PaymentService.Infrastructure.Implements
 				return response;
 			}
 
-			var item = await _cartItemRepository
+			var item = await cartItemRepository
 				.Find(x => x.CartItemId == cartItemId &&
 						   x.CartId == cart.CartId &&
-						   x.Status == (short)CartItemStatus.Active,
+						   x.IsActive,
 					isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
 
@@ -333,11 +278,10 @@ namespace PaymentService.Infrastructure.Implements
 				item.UpdatedAt = DateTime.UtcNow;
 			}
 
-			_cartItemRepository.Update(item);
-			await _unitOfWork.SaveChangesAsync(ct);
+			cartItemRepository.Update(item);
+			await unitOfWork.SaveChangesAsync(ct);
 
 			response.Success = true;
-			response.Response = true;
 			response.SetMessage(MessageId.I00001, "Cập nhật giỏ hàng");
 			return response;
 		}

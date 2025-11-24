@@ -20,9 +20,7 @@ public partial class CartItem
     public decimal? DealPriceSnapshot { get; set; }
 
     public bool IsSelected { get; set; }
-
-    public short Status { get; set; }
-
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

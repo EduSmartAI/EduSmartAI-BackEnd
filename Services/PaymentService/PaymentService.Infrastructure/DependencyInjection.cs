@@ -47,6 +47,7 @@ namespace PaymentService.Infrastructure
 			services.AddScoped<ICommandRepository<SystemConfig>, CommandRepository<SystemConfig>>();
 			services.AddScoped<ICommandRepository<PaymentTransaction>, CommandRepository<PaymentTransaction>>();
 			services.AddScoped<ICommandRepository<Order>, CommandRepository<Order>>();
+			services.AddScoped<ICommandRepository<OrderItem>, CommandRepository<OrderItem>>();
 
 			// Services
 			services.AddScoped<ICommonLogic, CommonLogic>();

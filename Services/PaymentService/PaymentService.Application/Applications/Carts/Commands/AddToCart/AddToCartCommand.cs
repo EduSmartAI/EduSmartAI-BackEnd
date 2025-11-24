@@ -5,8 +5,8 @@ namespace PaymentService.Application.Applications.Carts.Commands.AddToCart
 {
 	public record AddToCartCommand(Guid CourseId) : ICommand<AddToCartResponse>;
 
-	public record AddToCartResponse : AbstractApiResponse<bool>
+	public record AddToCartResponse : AbstractApiResponse<string>
 	{
-		public override bool Response { get; set; } = new();
+		public override string Response { get; set; }
 	}
 }

@@ -48,6 +48,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<TranscriptUpsertConsumer>();
                 x.AddConsumer<CourseSelectsBySubjectCodeEventConsumer>();
                 x.AddConsumer<CoreSubjectSelectEventConsumer>();
+                x.AddConsumer<SelectCourseInfoEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

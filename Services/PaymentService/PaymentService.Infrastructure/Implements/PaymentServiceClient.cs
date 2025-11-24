@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Payments;
@@ -69,7 +70,7 @@ public class PaymentServiceClient : IPaymentServiceClient
         var amount = int.Parse(amountStr);
         
         // Create signature for PayOS
-        var data = $"amount={amount}&cancelUrl={cancelUrl}" +
+        var data = $"amount={2000}&cancelUrl={cancelUrl}" +
                    $"&description={description}" +
                    $"&orderCode={orderCode}" +
                    $"&returnUrl={returnUrl}";
@@ -78,7 +79,7 @@ public class PaymentServiceClient : IPaymentServiceClient
         var payRequest = new
         {
             orderCode = orderCode,
-            amount = amount,
+            amount = 2000,
             description = description,
             returnUrl = returnUrl,
             cancelUrl = cancelUrl,
@@ -199,7 +200,7 @@ public class PaymentServiceClient : IPaymentServiceClient
                 order.Status = (short) ConstantEnum.OrderStatus.Cancelled;
                 paymentTransaction.Status = (short) ConstantEnum.PaymentStatus.Failed;
                 paymentTransaction.ReturnCode = nameof(ConstantEnum.PaymentReturnCode.CANCELLED);
-                paymentTransaction.ReturnMessage = "User cancelled payment";
+                paymentTransaction.ReturnMessage = ConstantEnum.UserActionPayment.Cancelled.GetDescription();
                 paymentTransaction.PaymentUrl = null;
                 
                 _orderRepository.Update(order);
@@ -216,7 +217,7 @@ public class PaymentServiceClient : IPaymentServiceClient
                 order.Status = (short) ConstantEnum.OrderStatus.Failed;
                 paymentTransaction.Status = (short) ConstantEnum.PaymentStatus.Failed;
                 paymentTransaction.ReturnCode = request.Code;
-                paymentTransaction.ReturnMessage = string.IsNullOrEmpty(request.Status) ? "Payment failed" : request.Status;
+                paymentTransaction.ReturnMessage = string.IsNullOrEmpty(request.Status) ? ConstantEnum.UserActionPayment.Failed.GetDescription() : request.Status;
                 
                 _orderRepository.Update(order);
                 
@@ -229,8 +230,7 @@ public class PaymentServiceClient : IPaymentServiceClient
                         CheckoutUrl = retryPaymentResponse.Response.CheckoutUrl,
                         QrCode = retryPaymentResponse.Response.QrCode,
                     };
-                    response.SetMessage(MessageId.I00000, "Thanh toán thất bại, vui lòng thử lại với liên kết thanh toán mới");
-                    
+                    response.SetMessage(MessageId.E00000, "Thanh toán thất bại, vui lòng thử lại với liên kết thanh toán mới");
                     paymentTransaction.PaymentUrl = retryPaymentResponse.Response.CheckoutUrl;
                 }
                 else
@@ -250,7 +250,8 @@ public class PaymentServiceClient : IPaymentServiceClient
             
             paymentTransaction.Status = (short)ConstantEnum.PaymentStatus.Paid;
             paymentTransaction.ReturnCode = request.Code;
-            paymentTransaction.ReturnMessage = "Payment successful";
+            paymentTransaction.ReturnMessage = ConstantEnum.UserActionPayment.Success.GetDescription();
+            paymentTransaction.PaymentUrl = null;
             
             if (!string.IsNullOrEmpty(request.Id))
             {

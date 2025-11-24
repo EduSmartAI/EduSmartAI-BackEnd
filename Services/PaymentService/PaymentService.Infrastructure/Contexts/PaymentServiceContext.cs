@@ -30,9 +30,7 @@ public partial class PaymentServiceContext : AppDbContext
             entity.HasKey(e => e.CartId).HasName("carts_pkey");
 
             entity.ToTable("carts");
-
-            entity.HasIndex(e => e.Status, "idx_carts_status");
-
+            
             entity.HasIndex(e => e.UserId, "idx_carts_user");
 
             entity.HasIndex(e => e.UserId, "uq_carts_user_active")
@@ -51,9 +49,6 @@ public partial class PaymentServiceContext : AppDbContext
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.Status)
-                .HasDefaultValue((short)0)
-                .HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -72,9 +67,7 @@ public partial class PaymentServiceContext : AppDbContext
             entity.HasIndex(e => e.CartId, "idx_cart_items_cart");
 
             entity.HasIndex(e => e.CourseId, "idx_cart_items_course");
-
-            entity.HasIndex(e => e.Status, "idx_cart_items_status");
-
+            
             entity.HasIndex(e => new { e.CartId, e.CourseId }, "uq_cart_items_unique_active_course")
                 .IsUnique()
                 .HasFilter("(status = 0)");
@@ -106,9 +99,6 @@ public partial class PaymentServiceContext : AppDbContext
             entity.Property(e => e.PriceSnapshot)
                 .HasPrecision(12, 2)
                 .HasColumnName("price_snapshot");
-            entity.Property(e => e.Status)
-                .HasDefaultValue((short)0)
-                .HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

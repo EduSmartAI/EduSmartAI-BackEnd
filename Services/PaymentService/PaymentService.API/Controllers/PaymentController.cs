@@ -6,6 +6,7 @@ using NLog;
 using OpenIddict.Validation.AspNetCore;
 using PaymentService.Application.Applications.Payments.Commands.PaymentCallback;
 using PaymentService.Application.Applications.Payments.Commands.ProcessPayment;
+using PaymentService.Application.Applications.Payments.Commands.RePayment;
 using Swashbuckle.AspNetCore.Annotations;
 using PaymentCallbackCommand = PaymentService.Application.Applications.Payments.Commands.PaymentCallback.PaymentCallbackCommand;
 using PaymentCallbackResponse = PaymentService.Application.Applications.Payments.Commands.PaymentCallback.PaymentCallbackResponse;
@@ -59,6 +60,29 @@ public class PaymentController(ISender sender) : ControllerBase
             ModelState,
             async () => await sender.Send(request),
             new PaymentCallbackResponse()
+        );
+    }
+
+    /// <summary>
+    /// Get payment Url to retry payment for an order.
+    /// </summary>
+    /// <param name="orderId">ID của đơn hàng cần lấy lại link thanh toán</param>
+    /// <returns>Trả về PaymentUrl và QR code để thanh toán</returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy lại link thanh toán khi người dùng đóng tab hoặc cần thanh toán lại.",
+        Description = "Retrieve existing payment URL and QR code when user closed the payment tab or needs to retry payment."
+    )]
+    public async Task<RePaymentResponse> RePayment([FromQuery] Guid orderId)
+    {
+        var command = new RePaymentCommand { OrderId = orderId };
+        return await ApiControllerHelper.HandleRequest<RePaymentCommand, RePaymentResponse, RePaymentResponseEntity>(
+            command,
+            _logger,
+            ModelState,
+            async () => await sender.Send(command),
+            new RePaymentResponse()
         );
     }
 }
