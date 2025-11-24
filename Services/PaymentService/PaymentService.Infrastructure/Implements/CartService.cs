@@ -24,6 +24,12 @@ namespace PaymentService.Infrastructure.Implements
 		ICommandRepository<CartItem> cartItemRepository,
 		IRequestClient<SelectCourseInfoEvent> requestCourseSelectEvent) : ICartService
 	{
+		/// <summary>
+		/// Add course to current user's cart
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<AddToCartResponse> AddToCartAsync(Guid courseId, CancellationToken ct = default)
 		{
 			var response = new AddToCartResponse { Success = false };
@@ -91,6 +97,12 @@ namespace PaymentService.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Check course is in current user's cart
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<CheckCourseInCartResponse> CheckCourseInMyCartAsync(Guid courseId, CancellationToken ct = default)
 		{
 			var response = new CheckCourseInCartResponse { Success = false };
@@ -142,6 +154,11 @@ namespace PaymentService.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Get current user's cart
+		/// </summary>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetMyCartResponse> GetMyCartAsync(CancellationToken ct = default)
 		{
 			var response = new GetMyCartResponse { Success = false };
@@ -191,6 +208,12 @@ namespace PaymentService.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Remove item from current user's cart
+		/// </summary>
+		/// <param name="cartItemId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<RemoveCartItemResponse> RemoveCartItemAsync(Guid cartItemId, CancellationToken ct = default)
 		{
 			var response = new RemoveCartItemResponse { Success = false };
@@ -234,6 +257,13 @@ namespace PaymentService.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Update item in current user's cart
+		/// </summary>
+		/// <param name="cartItemId"></param>
+		/// <param name="isSelected"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<UpdateCartItemResponse> UpdateCartItemAsync(Guid cartItemId, bool? isSelected, CancellationToken ct = default)
 		{
 			var response = new UpdateCartItemResponse { Success = false };
