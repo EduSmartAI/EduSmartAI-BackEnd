@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace BaseService.Common.Utils.Const;
 
 public static class ConstantEnum
@@ -21,13 +23,6 @@ public static class ConstantEnum
         Pending = 1,
         Paid = 2,
         Failed = 3,
-    }
-
-    public enum PaymentMethod
-    {
-        Cash = 1,
-        Momo = 2,
-        PayOs = 3,
     }
 
     public enum QuestionType
@@ -350,4 +345,50 @@ public static class ConstantEnum
         Refunded = 5
     }
 
+    public enum PaymentGateway
+    {
+        Momo = 1,
+        PayOs = 2
+    }
+
+    /// <summary>
+    /// Status lấy từ PayOs nên chỗ này không đổi tên của các giá trị enum
+    /// </summary>
+    public enum PaymentReturnCode
+    {
+        PENDING = 1,
+        CANCELLED = 2, 
+        UNDERPAID = 3,
+        PAID = 4,
+        EXPIRED = 5,
+        PROCESSING = 6,
+        FAILED = 7
+    }
+    
+    public enum StudentTranscriptStatus
+    {
+        [Description("Not Started")]
+        NotStarted = 0,
+        
+        [Description("Studying")]
+        Studying = 1,
+        
+        [Description("Passed")]
+        Passed = 2,
+        
+        [Description("Not Passed")]
+        NotPassed = 3
+    }
+    
+    public enum UserActionPayment
+    {
+        [Description("User cancelled the payment")]
+        Cancelled = 1,
+        
+        [Description("Payment completed successfully")]
+        Success = 2,
+        
+        [Description("Payment process failed")]
+        Failed = 3
+    }
 }

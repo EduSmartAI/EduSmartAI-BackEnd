@@ -139,7 +139,7 @@ public class TokenService : ITokenService
         {
             return claim.Type switch
             {
-                _ => new[] { OpenIddictConstants.Destinations.AccessToken }
+                _ => new[] { OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken }
             };
         });
 

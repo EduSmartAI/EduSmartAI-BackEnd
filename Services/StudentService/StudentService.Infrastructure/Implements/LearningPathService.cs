@@ -2,6 +2,7 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Pagination;
 using MapsterMapper;
@@ -33,6 +34,7 @@ public class LearningPathService : ILearningPathService
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
     private readonly IIdentityService _identityService;
     private readonly IRequestClient<GetInfoInternalCourseEvents> _requestClient;
+    private readonly IRequestClient<CourseSelectsBySubjectCodeEvent>  _requestClientCourseSelectsBySubjectCodeEvent;
     private readonly IMapper _mapper;
 
     /// <summary>
@@ -47,6 +49,7 @@ public class LearningPathService : ILearningPathService
     /// <param name="identityService"></param>
     /// <param name="requestClient"></param>
     /// <param name="mapper"></param>
+    /// <param name="requestClientCourseSelectsBySubjectCodeEvent"></param>
     public LearningPathService(IUnitOfWork unitOfWork,
         ICommandRepository<LearningPathMajor> learningPathMajorCommandRepository,
         ICommandRepository<LearningPath> learningPathCommandRepository,
@@ -55,7 +58,8 @@ public class LearningPathService : ILearningPathService
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
         IIdentityService identityService,
         IRequestClient<GetInfoInternalCourseEvents> requestClient,
-        IMapper mapper)
+        IMapper mapper,
+        IRequestClient<CourseSelectsBySubjectCodeEvent> requestClientCourseSelectsBySubjectCodeEvent)
     {
         _unitOfWork = unitOfWork;
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
@@ -88,7 +92,7 @@ public class LearningPathService : ILearningPathService
 
             _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
             await _unitOfWork.SessionSaveChangesAsync();
-            await _unitOfWork.CacheRemoveAsync("learning_goals:all");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningGoalSelects());
 
             // True
             response.Success = true;
@@ -168,8 +172,8 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPathCollection);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            await _unitOfWork.CacheRemoveAsync($"learning_path:{request.PathId}");
-            await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{request.PathId}");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(request.PathId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(request.PathId));
 
             // 4) Done
             response.Success = true;
@@ -229,12 +233,13 @@ public class LearningPathService : ILearningPathService
                     Type = x.MajorCode == "SE"
                         ? (short)ConstantEnum.LearningPathMajor.Basic
                         : request.MajorType,
-                    LearningPathCourses = matchedCourses?.CourseCodeIds
-                        .Select(courseId => new LearningPathCourse
+                    LearningPathCourses = matchedCourses?.Courses
+                        .Select(course => new LearningPathCourse
                         {
                             LearningPathCourseId = Guid.NewGuid(),
-                            InternalCourseId = courseId,
-                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            InternalCourseId = course.CourseId,
+                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            SubjectCode = course.SubjectCode,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
@@ -250,13 +255,14 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = "SE",
                     Reason = "Chuyên ngành cơ bản cho các sinh viên dưới kỳ 4 theo học Software Engineering",
-                    Type = (short)ConstantEnum.LearningPathMajor.Basic,
-                    LearningPathCourses = seCourses!.CourseCodeIds
-                        .Select(courseId => new LearningPathCourse
+                    Type = (short) ConstantEnum.LearningPathMajor.Basic,
+                    LearningPathCourses = seCourses!.Courses
+                        .Select(course => new LearningPathCourse
                         {
                             LearningPathCourseId = Guid.NewGuid(),
-                            InternalCourseId = courseId,
-                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted
+                            InternalCourseId = course.CourseId,
+                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            SubjectCode = course.SubjectCode
                         }).ToList()
                 };
 
@@ -282,7 +288,7 @@ public class LearningPathService : ILearningPathService
 
             await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, cancellationToken);
 
-            // ✅ FIX: Ensure LearningPathCourses are properly set BEFORE storing to read-model
+            // Ensure LearningPathCourses are properly set BEFORE storing to read-model
             foreach (var major in learningPathMajors)
             {
                 major.LearningPathCourses = allCourses
@@ -407,8 +413,8 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            await _unitOfWork.CacheRemoveAsync($"learning_path:{request.PathId}");
-            await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{request.PathId}");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(request.PathId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(request.PathId));
 
             response.Success = true;
             response.Response = $"Đã thêm {allMajors.Count} chuyên ngành với {allCourses.Count} khóa học";
@@ -427,7 +433,7 @@ public class LearningPathService : ILearningPathService
             throw new Exception($"Lộ trình học tập không tồn tại");
         }
 
-        learningPath.Status = (short)ConstantEnum.LearningPathStatus.Choosing;
+        learningPath.Status = (short) ConstantEnum.LearningPathStatus.Choosing;
 
         _learningPathCommandRepository.Update(learningPath);
         await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, contextCancellationToken);
@@ -460,7 +466,7 @@ public class LearningPathService : ILearningPathService
         return (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted;
     }
     /// <summary>
-    /// Cacluation completion of learning path
+    /// Calculation completion of learning path
     /// </summary>
     /// <param name="readModel"></param>
     /// <returns></returns>
@@ -514,7 +520,7 @@ public class LearningPathService : ILearningPathService
             return res;
         }
         var lpId = query.LearningPathId.ToString("D");
-        var cacheKey = $"learning_path:select:{currentUserId}:{lpId}";
+        var cacheKey = CacheKey.LearningPathSelect(currentUserId, query.LearningPathId);
         var readModel = await _learningPathQueryRepository.GetOrSetAsync(
             cacheKey,
             async () => await _learningPathQueryRepository.FirstOrDefaultAsync(
@@ -550,8 +556,8 @@ public class LearningPathService : ILearningPathService
             .ToList();
 
         // Call CourseService to get info
-        var @eventInternal = new GetInfoInternalCourseEvents(internalIds);
-        var @eventBasic = new GetInfoInternalCourseEvents(basicIds);
+        var @eventInternal = new GetInfoInternalCourseEvents(internalIds, currentUserId);
+        var @eventBasic = new GetInfoInternalCourseEvents(basicIds, currentUserId);
 
         var resultInternal = await _requestClient.GetResponse<GetInfoInternalCourseResponse>(@eventInternal, cancellationToken);
         var resultBasic = await _requestClient.GetResponse<GetInfoInternalCourseResponse>(@eventBasic, cancellationToken);
@@ -730,8 +736,8 @@ public class LearningPathService : ILearningPathService
             }
 
             // 10. Clear cache
-            await _unitOfWork.CacheRemoveAsync($"learning_path:{request.PathId}");
-            await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser!.UserId}:{request.PathId}");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(request.PathId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUser!.UserId, request.PathId));
 
             response.Success = true;
             response.SetMessage(MessageId.I00001, $"Đã cập nhật lộ trình: {activatedCount} khóa học được kích hoạt, {deactivatedCount} khóa học bị xóa");
@@ -845,8 +851,8 @@ public class LearningPathService : ILearningPathService
             await _unitOfWork.SessionSaveChangesAsync();
 
             var lpIdStr = request.LearningPathId.ToString("D");
-            await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUserId}:{lpIdStr}");
-            await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{request.LearningPathId}");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUserId, request.LearningPathId));
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(request.LearningPathId));
 
             res.Success = true;
             res.SetMessage(MessageId.I00001, "Cập nhật trạng thái & kích hoạt/vô hiệu chuyên ngành theo request thành công.");
@@ -941,13 +947,13 @@ public class LearningPathService : ILearningPathService
 
         // 5) Xoá cache liên quan (bổ sung xoá key 'select' theo cách GetLearningPathById đang dùng)
         var lpIdStr = request.LearningPathId.ToString("D");
-        await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
-        await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(request.LearningPathId));
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(request.LearningPathId));
 
         var currentUserId = _identityService.GetCurrentUser()?.UserId;
         if (currentUserId != null)
         {
-            await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUserId}:{lpIdStr}");
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUserId.Value, request.LearningPathId));
         }
 
         res.Success = true;
@@ -979,7 +985,7 @@ public class LearningPathService : ILearningPathService
         if (pageSize <= 0) pageSize = 10;
 
         var pageNumber1 = pageIndex0 + 1;
-        var cacheKey = $"learning_path:paged:{currentUser.UserId}:p{pageNumber1}:s{pageSize}";
+        var cacheKey = CacheKey.LearningPathPaged(currentUser.UserId, pageNumber1, pageSize);
 
         var pagedRead = await _learningPathQueryRepository.GetOrSetPagedAsync(
             cacheKey,
@@ -1026,73 +1032,88 @@ public class LearningPathService : ILearningPathService
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            // 1. Get the course to update
-            var course = await _learningPathCourseCommandRepository
-                .Find(c => c.LearningPathCourseId == request.LearningPathCourseId && c.IsActive,
-                    isTracking: true,
-                    cancellationToken: cancellationToken,
-                    c => c.LearningPathMajor)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (course == null)
+            // 1. Publish event to CourseService to select courses by subjectCode
+            var courseSelectEvent = new CourseSelectsBySubjectCodeEvent
             {
-                response.SetMessage(MessageId.E00000, "Không tìm thấy khóa học trong lộ trình");
+                SubjectCode = request.SubjectCode,
+            };
+
+            var courseSelectEventResponse = await _requestClientCourseSelectsBySubjectCodeEvent.GetResponse<CourseSelectsBySubjectCodeEventResponse>(courseSelectEvent, cancellationToken);
+            if (!courseSelectEventResponse.Message.Success)
+            {
+                response.SetMessage(MessageId.E00000, courseSelectEventResponse.Message.Message);
                 return false;
             }
-
-            // 2. Verify that this course belongs to the current user's learning path
-            var learningPath = await _learningPathCommandRepository
-                .Find(lp => lp.PathId == course.LearningPathMajor.PathId
-                            && lp.StudentId == currentUser.UserId
-                            && lp.IsActive,
-                      cancellationToken: cancellationToken)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (learningPath == null)
+            
+            // 2. Get learning path courses by courseIdSelects
+            var learningPaths = await _learningPathCommandRepository
+                .Find(c => c.StudentId == currentUser.UserId && c.IsActive,
+                    true,
+                    cancellationToken)
+                .Include(c => c.LearningPathMajors)
+                .ThenInclude(c => c.LearningPathCourses)
+                .ToListAsync(cancellationToken);
+            if (!learningPaths.Any())
             {
-                response.SetMessage(MessageId.E00000, "Khóa học không thuộc về lộ trình của bạn");
+                response.SetMessage(MessageId.E00000, "Không tìm thấy lộ trình học tập nào của bạn");
                 return false;
             }
-
+            
             // 3. Update course status to Skipped in write model
-            course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-            _learningPathCourseCommandRepository.Update(course, currentUser.Email);
-
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // 4. Update read model - get learning path với nested majors và courses
-            var learningPathRead = await _learningPathQueryRepository
-                .FirstOrDefaultAsync(lp => lp.PathId == learningPath.PathId && lp.IsActive);
-
-            if (learningPathRead != null)
+            foreach (var learningPath in learningPaths)
             {
-                // Find the major containing this course
-                var majorContainingCourse = learningPathRead.LearningPathMajors
-                    .FirstOrDefault(m => m.LearningPathCourses
-                        .Any(c => c.LearningPathCourseId == request.LearningPathCourseId));
-
-                if (majorContainingCourse != null)
+                foreach (var major in learningPath!.LearningPathMajors)
                 {
-                    // Find and update the course status
-                    var courseToUpdate = majorContainingCourse.LearningPathCourses
-                        .FirstOrDefault(c => c.LearningPathCourseId == request.LearningPathCourseId);
-
-                    if (courseToUpdate != null)
+                    foreach (var course in major.LearningPathCourses)
                     {
-                        courseToUpdate.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-
-                        // Store updated learning path with nested data
-                        _unitOfWork.Store(learningPathRead);
-                        await _unitOfWork.SessionSaveChangesAsync();
+                        course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
                     }
+                    _learningPathCourseCommandRepository.UpdateRange(major.LearningPathCourses);
                 }
             }
 
-            // 5. Clear cache
-            var lpIdStr = learningPath.PathId.ToString("D");
-            await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser.UserId}:{lpIdStr}");
-            await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            
+            var updatedCourseIds = learningPaths
+                .SelectMany(lp => lp.LearningPathMajors)
+                .SelectMany(m => m.LearningPathCourses)
+                .Select(c => c.LearningPathCourseId)
+                .ToHashSet();
+            
+            // 4. Update read model - fetch write model with all majors and courses
+            var learningPathsIds = learningPaths.Select(lp => lp.PathId).ToList();
+            var learningPathCollections = await _learningPathQueryRepository.ToListAsync(x => learningPathsIds.Contains(x.PathId));
+            foreach (var learningPathCollection in learningPathCollections)
+            {
+                // Check if this learning path contains any updated courses
+                var hasUpdatedCourses = learningPathCollection.LearningPathMajors
+                    .SelectMany(m => m.LearningPathCourses)
+                    .Any(c => updatedCourseIds.Contains(c.LearningPathCourseId));
 
+                if (!hasUpdatedCourses)
+                    continue;
+                
+                // Update course status in read model
+                foreach (var major in learningPathCollection.LearningPathMajors)
+                {
+                    foreach (var course in major.LearningPathCourses)
+                    {
+
+                        if (updatedCourseIds.Contains(course.LearningPathCourseId))
+                        {
+                            course.Status = (short) ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                        }
+                    }
+                }
+                
+                _unitOfWork.Store(learningPathCollection);
+                var lpIdStr = learningPathCollection.PathId.ToString("D");
+                await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser.UserId}:{lpIdStr}");
+                await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
+                await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+            }
+            
+            // True
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Cập nhật trạng thái khóa học");
             return true;
@@ -1253,11 +1274,11 @@ public class LearningPathService : ILearningPathService
 
 		// 5) Xoá cache liên quan (y chang mẫu, chỉ khác là dùng studentId truyền vào)
 		var lpIdStr = learningPathId.ToString("D");
-		await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
-		await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
 
 		// Ở hàm mẫu lấy currentUser từ token, nhưng ở đây userId đã có trong event
-		await _unitOfWork.CacheRemoveAsync($"learning_path:select:{studentId}:{lpIdStr}");
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(studentId, learningPathId));
 	}
 
 }

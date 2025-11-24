@@ -56,6 +56,8 @@ public static class MessagingExtensions
             x.AddConsumer<GetModuleProgressEventsConsumer>();
             x.AddConsumer<UpdateModuleFeedbackEventConsumer>();
             x.AddConsumer<CourseCompletedEventConsumer>();
+            x.AddConsumer<StudentTranscriptSelectEventConsumer>();
+            
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 
@@ -84,7 +86,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetInfoInternalCourseEvents>();
             x.AddRequestClient<GetModuleDashboardEvent>();
             x.AddRequestClient<GetLessonDashboardEvent>();
-            x.AddRequestClient<GetCourseInfoEvent>();
+            x.AddRequestClient<SelectCourseInfoEvent>();
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
             x.AddRequestClient<AvatarUploadEvent>();
@@ -92,6 +94,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
             x.AddRequestClient<GetOverviewCourseEvents>();
+            x.AddRequestClient<StudentTranscriptSelectEvent>();
             x.AddRequestClient<SearchAiRecommendImproveEvents>();
         });
 

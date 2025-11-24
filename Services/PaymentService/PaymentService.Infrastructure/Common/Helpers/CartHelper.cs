@@ -1,5 +1,5 @@
 ﻿using PaymentService.Application.DTOs.Carts;
-using PaymentService.Domain.Models;
+using PaymentService.Domain.WriteModels;
 
 namespace PaymentService.Infrastructure.Common.Helpers
 {

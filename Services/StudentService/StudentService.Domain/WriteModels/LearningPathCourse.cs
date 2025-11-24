@@ -11,6 +11,8 @@ public partial class LearningPathCourse
     public int? Position { get; set; }
 
     public short Status { get; set; }
+    
+    public string? SubjectCode { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

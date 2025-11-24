@@ -36,7 +36,7 @@ public sealed class AnswerCollection
             IsActive = model.IsActive
         };
 
-        if (model.AnswerRules != null || model.AnswerRules.Any())
+        if (model.AnswerRules.Any())
         {
             result.AnswerRule = model.AnswerRules.Select(AnswerRuleCollection.FromWriteModel).ToList();
         }

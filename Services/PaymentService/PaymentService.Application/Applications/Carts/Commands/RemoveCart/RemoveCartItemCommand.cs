@@ -5,8 +5,8 @@ namespace PaymentService.Application.Applications.Carts.Commands.RemoveCart
 {
 	public record RemoveCartItemCommand(Guid CartItemId) : ICommand<RemoveCartItemResponse>;
 
-	public record RemoveCartItemResponse : AbstractApiResponse<bool>
+	public record RemoveCartItemResponse : AbstractApiResponse<string>
 	{
-		public override bool Response { get; set; } = new();
+		public override string Response { get; set; }
 	}
 }

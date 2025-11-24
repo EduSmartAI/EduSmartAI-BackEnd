@@ -626,7 +626,7 @@ public class PracticeTestService
              };
              
              // Add test cases
-             foreach (var publicTestcase in request.Testcases.FirstOrDefault()?.PublicTestcases ?? new List<PracticeTestAdminProblemTestcasePublicInsertRequest>())
+             foreach (var publicTestcase in request.Testcases.PublicTestcases)
              {
                  problem.TestCases.Add(new TestCase
                  {
@@ -637,7 +637,7 @@ public class PracticeTestService
                  });
              }
              
-             foreach (var privateTestcase in request.Testcases.FirstOrDefault()?.PrivateTestcases ?? new List<PracticeTestAdminProblemTestcasePrivateInsertRequest>())
+             foreach (var privateTestcase in request.Testcases.PrivateTestcases)
              {
                  problem.TestCases.Add(new TestCase
                  {
@@ -671,6 +671,17 @@ public class PracticeTestService
                      InputData = example.InputData,
                      OutputData = example.OutputData,
                      Explanation = example.Explanation
+                 });
+             }
+             
+             // Add Solution of problem
+             foreach (var solution in request.Solutions)
+             {
+                 problem.ProblemSolutions.Add(new ProblemSolution
+                 {
+                     ProblemId = problem.ProblemId,
+                     LanguageId = solution.LanguageId,
+                     SolutionCode = solution.SolutionCode,
                  });
              }
              

@@ -14,7 +14,7 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace PaymentService.API.Controllers
 {
-	[Route("api/[controller]")]
+	[Route("api/v1/[controller]")]
 	[ApiController]
 	public class CartController(ISender sender) : ControllerBase
 	{
@@ -55,7 +55,7 @@ namespace PaymentService.API.Controllers
 		{
 			var request = new AddToCartCommand(requestBody.CourseId);
 
-			return await ApiControllerHelper.HandleRequest<AddToCartCommand, AddToCartResponse, bool>(
+			return await ApiControllerHelper.HandleRequest<AddToCartCommand, AddToCartResponse, string>(
 				request,
 				_logger,
 				ModelState,
@@ -82,7 +82,7 @@ namespace PaymentService.API.Controllers
 				requestBody.IsSelected
 			);
 
-			return await ApiControllerHelper.HandleRequest<UpdateCartItemCommand, UpdateCartItemResponse, bool>(
+			return await ApiControllerHelper.HandleRequest<UpdateCartItemCommand, UpdateCartItemResponse, string>(
 				request,
 				_logger,
 				ModelState,
@@ -104,7 +104,7 @@ namespace PaymentService.API.Controllers
 		{
 			var request = new RemoveCartItemCommand(cartItemId);
 
-			return await ApiControllerHelper.HandleRequest<RemoveCartItemCommand, RemoveCartItemResponse, bool>(
+			return await ApiControllerHelper.HandleRequest<RemoveCartItemCommand, RemoveCartItemResponse, string>(
 				request,
 				_logger,
 				ModelState,

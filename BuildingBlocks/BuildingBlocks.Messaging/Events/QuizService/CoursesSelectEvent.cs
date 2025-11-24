@@ -20,5 +20,12 @@ public class CoursesSelectEventResponseEntity
 {
     public string MajorCode { get; set; }
     
-    public List<Guid> CourseCodeIds { get; set; }
+    public List<CoursesSelectEventCourseResponseEntity> Courses { get; set; }
+}
+
+public class CoursesSelectEventCourseResponseEntity
+{
+    public Guid CourseId { get; set; }
+    
+    public string SubjectCode { get; set; }
 }
