@@ -34,6 +34,7 @@ namespace Course.API.Controllers
 
 		[HttpPost("{parentCommentId:guid}/replies")]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		//Roles = $"{ConstRole.Lecturer}, {ConstRole.Admin}"
 		[SwaggerOperation(Summary = "Reply to a comment")]
 		public async Task<ReplyToCommentResponse> Reply(Guid courseId, Guid parentCommentId, [FromBody] CreateCommentBody body)
 		{

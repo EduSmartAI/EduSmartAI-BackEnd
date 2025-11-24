@@ -37,8 +37,10 @@ public class MajorService(
             return response;
         }
 
-        var parentMajor = await _commandRepository.FirstOrDefaultAsync(
-            m => m.MajorCode.ToUpper() == "SE",
+        var parentMajorCode = "SE";
+
+		var parentMajor = await _commandRepository.FirstOrDefaultAsync(
+            m => m.MajorCode.ToUpper() == parentMajorCode,
             cancellationToken
         );
 

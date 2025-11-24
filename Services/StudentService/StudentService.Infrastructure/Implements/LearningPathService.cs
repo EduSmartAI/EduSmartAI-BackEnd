@@ -1187,31 +1187,30 @@ public class LearningPathService : ILearningPathService
 
 			foreach (var pathId in affectedPathIds)
 			{
-				// Load full aggregate LearningPath (kèm majors + courses)
-				var learningPath = await _learningPathCommandRepository.FirstOrDefaultAsync(
-					lp => lp.PathId == pathId,
-					cancellationToken
-				// nếu cần include:
-				// lp => lp.LearningPathMajors
-				);
-
-				if (learningPath is not null)
-				{
-					await SyncLearningPathReadModelByIdAsync(pathId, userId, cancellationToken);
-				}
+				await CheckAndUpdateLearningPathStatusAsync(pathId, cancellationToken);
 			}
 
 			return true;
 		}, cancellationToken);
 	}
 
-	private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid studentId, CancellationToken cancellationToken)
+	#region Private Helpers Methods
+
+	/// <summary>
+	/// Sync LearningPath Read Model từ Write Model theo Id
+	/// </summary>
+	/// <param name="learningPathId"></param>
+	/// <param name="studentId"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
+	private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid? studentId, CancellationToken cancellationToken)
 	{
 		// 1) Lấy write-model gốc
-		var lpWrite = await _learningPathCommandRepository.FirstOrDefaultAsync(
-			x => x.PathId == learningPathId && x.IsActive,
-			cancellationToken: cancellationToken
-		);
+		var lpWrite = await _learningPathCommandRepository
+	                            .Find(x => x.PathId == learningPathId && x.IsActive,
+	                            	  isTracking: false,
+	                            	  cancellationToken: cancellationToken)
+	                            .FirstOrDefaultAsync(cancellationToken);
 		if (lpWrite == null)
 		{
 			return; // hoặc log warning, tuỳ quy ước
@@ -1277,8 +1276,77 @@ public class LearningPathService : ILearningPathService
 		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
 		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
 
-		// Ở hàm mẫu lấy currentUser từ token, nhưng ở đây userId đã có trong event
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(studentId, learningPathId));
+        // Ở hàm mẫu lấy currentUser từ token, nhưng ở đây userId đã có trong event
+        if (studentId.HasValue)
+        {
+            await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(studentId.Value, learningPathId));
+        }
 	}
+
+	/// <summary>
+	/// Check và update status của Learning Path
+	/// </summary>
+	/// Một SubjectCode được coi là completed khi:
+	/// Có ít nhất 1 LearningPathCourse thuộc SubjectCode đó có Status = Completed.
+	/// Một Learning Path hoàn thành khi:
+	/// TẤT CẢ SubjectCodes trong LearningPath đều completed.
+	/// Mỗi môn có thể có 1–N LearningPathCourse (InternalCourseId khác nhau nhưng cùng SubjectCode).
+	/// Sinh viên chỉ cần hoàn thành 1 course của SubjectCode đó → xem như đã hoàn thành môn đó.
+	/// <param name="pathId"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	private async Task CheckAndUpdateLearningPathStatusAsync(Guid pathId, CancellationToken ct)
+	{
+		// Load all majors (+ courses) trong Learning Path
+		var majors = await _learningPathMajorCommandRepository
+			.Find(m => m.PathId == pathId && m.IsActive, 
+                        isTracking: false, 
+                        ct,
+				        m => m.LearningPathCourses)
+			.ToListAsync(ct);
+
+		if (!majors.Any())
+			return;
+
+		// Lấy tất cả SubjectCodes trong LP
+		var subjectGroups = majors
+			.SelectMany(m => m.LearningPathCourses)
+			.Where(c => c.IsActive && c.SubjectCode != null)
+			.GroupBy(c => c.SubjectCode)
+			.ToList();
+
+		// Check: SubjectCode nào được coi completed?
+		bool AllSubjectsCompleted = subjectGroups.All(group =>
+			group.Any(c => c.Status == (short)ConstantEnum.CourseProgressStatus.Completed)
+		);
+
+		// Load LearningPath write-model
+		var learningPath = await _learningPathCommandRepository
+	                                    .Find(lp => lp.PathId == pathId,
+	                                    	  isTracking: true,
+	                                    	  cancellationToken: ct)
+	                                    .FirstOrDefaultAsync(ct);
+
+
+		if (learningPath == null)
+			return;
+
+		// Nếu tất cả môn đã complete → set LearningPath = Completed
+		if (AllSubjectsCompleted &&
+			learningPath.Status != (short)ConstantEnum.LearningPathStatus.Completed)
+		{
+			learningPath.Status = (short)ConstantEnum.LearningPathStatus.Completed;
+			learningPath.UpdatedAt = DateTime.UtcNow;
+
+			_learningPathCommandRepository.Update(learningPath);
+			await _unitOfWork.SaveChangesAsync(ct);
+
+			// Sync readmodel cho LP
+			await SyncLearningPathReadModelByIdAsync(pathId, learningPath.StudentId, ct);
+		}
+	}
+
+
+	#endregion
 
 }
