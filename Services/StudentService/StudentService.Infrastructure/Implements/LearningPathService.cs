@@ -1203,8 +1203,19 @@ public class LearningPathService : ILearningPathService
 
 			return true;
 		}, cancellationToken);
+
+		// TODO: Update status của learning path nếu cần (ví dụ: nếu tất cả courses đều completed thì mark path là completed)
 	}
 
+	#region Private Helpers Methods
+
+	/// <summary>
+	/// Sync LearningPath Read Model từ Write Model theo Id
+	/// </summary>
+	/// <param name="learningPathId"></param>
+	/// <param name="studentId"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
 	private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid studentId, CancellationToken cancellationToken)
 	{
 		// 1) Lấy write-model gốc
@@ -1280,5 +1291,7 @@ public class LearningPathService : ILearningPathService
 		// Ở hàm mẫu lấy currentUser từ token, nhưng ở đây userId đã có trong event
 		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(studentId, learningPathId));
 	}
+
+	#endregion
 
 }
