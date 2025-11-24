@@ -27,13 +27,13 @@ namespace StudentService.Infrastructure.Implements
         IUnitOfWork _unitOfWork
     ) : IDashboardService
     {
-		/// <summary>
-		/// Get Lesson Dashboard
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetLessonDashboardEventResponse> GetLessonDashboardAsync(GetLessonDashboardQuery request, CancellationToken ct = default)
+        /// <summary>
+        /// Get Lesson Dashboard
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetLessonDashboardEventResponse> GetLessonDashboardAsync(GetLessonDashboardQuery request, CancellationToken ct = default)
         {
             var response = new GetLessonDashboardEventResponse { Success = false };
             var userId = _identityService.GetCurrentUser()!.UserId;
@@ -377,11 +377,6 @@ namespace StudentService.Infrastructure.Implements
             var currentUser = _identityService.GetCurrentUser();
             var userId = currentUser!.UserId;
 
-            // Set or Get cache if have
-            var cacheKey = $"GetOverviewCourseDashboardAsync:{request.CourseId:N}:u:{userId}";
-            var cached = await _unitOfWork.CacheGetAsync<GetOverviewCourseDashboardResponse>(cacheKey);
-            if (cached is not null) return cached;
-
             // publish event
             var @event = new GetOverviewCourseEvents(request.CourseId, userId, (int)OverviewTypeRequest.StudentOverview);
             var @eventStats = new GetOverviewCourseEvents(request.CourseId, userId, (int)OverviewTypeRequest.Stats);
@@ -588,7 +583,6 @@ namespace StudentService.Infrastructure.Implements
                 }
             };
 
-            await _unitOfWork.CacheSetAsync(cacheKey, response, TimeSpan.FromMinutes(30));
             return response;
         }
     }
