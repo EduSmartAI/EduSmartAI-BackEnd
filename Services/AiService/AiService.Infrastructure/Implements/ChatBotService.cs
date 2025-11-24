@@ -19,17 +19,24 @@ namespace AiService.Infrastructure.Implements
     {
         // ===== System prompt dành cho học tập =====
         private const string SystemMessage =
-         "You are EduSmart Study Assistant related Information Technology. Be concise, structured, and accurate. " +
-         "Default language: Vietnamese (vi). " +
-         "When the user asks to summarize, explain concepts, create quiz, or give real-world examples, " +
-         "you MUST call the corresponding tool immediately. " +
-         "If lesson_text is not provided by the user, still call the tool; the backend will fetch it by LessionId. " +
-         "After tool results are returned, write the final answer in compact Markdown: use short headings (### ...), " +
-        "bullet lists with '-', no extra blank lines, and include 1–2 short real-world examples for summarize/explain. " +
-        "For summarize requests, keep the summary ≤ 500 words while covering all main ideas, THEN list all coverage_points returned (one bullet per item)." +
-        "… After tool results are returned, write the final answer …" +
-        "For quiz requests: if the user has NOT specified 'AI-generated' vs 'external links', ask a one-line clarification in current Language and WAIT for the reply; do NOT call any tool until the mode is known.";
+            "You are EduSmart Study Assistant related Information Technology. Be concise, structured, and accurate. " +
+            "Default language: Vietnamese (vi). " +
+            "When the user asks to summarize, explain concepts, create quiz, or give real-world examples, " +
+            "you MUST call the corresponding tool immediately. " +
+            "If lesson_text is not provided by the user, still call the tool; the backend will fetch it by LessionId. " +
+            "After tool results are returned, write the final answer in compact Markdown: use short headings (### ...), " +
+            "bullet lists with '-', no extra blank lines, and include 1–2 short real-world examples for summarize/explain. " +
+            "For summarize requests, keep the summary ≤ 500 words while covering all main ideas, THEN list all coverage_points returned (one bullet per item). " +
+            "For quiz requests: if the user has NOT specified 'AI-generated' vs 'external links', ask a one-line clarification in current language and WAIT for the reply; do NOT call any tool until the mode is known. " +
+            "For quiz requests in 'external_links' mode: after presenting the external practice links, always end with ONE short question in the current language asking whether the learner wants more links for other subtopics. " +
+            "Do not call tools again until the learner says yes or asks explicitly. " +
+            "The backend paginates lesson topics in batches of 3 using external.page. On the FIRST call you MAY omit external.page (the backend will assume page = 1). " +
+            "Whenever the learner clearly asks for more links (e.g. 'thêm', 'thêm đi', 'cho thêm', 'tiếp', 'more', 'next'), you MUST call create_quiz_questions again with mode = 'external_links' and external.page set to previous_page + 1. " +
+            "If the backend responds that there are no more topics, explain briefly that all main subtopics have been covered and stop calling the tool." +
+            "For quiz requests: if the user has NOT specified 'AI-generated' vs 'external links', ask a one-line clarification in current language and WAIT for the reply; do NOT call any tool until the mode is known. ";
 
+        private const string QuizModeClarificationMessage =
+            "Bạn có thể cho mình biết bạn muốn tạo câu hỏi từ các nguồn tự động hay từ các liên kết bên ngoài?";
 
         private static readonly Regex ReCrLf = new(@"\r\n", RegexOptions.Compiled);
         private static readonly Regex ReSpaceNL = new(@"[ \t]+\r?\n", RegexOptions.Compiled);
@@ -88,23 +95,31 @@ namespace AiService.Infrastructure.Implements
         /// Trích 8–16 key concepts từ transcript và gộp thành 1 chuỗi "a; b; c; ..."
         /// Nếu LLM lỗi thì fallback DeriveTopicFromText.
         /// </summary>
-        private async Task<string> BuildTopicFromTranscriptAsync(string lessonText, string lang, CancellationToken ct)
+        private async Task<string?> BuildTopicFromTranscriptAsync(
+         string lessonText,
+         string lang,
+         int page,
+         int batchSize,
+         CancellationToken ct)
         {
+            if (string.IsNullOrWhiteSpace(lessonText))
+                return page == 1 ? DeriveTopicFromText(lessonText) : null;
+
             var schema = """
-            {
-              "type":"object",
-              "properties":{
-                "topics":{
-                  "type":"array",
-                  "items":{"type":"string"},
-                  "minItems":8,
-                  "maxItems":16
-                }
-              },
-              "required":["topics"],
-              "additionalProperties":false
+        {
+          "type":"object",
+          "properties":{
+            "topics":{
+              "type":"array",
+              "items":{"type":"string"},
+              "minItems":3,
+              "maxItems":16
             }
-            """;
+          },
+          "required":["topics"],
+          "additionalProperties":false
+        }
+        """;
 
             var sys =
                 "Return ONLY JSON: {\"topics\":[string,...]}. " +
@@ -118,8 +133,12 @@ namespace AiService.Infrastructure.Implements
             {
                 var json = await RunJsonAsync("topics_schema_v1", schema, sys, user, ct);
                 using var doc = JsonDocument.Parse(json);
-                if (!doc.RootElement.TryGetProperty("topics", out var arr) || arr.ValueKind != JsonValueKind.Array)
-                    return DeriveTopicFromText(lessonText);
+
+                if (!doc.RootElement.TryGetProperty("topics", out var arr) ||
+                    arr.ValueKind != JsonValueKind.Array)
+                {
+                    return page == 1 ? DeriveTopicFromText(lessonText) : null;
+                }
 
                 var list = arr.EnumerateArray()
                               .Select(e => e.GetString())
@@ -128,12 +147,21 @@ namespace AiService.Infrastructure.Implements
                               .Distinct(StringComparer.OrdinalIgnoreCase)
                               .ToList();
 
-                if (list.Count >= 4)
-                    return string.Join("; ", list); // ✅ topic đa khái niệm: "if–else; switch; guard clause; ..."
-            }
-            catch { /* ignore */ }
+                if (list.Count == 0)
+                    return page == 1 ? DeriveTopicFromText(lessonText) : null;
 
-            return DeriveTopicFromText(lessonText);
+                var startIndex = (page - 1) * batchSize;
+                var batch = list.Skip(startIndex).Take(batchSize).ToList();
+
+                if (batch.Count == 0)
+                    return null; // hết topics
+
+                return string.Join("; ", batch); // ví dụ "if–else; switch; guard clause"
+            }
+            catch
+            {
+                return page == 1 ? DeriveTopicFromText(lessonText) : null;
+            }
         }
 
         // ====== 4 Tools ======
@@ -178,7 +206,8 @@ namespace AiService.Infrastructure.Implements
             functionName: "create_quiz_questions",
             functionDescription:
                 "Create AI-generated quiz questions OR suggest external practice links of the same topic. " +
-                "Mode is required. If the user hasn't chosen, ask which mode they prefer.",
+                "If the learner hasn't chosen a mode, you MAY omit \"mode\"; the backend will ask the learner with a fixed clarification sentence. " +
+                "Do NOT write your own clarification question.",
             functionParameters: BinaryData.FromString("""
             {
               "type": "object",
@@ -195,12 +224,16 @@ namespace AiService.Infrastructure.Implements
                   "properties": {
                     "num_links": { "type": "integer", "minimum": 1, "maximum": 15, "default": 6 },
                     "preferred_domains": { "type": "array", "items": { "type": "string" } },
-                    "query_hint": { "type": "string" }
+                    "query_hint": { "type": "string" },
+                    "page": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "description": "Batch index for external links: 1 = first 3 topics, 2 = next 3 topics, etc."
+                    }
                   },
                   "additionalProperties": false
                 }
               },
-              "required": ["mode"],
               "additionalProperties": false
             }
             """)
@@ -289,6 +322,14 @@ namespace AiService.Infrastructure.Implements
                                     var @event = new GetLessonInfoEvent(lessonId, currentUserId);
 
                                     var response = await requestClient.GetResponse<GetLessonInfoResponse>(@event, ct);
+                                    if (string.IsNullOrWhiteSpace(response.Message.Response.TranscriptText))
+                                    {
+                                        return new ChatResponseDto
+                                        {
+                                            Reply = "Hiện chưa có transcript cho bài học này nên mình chưa thể tóm tắt. \nBạn vui lòng mở lại bài học để đồng bộ transcript hoặc dán nội dung cần tóm tắt nhé.",
+                                            RawFinishReason = "MissingTranscript"
+                                        };
+                                    }
                                     var json = await RunSummarizeAsync(response.Message.Response.TranscriptText, lang, ct);
                                     messages.Add(new ToolChatMessage(call.Id, json));
                                     break;
@@ -307,7 +348,14 @@ namespace AiService.Infrastructure.Implements
                                     var @event = new GetLessonInfoEvent(lessonId, currentUserId);
 
                                     var response = await requestClient.GetResponse<GetLessonInfoResponse>(@event, ct);
-
+                                    if (string.IsNullOrWhiteSpace(response.Message.Response.TranscriptText))
+                                    {
+                                        return new ChatResponseDto
+                                        {
+                                            Reply = "Hiện chưa có transcript cho bài học này nên mình chưa thể tóm tắt. \nBạn vui lòng mở lại bài học để đồng bộ transcript hoặc dán nội dung cần tóm tắt nhé.",
+                                            RawFinishReason = "MissingTranscript"
+                                        };
+                                    }
                                     var json = await RunExplainAsync(response.Message.Response.TranscriptText, max, simplicity, lang, ct);
                                     messages.Add(new ToolChatMessage(call.Id, json));
                                     break;
@@ -336,7 +384,7 @@ namespace AiService.Infrastructure.Implements
                                     {
                                         return new ChatResponseDto
                                         {
-                                            Reply = "Bạn muốn mình **tự tạo câu hỏi bằng AI** hay **gợi ý link bài tập bên ngoài** cùng chủ đề?\n\n- Trả lời \"AI\" để mình tạo câu hỏi.\n- Trả lời \"link\" để mình gợi ý nguồn luyện tập.",
+                                            Reply = QuizModeClarificationMessage,
                                             RawFinishReason = "ClarificationNeeded"
                                         };
                                     }
@@ -353,6 +401,14 @@ namespace AiService.Infrastructure.Implements
                                         var currentUserId = _identityService.GetCurrentUser()!.UserId;
                                         var @event = new GetLessonInfoEvent(lessonId, currentUserId);
                                         var resp = await requestClient.GetResponse<GetLessonInfoResponse>(@event, ct);
+                                        if (string.IsNullOrWhiteSpace(resp.Message.Response.TranscriptText))
+                                        {
+                                            return new ChatResponseDto
+                                            {
+                                                Reply = "Hiện chưa có transcript cho bài học này nên mình chưa thể tóm tắt. \nBạn vui lòng mở lại bài học để đồng bộ transcript hoặc dán nội dung cần tóm tắt nhé.",
+                                                RawFinishReason = "MissingTranscript"
+                                            };
+                                        }
                                         text = resp.Message.Response.TranscriptText ?? "";
                                     }
 
@@ -377,17 +433,43 @@ namespace AiService.Infrastructure.Implements
                                             };
                                         }
 
-                                        // ✅ TRÍCH KEY CONCEPTS từ TranscriptText → tạo topic nhiều khái niệm
-                                        var multiConceptTopic = await BuildTopicFromTranscriptAsync(text, lang, ct);
+                                        // 🔢 Lấy page từ external.page (mặc định 1)
+                                        int page = 1;
+                                        if (root.TryGetProperty("external", out var extEl) &&
+                                            extEl.ValueKind == JsonValueKind.Object &&
+                                            extEl.TryGetProperty("page", out var pageEl) &&
+                                            pageEl.ValueKind == JsonValueKind.Number)
+                                        {
+                                            page = pageEl.GetInt32();
+                                            if (page <= 0) page = 1;
+                                        }
 
-                                        // ✅ Gọi SearchService với topic đa khái niệm
+                                        // ✅ TRÍCH TOPIC THEO PAGE: mỗi page 3 topic
+                                        var multiConceptTopic = await BuildTopicFromTranscriptAsync(
+                                            text,
+                                            lang,
+                                            page,
+                                            batchSize: 3,
+                                            ct);
+
+                                        if (string.IsNullOrWhiteSpace(multiConceptTopic))
+                                        {
+                                            // Hết keywords để search
+                                            return new ChatResponseDto
+                                            {
+                                                Reply =
+                                                    "Có vẻ tớ đã gợi ý gần hết các chủ đề chính trong bài này rồi nên không tìm thêm được nguồn bài tập mới nữa.\n" +
+                                                    "Cậu có thể làm lại những câu hiện tại hoặc đổi sang kiểu luyện tập khác (ví dụ: để tớ tạo câu hỏi bằng AI) nhé.",
+                                                RawFinishReason = "NoMoreExternalTopics"
+                                            };
+                                        }
+
                                         var md = await _aiSearchService.FindMultipleChoiceExcercises(
                                             multiConceptTopic,
                                             difficultyLevel.Value,
                                             fastModeOverride: null
                                         );
 
-                                        // Đẩy vào tool message → model sẽ tổng hợp trả lời cuối
                                         messages.Add(new ToolChatMessage(call.Id, md));
                                     }
                                     else
@@ -404,10 +486,30 @@ namespace AiService.Infrastructure.Implements
                             case "give_real_world_examples":
                                 {
                                     var text = root.GetProperty("lesson_text").GetString() ?? "";
+
+                                    // Thử fallback theo LessionId nếu rỗng
+                                    if (string.IsNullOrWhiteSpace(text) && req.Request.LessionId is Guid lessonId2)
+                                    {
+                                        var currentUserId = _identityService.GetCurrentUser()!.UserId;
+                                        var @event = new GetLessonInfoEvent(lessonId2, currentUserId);
+                                        var resp = await requestClient.GetResponse<GetLessonInfoResponse>(@event, ct);
+                                        text = resp.Message.Response.TranscriptText ?? "";
+                                    }
+
+                                    // ⛔ Guard cuối
+                                    if (string.IsNullOrWhiteSpace(text))
+                                    {
+                                        return new ChatResponseDto
+                                        {
+                                            Reply = "Chưa có transcript của bài học nên mình chưa thể đưa ví dụ ứng dụng thực tế. " +
+                                            "\nBạn vui lòng cung cấp nội dung bài học nhé.",
+                                            RawFinishReason = "MissingTranscript"
+                                        };
+                                    }
+
                                     var n = root.TryGetProperty("num_examples", out var nEl) ? nEl.GetInt32() : 3;
                                     var domain = root.TryGetProperty("domain", out var dEl) ? dEl.GetString() : null;
                                     var lang = root.TryGetProperty("language", out var lEl) ? lEl.GetString() ?? "vi" : "vi";
-
                                     var json = await RunExamplesAsync(text, n, domain, lang, ct);
                                     messages.Add(new ToolChatMessage(call.Id, json));
                                     break;
