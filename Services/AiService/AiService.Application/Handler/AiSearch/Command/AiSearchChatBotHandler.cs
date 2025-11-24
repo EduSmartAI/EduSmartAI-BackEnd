@@ -8,7 +8,7 @@ namespace AiService.Application.Handler.AiSearch.Command
     {
         public async Task<AiSearchResponse> Handle(AiSearchChatBotRequest request, CancellationToken cancellationToken)
         {
-            var res = await _aiSearchService.FindMultipleChoiceExcercises(request.topic, request.difficultyLevel, true);
+            var res = await _aiSearchService.FindMultipleChoiceExcercises(request.topic, request.difficultyLevel, null);
             return new AiSearchResponse
             {
                 Success = true,

@@ -105,6 +105,7 @@ namespace StudentService.Infrastructure.Implements
                     return true; // yêu cầu của BeginTransactionAsync: trả true để commit
                 }, ct);
             }
+
             // response
             response.Success = true;
             response.Response = result.EvaluationId.ToString();
@@ -130,15 +131,15 @@ namespace StudentService.Infrastructure.Implements
                 return response;
             }
 
-			// base query
-			var baseQuery = _aiEvaluateCommandRepository.Find(
-				ev => ev.UserId == request.StudentId
-				   && ev.CourseId == request.CourseId
-				   && ev.Scope == (short)QuizScope.Module
-				   && ev.ScopeId.HasValue
-				   && request.ModuleIds.Contains(ev.ScopeId.Value),
-				isTracking: false,
-				cancellationToken: cancellationToken);
+            // base query
+            var baseQuery = _aiEvaluateCommandRepository.Find(
+                ev => ev.UserId == request.StudentId
+                   && ev.CourseId == request.CourseId
+                   && ev.Scope == (short)QuizScope.Module
+                   && ev.ScopeId.HasValue
+                   && request.ModuleIds.Contains(ev.ScopeId.Value),
+                isTracking: false,
+                cancellationToken: cancellationToken);
 
             // Lấy record mới nhất cho MỖI module bằng correlated subquery (tránh Join)
             var latestPerModule = await
@@ -246,15 +247,15 @@ namespace StudentService.Infrastructure.Implements
                 return response;
             }
 
-			// Base query: student + course + scope=Lesson + scope_id ∈ LessonIds
-			var baseQuery = _aiEvaluateCommandRepository.Find(
-				ev => ev.UserId == request.StudentId
-				   && ev.CourseId == request.CourseId
-				   && ev.Scope == (short)QuizScope.Lesson
-				   && ev.ScopeId.HasValue
-				   && request.LessonIds.Contains(ev.ScopeId.Value),
-				isTracking: false,
-				cancellationToken: cancellationToken);
+            // Base query: student + course + scope=Lesson + scope_id ∈ LessonIds
+            var baseQuery = _aiEvaluateCommandRepository.Find(
+                ev => ev.UserId == request.StudentId
+                   && ev.CourseId == request.CourseId
+                   && ev.Scope == (short)QuizScope.Lesson
+                   && ev.ScopeId.HasValue
+                   && request.LessonIds.Contains(ev.ScopeId.Value),
+                isTracking: false,
+                cancellationToken: cancellationToken);
 
             // Latest per lesson bằng correlated subquery (tránh Join/type inference)
             var latestPerLesson = await

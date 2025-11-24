@@ -13,11 +13,11 @@ namespace Course.Infrastructure.Implements
                 return new GetOverviewCourseResponse { Success = false };
 
             var userPart = events.StudentId;
-            var cacheKey = $"coursehier:{events.courseId:N}:u:{userPart}";
+            //var cacheKey = $"coursehier:{events.courseId:N}:u:{userPart}";
 
-            var cached = await _unitOfWork.CacheGetAsync<GetOverviewCourseResponse>(cacheKey);
-            if (cached is not null)
-                return cached;
+            //var cached = await _unitOfWork.CacheGetAsync<GetOverviewCourseResponse>(cacheKey);
+            //if (cached is not null)
+            //    return cached;
 
             var row = await _courseRepository.FirstOrDefaultAsync(x => x.CourseId == events.courseId && x.UserId == userPart, ct);
 
@@ -59,7 +59,7 @@ namespace Course.Infrastructure.Implements
             }
 
             // 4. Cache kết quả
-            await _unitOfWork.CacheSetAsync(cacheKey, result, TimeSpan.FromMinutes(30));
+            //await _unitOfWork.CacheSetAsync(cacheKey, result, TimeSpan.FromMinutes(1));
 
             return result;
         }
@@ -103,10 +103,9 @@ namespace Course.Infrastructure.Implements
             var user = perUser.FirstOrDefault(x => x.UserId == studentId);
             if (user is null)
             {
-                var avgNoUser = perUser.Average(x => x.MinutesPerLesson);
                 return new CoursePaceStatsDto
                 {
-                    AverageMinutesPerLesson = avgNoUser,
+                    AverageMinutesPerLesson = 0,
                     LearnerCount = totalLearners,
                     Rank = 0,
                     FasterCount = 0,
@@ -115,7 +114,8 @@ namespace Course.Infrastructure.Implements
                 };
             }
 
-            var avgMinutesPerLesson = perUser.Average(x => x.MinutesPerLesson);
+            //var avgMinutesPerLesson = perUser.Average(x => x.MinutesPerLesson); // Thêm sau
+
 
             var slowerCount = perUser.Count(x => x.MinutesPerLesson < user.MinutesPerLesson);
             var fasterCount = perUser.Count(x => x.MinutesPerLesson > user.MinutesPerLesson);
@@ -127,7 +127,7 @@ namespace Course.Infrastructure.Implements
 
             return new CoursePaceStatsDto
             {
-                AverageMinutesPerLesson = avgMinutesPerLesson,
+                AverageMinutesPerLesson = user.MinutesPerLesson,
                 LearnerCount = totalLearners,
                 Rank = rank,
                 FasterCount = fasterCount,
