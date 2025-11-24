@@ -5,12 +5,13 @@ using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using Course.Application.Consumers;
 using Course.Application.Consumers.Dashboard;
 using Course.Application.Consumers.GetInfoCourse;
 using Course.Application.Consumers.GetInfoInternalCourse;
-using Course.Application.Courses.Consumers;
 using Course.Application.Consumers.GetOverviewCourse;
+using Course.Application.Courses.Consumers;
 using Course.Application.Dashboards.Consumers;
 using MassTransit;
 
@@ -45,6 +46,9 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetOverviewCourseConsumer>();
                 x.AddConsumer<GetUserCourseProgressEventConsumer>();
                 x.AddConsumer<TranscriptUpsertConsumer>();
+                x.AddConsumer<CourseSelectsBySubjectCodeEventConsumer>();
+                x.AddConsumer<CoreSubjectSelectEventConsumer>();
+                x.AddConsumer<SelectCourseInfoEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 
@@ -64,7 +68,8 @@ namespace Course.API.Extensions
                 x.AddRequestClient<QuizCourseCheckAttemptEvent>();
                 x.AddRequestClient<GetLatestModuleQuizScoresEvent>();
                 x.AddRequestClient<GetLatestLessonQuizScoresEvent>();
-                x.AddRequestClient<SuggestCourseRetakeEvent>();
+				x.AddRequestClient<SuggestCourseRetakeEvent>();
+				x.AddRequestClient<CourseSelectsBySubjectCodeEvent>();
             });
 
             return services;

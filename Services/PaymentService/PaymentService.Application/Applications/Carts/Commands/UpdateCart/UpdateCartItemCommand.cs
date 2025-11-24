@@ -5,8 +5,8 @@ namespace PaymentService.Application.Applications.Carts.Commands.UpdateCart
 {
 	public record UpdateCartItemCommand(Guid CartItemId, bool? IsSelected) : ICommand<UpdateCartItemResponse>;
 
-	public record UpdateCartItemResponse : AbstractApiResponse<bool>
+	public record UpdateCartItemResponse : AbstractApiResponse<string>
 	{
-		public override bool Response { get; set; } = new();
+		public override string Response { get; set; }
 	}
 }

@@ -25,13 +25,6 @@ public static class ConstantEnum
         Failed = 3,
     }
 
-    public enum PaymentMethod
-    {
-        Cash = 1,
-        Momo = 2,
-        PayOs = 3,
-    }
-
     public enum QuestionType
     {
         MultipleChoice = 1,
@@ -385,5 +378,17 @@ public static class ConstantEnum
         
         [Description("Not Passed")]
         NotPassed = 3
+    }
+    
+    public enum UserActionPayment
+    {
+        [Description("User cancelled the payment")]
+        Cancelled = 1,
+        
+        [Description("Payment completed successfully")]
+        Success = 2,
+        
+        [Description("Payment process failed")]
+        Failed = 3
     }
 }

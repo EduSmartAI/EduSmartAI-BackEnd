@@ -13,12 +13,7 @@ public class PaymentCallbackCommandHandler(
         var response = new PaymentCallbackResponse { Success = false };
         
         // Get current user
-        var currentUser = identityService.GetCurrentUser();
-        if (currentUser == null)
-        {
-            response.SetMessage(MessageId.E00000, "User not authenticated");
-            return response;
-        }
+        var currentUser = identityService.GetCurrentUser()!;
         
         // Map command to request
         var callbackRequest = new PaymentCallBackRequest
@@ -61,8 +56,9 @@ public class PaymentCallbackCommandHandler(
             Message = callbackResult.Message
         };
         
+        // True
         response.Success = true;
-        response.SetMessage(callbackResult.MessageId, callbackResult.Message);
+        response.SetMessage(callbackResult.MessageId, "Thanh toán");
         return response;
     }
 }

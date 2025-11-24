@@ -65,6 +65,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<ModuleDiscussionComment>, CommandRepository<ModuleDiscussionComment>>();
             services.AddScoped<ICommandRepository<ModuleDiscussion>, CommandRepository<ModuleDiscussion>>();
             services.AddScoped<ICommandRepository<Note>, CommandRepository<Note>>();
+            services.AddScoped<ICommandRepository<CoreSubject>, CommandRepository<CoreSubject>>();
 
 
             // Services

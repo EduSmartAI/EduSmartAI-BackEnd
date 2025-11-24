@@ -1,12 +1,13 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.ApiEntities;
 using PaymentService.Application.Applications.Payments;
+using PaymentService.Domain.WriteModels;
 
 namespace PaymentService.Application.Interfaces;
 
 public interface IPaymentServiceClient
 {
-    Task<PaymentResponse> ProcessPaymentAsync(Guid paymentId, decimal amount, CancellationToken ct = default);
+    Task<PaymentResponse> ProcessPaymentAsync(Order order, CancellationToken ct = default);
     Task<bool> RefundPaymentAsync(string transactionId, CancellationToken ct = default);
 
     Task<PaymentCallbackResponse> PaymentCallbackAsync(PaymentCallBackRequest request, IdentityEntity identityEntity);

@@ -68,6 +68,8 @@ public partial class CourseDbContext : AppDbContext
     public virtual DbSet<SyllabusSubject> SyllabusSubjects { get; set; }
 
     public virtual DbSet<Tag> Tags { get; set; }
+    
+    public virtual DbSet<CoreSubject> CoreSubjects { get; set; }
 
     public virtual DbSet<UserCourseProgress> UserCourseProgresses { get; set; }
 
@@ -1034,6 +1036,34 @@ public partial class CourseDbContext : AppDbContext
 				.HasForeignKey(d => d.LessonId)
 				.HasConstraintName("fk_notes_lesson");
 		});
+        
+        modelBuilder.Entity<CoreSubject>(entity =>
+        {
+            entity.ToTable("core_subjects");
+            entity.HasKey(e => e.CoreSubjectId)
+                .HasName("core_subjects_pkey");
+            entity.HasIndex(e => e.SubjectCode, "core_subjects_subject_code_key")
+                .IsUnique();
+            entity.Property(e => e.CoreSubjectId)
+                .HasColumnName("core_subject_id");
+            entity.Property(e => e.SubjectCode)
+                .IsRequired()
+                .HasMaxLength(15)
+                .HasColumnName("subject_code");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("now()")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.CreatedBy)
+                .HasColumnName("created_by");
+            entity.Property(e => e.UpdatedBy)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+        });
 
 		modelBuilder.Entity<Semester>(entity =>
         {

@@ -3,43 +3,51 @@ using System.Text;
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Payments;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
-using SystemConfig = OrchestratorService.Domain.Entities.SystemConfig;
+using PaymentService.Domain.WriteModels;
+using SystemConfig = PaymentService.Domain.WriteModels.Systemconfig;
 using ConstSystemConfig = BaseService.Common.Utils.Const.SystemConfig;
 namespace PaymentService.Infrastructure.Implements;
 
-public class PaymentServiceClient(
-    ICommandRepository<SystemConfig> systemConfigRepository, 
-    ICommandRepository<PaymentTransaction> paymentTransactionRepository,
-    ICommandRepository<Order> orderRepository,
-    IUnitOfWork unitOfWork,
-    IIdentityService identityService) : IPaymentServiceClient
+public class PaymentServiceClient : IPaymentServiceClient
 {
+    private readonly ICommandRepository<PaymentTransaction> _paymentTransactionRepository;
+    private readonly ICommandRepository<Order> _orderRepository;
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly IIdentityService _identityService;
+    
+    private readonly string _payOsCheckSumKey;
+    private readonly string _payOsApiKey;
+    private readonly string _payOsClientId;
+    private readonly string _returnUrl;
+    private readonly string _cancelUrl;
+
+    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService)
+    {
+        _paymentTransactionRepository = paymentTransactionRepository;
+        _orderRepository = orderRepository;
+        _unitOfWork = unitOfWork;
+        _identityService = identityService;
+        _payOsCheckSumKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsCheckSumKey).FirstOrDefault()!.Value;
+        _payOsApiKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsApiKey).FirstOrDefault()!.Value;
+        _payOsClientId = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsClientId).FirstOrDefault()!.Value;
+        _returnUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentReturnUrl).FirstOrDefault()!.Value;
+        _cancelUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentCancelUrl).FirstOrDefault()!.Value;
+    }
+
     /// <summary>
     /// Process payment via PayOS
     /// </summary>
-    /// <param name="orderId">Order ID to process payment</param>
-    /// <param name="amount">Amount to pay</param>
+    /// <param name="order"></param>
     /// <param name="ct"></param>
     /// <returns></returns>
-    public async Task<PaymentResponse> ProcessPaymentAsync(Guid orderId, decimal amount, CancellationToken ct = default)
+    public async Task<PaymentResponse> ProcessPaymentAsync(Order order, CancellationToken ct = default)
     {
         var response = new PaymentResponse {Success = false};
-        
-        // Get Order
-        var order = await orderRepository
-            .Find(x => x.OrderId == orderId, isTracking: true)
-            .FirstOrDefaultAsync(ct);
-            
-        if (order == null)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy đơn hàng");
-            return response;
-        }
         
         // Check if order is already paid or processing
         if (order.Status != (short) ConstantEnum.OrderStatus.Pending)
@@ -48,13 +56,6 @@ public class PaymentServiceClient(
             return response;
         }
         
-        // Get PayOS config
-        var payOsCheckSumKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsCheckSumKey).FirstOrDefault()!.Value;
-        var payOsApiKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsApiKey).FirstOrDefault()!.Value;
-        var payOsClientId = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsClientId).FirstOrDefault()!.Value;
-        var returnUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentReturnUrl).FirstOrDefault()!.Value;
-        var cancelUrl = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PaymentCancelUrl).FirstOrDefault()!.Value;
-
         // Create order code
         var orderCode = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); 
         
@@ -62,20 +63,23 @@ public class PaymentServiceClient(
         var description = $"Thanh toan khoa hoc";
         if (description.Length > 25) description = description.Substring(0, 25);
 
-        returnUrl = $"{returnUrl}?orderId={orderId}";
-        cancelUrl = $"{cancelUrl}?orderId={orderId}";
+        var returnUrl = $"{_returnUrl}?orderId={order.OrderId}";
+        var cancelUrl = $"{_cancelUrl}?orderId={order.OrderId}";
+        
+        var amountStr = order.FinalAmount.ToString("G29");
+        var amount = int.Parse(amountStr);
         
         // Create signature for PayOS
-        var data = $"amount={amount}&cancelUrl={cancelUrl}" +
+        var data = $"amount={2000}&cancelUrl={cancelUrl}" +
                    $"&description={description}" +
                    $"&orderCode={orderCode}" +
                    $"&returnUrl={returnUrl}";
-        string signature = ComputeHmacSha256(data, payOsCheckSumKey);
+        string signature = ComputeHmacSha256(data, _payOsCheckSumKey);
 
         var payRequest = new
         {
             orderCode = orderCode,
-            amount = amount,
+            amount = 2000,
             description = description,
             returnUrl = returnUrl,
             cancelUrl = cancelUrl,
@@ -84,8 +88,8 @@ public class PaymentServiceClient(
         
         // Call PayOS API
         var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("x-client-id", payOsClientId);
-        client.DefaultRequestHeaders.Add("x-api-key", payOsApiKey);
+        client.DefaultRequestHeaders.Add("x-client-id", _payOsClientId);
+        client.DefaultRequestHeaders.Add("x-api-key", _payOsApiKey);
 
         var jsonContent = new StringContent(JsonSerializer.Serialize(payRequest), Encoding.UTF8, "application/json");
 
@@ -116,10 +120,10 @@ public class PaymentServiceClient(
         var paymentTransaction = new PaymentTransaction
         {
             PaymentId = Guid.NewGuid(),
-            OrderId = orderId,
+            OrderId = order.OrderId,
             Gateway = nameof(ConstantEnum.PaymentGateway.PayOs),
             GatewayTransactionId = orderCode.ToString(),
-            Amount = amount,
+            Amount = decimal.Parse(amountStr),
             Currency = order.Currency,
             Status = (short) ConstantEnum.PaymentStatus.Pending,
             RawResponse = responseContent,
@@ -130,9 +134,9 @@ public class PaymentServiceClient(
         order.Status = (short) ConstantEnum.OrderStatus.WaitingForPayment;
 
         // Save to database
-        await paymentTransactionRepository.AddAsync(paymentTransaction);
-        orderRepository.Update(order);
-        await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, ct);
+        await _paymentTransactionRepository.AddAsync(paymentTransaction);
+        _orderRepository.Update(order);
+        await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, ct);
 
         var entityResponse = new PaymentResultEntity
         {
@@ -158,7 +162,7 @@ public class PaymentServiceClient(
         var response = new PaymentCallbackResponse { Success = false };
         
         // Get Order with PaymentTransactions
-        var order = await orderRepository
+        var order = await _orderRepository
             .Find(predicate:x => x.OrderId == request.OrderId, 
                 isTracking: true, 
                 includes: o => o.PaymentTransactions)
@@ -188,7 +192,7 @@ public class PaymentServiceClient(
         }
         
         // Begin transaction
-        await unitOfWork.BeginTransactionAsync(async () =>
+        await _unitOfWork.BeginTransactionAsync(async () =>
         {
             // User cancelled payment
             if (request.Cancel)
@@ -196,12 +200,12 @@ public class PaymentServiceClient(
                 order.Status = (short) ConstantEnum.OrderStatus.Cancelled;
                 paymentTransaction.Status = (short) ConstantEnum.PaymentStatus.Failed;
                 paymentTransaction.ReturnCode = nameof(ConstantEnum.PaymentReturnCode.CANCELLED);
-                paymentTransaction.ReturnMessage = "User cancelled payment";
+                paymentTransaction.ReturnMessage = ConstantEnum.UserActionPayment.Cancelled.GetDescription();
                 paymentTransaction.PaymentUrl = null;
                 
-                orderRepository.Update(order);
-                paymentTransactionRepository.Update(paymentTransaction);
-                await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+                _orderRepository.Update(order);
+                _paymentTransactionRepository.Update(paymentTransaction);
+                await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
                 
                 response.SetMessage(MessageId.I00001, "Thanh toán đã bị hủy bởi người dùng");
                 return true;
@@ -213,12 +217,12 @@ public class PaymentServiceClient(
                 order.Status = (short) ConstantEnum.OrderStatus.Failed;
                 paymentTransaction.Status = (short) ConstantEnum.PaymentStatus.Failed;
                 paymentTransaction.ReturnCode = request.Code;
-                paymentTransaction.ReturnMessage = string.IsNullOrEmpty(request.Status) ? "Payment failed" : request.Status;
+                paymentTransaction.ReturnMessage = string.IsNullOrEmpty(request.Status) ? ConstantEnum.UserActionPayment.Failed.GetDescription() : request.Status;
                 
-                orderRepository.Update(order);
+                _orderRepository.Update(order);
                 
                 // Create new payment link for retry
-                var retryPaymentResponse = await ProcessPaymentAsync(order.OrderId, order.FinalAmount);
+                var retryPaymentResponse = await ProcessPaymentAsync(order, CancellationToken.None);
                 if (retryPaymentResponse.Success)
                 {
                     response.Response = new PaymentCallbackEntity
@@ -226,8 +230,7 @@ public class PaymentServiceClient(
                         CheckoutUrl = retryPaymentResponse.Response.CheckoutUrl,
                         QrCode = retryPaymentResponse.Response.QrCode,
                     };
-                    response.SetMessage(MessageId.I00000, "Thanh toán thất bại, vui lòng thử lại với liên kết thanh toán mới");
-                    
+                    response.SetMessage(MessageId.E00000, "Thanh toán thất bại, vui lòng thử lại với liên kết thanh toán mới");
                     paymentTransaction.PaymentUrl = retryPaymentResponse.Response.CheckoutUrl;
                 }
                 else
@@ -236,8 +239,8 @@ public class PaymentServiceClient(
                 }
                 
                 // Update payment transaction
-                paymentTransactionRepository.Update(paymentTransaction);
-                await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+                _paymentTransactionRepository.Update(paymentTransaction);
+                await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
                 return false;
             }
             
@@ -247,16 +250,17 @@ public class PaymentServiceClient(
             
             paymentTransaction.Status = (short)ConstantEnum.PaymentStatus.Paid;
             paymentTransaction.ReturnCode = request.Code;
-            paymentTransaction.ReturnMessage = "Payment successful";
+            paymentTransaction.ReturnMessage = ConstantEnum.UserActionPayment.Success.GetDescription();
+            paymentTransaction.PaymentUrl = null;
             
             if (!string.IsNullOrEmpty(request.Id))
             {
                 paymentTransaction.GatewayTransactionId = request.Id;
             }
             
-            orderRepository.Update(order);
-            paymentTransactionRepository.Update(paymentTransaction);
-            await unitOfWork.SaveChangesAsync(identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+            _orderRepository.Update(order);
+            _paymentTransactionRepository.Update(paymentTransaction);
+            await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
             
             // True
             response.Success = true;

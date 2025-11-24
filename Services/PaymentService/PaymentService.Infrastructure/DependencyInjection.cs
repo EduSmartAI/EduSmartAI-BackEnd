@@ -13,17 +13,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentService.Application.Interfaces;
-using PaymentService.Domain.Models;
-using PaymentService.Infrastructure.Data;
+using PaymentService.Domain.WriteModels;
+using PaymentService.Infrastructure.Contexts;
 using PaymentService.Infrastructure.Implements;
 using StackExchange.Redis;
-
+using Order = PaymentService.Domain.WriteModels.Order;
+using SystemConfig = PaymentService.Domain.WriteModels.Systemconfig;
 namespace PaymentService.Infrastructure
 {
 	public static class DependencyInjection
 	{
-		public static IServiceCollection AddInfrastructure(this IServiceCollection services,
-			IConfiguration configuration)
+		public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
 		{
 			var connectionString = Environment.GetEnvironmentVariable(ConstEnv.PaymentServiceDb);
 
@@ -34,7 +34,7 @@ namespace PaymentService.Infrastructure
 			services.AddScoped(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
 
 			// DbContext (PostgreSQL)
-			services.AddDbContext<AppDbContext, PaymentServiceDBContext>(opt =>
+			services.AddDbContext<AppDbContext, PaymentServiceContext>(opt =>
 				opt.UseNpgsql(connectionString).EnableDetailedErrors().EnableSensitiveDataLogging());
 
 			// Identity
@@ -44,11 +44,15 @@ namespace PaymentService.Infrastructure
 			// Repositories
 			services.AddScoped<ICommandRepository<Cart>, CommandRepository<Cart>>();
 			services.AddScoped<ICommandRepository<CartItem>, CommandRepository<CartItem>>();
+			services.AddScoped<ICommandRepository<SystemConfig>, CommandRepository<SystemConfig>>();
+			services.AddScoped<ICommandRepository<PaymentTransaction>, CommandRepository<PaymentTransaction>>();
+			services.AddScoped<ICommandRepository<Order>, CommandRepository<Order>>();
+			services.AddScoped<ICommandRepository<OrderItem>, CommandRepository<OrderItem>>();
 
 			// Services
 			services.AddScoped<ICommonLogic, CommonLogic>();
 			services.AddScoped<ICartService, CartService>();
-
+			services.AddScoped<IPaymentServiceClient, PaymentServiceClient>();
 			// Helpers
 
 
@@ -68,7 +72,7 @@ namespace PaymentService.Infrastructure
 		public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
 		{
 			using var scope = app.Services.CreateScope();
-			var db = scope.ServiceProvider.GetRequiredService<PaymentServiceDBContext>();
+			var db = scope.ServiceProvider.GetRequiredService<PaymentServiceContext>();
 			await db.Database.EnsureCreatedAsync();
 			return app;
 		}

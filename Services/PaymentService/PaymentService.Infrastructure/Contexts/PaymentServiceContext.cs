@@ -1,14 +1,12 @@
 ﻿using BaseService.Infrastructure.Contexts;
 using Microsoft.EntityFrameworkCore;
-using PaymentService.Domain.Models;
-using System;
-using System.Collections.Generic;
+using PaymentService.Domain.WriteModels;
 
-namespace PaymentService.Infrastructure.Data;
+namespace PaymentService.Infrastructure.Contexts;
 
-public partial class PaymentServiceDBContext : AppDbContext
+public partial class PaymentServiceContext : AppDbContext
 {
-    public PaymentServiceDBContext(DbContextOptions<PaymentServiceDBContext> options)
+    public PaymentServiceContext(DbContextOptions<PaymentServiceContext> options)
         : base(options)
     {
     }
@@ -23,6 +21,8 @@ public partial class PaymentServiceDBContext : AppDbContext
 
     public virtual DbSet<PaymentTransaction> PaymentTransactions { get; set; }
 
+    public virtual DbSet<Systemconfig> Systemconfigs { get; set; }
+    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Cart>(entity =>
@@ -30,9 +30,7 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.HasKey(e => e.CartId).HasName("carts_pkey");
 
             entity.ToTable("carts");
-
-            entity.HasIndex(e => e.Status, "idx_carts_status");
-
+            
             entity.HasIndex(e => e.UserId, "idx_carts_user");
 
             entity.HasIndex(e => e.UserId, "uq_carts_user_active")
@@ -48,9 +46,9 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
-            entity.Property(e => e.Status)
-                .HasDefaultValue((short)0)
-                .HasColumnName("status");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -69,9 +67,7 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.HasIndex(e => e.CartId, "idx_cart_items_cart");
 
             entity.HasIndex(e => e.CourseId, "idx_cart_items_course");
-
-            entity.HasIndex(e => e.Status, "idx_cart_items_status");
-
+            
             entity.HasIndex(e => new { e.CartId, e.CourseId }, "uq_cart_items_unique_active_course")
                 .IsUnique()
                 .HasFilter("(status = 0)");
@@ -83,7 +79,6 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.CourseId).HasColumnName("course_id");
             entity.Property(e => e.CourseImageUrlSnapshot).HasColumnName("course_image_url_snapshot");
             entity.Property(e => e.CourseTitleSnapshot)
-                .IsRequired()
                 .HasMaxLength(200)
                 .HasColumnName("course_title_snapshot");
             entity.Property(e => e.CreatedAt)
@@ -95,15 +90,15 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.DealPriceSnapshot)
                 .HasPrecision(12, 2)
                 .HasColumnName("deal_price_snapshot");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.IsSelected)
                 .HasDefaultValue(false)
                 .HasColumnName("is_selected");
             entity.Property(e => e.PriceSnapshot)
                 .HasPrecision(12, 2)
                 .HasColumnName("price_snapshot");
-            entity.Property(e => e.Status)
-                .HasDefaultValue((short)0)
-                .HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -136,7 +131,6 @@ public partial class PaymentServiceDBContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
             entity.Property(e => e.Currency)
-                .IsRequired()
                 .HasMaxLength(10)
                 .HasDefaultValueSql("'VND'::character varying")
                 .HasColumnName("currency");
@@ -146,6 +140,9 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.FinalAmount)
                 .HasPrecision(12, 2)
                 .HasColumnName("final_amount");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.PaidAt).HasColumnName("paid_at");
             entity.Property(e => e.PaymentDueAt).HasColumnName("payment_due_at");
             entity.Property(e => e.PaymentMethod)
@@ -182,7 +179,6 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.CourseId).HasColumnName("course_id");
             entity.Property(e => e.CourseImageUrlSnapshot).HasColumnName("course_image_url_snapshot");
             entity.Property(e => e.CourseTitleSnapshot)
-                .IsRequired()
                 .HasMaxLength(200)
                 .HasColumnName("course_title_snapshot");
             entity.Property(e => e.CreatedAt)
@@ -197,6 +193,9 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.FinalPrice)
                 .HasPrecision(12, 2)
                 .HasColumnName("final_price");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.OrderId).HasColumnName("order_id");
             entity.Property(e => e.PriceSnapshot)
                 .HasPrecision(12, 2)
@@ -240,19 +239,26 @@ public partial class PaymentServiceDBContext : AppDbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
             entity.Property(e => e.Currency)
-                .IsRequired()
                 .HasMaxLength(10)
                 .HasDefaultValueSql("'VND'::character varying")
                 .HasColumnName("currency");
             entity.Property(e => e.Gateway)
-                .IsRequired()
                 .HasMaxLength(50)
                 .HasColumnName("gateway");
             entity.Property(e => e.GatewayTransactionId)
                 .HasMaxLength(100)
                 .HasColumnName("gateway_transaction_id");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
             entity.Property(e => e.OrderId).HasColumnName("order_id");
+            entity.Property(e => e.PaymentUrl)
+                .HasColumnType("character varying")
+                .HasColumnName("payment_url");
             entity.Property(e => e.RawResponse)
                 .HasColumnType("jsonb")
                 .HasColumnName("raw_response");
@@ -260,18 +266,47 @@ public partial class PaymentServiceDBContext : AppDbContext
                 .HasMaxLength(50)
                 .HasColumnName("return_code");
             entity.Property(e => e.ReturnMessage).HasColumnName("return_message");
-            entity.Property(e => e.PaymentUrl).HasColumnName("payment_url");
             entity.Property(e => e.Status)
                 .HasDefaultValue((short)0)
                 .HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
             entity.Property(e => e.UserAgent).HasColumnName("user_agent");
 
             entity.HasOne(d => d.Order).WithMany(p => p.PaymentTransactions)
                 .HasForeignKey(d => d.OrderId)
                 .HasConstraintName("fk_payment_order");
+        });
+
+        modelBuilder.Entity<Systemconfig>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("systemconfig_pkey");
+
+            entity.ToTable("systemconfig");
+
+            entity.Property(e => e.Id)
+                .HasMaxLength(50)
+                .HasColumnName("id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc'::text, now())")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(50)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("timezone('utc'::text, now())")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(50)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.Value).HasColumnName("value");
         });
 
         OnModelCreatingPartial(modelBuilder);
