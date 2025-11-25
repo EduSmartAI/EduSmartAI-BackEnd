@@ -134,6 +134,9 @@ public class LearningPathService : ILearningPathService
                 StudentPassedSubjects = studentLevelResult.Response.PassedSubjects
             };
 
+            context.InformationResponse.LearningGoalName = request.LearningGoalName;
+            context.InformationResponse.LearningGoalType = (short) request.LearningGoalType;
+            
             var result = await CreateLearningPathAsync(context, cancellationToken);
             
             if (!result.Success)
