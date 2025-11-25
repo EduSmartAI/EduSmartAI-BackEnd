@@ -1,6 +1,6 @@
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 
-namespace Course.Application.Majors.Queries;
+namespace Course.Application.Majors.Queries.SelectMajorCode;
 
 public class MajorSelectsQueryHandler(IMajorService majorService) : IQueryHandler<MajorCodeSelectsQuery, MajorSelectsEventResponse>
 {
