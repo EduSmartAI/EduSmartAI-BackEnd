@@ -51,9 +51,8 @@ public class LearningPathController : ControllerBase
         Description =
             "Dành cho sinh viên đã làm khảo sát và không muốn làm bài test. Hệ thống sẽ tính toán level từ bảng điểm. Cần cấp quyền Student cho API"
     )]
-    public async Task<InsertLearningPathWithPreviousSurveyAndTranscriptResponse> InsertLearningPathWithPreviousSurveyAndTranscript()
+    public async Task<InsertLearningPathWithPreviousSurveyAndTranscriptResponse> InsertLearningPathWithPreviousSurveyAndTranscript([FromBody] InsertLearningPathWithPreviousSurveyAndTranscriptCommand request)
     {
-        var request = new InsertLearningPathWithPreviousSurveyAndTranscriptCommand();
         return await ApiControllerHelper
             .HandleRequest<InsertLearningPathWithPreviousSurveyAndTranscriptCommand,
                 InsertLearningPathWithPreviousSurveyAndTranscriptResponse,
