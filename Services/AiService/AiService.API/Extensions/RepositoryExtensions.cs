@@ -1,4 +1,5 @@
 using AiService.Application.Handler;
+using AiService.Application.Handler.AiChatBot.Command;
 using AiService.Application.Interfaces;
 using AiService.Infrastructure.Implements;
 using BaseService.Application.Interfaces.Commons;
@@ -30,6 +31,7 @@ public static class RepositoryExtensions
         services.AddScoped<ITavilyService, TavilyService>();
         services.AddScoped<IAiSummaryService, AiSummaryService>();
         services.AddScoped<IAiQuizEvaluatorService, AiQuizEvaluatorService>();
+        services.AddScoped<IChatBotLearningPathService, ChatBotLearningPathService>();
 
         // Services
         services.AddMediatR(cfg =>
@@ -37,6 +39,7 @@ public static class RepositoryExtensions
             cfg.RegisterServicesFromAssemblyContaining<AiRecommendHandler>();
             cfg.RegisterServicesFromAssemblyContaining<AiExternalRecommendHandler>();
             cfg.RegisterServicesFromAssemblyContaining<AiBatchExternalRecommendHandler>();
+            cfg.RegisterServicesFromAssemblyContaining<AIChatBotLearningPathHandler>();
         });
         return services;
     }
