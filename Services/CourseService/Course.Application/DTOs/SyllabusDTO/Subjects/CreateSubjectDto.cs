@@ -2,6 +2,7 @@
 {
 	public record CreateSubjectDto(
 		string SubjectCode,
-		string SubjectName
+		string SubjectName,
+		IReadOnlyList<Guid>? PrerequisiteSubjectIds
 	);
 }

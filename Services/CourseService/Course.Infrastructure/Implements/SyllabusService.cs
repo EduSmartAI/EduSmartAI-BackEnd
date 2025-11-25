@@ -290,7 +290,6 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
-
 		/// <summary>
 		/// Create syllabus (tên khóa)
 		/// </summary>
