@@ -1,5 +1,6 @@
 ﻿using BaseService.Application.Common;
 using Course.Application.Comments.CourseComments.Commands.CreateComment;
+using Course.Application.Comments.CourseComments.Commands.DeleteComment;
 using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
 using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
@@ -41,6 +42,20 @@ namespace Course.API.Controllers
 			var cmd = new ReplyToCommentCommand(courseId, parentCommentId, body.Content);
 			return await ApiControllerHelper.HandleRequest<ReplyToCommentCommand, ReplyToCommentResponse, CourseCommentDetailsDto>(
 				cmd, _logger, ModelState, async () => await sender.Send(cmd), new());
+		}
+
+		[HttpDelete]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Delete a comment")]
+		public async Task<DeleteCommentResponse> Delete(Guid courseId, Guid commentId)
+		{
+			var cmd = new DeleteCommentCommand(courseId, commentId);
+			return await ApiControllerHelper.HandleRequest<DeleteCommentCommand, DeleteCommentResponse, bool>(
+				cmd, 
+				_logger, 
+				ModelState, 
+				async () => await sender.Send(cmd), 
+				new());
 		}
 
 		public sealed record CreateCommentBody(string Content);
