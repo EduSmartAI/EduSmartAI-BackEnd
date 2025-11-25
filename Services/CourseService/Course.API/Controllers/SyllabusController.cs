@@ -162,6 +162,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get list of semesters")]
 		public async Task<GetSemestersResponse> GetSemesters([FromQuery] int? page, [FromQuery] int? size, [FromQuery] string? search)
 		{
@@ -177,6 +178,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]/{semesterId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get semester detail by id")]
 		public async Task<GetSemesterDetailResponse> GetSemesterDetail([FromRoute] Guid semesterId)
 		{
@@ -191,6 +193,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get list of majors")]
 		public async Task<GetMajorsResponse> GetMajors(
 			[FromQuery] int? page,
@@ -209,6 +212,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]/{majorId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get major detail by id")]
 		public async Task<GetMajorDetailResponse> GetMajorDetail([FromRoute] Guid majorId)
 		{
@@ -224,6 +228,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get list of subjects")]
 		public async Task<GetSubjectsResponse> GetSubjects(
 			[FromQuery] int? page,
@@ -245,6 +250,7 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]/{subjectId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get subject detail by id")]
 		public async Task<GetSubjectDetailResponse> GetSubjectDetail([FromRoute] Guid subjectId)
 		{
