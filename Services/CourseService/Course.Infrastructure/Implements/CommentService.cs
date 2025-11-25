@@ -1,5 +1,6 @@
 ﻿using BaseService.Application.Common;
 using Course.Application.Comments.CourseComments.Commands.CreateComment;
+using Course.Application.Comments.CourseComments.Commands.DeleteComment;
 using Course.Application.Comments.CourseComments.Commands.ReplyToComment;
 using Course.Application.Comments.CourseComments.Queries.GetCourseComments;
 using Course.Application.DTOs.CommentsDTO;
@@ -234,6 +235,55 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Delete Comment
+		/// </summary>
+		/// <param name="command"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<DeleteCommentResponse> DeleteCommentAsync(DeleteCommentCommand command, CancellationToken ct = default)
+		{
+			var response = new DeleteCommentResponse { Success = false };
+
+			var user = _identityService.GetCurrentUser();
+
+			if (user == null)
+			{
+				response.SetMessage(MessageId.E00000, "User not authenticated.");
+				return response;
+			}
+
+			var comment = await _commentCmd.FirstOrDefaultAsync(
+				x => x.CommentId == command.CommentId && x.CourseId == command.courseId && x.IsActive,
+				ct
+			);
+
+			if (comment == null)
+			{
+				response.SetMessage(MessageId.E00000, "Bình luận không tồn tại");
+				return response;
+			}
+
+			// Chỉ người tạo bình luận hoặc admin/giảng viên mới có quyền xóa
+			if (comment.UserId != user.UserId && user.RoleName != ConstRole.Admin && user.RoleName != ConstRole.Lecturer)
+			{
+				response.SetMessage(MessageId.E00000, "Bạn không có quyền xóa bình luận này.");
+				return response;
+			}
+
+			_commentCmd.Update(comment, user.Email, needLogicalDelete: true);
+			await unitOfWork.SaveChangesAsync(user.Email, ct, needLogicalDelete: true);
+
+			// Clear cache
+			await ClearCourseCommentsCacheAsync(command.courseId);
+
+			response.Success = true;
+			response.Response = true;
+			response.SetMessage(MessageId.I00001, "Đã xóa bình luận");
+			return response;
+		}
+
+
 		#region Private Helpers
 		private static string BuildCommentsCacheKey(Guid courseId, int pageNumber, int pageSize)
 			=> $"course:{courseId}:comments:p{pageNumber}:s{pageSize}";
@@ -257,7 +307,6 @@ namespace Course.Infrastructure.Implements
 
 			await Task.WhenAll(tasks);
 		}
-
 
 		#endregion
 	}
