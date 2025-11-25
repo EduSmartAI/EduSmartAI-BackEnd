@@ -14,7 +14,6 @@ namespace PaymentService.Infrastructure.Common.Helpers
 			CourseImageUrl = item.CourseImageUrlSnapshot,
 			Price = item.PriceSnapshot,
 			DealPrice = item.DealPriceSnapshot,
-			IsSelected = item.IsSelected
 		};
 	}
 }

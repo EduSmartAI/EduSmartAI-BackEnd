@@ -32,7 +32,6 @@ public class QuizCourseService : IQuizCourseService
     private readonly ICommandRepository<Answer> _answerCommandRepository;
     private readonly ICommandRepository<Question> _questionCommandRepository;
     private readonly IQueryRepository<StudentQuizCollection> _studentQuizQueryRepository;
-    private readonly IPublishEndpoint _publishEndpoint;
     private readonly IRequestClient<GetCourseModuleCountEvent> _getCourseModuleCountClient;
     private readonly IRequestClient<SuggestCourseRetakeEvent> _getSuggestCourseRetakeEvent;
 
@@ -48,7 +47,6 @@ public class QuizCourseService : IQuizCourseService
     /// <param name="answerCommandRepository"></param>
     /// <param name="questionCommandRepository"></param>
     /// <param name="identityService"></param>
-    /// <param name="publishEndpoint"></param>
     /// <param name="getCourseModuleCountClient"></param>
     /// <param name="getSuggestCourseRetakeEvent"></param>
     public QuizCourseService(ICommandRepository<Quiz> quizCommandRepository,
@@ -60,7 +58,6 @@ public class QuizCourseService : IQuizCourseService
         IQueryRepository<StudentQuizCollection> studentQuizQueryRepository,
         ICommandRepository<Answer> answerCommandRepository,
         ICommandRepository<Question> questionCommandRepository,
-        IPublishEndpoint publishEndpoint,
         IRequestClient<GetCourseModuleCountEvent> getCourseModuleCountClient,
         IRequestClient<SuggestCourseRetakeEvent> getSuggestCourseRetakeEvent)
     {
@@ -73,7 +70,6 @@ public class QuizCourseService : IQuizCourseService
         _studentQuizQueryRepository = studentQuizQueryRepository;
         _answerCommandRepository = answerCommandRepository;
         _questionCommandRepository = questionCommandRepository;
-        _publishEndpoint = publishEndpoint;
         _getCourseModuleCountClient = getCourseModuleCountClient;
         _getSuggestCourseRetakeEvent = getSuggestCourseRetakeEvent;
     }
@@ -939,7 +935,8 @@ public class QuizCourseService : IQuizCourseService
                 QuestionId = question.QuestionId,
                 QuestionText = question.QuestionText,
                 QuestionType = question.QuestionType,
-                Answers = answerResults
+                Answers = answerResults,
+                Explanation = question.Explanation
             });
         }
 

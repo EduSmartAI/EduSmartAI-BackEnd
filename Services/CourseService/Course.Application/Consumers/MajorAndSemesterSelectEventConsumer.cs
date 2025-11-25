@@ -48,7 +48,8 @@ public class MajorAndSemesterSelectEventConsumer(ICommandRepository<Semester> se
             var semesterSelectEntity = new SemesterSelectEventResponseEntity
             {
                 SemesterId = semesterSelect.SemesterId,
-                SemesterName = semesterSelect.SemesterName
+                SemesterName = semesterSelect.SemesterName,
+                SemesterNumber = semesterSelect.SemesterNumber
             };
             response.Response.Semester = semesterSelectEntity;
         }

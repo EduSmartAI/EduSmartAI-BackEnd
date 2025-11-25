@@ -18,8 +18,6 @@ public partial class CartItem
     public decimal PriceSnapshot { get; set; }
 
     public decimal? DealPriceSnapshot { get; set; }
-
-    public bool IsSelected { get; set; }
     
     public DateTime CreatedAt { get; set; }
 

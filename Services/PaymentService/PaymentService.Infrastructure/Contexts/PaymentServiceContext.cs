@@ -93,9 +93,6 @@ public partial class PaymentServiceContext : AppDbContext
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.IsSelected)
-                .HasDefaultValue(false)
-                .HasColumnName("is_selected");
             entity.Property(e => e.PriceSnapshot)
                 .HasPrecision(12, 2)
                 .HasColumnName("price_snapshot");

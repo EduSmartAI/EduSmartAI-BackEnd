@@ -6,13 +6,11 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Carts.Commands.AddToCart;
 using PaymentService.Application.Applications.Carts.Commands.RemoveCart;
-using PaymentService.Application.Applications.Carts.Commands.UpdateCart;
 using PaymentService.Application.Applications.Carts.Queries.CheckCourseInMyCart;
 using PaymentService.Application.Applications.Carts.Queries.GetMyCart;
 using PaymentService.Application.DTOs.Carts;
 using PaymentService.Application.Interfaces;
 using PaymentService.Domain.WriteModels;
-using static BaseService.Common.Utils.Const.ConstantEnum;
 using static PaymentService.Infrastructure.Common.Helpers.CartHelper;
 
 namespace PaymentService.Infrastructure.Implements
@@ -80,7 +78,6 @@ namespace PaymentService.Infrastructure.Implements
 				CourseImageUrlSnapshot = courseInfo.ImageUrl,
 				PriceSnapshot = courseInfo.Price,
 				DealPriceSnapshot = courseInfo.DealPrice,
-				IsSelected = true,
 			};
 
 			await cartItemRepository.AddAsync(cartItem);
@@ -231,58 +228,6 @@ namespace PaymentService.Infrastructure.Implements
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Xóa item khỏi giỏ hàng");
-			return response;
-		}
-
-		public async Task<UpdateCartItemResponse> UpdateCartItemAsync(Guid cartItemId, bool? isSelected, CancellationToken ct = default)
-		{
-			var response = new UpdateCartItemResponse { Success = false };
-
-			var currentUser = identityService.GetCurrentUser();
-			if (currentUser is null)
-			{
-				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
-				return response;
-			}
-
-			// Lấy cart active của user
-			var cart = await cartRepository
-				.Find(x => x.UserId == currentUser.UserId &&
-						   x.IsActive,
-					isTracking: false, ct)
-				.FirstOrDefaultAsync(ct);
-
-			if (cart is null)
-			{
-				response.SetMessage(MessageId.E00000, "Không tìm thấy giỏ hàng");
-				return response;
-			}
-
-			var item = await cartItemRepository
-				.Find(x => x.CartItemId == cartItemId &&
-						   x.CartId == cart.CartId &&
-						   x.IsActive,
-					isTracking: true, ct)
-				.FirstOrDefaultAsync(ct);
-
-			if (item is null)
-			{
-				response.SetMessage(MessageId.E00000, "Không tìm thấy item trong giỏ hàng");
-				return response;
-			}
-
-			if (isSelected.HasValue)
-			{
-				item.IsSelected = isSelected.Value;
-				item.UpdatedBy = currentUser.Email;
-				item.UpdatedAt = DateTime.UtcNow;
-			}
-
-			cartItemRepository.Update(item);
-			await unitOfWork.SaveChangesAsync(ct);
-
-			response.Success = true;
-			response.SetMessage(MessageId.I00001, "Cập nhật giỏ hàng");
 			return response;
 		}
 	}

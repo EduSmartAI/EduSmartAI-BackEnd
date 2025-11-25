@@ -69,7 +69,8 @@ namespace AiService.Application.Handler
                         LimitTime: request.ExternalLimitTime,
                         CurrentUserEmail: request.IdentityEntity.Email,
                         Majors: majors,
-                        SemesterId: request.SemesterId
+                        SemesterId: request.SemesterId,
+                        StudentPassedSubjects: request.StudentPassedSubjects
                     );
                     internalInsertTask = _requestClientInternalMajor.GetResponse<InternalMajorEventResponse>(internalMajorEvent, cancellationToken);
                     

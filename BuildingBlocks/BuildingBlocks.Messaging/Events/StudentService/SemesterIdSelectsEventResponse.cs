@@ -12,4 +12,6 @@ public class SemesterIdSelectsEventResponseEntity
     public int SemesterNumber { get; set; }
     
     public Guid SemesterId { get; set; }
+    
+    public string SemesterName { get; set; } = null!;
 }

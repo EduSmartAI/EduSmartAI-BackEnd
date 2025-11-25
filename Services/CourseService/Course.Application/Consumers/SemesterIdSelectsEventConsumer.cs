@@ -20,7 +20,8 @@ public class SemesterIdSelectsEventConsumer(ICommandRepository<Semester> semeste
             .Select(s => new SemesterIdSelectsEventResponseEntity
             {
                 SemesterNumber = s.SemesterNumber,
-                SemesterId = s.SemesterId
+                SemesterId = s.SemesterId,
+                SemesterName = s.SemesterName
             })
             .ToList();
 

@@ -19,6 +19,8 @@ public class SemesterSelectEventResponseEntity
     public Guid SemesterId { get; set; }
     
     public string SemesterName { get; set; } = null!;
+    
+    public int SemesterNumber { get; set; }
 }
 
 public class MajorSelectEventResponseEntity

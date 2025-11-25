@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
@@ -779,6 +780,20 @@ public class StudentService : IStudentService
                     SemesterNumbers = new List<int>()
                 };
                 
+                // Get student info to check semester
+                var studentSelect = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId);
+                int? studentCurrentSemesterNumber = null;
+                if (studentSelect?.SemesterId != null)
+                {
+                    var responseMajorAndSemester = await _requestClientMajorAndSemesterSelect
+                        .GetResponse<MajorAndSemesterSelectEventResponse>(new MajorAndSemesterSelectEvent
+                        {
+                            SemesterId = studentSelect.SemesterId
+                        }, cancellationToken);
+                    studentCurrentSemesterNumber = responseMajorAndSemester.Message.Response.Semester?.SemesterNumber;
+                }
+
+                var validSemesterNumbers = new List<(int key, string value)>();
                 for (int i = 1; i < table.Rows.Count; i++)
                 {
                     var row = table.Rows[i];
@@ -798,11 +813,6 @@ public class StudentService : IStudentService
                         
                         // Validate Semester (column 2)
                         var semester = row[2].ToString()?.Trim();
-                        if (string.IsNullOrEmpty(semester))
-                        {
-                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Học kỳ' (cột 3) không được để trống");
-                            return false;
-                        }
             
                         // Validate SubjectCode (column 3)
                         var subjectCode = row[3].ToString()?.Trim();
@@ -819,23 +829,7 @@ public class StudentService : IStudentService
                             response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Tên môn học' (cột 7) không được để trống");
                             return false;
                         }
-            
-                        // Validate Credit (column 7)
-                        var creditStr = row[7].ToString()?.Trim();
-                        if (string.IsNullOrEmpty(creditStr) || !int.TryParse(creditStr, out var credit))
-                        {
-                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Số tín chỉ' (cột 8) phải là số nguyên");
-                            return false;
-                        }
-            
-                        // Validate Grade (column 8)
-                        var gradeStr = row[8].ToString()?.Trim();
-                        if (string.IsNullOrEmpty(gradeStr) || !double.TryParse(gradeStr, out var grade))
-                        {
-                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
-                            return false;
-                        }
-            
+                        
                         // Validate Status (column 9)
                         var status = row[9].ToString()?.Trim();
                         if (string.IsNullOrEmpty(status))
@@ -843,7 +837,50 @@ public class StudentService : IStudentService
                             response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Trạng thái' (cột 10) không được để trống");
                             return false;
                         }
-            
+                        
+                        // Check row[10] for asterisk (*) - skip grade validation and don't save to database
+                        var column10Value = row.ItemArray.Length > 10 ? row[10].ToString()?.Trim() : null;
+                        if (!string.IsNullOrEmpty(column10Value) && column10Value.Contains("*"))
+                        {
+                            continue;
+                        }
+
+                        // Validate Credit (column 7)
+                        var creditStr = row[7].ToString()?.Trim();
+                        var credit = 0;
+                        if (string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
+                                                                status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        {
+                            if (!int.TryParse(creditStr, out var creditOut))
+                            {
+                                response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Số tín chỉ' (cột 8) phải là số nguyên");
+                                return false;
+                            }
+                            credit = creditOut;
+                        }
+
+                        // Validate Grade (column 8)
+                        var gradeStr = row[8].ToString()?.Trim();
+                        if (string.IsNullOrEmpty(gradeStr) && (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        {
+                            if (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription())
+                            {
+                                validSemesterNumbers.Add((semesterNumber, status));
+                            }
+                            continue;
+                        }
+                        if (string.IsNullOrEmpty(gradeStr) || (!double.TryParse(gradeStr, out var grade) && !int.TryParse(gradeStr, out var gradeInt)))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
+                            return false;
+                        }
+
+                        if (string.IsNullOrEmpty(semester) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        {
+                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Học kỳ' (cột 3) không được để trống");
+                            return false;
+                        }
+                        
                         var subject = new StudentTranscript
                         {
                             SemesterNumber = semesterNumber,
@@ -877,6 +914,50 @@ public class StudentService : IStudentService
                 {
                     response.SetMessage(MessageId.E00000, "File không có dữ liệu bảng điểm hợp lệ");
                     return false;
+                }
+                
+                // Check if max semester of "Studying" subjects matches student's current semester
+                if (validSemesterNumbers.Any())
+                {
+                    var maxStudyingSemester = validSemesterNumbers.Max(x => x.key);
+                    
+                    // If student doesn't have semester info, auto-update based on transcript
+                    if (!studentCurrentSemesterNumber.HasValue)
+                    {
+                        // Get semester ID from maxStudyingSemester
+                        var tempSemesterResponse = await _requestClientSemesterIdSelects.GetResponse<SemesterIdSelectsEventResponse>(
+                            new SemesterIdSelectsEvent
+                            {
+                                SemesterNumbers = new List<int> { maxStudyingSemester }
+                            }, cancellationToken);
+                        
+                        if (tempSemesterResponse.Message.Success && tempSemesterResponse.Message.Response.Any())
+                        {
+                            var semesterId = tempSemesterResponse.Message.Response[0].SemesterId;
+                            var semesterName = tempSemesterResponse.Message.Response[0].SemesterName;
+                            
+                            // Update student's semester - query from write repository
+                            var studentToUpdate = await _studentRepository.FirstOrDefaultAsync(
+                                x => x.StudentId == currentUser.UserId && x.IsActive,
+                                cancellationToken: cancellationToken);
+                            
+                            studentToUpdate!.SemesterId = semesterId;
+                            _studentRepository.Update(studentToUpdate);
+                            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+                            
+                            studentSelect!.SemesterId = semesterId;
+                            studentSelect.SemesterName = semesterName;
+
+                            _unitOfWork.Store(studentSelect);
+                            await _unitOfWork.SessionSaveChangesAsync();
+                        }
+                    }
+                    // If student has semester info, validate it matches
+                    else if (maxStudyingSemester != studentCurrentSemesterNumber.Value)
+                    {
+                        response.SetMessage(MessageId.E00000, $"Kỳ học trong hồ sơ của bạn (Kỳ {studentCurrentSemesterNumber.Value}) không giống với bảng điểm bạn đang học (Kỳ {maxStudyingSemester}), vui lòng cập nhật lại một trong hai");
+                        return false;
+                    }
                 }
             
                 semesterIdSelectsEvent.SemesterNumbers = semesterIdSelectsEvent.SemesterNumbers.Distinct().ToList();
