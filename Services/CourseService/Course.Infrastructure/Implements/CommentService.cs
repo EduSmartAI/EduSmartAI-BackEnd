@@ -184,7 +184,7 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 
-			if (user.RoleName != ConstRole.Admin || user.RoleName != ConstRole.Lecturer)
+			if (user.RoleName != ConstRole.Admin && user.RoleName != ConstRole.Lecturer)
 			{
 				response.SetMessage(MessageId.E00000, "Chỉ giảng viên hoặc quản trị viên mới có thể trả lời bình luận.");
 				return response;
