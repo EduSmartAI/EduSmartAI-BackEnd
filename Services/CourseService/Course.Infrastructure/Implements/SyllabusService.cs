@@ -157,6 +157,7 @@ namespace Course.Infrastructure.Implements
 
 			response.Success = true;
 			response.Response = true;
+			response.SetMessage(MessageId.I00001, $"Clone syllabus cho chuyên ngành {dto.MajorCode} của khóa {dto.NewVersion} từ khóa {dto.BaseVersion}");
 			return response;
 		}
 
@@ -216,6 +217,7 @@ namespace Course.Infrastructure.Implements
 
 			response.Success = true;
 			response.Response = true;
+			response.SetMessage(MessageId.I00001, $"Clone foundation syllabus cho khoá {dto.NewVersion} từ khóa {dto.BaseVersion}");
 			return response;
 		}
 
