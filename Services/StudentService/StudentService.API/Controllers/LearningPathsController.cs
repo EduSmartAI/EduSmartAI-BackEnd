@@ -176,6 +176,7 @@ namespace StudentService.API.Controllers
         }
 
 		[HttpPost("update-course-status")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
 		Summary = "Update course status in all learning paths for a user",
 		Description = "Internal debug endpoint - userId lấy từ body, không dùng token")]

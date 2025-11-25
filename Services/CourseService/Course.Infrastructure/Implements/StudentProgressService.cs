@@ -79,6 +79,44 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
+		/// Check if a user is enrolled in a course (external service)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="userId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<CheckEnrollmentResponse> CheckEnrollmentExternalServiceAsync(Guid courseId, Guid userId, CancellationToken ct = default)
+		{
+			var response = new CheckEnrollmentResponse() { Success = false };
+
+			var cacheKey = $"enroll:status:{userId}:{courseId}";
+
+			// Check if user is enrolled in the course
+			var enrollment = await _enrollmentQueryRepository.GetOrSetAsync(
+				cacheKey,
+				() => _enrollmentQueryRepository.FirstOrDefaultAsync(x =>
+					x.CourseId == courseId &&
+					x.UserId == userId &&
+					x.IsActive),
+				TimeSpan.FromMinutes(5)
+			);
+
+			if (enrollment is null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00000, "Người dùng chưa tham gia khóa học");
+				response.Response = false;
+				return response;
+			}
+
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Người dùng đã tham gia khóa học");
+			response.Response = true;
+
+			return response;
+		}
+
+		/// <summary>
 		/// Enroll current user in a course
 		/// </summary>
 		/// <param name="courseId"></param>

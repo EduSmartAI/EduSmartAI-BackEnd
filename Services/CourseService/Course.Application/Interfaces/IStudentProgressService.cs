@@ -11,6 +11,7 @@ namespace Course.Application.Interfaces
 	public interface IStudentProgressService
 	{
 		Task<CheckEnrollmentResponse> CheckEnrollmentAsync(Guid courseId, CancellationToken ct = default);
+		Task<CheckEnrollmentResponse> CheckEnrollmentExternalServiceAsync(Guid courseId, Guid userId, CancellationToken ct = default);
 
 		Task<EnrollInCourseResponse> EnrollCourseAsync(Guid courseId, CancellationToken ct = default);
 

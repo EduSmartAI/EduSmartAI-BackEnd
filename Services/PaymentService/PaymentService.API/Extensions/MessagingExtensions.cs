@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.PaymentService;
 using MassTransit;
 
 namespace PaymentService.API.Extensions;
@@ -28,7 +29,9 @@ public static class MessagingExtensions
                 
                 cfg.ConfigureEndpoints(context);
             });
-        });
+
+			x.AddRequestClient<CheckIsCourseEnrolledEvent>();
+		});
         
         return services;
     }

@@ -13,6 +13,7 @@ using Course.Application.Consumers.GetInfoInternalCourse;
 using Course.Application.Consumers.GetOverviewCourse;
 using Course.Application.Courses.Consumers;
 using Course.Application.Dashboards.Consumers;
+using Course.Application.UserLessonProgresses.Consumers;
 using MassTransit;
 
 namespace Course.API.Extensions
@@ -49,6 +50,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<CourseSelectsBySubjectCodeEventConsumer>();
                 x.AddConsumer<CoreSubjectSelectEventConsumer>();
                 x.AddConsumer<SelectCourseInfoEventConsumer>();
+                x.AddConsumer<CheckIsCourseEnrolledEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

@@ -1,5 +1,13 @@
-﻿using Course.Application.Majors.Commands.CreateMajor;
+﻿using Course.Application.DTOs.SyllabusDTO;
+using Course.Application.DTOs.SyllabusDTO.Subjects;
+using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Subjects.Commands.AddSubjectToSyllabus;
 using Course.Application.Subjects.Commands.CreateSubject;
+using Course.Application.Syllabus.Commands.CloneCascadeSyllabus;
+using Course.Application.Syllabus.Commands.CloneFoundationSyllabus;
+using Course.Application.Syllabus.Commands.CreateFullSyllabus;
+using Course.Application.Syllabus.Commands.CreateSyllabus;
+using Course.Application.Syllabus.Queries.GetFullSyllabus;
 
 namespace Course.API.Controllers
 {
@@ -40,6 +48,107 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new CreateSubjectResponse()
+			);
+		}
+
+		[HttpPost("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Tạo mới chương trình đào tạo - FE không dùng API này",
+			Description = "Tạo mới chương trình đào tạo. Cần xác thực Bearer."
+		)]
+		public async Task<CreateSyllabusResponse> CreateSyllabus([FromBody] CreateSyllabusCommand cmd)
+		=> await ApiControllerHelper.HandleRequest<CreateSyllabusCommand, CreateSyllabusResponse, bool>(
+			cmd,
+			_logger,
+			ModelState,
+			() => sender.Send(cmd),
+			new());
+
+
+		[HttpPost("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Tạo mới chương trình đào tạo cho chuyên ngành - FE không dùng API này",
+			Description = "Tạo mới chương trình đào tạo cho chuyên ngành. Cần xác thực Bearer."
+		)]
+		public async Task<CreateFullSyllabusResponse> CreateFullSyllabusForMajor([FromBody] CreateFullSyllabusCommand cmd)
+		{
+			return await ApiControllerHelper.HandleRequest<CreateFullSyllabusCommand, CreateFullSyllabusResponse, bool>(
+				cmd,
+				_logger,
+				ModelState,
+				() => sender.Send(cmd),
+				new()
+			);
+		}
+
+
+		[HttpPost("{syllabusId:guid}/semesters/{semesterId:guid}/subjects")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Thêm môn học vào học kỳ của chương trình đào tạo - FE không dùng API này",
+			Description = "Thêm môn học vào học kỳ của chương trình đào tạo. Cần xác thực Bearer."
+		)]
+		public async Task<AddSubjectResponse> AddSubjectToSyllabusSemester([FromRoute] Guid syllabusId, [FromRoute] Guid semesterId, [FromBody] AddSubjectToSyllabusDto dto)
+		{
+			return await ApiControllerHelper.HandleRequest<AddSubjectCommand, AddSubjectResponse, bool>(
+				new AddSubjectCommand(syllabusId, semesterId, dto),
+				_logger,
+				ModelState,
+				() => sender.Send(new AddSubjectCommand(syllabusId, semesterId, dto)),
+				new()
+			);
+		}
+
+		[HttpGet("full/{versionLabel}")]
+		[SwaggerOperation(
+			Summary = "Lấy đầy đủ thông tin chương trình đào tạo theo phiên bản",
+			Description = "Lấy đầy đủ thông tin chương trình đào tạo theo phiên bản."
+		)]
+		public async Task<GetFullSyllabusResponse> GetFullSyllabus([FromRoute] string versionLabel)
+		{
+			var query = new GetFullSyllabusQuery(versionLabel);
+			return await ApiControllerHelper.HandleRequest<GetFullSyllabusQuery, GetFullSyllabusResponse, SyllabusFullDto>(
+				query,
+				_logger,
+				ModelState,
+				() => sender.Send(query),
+				new()
+			);
+		}
+
+		[HttpPost("clone/cascade")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Clone chương trình đào tạo nền tảng kèm theo các môn học",
+			Description = "Clone chương trình đào tạo nền tảng kèm theo các môn học. Cần xác thực Bearer."
+		)]
+		public async Task<CloneCascadeSyllabusResponse> CloneFoundationSyllabus([FromBody] CloneCascadeSyllabusCommand cmd)
+		{
+			return await ApiControllerHelper.HandleRequest<CloneCascadeSyllabusCommand, CloneCascadeSyllabusResponse, bool>(
+				cmd,
+				_logger,
+				ModelState,
+				() => sender.Send(cmd),
+				new()
+			);
+		}
+
+		[HttpPost("clone/foundation")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Clone chương trình đào tạo nền tảng",
+			Description = "Clone chương trình đào tạo nền tảng. Cần xác thực Bearer."
+		)]
+		public async Task<CloneFoundationSyllabusResponse> CloneFoundationOnlySyllabus([FromBody] CloneFoundationSyllabusCommand cmd)
+		{
+			return await ApiControllerHelper.HandleRequest<CloneFoundationSyllabusCommand, CloneFoundationSyllabusResponse, bool>(
+				cmd,
+				_logger,
+				ModelState,
+				() => sender.Send(cmd),
+				new()
 			);
 		}
 	}
