@@ -1,4 +1,4 @@
-﻿namespace Course.Application.Syllabus.Queries
+﻿namespace Course.Application.Syllabus.Queries.GetFullSyllabus
 {
 	public class GetFullSyllabusHandler(ISyllabusService service)
 	: IQueryHandler<GetFullSyllabusQuery, GetFullSyllabusResponse>

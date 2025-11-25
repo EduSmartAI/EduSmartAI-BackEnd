@@ -1,6 +1,6 @@
 ﻿using Course.Application.DTOs.SyllabusDTO;
 
-namespace Course.Application.Syllabus.Queries
+namespace Course.Application.Syllabus.Queries.GetFullSyllabus
 {
 	public record GetFullSyllabusQuery(string VersionLabel) : IQuery<GetFullSyllabusResponse>;
 

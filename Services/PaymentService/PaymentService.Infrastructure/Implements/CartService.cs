@@ -2,6 +2,7 @@
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.CourseService;
+using BuildingBlocks.Messaging.Events.PaymentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Carts.Commands.AddToCart;
@@ -20,7 +21,8 @@ namespace PaymentService.Infrastructure.Implements
 		IUnitOfWork unitOfWork,
 		ICommandRepository<Cart> cartRepository,
 		ICommandRepository<CartItem> cartItemRepository,
-		IRequestClient<SelectCourseInfoEvent> requestCourseSelectEvent) : ICartService
+		IRequestClient<SelectCourseInfoEvent> requestCourseSelectEvent,
+		IRequestClient<CheckIsCourseEnrolledEvent> requestCheckEnrollEvent) : ICartService
 	{
 		/// <summary>
 		/// Add course to current user's cart
@@ -33,12 +35,27 @@ namespace PaymentService.Infrastructure.Implements
 			var response = new AddToCartResponse { Success = false };
 
 			var currentUser = identityService.GetCurrentUser()!;
-			
+
+			var enrollCheck = await requestCheckEnrollEvent.GetResponse<CheckIsCourseEnrolledEventResponse>(new CheckIsCourseEnrolledEvent(courseId, currentUser.UserId), ct);
+
+			if (!enrollCheck.Message.Success)
+			{
+				response.SetMessage(MessageId.E00000, "Không thể kiểm tra trạng thái đăng ký khóa học");
+				return response;
+			}
+
+			if (enrollCheck.Message.Response)
+			{
+				response.SetMessage(MessageId.I00000, "Bạn đã đăng ký khóa học này. Không thể thêm vào giỏ hàng.");
+				return response;
+			}
+
 			var cart = await cartRepository
 				.Find(x => x.UserId == currentUser.UserId &&
 						   x.IsActive,
 					isTracking: true, ct)
 				.FirstOrDefaultAsync(ct);
+
 
 			if (cart is null)
 			{
