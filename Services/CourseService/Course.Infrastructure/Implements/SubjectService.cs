@@ -36,14 +36,42 @@ public class SubjectService(
             return response;
 		}
 
-        var entity = new Subject
+		// 2. Chuẩn hóa list môn tiên quyết nếu có
+		var prereqIds = dto.PrerequisiteSubjectIds?
+			.Where(id => id != Guid.Empty)
+			.Distinct()
+			.ToList() ?? new List<Guid>();
+
+		var entity = new Subject
         {
             SubjectCode = subjectCode,
             SubjectName = subjectName,
         };
 
-        await subjectRepository.AddAsync(entity, userEmail);
-        await unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
+		// 4. Nếu có môn tiên quyết thì load và gán
+		if (prereqIds.Count > 0)
+		{
+			// Lấy toàn bộ subject tương ứng
+			var prereqSubjects = await subjectRepository
+				.Find(s => prereqIds.Contains(s.SubjectId), isTracking: true, cancellationToken)
+				.ToListAsync(cancellationToken);
+
+			// Kiểm tra xem có id nào không tồn tại không
+			var foundIds = prereqSubjects.Select(s => s.SubjectId).ToHashSet();
+			var missingIds = prereqIds.Where(id => !foundIds.Contains(id)).ToList();
+
+			if (missingIds.Count > 0)
+			{
+				response.SetMessage(MessageId.E00000, "Một hoặc nhiều môn học ràng buộc không tồn tại.");
+				return response;
+			}
+
+			// Gán danh sách môn tiên quyết cho môn hiện tại
+			entity.PrereqSubjects = prereqSubjects;
+		}
+
+		await subjectRepository.AddAsync(entity, userEmail);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         response.Success = true;
         response.Response = true;
