@@ -17,6 +17,8 @@ public class StudentMajorOrientationEvent
     public Guid SemesterId { get; set; }
     
     public short StudentLevel { get; set; }
+    
+    public List<string>? StudentPassedSubjects { get; set; }
 }
 
 public class IdentityEntity

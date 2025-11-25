@@ -9,6 +9,7 @@ public class CoursesSelectEvent{
     
     public int LimitTime { get; set; }
     public short StudentLevel { get; set; }
+    public List<string>? StudentPassedSubjects { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>

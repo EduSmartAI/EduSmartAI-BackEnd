@@ -23,10 +23,10 @@ public class InsertOrderCommandHandler(
 
         var currentUser = identityService.GetCurrentUser()!;
         
-        // Validate that courseIds are provided
-        if (!request.CourseIds.Any())
+        // Validate that cartItemIds are provided
+        if (!request.CartItemIds.Any())
         {
-            response.SetMessage(MessageId.E00000, "Danh sách khóa học không được để trống");
+            response.SetMessage(MessageId.E00000, "Danh sách sản phẩm trong giỏ hàng không được để trống");
             return response;
         }
 
@@ -44,14 +44,14 @@ public class InsertOrderCommandHandler(
             return response;
         }
 
-        // Filter cart items by requested courseIds
+        // Filter cart items by requested cartItemIds
         var cartItemsToOrder = cart.CartItems
-            .Where(ci => request.CourseIds.Contains(ci.CourseId) && ci.IsActive && ci.IsSelected)
+            .Where(ci => request.CartItemIds.Contains(ci.CartItemId) && ci.IsActive)
             .ToList();
 
         if (!cartItemsToOrder.Any())
         {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy khóa học trong giỏ hàng");
+            response.SetMessage(MessageId.E00000, "Không tìm thấy sản phẩm trong giỏ hàng");
             return response;
         }
 
@@ -111,7 +111,7 @@ public class InsertOrderCommandHandler(
 
             // Remove purchased items from cart
             var cartItemsToRemove = await cartItemRepository
-                .Find(ci => ci.CartId == cart.CartId && request.CourseIds.Contains(ci.CourseId))
+                .Find(ci => ci.CartId == cart.CartId && request.CartItemIds.Contains(ci.CartItemId))
                 .ToListAsync(cancellationToken);
 
             if (cartItemsToRemove.Any())

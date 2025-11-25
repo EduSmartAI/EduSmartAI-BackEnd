@@ -15,6 +15,8 @@ public class LearningPathMajorInsertCommand : ICommand<LearningPathMajorInternal
     public int LimitTime { get; set; }
     public Guid SemesterId { get; set; }
     public short StudentLevel { get; set; }
+    
+    public List<string>? StudentPassedSubjects { get; set; }
 }
 
 public class LearningPathMajorRequest

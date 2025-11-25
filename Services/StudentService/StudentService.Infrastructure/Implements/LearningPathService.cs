@@ -208,7 +208,8 @@ public class LearningPathService : ILearningPathService
                 MajorCodes = request.Majors.Select(x => x.MajorCode).ToList(),
                 SemesterId = request.SemesterId,
                 LimitTime = request.LimitTime * 60,
-                StudentLevel = request.StudentLevel
+                StudentLevel = request.StudentLevel,
+                StudentPassedSubjects = request.StudentPassedSubjects
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 

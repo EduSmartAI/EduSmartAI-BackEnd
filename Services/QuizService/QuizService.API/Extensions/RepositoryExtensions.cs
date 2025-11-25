@@ -58,6 +58,7 @@ public static class RepositoryExtensions
         services.AddScoped<IQuizSurveyService, QuizSurveyService>();
         services.AddScoped<IStudentSurveyService, StudentSurveyService>();
         services.AddScoped<IPracticeTestService, PracticeTestService>();
+        services.AddScoped<ILearningPathService, LearningPathService>();
         services.AddScoped<IJudge0ApiLogic, Judge0ApiLogic>();
         services.AddScoped<StudentTestServiceDependencies>();
         

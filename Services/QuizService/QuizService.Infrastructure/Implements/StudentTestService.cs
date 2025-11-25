@@ -8,6 +8,7 @@ using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEve
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using QuizService.Application.Applications.Admin.Queries.StudentTests;
+using QuizService.Application.Applications.LearningPaths;
 using QuizService.Application.Applications.PracticeTest;
 using QuizService.Application.Applications.StudentTests.Commands;
 using QuizService.Application.Applications.StudentTests.Queries;
@@ -33,6 +34,7 @@ public class StudentTestService : IStudentTestService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPracticeTestService _practiceTestService;
     private readonly ICommandRepository<Problem> _problemRepository;
+    private readonly ILearningPathService _learningPathService;
 
     /// <summary>
     /// Constructor
@@ -40,7 +42,8 @@ public class StudentTestService : IStudentTestService
     /// <param name="deps"></param>
     /// <param name="practiceTestService"></param>
     /// <param name="problemRepository"></param>
-    public StudentTestService(StudentTestServiceDependencies deps, IPracticeTestService practiceTestService, ICommandRepository<Problem> problemRepository)
+    /// <param name="learningPathService"></param>
+    public StudentTestService(StudentTestServiceDependencies deps, IPracticeTestService practiceTestService, ICommandRepository<Problem> problemRepository, ILearningPathService learningPathService)
     {
         _studentQuizCollectionRepository = deps.StudentQuizCollectionRepository;
         _studentTestRepository = deps.StudentTestRepository;
@@ -55,6 +58,7 @@ public class StudentTestService : IStudentTestService
         _unitOfWork = deps.UnitOfWork;
         _practiceTestService = practiceTestService;
         _problemRepository = problemRepository;
+        _learningPathService = learningPathService;
     }
 
     /// <summary>
@@ -274,16 +278,13 @@ public class StudentTestService : IStudentTestService
             
             var learningPathId = Guid.NewGuid();
             
-            // Find HABIT survey from student quiz collections
             var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
-            // Get selected answer IDs
             var selectedAnswerIds = surveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
                 .Select(a => a.AnswerId)
                 .ToList();
        
-            // Build StudentQuizAnswerCollection for selected answers
             var studentQuizAnswers = surveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
                 .Where(a => selectedAnswerIds.Contains(a.AnswerId))
@@ -296,23 +297,21 @@ public class StudentTestService : IStudentTestService
 
             int limitTime = GetStudentStudyTime(studentQuizAnswers);
             
-            var prepareStudentLearningProfileForAiRequest = new StudentLearningProfileContext
+            var context = new LearningPathCreationContext
             {
                 StudentQuizCollections = studentSurveys,
                 CurrentUser = currentUser,
-                InformationResponse = informationResponse.Message,
-                Response = response,
+                InformationResponse = informationResponse.Message.Response,
                 LearningPathId = learningPathId,
                 LimitTime = limitTime,
                 StudentLevel = (short)studentLevel
             };
             
-            // Publish Message to AIService
-            var studentMajorOrientationEvent = await PrepareStudentLearningProfileForAiAsync(prepareStudentLearningProfileForAiRequest, cancellationToken);
-            if (!studentMajorOrientationEvent.Success)
+            var result = await _learningPathService.CreateLearningPathAsync(context, cancellationToken);
+            if (!result.Success)
             {
-                response.MessageId = studentMajorOrientationEvent.MessageId;
-                response.Message = studentMajorOrientationEvent.Message;
+                response.MessageId = result.MessageId;
+                response.Message = result.Message;
                 return false;
             }
             
@@ -643,94 +642,7 @@ public class StudentTestService : IStudentTestService
     /// <param name="context"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    private async Task<StudentTestInsertResponse> PrepareStudentLearningProfileForAiAsync(StudentLearningProfileContext context, CancellationToken cancellationToken)
-    {
-        var studentMajorOrientationEvent = new StudentMajorOrientationEvent();
 
-        if (context.InformationResponse.Response.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
-        {
-            // Find INTEREST survey from student quiz collections
-            var interestSurvey = context.StudentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST))!;
-
-            // Get selected answer IDs from student's answers
-            var selectedAnswerIds = interestSurvey.StudentQuizAnswers
-                .Select(a => a.AnswerId)
-                .ToHashSet();
-
-            // Prepare questions and student answers for AI analysis
-            var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
-            {
-                QuestionId = question.QuestionId,
-                QuestionText = question.QuestionText,
-                StudentAnswers = question.Answers
-                    .Where(a => selectedAnswerIds.Contains(a.AnswerId))
-                    .Select(a => a.AnswerText)
-                    .ToList()
-            }).Where(q => q.StudentAnswers.Any()).ToList();
-
-            // Set message to AI service for analysis
-            var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
-            {
-                StudentId = context.CurrentUser.UserId,
-                Questions = interestQuestions
-            };
-
-            // Send request to AiService and get response (you need to inject IRequestClient)
-            var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(studentInterestAnalysisEvent, cancellationToken);
-            if (!aiAnalysisResponse.Message.Success)
-            {
-                context.Response.SetMessage(MessageId.E99999);
-                return context.Response;
-            }
-            
-            // Set learning goal from AI analysis result
-            studentMajorOrientationEvent.LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal;
-        }
-        else
-        {
-            studentMajorOrientationEvent.LearningGoal = context.InformationResponse.Response.LearningGoalName;
-        }
-        
-        // Extract frameworks and languages from technologies response
-        var frameworks = context.InformationResponse.Response.Technologies
-            .Where(x => x.TechnologyType == (short) ConstantEnum.TechnologyType.Framework)
-            .Select(x => x.TechnologyName)
-            .ToList();
-
-        var languages = context.InformationResponse.Response.Technologies
-            .Where(x => x.TechnologyType == (short ) ConstantEnum.TechnologyType.ProgrammingLanguage)
-            .Select(x => x.TechnologyName)
-            .ToList();
-
-        // Use AI analysis result to determine major orientation
-        studentMajorOrientationEvent.Frameworks = frameworks;
-        studentMajorOrientationEvent.Languages = languages;
-        studentMajorOrientationEvent.IdentityEntity = new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
-        {
-            UserId = context.CurrentUser.UserId,
-            Email = context.CurrentUser.Email,
-        };
-        studentMajorOrientationEvent.LimitTime = $"{context.LimitTime} Giờ";
-        studentMajorOrientationEvent.LearningPathId = context.LearningPathId;
-        studentMajorOrientationEvent.SemesterId = context.InformationResponse.Response.SemesterId;
-        studentMajorOrientationEvent.StudentLevel = context.StudentLevel;
-
-        var outboxMessage = new OutboxMessage
-        {
-            Id = Guid.NewGuid(),
-            Type = nameof(StudentMajorOrientationEvent),
-            Content = JsonSerializer.Serialize(studentMajorOrientationEvent),
-            OccurredOnUtc = DateTime.UtcNow,
-        };
-
-        await _outboxRepository.AddAsync(outboxMessage);
-        await _unitOfWork.SaveChangesAsync(context.CurrentUser.Email, cancellationToken);
-
-        context.Response.Success = true;
-        context.Response.SetMessage(MessageId.I00001, "Chuẩn bị hồ sơ học tập của sinh viên cho AI");
-        return context.Response;
-    }
-    
     /// <summary>
     /// Get student study time from survey answers
     /// </summary>
@@ -836,14 +748,4 @@ public class StudentTestServiceDependencies
     public IRequestClient<StudentInformationSelectsEvent> RequestStudentInformationSelectsClient { get; }
     public IIdentityService IdentityService { get; }
     public IUnitOfWork UnitOfWork { get; }
-}
-public class StudentLearningProfileContext
-{
-    public List<StudentQuizCollection> StudentQuizCollections { get; init; } = null!;
-    public IdentityEntity CurrentUser { get; init; } = null!;
-    public StudentInformationSelectsEventResponse InformationResponse { get; init; } = null!;
-    public StudentTestInsertResponse Response { get; init; } = null!;
-    public Guid LearningPathId { get; init; }
-    public int LimitTime { get; init; }
-    public short StudentLevel { get; init; }
 }

@@ -8,7 +8,8 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorE
         string LimitTime,
         string CurrentUserEmail,
         IReadOnlyList<InternalMajorItem> Majors,
-        Guid SemesterId);
+        Guid SemesterId,
+        List<string>? StudentPassedSubjects);
         
     public sealed record InternalMajorItem(
         string MajorCode,

@@ -6,8 +6,8 @@ namespace PaymentService.Application.Applications.Orders.Commands.InsertOrder;
 
 public class InsertOrderCommand : IRequest<InsertOrderResponse>
 {
-    [Required(ErrorMessage = "CourseIds is required")]
-    public List<Guid> CourseIds { get; set; }
+    [Required(ErrorMessage = "CartItemIds is required")]
+    public List<Guid> CartItemIds { get; set; }
     
     [Required(ErrorMessage = "PaymentMethod is required")]
     public ConstantEnum.PaymentGateway PaymentMethod { get; set; }

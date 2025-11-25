@@ -17,5 +17,7 @@ namespace AiService.Application.Features.AiEvaluate
         public Guid SemesterId { get; set; }
         
         public short StudentLevel { get; set; }
+        
+        public List<string>? StudentPassedSubjects { get; set; }
     }
 }

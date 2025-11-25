@@ -30,6 +30,7 @@ public class InternalMajorEventConsumer(ILearningPathService learningPathService
             StudentLevel = evt.StudentLevel,
             CurrentUserEmail = evt.CurrentUserEmail,
             SemesterId = evt.SemesterId,
+            StudentPassedSubjects = evt.StudentPassedSubjects
         };
 
         // Insert internal majors using the learning path service

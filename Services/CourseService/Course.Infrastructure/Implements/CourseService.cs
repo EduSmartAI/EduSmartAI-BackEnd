@@ -1184,6 +1184,14 @@ namespace Course.Infrastructure.Implements
 				})
 				.ToListAsync(cancellationToken: ct);
 
+			// 3. Filter out courses with SubjectCode in StudentPassedSubjects
+			if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
+			{
+				coursesData = coursesData
+					.Where(c => !request.StudentPassedSubjects.Contains(c.SubjectCode))
+					.ToList();
+			}
+
 			// 4. Flatten và group by major
 			var groupedCourses = coursesData
 				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
