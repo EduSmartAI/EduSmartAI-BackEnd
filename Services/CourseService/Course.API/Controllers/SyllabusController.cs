@@ -1,8 +1,17 @@
-﻿using Course.Application.DTOs.SyllabusDTO;
+﻿using BaseService.Application.Common;
+using Course.Application.DTOs.SyllabusDTO;
+using Course.Application.DTOs.SyllabusDTO.Majors;
+using Course.Application.DTOs.SyllabusDTO.Semester;
 using Course.Application.DTOs.SyllabusDTO.Subjects;
 using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Majors.Queries.GetMajorDetails;
+using Course.Application.Majors.Queries.GetMajors;
+using Course.Application.Semesters.Queries.GetSemesterDetails;
+using Course.Application.Semesters.Queries.GetSemesters;
 using Course.Application.Subjects.Commands.AddSubjectToSyllabus;
 using Course.Application.Subjects.Commands.CreateSubject;
+using Course.Application.Subjects.Queries.GetSubjectDetails;
+using Course.Application.Subjects.Queries.GetSubjects;
 using Course.Application.Syllabus.Commands.CloneCascadeSyllabus;
 using Course.Application.Syllabus.Commands.CloneFoundationSyllabus;
 using Course.Application.Syllabus.Commands.CreateFullSyllabus;
@@ -149,6 +158,113 @@ namespace Course.API.Controllers
 				ModelState,
 				() => sender.Send(cmd),
 				new()
+			);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get list of semesters")]
+		public async Task<GetSemestersResponse> GetSemesters([FromQuery] int? page, [FromQuery] int? size, [FromQuery] string? search)
+		{
+			var request = new GetSemestersQuery(page, size, search);
+
+			return await ApiControllerHelper.HandleRequest<GetSemestersQuery, GetSemestersResponse, PagedResult<SemesterDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSemestersResponse()
+			);
+		}
+
+		[HttpGet("[action]/{semesterId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get semester detail by id")]
+		public async Task<GetSemesterDetailResponse> GetSemesterDetail([FromRoute] Guid semesterId)
+		{
+			var request = new GetSemesterDetailQuery(semesterId);
+			return await ApiControllerHelper.HandleRequest<GetSemesterDetailQuery, GetSemesterDetailResponse, SemesterDto>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSemesterDetailResponse()
+			);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get list of majors")]
+		public async Task<GetMajorsResponse> GetMajors(
+			[FromQuery] int? page,
+			[FromQuery] int? size,
+			[FromQuery] string? search)
+		{
+			var request = new GetMajorsQuery(page, size, search);
+
+			return await ApiControllerHelper.HandleRequest<GetMajorsQuery, GetMajorsResponse, PagedResult<MajorDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetMajorsResponse()
+			);
+		}
+
+		[HttpGet("[action]/{majorId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get major detail by id")]
+		public async Task<GetMajorDetailResponse> GetMajorDetail([FromRoute] Guid majorId)
+		{
+			var request = new GetMajorDetailQuery(majorId);
+
+			return await ApiControllerHelper.HandleRequest<GetMajorDetailQuery, GetMajorDetailResponse, MajorDto?>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetMajorDetailResponse()
+			);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get list of subjects")]
+		public async Task<GetSubjectsResponse> GetSubjects(
+			[FromQuery] int? page,
+			[FromQuery] int? size,
+			[FromQuery] string? search)
+		{
+			var request = new GetSubjectsQuery(page, size, search);
+
+			return await ApiControllerHelper.HandleRequest<
+				GetSubjectsQuery,
+				GetSubjectsResponse,
+				PagedResult<SubjectDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSubjectsResponse()
+			);
+		}
+
+		[HttpGet("[action]/{subjectId:guid}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(Summary = "Get subject detail by id")]
+		public async Task<GetSubjectDetailResponse> GetSubjectDetail([FromRoute] Guid subjectId)
+		{
+			var request = new GetSubjectDetailQuery(subjectId);
+
+			return await ApiControllerHelper.HandleRequest<
+				GetSubjectDetailQuery,
+				GetSubjectDetailResponse,
+				SubjectDto?>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSubjectDetailResponse()
 			);
 		}
 	}

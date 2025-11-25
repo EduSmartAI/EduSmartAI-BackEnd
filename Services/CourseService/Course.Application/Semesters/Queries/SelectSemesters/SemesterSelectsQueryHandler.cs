@@ -1,6 +1,6 @@
 using BuildingBlocks.Messaging.Events.QuizService.SemesterSelectsEvents;
 
-namespace Course.Application.Semesters.Queries;
+namespace Course.Application.Semesters.Queries.SelectSemesters;
 
 public class SemesterSelectsQueryHandler(ISemesterService semesterService) : IQueryHandler<SemesterSelectsQuery, SemesterSelectsEventResponse>
 {
