@@ -1032,89 +1032,118 @@ public class LearningPathService : ILearningPathService
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            // 1. Publish event to CourseService to select courses by subjectCode
-            var courseSelectEvent = new CourseSelectsBySubjectCodeEvent
+            // 1. Tìm LearningPathCourse từ request để lấy SubjectCode
+            var learningPathCourse = await _learningPathCourseCommandRepository
+                .Find(x => x.InternalCourseId == request.CourseId && x.IsActive)
+                .FirstOrDefaultAsync(cancellationToken);
+            
+            if (learningPathCourse == null)
             {
-                SubjectCode = request.SubjectCode,
-            };
+                response.SetMessage(MessageId.E00000, "Không tìm thấy khóa học trong lộ trình học của bạn");
+                return false;
+            }
 
-            var courseSelectEventResponse = await _requestClientCourseSelectsBySubjectCodeEvent.GetResponse<CourseSelectsBySubjectCodeEventResponse>(courseSelectEvent, cancellationToken);
-            if (!courseSelectEventResponse.Message.Success)
+            if (string.IsNullOrWhiteSpace(learningPathCourse.SubjectCode))
             {
-                response.SetMessage(MessageId.E00000, courseSelectEventResponse.Message.Message);
+                response.SetMessage(MessageId.E00000, "Khóa học không có mã môn học");
                 return false;
             }
             
-            // 2. Get learning path courses by courseIdSelects
-            var learningPaths = await _learningPathCommandRepository
-                .Find(c => c.StudentId == currentUser.UserId && c.IsActive,
-                    true,
-                    cancellationToken)
-                .Include(c => c.LearningPathMajors)
-                .ThenInclude(c => c.LearningPathCourses)
+            var subjectCodeToSkip = learningPathCourse.SubjectCode;
+            
+            // 2. Lấy tất cả PathId của user
+            var studentPathIds = await _learningPathCommandRepository
+                .Find(lp => lp.StudentId == currentUser.UserId && lp.IsActive, isTracking: false, cancellationToken)
+                .Select(lp => lp.PathId)
                 .ToListAsync(cancellationToken);
-            if (!learningPaths.Any())
+            
+            if (!studentPathIds.Any())
             {
-                response.SetMessage(MessageId.E00000, "Không tìm thấy lộ trình học tập nào của bạn");
+                response.SetMessage(MessageId.E00000, "Không tìm thấy lộ trình học của bạn");
                 return false;
             }
-            
-            // 3. Update course status to Skipped in write model
-            foreach (var learningPath in learningPaths)
+
+            // 3. Lấy tất cả LearningPathMajorId thuộc các PathId đó
+            var studentMajorIds = await _learningPathMajorCommandRepository
+                .Find(m => studentPathIds.Contains(m.PathId) && m.IsActive, isTracking: false, cancellationToken)
+                .Select(m => m.LearningPathMajorId)
+                .ToListAsync(cancellationToken);
+
+            if (!studentMajorIds.Any())
             {
-                foreach (var major in learningPath!.LearningPathMajors)
+                response.SetMessage(MessageId.E00000, "Không tìm thấy chuyên ngành trong lộ trình học của bạn");
+                return false;
+            }
+
+            // 4. Tìm tất cả LearningPathCourse có cùng SubjectCode của user
+            var coursesToUpdate = await _learningPathCourseCommandRepository
+                .Find(c => studentMajorIds.Contains(c.LearningPathMajorId) 
+                          && c.SubjectCode == subjectCodeToSkip 
+                          && c.IsActive, 
+                      isTracking: true, 
+                      cancellationToken)
+                .ToListAsync(cancellationToken);
+
+            if (!coursesToUpdate.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Không tìm thấy khóa học nào cần cập nhật");
+                return false;
+            }
+
+            // 5. Update status thành Skipped
+            var updatedCourseIds = new List<Guid>();
+            foreach (var course in coursesToUpdate)
+            {
+                if (course!.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
                 {
-                    foreach (var course in major.LearningPathCourses)
-                    {
-                        course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-                    }
-                    _learningPathCourseCommandRepository.UpdateRange(major.LearningPathCourses);
+                    course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                    updatedCourseIds.Add(course.LearningPathCourseId);
                 }
             }
 
+            if (!updatedCourseIds.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Tất cả khóa học có mã môn này đã được skip trước đó");
+                return false;
+            }
+
+            _learningPathCourseCommandRepository.UpdateRange(coursesToUpdate);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             
-            var updatedCourseIds = learningPaths
-                .SelectMany(lp => lp.LearningPathMajors)
-                .SelectMany(m => m.LearningPathCourses)
-                .Select(c => c.LearningPathCourseId)
-                .ToHashSet();
+            // 6. Update read model
+            var learningPathCollections = await _learningPathQueryRepository
+                .ToListAsync(x => studentPathIds.Contains(x.PathId));
             
-            // 4. Update read model - fetch write model with all majors and courses
-            var learningPathsIds = learningPaths.Select(lp => lp.PathId).ToList();
-            var learningPathCollections = await _learningPathQueryRepository.ToListAsync(x => learningPathsIds.Contains(x.PathId));
             foreach (var learningPathCollection in learningPathCollections)
             {
-                // Check if this learning path contains any updated courses
-                var hasUpdatedCourses = learningPathCollection.LearningPathMajors
-                    .SelectMany(m => m.LearningPathCourses)
-                    .Any(c => updatedCourseIds.Contains(c.LearningPathCourseId));
-
-                if (!hasUpdatedCourses)
-                    continue;
+                var hasChanges = false;
                 
-                // Update course status in read model
                 foreach (var major in learningPathCollection.LearningPathMajors)
                 {
                     foreach (var course in major.LearningPathCourses)
                     {
-
                         if (updatedCourseIds.Contains(course.LearningPathCourseId))
                         {
-                            course.Status = (short) ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            hasChanges = true;
                         }
                     }
                 }
                 
-                _unitOfWork.Store(learningPathCollection);
-                var lpIdStr = learningPathCollection.PathId.ToString("D");
-                await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser.UserId}:{lpIdStr}");
-                await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
-                await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+                if (hasChanges)
+                {
+                    _unitOfWork.Store(learningPathCollection);
+                    await _unitOfWork.SessionSaveChangesAsync();
+                    
+                    var lpIdStr = learningPathCollection.PathId.ToString("D");
+                    await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser.UserId}:{lpIdStr}");
+                    await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
+                    await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+                }
             }
             
-            // True
             response.Success = true;
+            response.Response = $"Đã cập nhật {updatedCourseIds.Count} khóa học có mã môn '{subjectCodeToSkip}' thành trạng thái Skipped";
             response.SetMessage(MessageId.I00001, "Cập nhật trạng thái khóa học");
             return true;
         }, cancellationToken);

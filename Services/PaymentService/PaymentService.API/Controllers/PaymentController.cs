@@ -19,27 +19,27 @@ public class PaymentController(ISender sender) : ControllerBase
 {
     private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
 
-    /// <summary>
-    /// Tạo yêu cầu thanh toán cho đơn hàng qua PayOS.
-    /// </summary>
-    /// <param name="request">Request chứa OrderId cần thanh toán</param>
-    /// <returns>Trả về checkout URL, QR code và transaction ID</returns>
-    [HttpPost("[action]")]
-    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Process payment for an order",
-        Description = "Create payment request via PayOS gateway. Returns checkout URL and QR code for payment."
-    )]
-    public async Task<ProcessPaymentResponse> InsertPayment([FromBody] ProcessPaymentCommand request)
-    {
-        return await ApiControllerHelper.HandleRequest<ProcessPaymentCommand, ProcessPaymentResponse, ProcessPaymentDto>(
-            request,
-            _logger,
-            ModelState,
-            async () => await sender.Send(request),
-            new ProcessPaymentResponse()
-        );
-    }
+    // /// <summary>
+    // /// Tạo yêu cầu thanh toán cho đơn hàng qua PayOS.
+    // /// </summary>
+    // /// <param name="request">Request chứa OrderId cần thanh toán</param>
+    // /// <returns>Trả về checkout URL, QR code và transaction ID</returns>
+    // [HttpPost("[action]")]
+    // [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    // [SwaggerOperation(
+    //     Summary = "Process payment for an order",
+    //     Description = "Create payment request via PayOS gateway. Returns checkout URL and QR code for payment."
+    // )]
+    // public async Task<ProcessPaymentResponse> InsertPayment([FromBody] ProcessPaymentCommand request)
+    // {
+    //     return await ApiControllerHelper.HandleRequest<ProcessPaymentCommand, ProcessPaymentResponse, ProcessPaymentDto>(
+    //         request,
+    //         _logger,
+    //         ModelState,
+    //         async () => await sender.Send(request),
+    //         new ProcessPaymentResponse()
+    //     );
+    // }
 
     /// <summary>
     /// Xử lý callback từ PayOS sau khi user thanh toán.
