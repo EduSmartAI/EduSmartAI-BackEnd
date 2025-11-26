@@ -266,22 +266,52 @@ namespace StudentService.Infrastructure.Implements
                     Success = false
                 };
             }
-            var @event = new SearchAiRecommendImproveEvents(improvement.ImprovementsText);
-            var resultSearch = await _aiSearchClient.GetResponse<SearchAiRecommendImproveResponse>(@event, cancellationToken);
-            var msg = resultSearch.Message;
-            if (msg.Success && !string.IsNullOrWhiteSpace(msg.Response))
-            {
-                improvement.ContentMarkdown = msg.Response;
-                improvement.UpdatedAt = DateTime.UtcNow;
 
-                _aiEvaluationImprovementRepository.Update(improvement);
-                await _unitOfWork.SaveChangesAsync(cancellationToken);
-            }
-            return new SearchAiRecommendResponse
+            try
             {
-                Success = msg.Success,
-                Response = msg.Response
-            };
+                var @event = new SearchAiRecommendImproveEvents(improvement.ImprovementsText);
+                var resultSearch = await _aiSearchClient.GetResponse<SearchAiRecommendImproveResponse>(@event, cancellationToken);
+
+                if (resultSearch?.Message == null)
+                {
+                    _logger.LogWarning("GenAndInsertImprovement: Received null response from AI search service for ImprovementId: {ImprovementId}", ImprovementId);
+                    return new SearchAiRecommendResponse
+                    {
+                        Success = false,
+                        Response = string.Empty
+                    };
+                }
+
+                var msg = resultSearch.Message;
+                if (msg.Success && !string.IsNullOrWhiteSpace(msg.Response))
+                {
+                    improvement.ContentMarkdown = msg.Response;
+                    improvement.UpdatedAt = DateTime.UtcNow;
+
+                    _aiEvaluationImprovementRepository.Update(improvement);
+                    await _unitOfWork.SaveChangesAsync(cancellationToken);
+                }
+
+                return new SearchAiRecommendResponse
+                {
+                    Success = msg.Success,
+                    Response = msg.Response ?? string.Empty
+                };
+            }
+            catch (Exception ex)
+            {
+                // Handle various MassTransit exceptions: RequestTimeoutException, RequestException, ConnectionException, etc.
+                var exceptionType = ex.GetType().Name;
+                _logger.LogError(ex,
+                    "GenAndInsertImprovement: Error when calling AI search service for ImprovementId: {ImprovementId}. Exception Type: {ExceptionType}, Message: {Message}",
+                    ImprovementId, exceptionType, ex.Message);
+
+                return new SearchAiRecommendResponse
+                {
+                    Success = false,
+                    Response = "Đã xảy ra lỗi trong quá trình search"
+                };
+            }
         }
     }
 }
