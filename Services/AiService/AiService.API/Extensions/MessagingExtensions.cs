@@ -7,12 +7,12 @@ using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.AiFeedback;
-using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.GetLessonInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.UtilityService;
 using MassTransit;
 
 namespace AiService.API.Extensions;
@@ -64,6 +64,7 @@ public static class MessagingExtensions
             x.AddRequestClient<InternalMajorEvent>(TimeSpan.FromSeconds(170));
             x.AddRequestClient<InsertAiFeedbackEvents>();
             x.AddRequestClient<GetModuleProgressEvents>();
+            x.AddRequestClient<GetSystemConfigEvent>(TimeSpan.FromSeconds(200));
         });
 
         return services;
