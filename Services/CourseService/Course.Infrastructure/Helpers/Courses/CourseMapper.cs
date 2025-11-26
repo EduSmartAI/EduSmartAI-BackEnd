@@ -519,6 +519,7 @@ namespace Course.Infrastructure.Helpers.Courses
 		public CourseDto ToDto(CourseEntity e) => new(
 			CourseId: e.CourseId,
 			TeacherId: e.TeacherId,
+			TeacherName: "",
 			SubjectId: e.SubjectId,
 			SubjectCode: e.Subject?.SubjectCode ?? string.Empty,
 			Title: e.Title ?? string.Empty,

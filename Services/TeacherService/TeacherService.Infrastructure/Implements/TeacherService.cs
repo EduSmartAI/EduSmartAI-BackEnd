@@ -2,6 +2,7 @@ using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
+using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
 using Microsoft.EntityFrameworkCore;
 using TeacherService.Application.Applications.Teachers.Commands.Inserts;
 using TeacherService.Application.Applications.Teachers.Commands.UpdateTeacherProfile;
@@ -63,13 +64,33 @@ public class TeacherService(
 		return response;
 	}
 
+	public async Task<List<TeacherNameExternalServiceDto>> GetTeacherNamesAsync(IList<Guid> teacherIds, CancellationToken ct = default)
+	{
+		if (teacherIds == null || teacherIds.Count == 0)
+			return new List<TeacherNameExternalServiceDto>();
+
+		// Lấy danh sách teacher theo batch
+		var teachers = await _teacherQueryRepository.ToListAsync(
+			x => teacherIds.Contains(x.TeacherId) && x.IsActive
+		);
+
+		// Map sang DTO trả về
+		return teachers.Select(t => new TeacherNameExternalServiceDto
+		{
+			TeacherId = t.TeacherId,
+			DisplayName = t.DisplayName
+		}).ToList();
+	}
+
+
+
 	/// <summary>
 	/// Get teacher detail by id
 	/// </summary>
 	/// <param name="teacherId"></param>
 	/// <param name="ct"></param>
 	/// <returns></returns>
-	public async Task<GetTeacherDetailResponse> GetDetailAsync(Guid teacherId, CancellationToken ct = default)
+	public async Task<GetTeacherDetailResponse> GetTeacherDetailAsync(Guid teacherId, CancellationToken ct = default)
 	{
 		var response = new GetTeacherDetailResponse { Success = false };
 
