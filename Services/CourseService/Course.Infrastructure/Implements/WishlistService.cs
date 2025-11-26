@@ -1,4 +1,5 @@
 ﻿using BaseService.Application.Common;
+using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
 using Course.Application.DTOs.CoursesDTO.WishlistDTO;
 using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Application.Wishlists.Commands.AddToWishlist;
@@ -14,7 +15,8 @@ namespace Course.Infrastructure.Implements
 		IUnitOfWork unitOfWork,
 		ICommandRepository<CourseWishlist> _wishlistCommandRepository,
 		ICommandRepository<CourseEntity> _courseCommandRepository,
-		IWishlistCache _wishlistCache
+		IWishlistCache _wishlistCache,
+		IRequestClient<GetTeacherNamesEvent> _teacherNameClient
 	) : IWishlistService
 	{
 		/// <summary>
@@ -132,20 +134,38 @@ namespace Course.Infrastructure.Implements
 				include: q => q.Include(w => w.Course)
 			);
 
-			var wishlistItems = paged.Items.Select(w => new WishlistItemDto(
-				w.WishlistId,
-				w.Course.CourseId,
-				w.Course.Title,
-				w.Course.Description,
-				w.Course.ShortDescription,
-				w.Course.CourseImageUrl,
-				w.Course.Level,
-				w.Course.Price,
-				w.Course.DealPrice,
-				w.Course.Slug,
-				true,
-				w.CreatedAt
-			)).ToList();
+			var teacherIds = paged.Items.Select(w => w.Course.TeacherId).Where(id => id != Guid.Empty).Distinct().ToList();
+
+			var teacherLookup = new Dictionary<Guid, string>();
+
+			if (teacherIds.Count > 0)
+			{
+				var teacherResp = await _teacherNameClient
+					.GetResponse<GetTeacherNamesEventResponse>(new GetTeacherNamesEvent(teacherIds), ct);
+
+				teacherLookup = teacherResp.Message.Response.ToDictionary(x => x.TeacherId, x => x.DisplayName ?? "");
+			}
+
+			var wishlistItems = paged.Items.Select(w =>
+			{
+				teacherLookup.TryGetValue(w.Course.TeacherId, out var teacherName);
+
+				return new WishlistItemDto(
+					w.WishlistId,
+					w.Course.CourseId,
+					teacherName ?? "",
+					w.Course.Title,
+					w.Course.Description,
+					w.Course.ShortDescription,
+					w.Course.CourseImageUrl,
+					w.Course.Level,
+					w.Course.Price,
+					w.Course.DealPrice,
+					w.Course.Slug,
+					true,
+					w.CreatedAt
+				);
+			}).ToList();
 
 			var result = new PagedResult<WishlistItemDto>
 			{
@@ -157,7 +177,6 @@ namespace Course.Infrastructure.Implements
 
 			await _cache.SetAsync(cacheKey, result, ttl);
 
-
 			response.Success = true;
 			response.Response = new PagedResult<WishlistItemDto>
 			{
@@ -167,7 +186,6 @@ namespace Course.Infrastructure.Implements
 				PageSize = paged.PageSize
 			};
 			response.SetMessage(MessageId.I00001, "Lấy wishlist của tôi");
-
 
 			return response;
 		}
