@@ -1,4 +1,6 @@
 ﻿using AiService.Application.Interfaces;
+using BuildingBlocks.Messaging.Events.UtilityService;
+using MassTransit;
 using Microsoft.Extensions.Configuration;
 using OpenAI.Chat;
 using System.Text.RegularExpressions;
@@ -9,7 +11,8 @@ namespace AiService.Infrastructure.Implements
     public class TavilyService : ITavilyService
     {
         private readonly TavilyClient _tavily;            // Tavily .NET SDK
-        private readonly string _tavilyKey;               // Lấy từ IOptions<TavilyOptions>
+        private readonly IRequestClient<GetSystemConfigEvent> _requestClient;
+        private string? _tavilyKey;                        // Lazy loaded from UtilityService
         private const int MAX_RESULTS_PER_QUERY_FAST = 3;
 
         private static readonly string[] TRUSTED_FALLBACK =
@@ -26,11 +29,37 @@ namespace AiService.Infrastructure.Implements
         public TavilyService(
             ChatClient chat,
             TavilyClient tavily,
-            IConfiguration config
+            IConfiguration config,
+            IRequestClient<GetSystemConfigEvent> requestClient
         )
         {
             _tavily = tavily;
-            _tavilyKey = Environment.GetEnvironmentVariable("TAVILY_API_KEY") ?? string.Empty;
+            _requestClient = requestClient;
+        }
+
+        private async Task<string> GetTavilyKeyAsync(CancellationToken cancellationToken = default)
+        {
+            if (_tavilyKey != null)
+                return _tavilyKey;
+
+            try
+            {
+                var request = new GetSystemConfigEvent { ConfigId = "TAVILY_API_KEY" };
+                var response = await _requestClient.GetResponse<GetSystemConfigEventResponse>(request, cancellationToken);
+                
+                if (response.Message.Success && !string.IsNullOrEmpty(response.Message.Response))
+                {
+                    _tavilyKey = response.Message.Response;
+                    return _tavilyKey;
+                }
+            }
+            catch
+            {
+                // Fallback to empty string if request fails
+            }
+
+            _tavilyKey = string.Empty;
+            return _tavilyKey;
         }
         private static string DomainOf(string? u)
         {
@@ -105,11 +134,12 @@ namespace AiService.Infrastructure.Implements
         }
         public async Task<List<TavilyItem>> TavilySearchParallelAsync(List<string> queries, HashSet<string> trustedDomains, HashSet<string> avoidDomains)
         {
+            var tavilyKey = await GetTavilyKeyAsync();
             var tasks = queries.Select(async q =>
             {
                 try
                 {
-                    var res = await _tavily.SearchAsync(apiKey: _tavilyKey, query: q);
+                    var res = await _tavily.SearchAsync(apiKey: tavilyKey, query: q);
                     var results = res?.Results;
                     if (results == null || results.Count == 0)
                         return new List<TavilyItem>();
@@ -168,11 +198,12 @@ namespace AiService.Infrastructure.Implements
 
         public async Task<List<TavilyItem>> TavilySearchParallelExhaustiveAsync(List<string> queries, HashSet<string> trustedDomains, HashSet<string> avoidDomains, int limitPerDomain = 3, int maxTake = 90)
         {
+            var tavilyKey = await GetTavilyKeyAsync();
             var tasks = queries.Select(async q =>
             {
                 try
                 {
-                    var res = await _tavily.SearchAsync(apiKey: _tavilyKey, query: q);
+                    var res = await _tavily.SearchAsync(apiKey: tavilyKey, query: q);
                     var results = res?.Results;
                     if (results == null || results.Count == 0)
                         return new List<TavilyItem>();
