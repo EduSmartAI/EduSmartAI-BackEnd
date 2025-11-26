@@ -7,7 +7,7 @@ namespace TeacherService.Application.Applications.Teachers.Queries.GetTeacherDet
 	{
 		public async Task<GetTeacherDetailResponse> Handle(GetTeacherDetailQuery request, CancellationToken cancellationToken)
 		{
-			return await _teacherService.GetDetailAsync(request.TeacherId, cancellationToken);
+			return await _teacherService.GetTeacherDetailAsync(request.TeacherId, cancellationToken);
 		}
 	}
 

@@ -22,6 +22,8 @@ public static class MessagingExtensions
             // Add consumers
             x.AddConsumer<LecturerInsertEventConsumer>();
             x.AddConsumer<TeacherLoginEventConsumer>();
+            x.AddConsumer<GetTeacherNameEventConsumer>();
+            x.AddConsumer<GetTeacherDetailsEventConsumer>();
 
             x.UsingRabbitMq((context, cfg) =>
             {

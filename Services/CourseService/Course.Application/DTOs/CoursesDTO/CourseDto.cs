@@ -3,6 +3,7 @@
 	public record CourseDto(
 		Guid CourseId,
 		Guid TeacherId,
+		string TeacherName,
 		Guid SubjectId,
 		string SubjectCode,
 		string Title,
