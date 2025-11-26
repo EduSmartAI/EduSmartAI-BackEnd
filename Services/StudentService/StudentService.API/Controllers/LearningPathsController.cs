@@ -10,6 +10,7 @@ using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPathCourse.Commands.UpdateLearningPathCourseStatus;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
@@ -192,6 +193,21 @@ namespace StudentService.API.Controllers
 				ModelState,
 				async () => await _mediator.Send(command),
 				new UpdateLearningPathCourseStatusResponse());
+		}
+
+        [HttpPost("[action]")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<UpdateLearningPathStatusResponse> UpdateLearningPathStatus([FromBody] UpdateLearningPathStatusCommand request)
+        {
+            return await ApiControllerHelper.HandleRequest<UpdateLearningPathStatusCommand, UpdateLearningPathStatusResponse, bool>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new UpdateLearningPathStatusResponse());
 		}
 	}
 }
