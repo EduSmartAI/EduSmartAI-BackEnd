@@ -23,6 +23,7 @@ public static class ConstantEnum
         Pending = 1,
         Paid = 2,
         Failed = 3,
+        SystemError = 4,
     }
 
     public enum QuestionType
