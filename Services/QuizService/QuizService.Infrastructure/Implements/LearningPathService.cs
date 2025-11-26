@@ -169,7 +169,7 @@ public class LearningPathService : ILearningPathService
         if (learningGoalType == (short)ConstantEnum.LearningGoalType.None)
         {
             var interestSurvey = context.StudentQuizCollections.FirstOrDefault(sq => 
-                sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+                sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
             if (interestSurvey == null)
             {
