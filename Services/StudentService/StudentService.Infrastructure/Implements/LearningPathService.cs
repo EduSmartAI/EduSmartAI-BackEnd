@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
@@ -70,7 +71,8 @@ public class LearningPathService : ILearningPathService
         _identityService = identityService;
         _requestClient = requestClient;
         _mapper = mapper;
-    }
+        _requestClientCourseSelectsBySubjectCodeEvent = requestClientCourseSelectsBySubjectCodeEvent;
+	}
 
     public async Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken)
     {
@@ -850,7 +852,6 @@ public class LearningPathService : ILearningPathService
 
             await _unitOfWork.SessionSaveChangesAsync();
 
-            var lpIdStr = request.LearningPathId.ToString("D");
             await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUserId, request.LearningPathId));
             await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(request.LearningPathId));
 
@@ -1194,6 +1195,114 @@ public class LearningPathService : ILearningPathService
         }, cancellationToken);
     }
 
+	/// <summary>
+	/// Update Learning Path Status (InProgress, Closed, Paused)
+	/// </summary>
+	/// If the new status is InProgress, other learning paths of the user will be set to Paused.
+	/// <param name="learningPathId"></param>
+	/// <param name="newStatus"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	public async Task<UpdateLearningPathStatusResponse> UpdateLearningPathStatusAsync(Guid learningPathId, ConstantEnum.LearningPathStatus newStatus, CancellationToken ct = default)
+	{
+		var response = new UpdateLearningPathStatusResponse { Success = false };
+        var currentUser = _identityService.GetCurrentUser();
+
+        if (currentUser == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
+            return response;
+		}
+
+		if (newStatus != ConstantEnum.LearningPathStatus.InProgress && newStatus != ConstantEnum.LearningPathStatus.Closed && newStatus != ConstantEnum.LearningPathStatus.Paused)
+        {
+            response.SetMessage(MessageId.E00000, "Trạng thái lộ trình học tập không hợp lệ");
+            return response;
+		}
+
+		var lp = await _learningPathCommandRepository
+		                        .Find(x => x.PathId == learningPathId && x.IsActive,
+		                        	  isTracking: true,
+		                        	  cancellationToken: ct)
+		                        .FirstOrDefaultAsync(ct);
+
+        if (lp == null)
+        {
+            response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
+            return response;
+		}
+
+        if (lp.Status == (short)newStatus)
+        {
+            response.SetMessage(MessageId.E00000, "Trạng thái lộ trình học tập không thay đổi");
+            return response;
+        }
+
+
+        lp.Status = (short)newStatus;
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+
+			if (newStatus == ConstantEnum.LearningPathStatus.InProgress)
+			{
+				var otherPaths = await _learningPathCommandRepository
+					.Find(x => x.StudentId == currentUser.UserId
+							   && x.PathId != learningPathId
+							   && x.IsActive,
+						  isTracking: true,
+						  cancellationToken: ct)
+					.ToListAsync(ct);
+
+				foreach (var p in otherPaths)
+				{
+					p.Status = (short)ConstantEnum.LearningPathStatus.Paused;
+					p.UpdatedAt = DateTime.UtcNow;
+					_learningPathCommandRepository.Update(p);
+				}
+			}
+
+			_learningPathCommandRepository.Update(lp);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+            // Cập nhật read model
+            await SyncLearningPathReadModelByIdAsync(learningPathId, currentUser.UserId, ct);
+
+			// Các LP khác (nếu có)
+			if (newStatus == ConstantEnum.LearningPathStatus.InProgress)
+			{
+				var otherPaths = await _learningPathCommandRepository
+					.Find(x => x.StudentId == currentUser.UserId
+							   && x.PathId != learningPathId
+							   && x.IsActive,
+						  isTracking: false,
+						  cancellationToken: ct)
+					.Select(x => x.PathId)
+					.ToListAsync(ct);
+
+				foreach (var otherId in otherPaths)
+				{
+					await SyncLearningPathReadModelByIdAsync(otherId, currentUser.UserId, ct);
+				}
+			}
+
+            return true;
+        }, ct);
+
+		// Clear cache cho LP chính
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUser.UserId, learningPathId));
+		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathPaged(currentUser.UserId, 1, 20));
+
+
+		response.Success = true;
+        response.Response = true;
+        response.SetMessage(MessageId.I00001, "Cập nhật trạng thái lộ trình học tập");
+        return response;
+	}
+
+
 	#region Private Helpers Methods
 
 	/// <summary>
@@ -1272,7 +1381,6 @@ public class LearningPathService : ILearningPathService
         await _unitOfWork.SessionSaveChangesAsync();
 
         // 5) Xoá cache liên quan (y chang mẫu, chỉ khác là dùng studentId truyền vào)
-        var lpIdStr = learningPathId.ToString("D");
         await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
         await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
 
@@ -1346,7 +1454,7 @@ public class LearningPathService : ILearningPathService
 		}
 	}
 
-
+	
 	#endregion
 
 }
