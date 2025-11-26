@@ -22,6 +22,7 @@ public static class MessagingExtensions
             x.AddConsumer<SendKeyEventConsumer>();
             x.AddConsumer<UploadVideoRequestedConsumer>();
             x.AddConsumer<AvatarUploadEventConsumer>();
+            x.AddConsumer<GetSystemConfigEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "utility", includeNamespace: false));
 

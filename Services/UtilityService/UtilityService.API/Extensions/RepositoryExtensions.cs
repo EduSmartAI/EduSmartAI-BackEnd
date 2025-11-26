@@ -21,6 +21,7 @@ public static class RepositoryExtensions
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
         services.AddScoped<ICloudinaryService, CloudinaryService>();
+        services.AddScoped<ITavilyConfigService, TavilyConfigService>();
         services.AddScoped(typeof(ICommandRepository<>), typeof(CommandRepository<>));
 
         services.AddMediatR(cfg =>

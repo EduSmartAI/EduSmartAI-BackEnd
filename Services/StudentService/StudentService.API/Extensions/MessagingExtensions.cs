@@ -95,7 +95,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetAllDetailCourseEvent>();
             x.AddRequestClient<GetOverviewCourseEvents>();
             x.AddRequestClient<StudentTranscriptSelectEvent>();
-            x.AddRequestClient<SearchAiRecommendImproveEvents>();
+            x.AddRequestClient<SearchAiRecommendImproveEvents>(TimeSpan.FromSeconds(600)); // 10 minutes timeout for AI search
         });
 
         return services;
