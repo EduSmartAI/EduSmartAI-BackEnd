@@ -20,6 +20,7 @@ using StudentService.Application.Applications.Students.Consumers.StudentInformat
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Application.Consumers;
 using StudentService.Application.Consumers.DashboardCourse;
+using StudentService.Application.Consumers.AiChatLearningPath;
 
 namespace StudentService.API.Extensions;
 
@@ -57,6 +58,9 @@ public static class MessagingExtensions
             x.AddConsumer<UpdateModuleFeedbackEventConsumer>();
             x.AddConsumer<CourseCompletedEventConsumer>();
             x.AddConsumer<StudentTranscriptSelectEventConsumer>();
+            x.AddConsumer<GetAllLearningPathConsumer>();
+            x.AddConsumer<GetLearningPathInfoConsumer>();
+            x.AddConsumer<AiUpdateCourseStatusToSkippedConsumer>();
             
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));

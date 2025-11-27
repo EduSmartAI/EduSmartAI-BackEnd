@@ -25,19 +25,21 @@ public interface ILearningPathService
 
     Task<bool> UpdateLearningPathStatusAsync(Guid learningPathId, CancellationToken contextCancellationToken);
 
-    Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, CancellationToken cancellationToken = default);
-   
-    Task<UpdateStatusLearningPathResponse> UpdateStatusLearningPathByIdAndSortPosition(UpdateStatusLearningPathCommand request, CancellationToken cancellationToken);
-   
-    Task<UpdateReadModelLearningPathResponse> UpdateStatusLearningPathReadModelByIdAndSortPosition(UpdateReadModelLearningPathCommand request, CancellationToken cancellationToken);
-   
-    Task<SelectAllLearningPathResponse> GetAllLearningPath(SelectAllLearningPathQuery query, CancellationToken cancellationToken = default);
-   
-    Task<LearningPathCourseUpdateResponse> UpdateLearningPathCoursesAsync(LearningPathCourseUpdateCommand request, CancellationToken cancellationToken);
-    
-    Task<UpdateCourseStatusToSkippedResponse> UpdateCourseStatusToSkippedAsync(UpdateCourseStatusToSkippedCommand request, CancellationToken cancellationToken);
+    Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, Guid userId, CancellationToken cancellationToken = default);
 
-	Task UpdateCourseStatusForUserAsync(Guid userId, Guid courseId, short status, CancellationToken cancellationToken = default);
+    Task<UpdateStatusLearningPathResponse> UpdateStatusLearningPathByIdAndSortPosition(UpdateStatusLearningPathCommand request, CancellationToken cancellationToken);
+
+    Task<UpdateReadModelLearningPathResponse> UpdateStatusLearningPathReadModelByIdAndSortPosition(UpdateReadModelLearningPathCommand request, CancellationToken cancellationToken);
+
+    Task<SelectAllLearningPathResponse> GetAllLearningPath(SelectAllLearningPathQuery query, Guid userId, CancellationToken cancellationToken = default);
+
+    Task<LearningPathCourseUpdateResponse> UpdateLearningPathCoursesAsync(LearningPathCourseUpdateCommand request, CancellationToken cancellationToken);
+
+    Task<UpdateCourseStatusToSkippedResponse> UpdateCourseStatusToSkippedAsync(UpdateCourseStatusToSkippedCommand request, Guid userId, string email, CancellationToken cancellationToken);
+
+    Task<UpdateCourseStatusToSkippedResponse> UpdateCourseStatusToSkippedBySubjectAsync(Guid userId, Guid learningPathId, string subjectCode, string email, CancellationToken cancellationToken);
+
+    Task UpdateCourseStatusForUserAsync(Guid userId, Guid courseId, short status, CancellationToken cancellationToken = default);
 
     Task<UpdateLearningPathStatusResponse> UpdateLearningPathStatusAsync(Guid learningPathId, LearningPathStatus newStatus, CancellationToken ct = default);
 }
