@@ -434,140 +434,152 @@ public class PracticeTestService
         var response = new PracticeTestSubmitInsertResponse { Success = false };
 
         var currentUser = identityService.GetCurrentUser()!;
-        
-        // Check problem exists
-        var problem = await problemCommandRepository
-            .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
-                isTracking: true,
-                cancellationToken: cancellationToken,
-                x => x.TestCases,
-                x => x.ProblemTemplates)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (problem == null)
+
+        try
         {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
-            return response;
-        }
-        
-        var problemTemplate = problem.ProblemTemplates.FirstOrDefault(pt => pt.LanguageId == request.LanguageId && pt.IsActive);
-        if (problemTemplate == null)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
-            return response;
-        }
-        
-        // Create submission
-        var submission = new Submission
-        {
-            SubmissionId = Guid.NewGuid(),
-            ProblemId = request.ProblemId,
-            StudentId = currentUser.UserId,
-            Code = request.SourceCode,
-            LanguageId = request.LanguageId,
-        };
-        
-        // Submit to Judge0 API
-        var batchRequest = new BatchSubmissionRequest
-        {
-            Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
+            // Check problem exists
+            var problem = await problemCommandRepository
+                .Find(predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
+                    isTracking: true,
+                    cancellationToken: cancellationToken,
+                    x => x.TestCases)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (problem == null)
             {
-                SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
-                LanguageId = request.LanguageId,
-                Stdin = tc.InputData,
-                ExpectedOutput = tc.ExpectedOutput,
-                CpuTimeLimit = 2.0,
-                MemoryLimit = 128000
-            }).ToList()
-        };
-        
-        // Call Judge0 API to submit batch
-        var submissResult = await judge0ApiLogic.SubmitBatchAsync(batchRequest);
-        var tokens = string.Join(",", submissResult.Submissions.Select(s => s.Token));
-        
-        List<SubmissionResult>? pollResults = null;
-        int maxRetries = 10;
-        int retryCount = 0;
-        
-        do
-        {
-            await Task.Delay(1000, cancellationToken);
-            var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(tokens);
-        
-            // Check all results are completed
-            bool allCompleted = batchResult.All(s => s.Status.Id > (short) ConstantEnum.Judge0Status.Processing);
-            if (allCompleted)
-            {
-                pollResults = batchResult;
-                break;
+                response.SetMessage(MessageId.E00000, "Không tìm thấy đề kiểm tra thực hành");
+                return response;
             }
-        
-            retryCount++;
-        }
-        while (retryCount < maxRetries);
-
-        if (retryCount >= maxRetries)
-        {
-            submission.Status = nameof(ConstantEnum.PracticeTestSubmissionStatus.TimeOut);
-        }
-        
-        // Processing results
-        int passedCount = 0;
-        long totalTimeMs = 0;
-        var testResults = new List<SubmissionTestResultResponse>();
-
-        for (int i = 0; i < pollResults!.Count; i++)
-        {
-            var result = pollResults[i];
-            var testCase = problem.TestCases.ToList()[i];
-
-            bool passed = result.Status.Id == (short) ConstantEnum.Judge0Status.Accepted;
-            if (passed) passedCount++;
-
-            totalTimeMs += (long)((result.Time ?? 0) * 1000);
-
-            // Insert SubmissionTestResult
-            var testResult = new SubmissionTestResult
+            
+            // Query problemTemplate directly from repository to avoid global query filter issues
+            var problemTemplate = await problemTemplateRepository
+                .Find(predicate: x => x.ProblemId == request.ProblemId && x.LanguageId == request.LanguageId && x.IsActive,
+                    isTracking: false,
+                    cancellationToken: cancellationToken)
+                .FirstOrDefaultAsync(cancellationToken);
+            if (problemTemplate == null)
             {
-                SubmissionTestId = Guid.NewGuid(),
-                SubmissionId = submission.SubmissionId,
-                TestcaseId = testCase.TestcaseId,
-                Passed = passed,
-                ActualOutput = result.Stdout?.Trim() ?? result.Stderr,
+                response.SetMessage(MessageId.E00000, "Không tìm thấy code mẫu cho ngôn ngữ lập trình đã chọn");
+                return response;
+            }
+            
+            // Create submission
+            var submission = new Submission
+            {
+                SubmissionId = Guid.NewGuid(),
+                ProblemId = request.ProblemId,
+                StudentId = currentUser.UserId,
+                Code = request.SourceCode,
+                LanguageId = request.LanguageId,
             };
-            submission.SubmissionTestResults.Add(testResult);
-
-            testResults.Add(new SubmissionTestResultResponse
+            
+            // Submit to Judge0 API
+            var batchRequest = new BatchSubmissionRequest
             {
-                TestCaseId = testCase.TestcaseId,
-                IsPublic = testCase.IsPublic ?? false,
-                InputData = (testCase.IsPublic ?? false) ? testCase.InputData : "Hidden",
-                ExpectedOutput = (testCase.IsPublic ?? false) ? testCase.ExpectedOutput : "Hidden",
-                ActualOutput = testResult.ActualOutput,
-                Passed = passed,
-                Status = result.Status.Description,
-            });
+                Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
+                {
+                    SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
+                    LanguageId = request.LanguageId,
+                    Stdin = tc.InputData,
+                    ExpectedOutput = tc.ExpectedOutput,
+                    CpuTimeLimit = 2.0,
+                    MemoryLimit = 128000
+                }).ToList()
+            };
+            
+            // Call Judge0 API to submit batch
+            var submissResult = await judge0ApiLogic.SubmitBatchAsync(batchRequest);
+            var tokens = string.Join(",", submissResult.Submissions.Select(s => s.Token));
+            
+            List<SubmissionResult>? pollResults = null;
+            int maxRetries = 10;
+            int retryCount = 0;
+            
+            do
+            {
+                await Task.Delay(1000, cancellationToken);
+                var batchResult = await judge0ApiLogic.GetBatchSubmissionAsync(tokens);
+            
+                // Check all results are completed
+                bool allCompleted = batchResult.All(s => s.Status.Id > (short) ConstantEnum.Judge0Status.Processing);
+                if (allCompleted)
+                {
+                    pollResults = batchResult;
+                    break;
+                }
+            
+                retryCount++;
+            }
+            while (retryCount < maxRetries);
+
+            if (retryCount >= maxRetries)
+            {
+                submission.Status = nameof(ConstantEnum.PracticeTestSubmissionStatus.TimeOut);
+            }
+            
+            // Processing results
+            int passedCount = 0;
+            long totalTimeMs = 0;
+            var testResults = new List<SubmissionTestResultResponse>();
+
+            for (int i = 0; i < pollResults!.Count; i++)
+            {
+                var result = pollResults[i];
+                var testCase = problem.TestCases.ToList()[i];
+
+                bool passed = result.Status.Id == (short) ConstantEnum.Judge0Status.Accepted;
+                if (passed) passedCount++;
+
+                totalTimeMs += (long)((result.Time ?? 0) * 1000);
+
+                // Insert SubmissionTestResult
+                var testResult = new SubmissionTestResult
+                {
+                    SubmissionTestId = Guid.NewGuid(),
+                    SubmissionId = submission.SubmissionId,
+                    TestcaseId = testCase.TestcaseId,
+                    Passed = passed,
+                    ActualOutput = result.Stdout?.Trim() ?? result.Stderr,
+                };
+                submission.SubmissionTestResults.Add(testResult);
+
+                testResults.Add(new SubmissionTestResultResponse
+                {
+                    TestCaseId = testCase.TestcaseId,
+                    IsPublic = testCase.IsPublic ?? false,
+                    InputData = (testCase.IsPublic ?? false) ? testCase.InputData : "Hidden",
+                    ExpectedOutput = (testCase.IsPublic ?? false) ? testCase.ExpectedOutput : "Hidden",
+                    ActualOutput = testResult.ActualOutput,
+                    Passed = passed,
+                    Status = result.Status.Description,
+                });
+            }
+
+            // Add submission to repository (will be saved by parent transaction)
+            await submissionRepository.AddAsync(submission);
+
+            // Update submission status
+            submission.Status = DetermineStatus(pollResults);
+            
+            // Build response
+            response.Success = true;
+            response.Response = new PracticeTestSubmitInsertResponseEntity
+            {
+                SubmissionId = submission.SubmissionId,
+                Status = DetermineStatus(pollResults),
+                PassedTests = passedCount,
+                TotalTests = problem.TestCases.Count,
+                AverageTimeMs = pollResults.Count > 0 ? (int) (totalTimeMs / pollResults.Count) : 0,
+                TestResults = testResults
+            };
+            response.SetMessage(MessageId.I00001, "Nộp bài kiểm tra thực hành");
+            
+            return response;
         }
-
-        // Add submission to repository (will be saved by parent transaction)
-        await submissionRepository.AddAsync(submission);
-
-        // Update submission status
-        submission.Status = DetermineStatus(pollResults);
-        
-        // Build response
-        response.Success = true;
-        response.Response = new PracticeTestSubmitInsertResponseEntity
+        catch (Exception e)
         {
-            SubmissionId = submission.SubmissionId,
-            Status = DetermineStatus(pollResults),
-            PassedTests = passedCount,
-            TotalTests = problem.TestCases.Count,
-            AverageTimeMs = pollResults.Count > 0 ? (int) (totalTimeMs / pollResults.Count) : 0,
-            TestResults = testResults
-        };
-        response.SetMessage(MessageId.I00001, "Nộp bài kiểm tra thực hành");
-        
-        return response;
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     /// <summary>
