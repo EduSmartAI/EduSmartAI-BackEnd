@@ -1,5 +1,6 @@
 using AiService.Application.Features.AiEvaluate;
 using AiService.Application.Features.AiExternalCourse;
+using AiService.Application.Features.AiRecommend;
 using AiService.Application.Features.AiSearch;
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
@@ -86,5 +87,19 @@ public class AiRecommendController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new AiSearchResponse());
+    }
+    [HttpPost("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<AiRecommendImprovementResposne> GenAnalysis(AiRecommendImprovementRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<AiRecommendImprovementRequest, AiRecommendImprovementResposne, AiAnalysisSubjectAndAbilityDto>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AiRecommendImprovementResposne());
     }
 }
