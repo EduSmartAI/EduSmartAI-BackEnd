@@ -1,4 +1,5 @@
-﻿using AiService.Application.Features.AiSummary;
+﻿using AiService.Application.Features.AiRecommend;
+using AiService.Application.Features.AiSummary;
 
 namespace AiService.Application.Interfaces
 {
@@ -6,5 +7,6 @@ namespace AiService.Application.Interfaces
     {
         Task<AiSummaryResponse> FeedBackCourseByAI(AiSummaryRequest req, CancellationToken ct);
         Task<string> GenerateProgressFeedbackMarkdownAsync(AiSummaryFeedbackModuleDto req, CancellationToken ct = default);
+        Task<AiRecommendImprovementResposne> GenerateLearningFeedbackMarkdownAsync(AiRecommendImprovementRequest req, CancellationToken ct = default);
     }
 }

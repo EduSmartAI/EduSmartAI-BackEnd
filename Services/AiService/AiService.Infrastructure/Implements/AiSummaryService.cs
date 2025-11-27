@@ -1,9 +1,15 @@
-﻿using AiService.Application.Features.AiSummary;
+﻿using AiService.Application.Features.AiRecommend;
+using AiService.Application.Features.AiSummary;
 using AiService.Application.Interfaces;
+using AiService.Infrastructure.Helpers.AiQuizEvaluator;
+using AiService.Infrastructure.Prompts;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse; // NEW
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
 using OpenAI.Chat;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,92 +27,92 @@ namespace AiService.Infrastructure.Implements
             var busResp = await requestClient.GetResponse<GetInfoEvaluationEventResponse>(@event, ct);
             var data = busResp.Message?.Response;
 
-			// 2) Xử lý trường hợp không có dữ liệu
-			if (data is null ||
-				(data.Lessons.All(g => g.Evaluations.Count == 0) &&
-				 data.Modules.All(g => g.Evaluations.Count == 0)))
-			{
-				return new AiSummaryResponse
-				{
-					Response = """
+            // 2) Xử lý trường hợp không có dữ liệu
+            if (data is null ||
+                (data.Lessons.All(g => g.Evaluations.Count == 0) &&
+                 data.Modules.All(g => g.Evaluations.Count == 0)))
+            {
+                return new AiSummaryResponse
+                {
+                    Response = """
                     ## Đánh giá tổng thể khoá học
 
                     Chưa có dữ liệu đánh giá để tổng hợp. Vui lòng hoàn thành các bài kiểm tra/quiz trước khi yêu cầu AI tóm tắt.
                     """
-				};
-			}
+                };
+            }
 
-			// 3) Gom & tính nhanh các chỉ số
-			var all = data.Lessons.SelectMany(x => x.Evaluations)
-								  .Concat(data.Modules.SelectMany(x => x.Evaluations))
-								  .ToList();
+            // 3) Gom & tính nhanh các chỉ số
+            var all = data.Lessons.SelectMany(x => x.Evaluations)
+                                  .Concat(data.Modules.SelectMany(x => x.Evaluations))
+                                  .ToList();
 
-			int total = all.Count;
-			double avgAdj = Math.Round(all.Average(e => (double)e.Score100), 2);
+            int total = all.Count;
+            double avgAdj = Math.Round(all.Average(e => (double)e.Score100), 2);
 
-			// Có thể còn Score100Raw trong dữ liệu, nhưng không hiển thị ra ngoài.
-			var raws = all.Where(e => e.Score100Raw.HasValue)
-						  .Select(e => (double)e.Score100Raw!.Value)
-						  .ToList();
+            // Có thể còn Score100Raw trong dữ liệu, nhưng không hiển thị ra ngoài.
+            var raws = all.Where(e => e.Score100Raw.HasValue)
+                          .Select(e => (double)e.Score100Raw!.Value)
+                          .ToList();
 
-			double? avgDelta = raws.Count > 0
-				? Math.Round(all.Where(e => e.Score100Raw.HasValue)
-								.Average(e => (double)e.Score100 - e.Score100Raw!.Value), 2)
-				: null;
-			double? avgScoreRaw = raws.Count > 0 ? Math.Round(raws.Average(), 2) : (double?)null;
-			// Phân theo scope
-			var lessonAll = data.Lessons.SelectMany(g => g.Evaluations).ToList();
-			var moduleAll = data.Modules.SelectMany(g => g.Evaluations).ToList();
+            double? avgDelta = raws.Count > 0
+                ? Math.Round(all.Where(e => e.Score100Raw.HasValue)
+                                .Average(e => (double)e.Score100 - e.Score100Raw!.Value), 2)
+                : null;
+            double? avgScoreRaw = raws.Count > 0 ? Math.Round(raws.Average(), 2) : (double?)null;
+            // Phân theo scope
+            var lessonAll = data.Lessons.SelectMany(g => g.Evaluations).ToList();
+            var moduleAll = data.Modules.SelectMany(g => g.Evaluations).ToList();
 
-			var scopeStats = new
-			{
-				lesson = new
-				{
-					count = lessonAll.Count,
-					avgScore = lessonAll.Count == 0 ? (double?)null : Math.Round(lessonAll.Average(x => (double)x.Score100), 2)
-				},
-				module = new
-				{
-					count = moduleAll.Count,
-					avgScore = moduleAll.Count == 0 ? (double?)null : Math.Round(moduleAll.Average(x => (double)x.Score100), 2)
-				}
-			};
+            var scopeStats = new
+            {
+                lesson = new
+                {
+                    count = lessonAll.Count,
+                    avgScore = lessonAll.Count == 0 ? (double?)null : Math.Round(lessonAll.Average(x => (double)x.Score100), 2)
+                },
+                module = new
+                {
+                    count = moduleAll.Count,
+                    avgScore = moduleAll.Count == 0 ? (double?)null : Math.Round(moduleAll.Average(x => (double)x.Score100), 2)
+                }
+            };
 
-			// Helper: label hiển thị cho group (ưu tiên Name, fallback ScopeId)
-			static string GroupLabel(EvaluationGroupDto g) =>
-				g.Evaluations.Where(e => !string.IsNullOrWhiteSpace(e.Name))
-							 .GroupBy(e => e.Name)
-							 .OrderByDescending(gr => gr.Count())
-							 .Select(gr => gr.Key)
-							 .FirstOrDefault() ?? g.ScopeId.ToString();
+            // Helper: label hiển thị cho group (ưu tiên Name, fallback ScopeId)
+            static string GroupLabel(EvaluationGroupDto g) =>
+                g.Evaluations.Where(e => !string.IsNullOrWhiteSpace(e.Name))
+                             .GroupBy(e => e.Name)
+                             .OrderByDescending(gr => gr.Count())
+                             .Select(gr => gr.Key)
+                             .FirstOrDefault() ?? g.ScopeId.ToString();
 
 
-			const double RISK_ABS = 60.0;                 // ngưỡng tuyệt đối
+            const double RISK_ABS = 60.0;                 // ngưỡng tuyệt đối
 
-			// Top/bottom group theo điểm trung bình (CÓ label)
-			var lessonGroups = data.Lessons
-			.Where(g => g.Evaluations.Count > 0) // NEW
-			.Select(g => new
-			{
-				scopeId = g.ScopeId,
-				label = GroupLabel(g),
-				count = g.Evaluations.Count,
-				avg = g.Evaluations.Average(x => (double)x.Score100)
-			})
-			.OrderByDescending(x => x.avg)
-			.ToList();
+            // Top/bottom group theo điểm trung bình (CÓ label)
+            var lessonGroups = data.Lessons
+            .Where(g => g.Evaluations.Count > 0) // NEW
+            .Select(g => new
+            {
+                scopeId = g.ScopeId,
+                label = GroupLabel(g),
+                count = g.Evaluations.Count,
+                avg = g.Evaluations.Average(x => (double)x.Score100)
+            })
+            .OrderByDescending(x => x.avg)
+            .ToList();
 
-			var moduleGroups = data.Modules
-				.Where(g => g.Evaluations.Count > 0) // NEW
-				.Select(g => new
-				{
-					scopeId = g.ScopeId,
-					label = GroupLabel(g),
-					count = g.Evaluations.Count,
-					avg = g.Evaluations.Average(x => (double)x.Score100)
-				})
-				.OrderByDescending(x => x.avg)
-				.ToList();
+            var moduleGroups = data.Modules
+                .Where(g => g.Evaluations.Count > 0) // NEW
+                .Select(g => new
+                {
+                    scopeId = g.ScopeId,
+                    label = GroupLabel(g),
+                    count = g.Evaluations.Count,
+                    avg = g.Evaluations.Average(x => (double)x.Score100)
+                })
+                .OrderByDescending(x => x.avg)
+                .ToList();
 
             var lowLessons = lessonGroups.Where(x => x.avg <= RISK_ABS)
                              .OrderBy(x => x.avg)
@@ -117,200 +123,200 @@ namespace AiService.Infrastructure.Implements
                 .Take(3)
                 .ToList();
 
-			// 3.1) Map Lesson -> ModuleName để hiển thị "Module liên quan"
-			var lessonModuleMap = new Dictionary<Guid, string>();
-			try
-			{
-				var courseEvt = new GetAllDetailCourseEvent(req.CourseId, req.StudentId);
-				var courseResp = await courseClient.GetResponse<GetAllDetailCourseResponse>(courseEvt, ct);
-				var course = courseResp.Message?.Response;
+            // 3.1) Map Lesson -> ModuleName để hiển thị "Module liên quan"
+            var lessonModuleMap = new Dictionary<Guid, string>();
+            try
+            {
+                var courseEvt = new GetAllDetailCourseEvent(req.CourseId, req.StudentId);
+                var courseResp = await courseClient.GetResponse<GetAllDetailCourseResponse>(courseEvt, ct);
+                var course = courseResp.Message?.Response;
 
-				if (course != null)
-				{
-					var modulesProp = course.GetType().GetProperty("Modules");
-					var modules = modulesProp?.GetValue(course) as System.Collections.IEnumerable;
-					if (modules != null)
-					{
-						foreach (var m in modules)
-						{
-							var mName = (string?)(
-								m.GetType().GetProperty("Name")?.GetValue(m) ??
-								m.GetType().GetProperty("ModuleName")?.GetValue(m)
-							) ?? "—";
+                if (course != null)
+                {
+                    var modulesProp = course.GetType().GetProperty("Modules");
+                    var modules = modulesProp?.GetValue(course) as System.Collections.IEnumerable;
+                    if (modules != null)
+                    {
+                        foreach (var m in modules)
+                        {
+                            var mName = (string?)(
+                                m.GetType().GetProperty("Name")?.GetValue(m) ??
+                                m.GetType().GetProperty("ModuleName")?.GetValue(m)
+                            ) ?? "—";
 
-							var lessonsProp = m.GetType().GetProperty("Lessons");
-							var lessons = lessonsProp?.GetValue(m) as System.Collections.IEnumerable;
-							if (lessons == null) continue;
+                            var lessonsProp = m.GetType().GetProperty("Lessons");
+                            var lessons = lessonsProp?.GetValue(m) as System.Collections.IEnumerable;
+                            if (lessons == null) continue;
 
-							foreach (var ls in lessons)
-							{
-								var lessonIdObj =
-									ls.GetType().GetProperty("LessonId")?.GetValue(ls) ??
-									ls.GetType().GetProperty("Id")?.GetValue(ls);
+                            foreach (var ls in lessons)
+                            {
+                                var lessonIdObj =
+                                    ls.GetType().GetProperty("LessonId")?.GetValue(ls) ??
+                                    ls.GetType().GetProperty("Id")?.GetValue(ls);
 
-								if (lessonIdObj is Guid lessonId)
-									lessonModuleMap[lessonId] = mName;
-							}
-						}
-					}
-				}
-			}
-			catch
-			{
-				// fallback giữ "—" nếu không lấy được cây khoá học
-			}
+                                if (lessonIdObj is Guid lessonId)
+                                    lessonModuleMap[lessonId] = mName;
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // fallback giữ "—" nếu không lấy được cây khoá học
+            }
 
-			// 4) Rút trích gạch đầu dòng (strengths, improvements, actions, skill gaps)
-			static IEnumerable<string> SplitBullets(string s)
-			{
-				if (string.IsNullOrWhiteSpace(s)) yield break;
-				var parts = s.Replace("\r", "")
-							 .Split(new[] { '\n', ';', '•', '-' }, StringSplitOptions.RemoveEmptyEntries)
-							 .Select(x => x.Trim().TrimEnd('.'))
-							 .Where(x => x.Length > 0);
-				foreach (var p in parts) yield return p;
-			}
+            // 4) Rút trích gạch đầu dòng (strengths, improvements, actions, skill gaps)
+            static IEnumerable<string> SplitBullets(string s)
+            {
+                if (string.IsNullOrWhiteSpace(s)) yield break;
+                var parts = s.Replace("\r", "")
+                             .Split(new[] { '\n', ';', '•', '-' }, StringSplitOptions.RemoveEmptyEntries)
+                             .Select(x => x.Trim().TrimEnd('.'))
+                             .Where(x => x.Length > 0);
+                foreach (var p in parts) yield return p;
+            }
 
-			IEnumerable<string> collect(IEnumerable<string> src) =>
-				src.SelectMany(SplitBullets)
-				   .Select(x => x.Length > 120 ? x[..120] + "…" : x);
+            IEnumerable<string> collect(IEnumerable<string> src) =>
+                src.SelectMany(SplitBullets)
+                   .Select(x => x.Length > 120 ? x[..120] + "…" : x);
 
-			var strengths = collect(all.Select(x => x.Strengths)).Take(50).ToList();
-			var improvements = collect(all.Select(x => x.Improvements)).Take(50).ToList();
-			var actions = collect(all.Select(x => x.Actions)).Take(50).ToList();
-			var gaps = collect(all.Select(x => x.SkillGaps)).Take(50).ToList();
-			var lowLessonScopeIds = new HashSet<Guid>(
-				lowLessons.Where(x => x.scopeId.HasValue).Select(x => x.scopeId!.Value)
-			);
-			var lowModuleScopeIds = new HashSet<Guid>(
-				lowModules.Where(x => x.scopeId.HasValue).Select(x => x.scopeId!.Value)
-			);
+            var strengths = collect(all.Select(x => x.Strengths)).Take(50).ToList();
+            var improvements = collect(all.Select(x => x.Improvements)).Take(50).ToList();
+            var actions = collect(all.Select(x => x.Actions)).Take(50).ToList();
+            var gaps = collect(all.Select(x => x.SkillGaps)).Take(50).ToList();
+            var lowLessonScopeIds = new HashSet<Guid>(
+                lowLessons.Where(x => x.scopeId.HasValue).Select(x => x.scopeId!.Value)
+            );
+            var lowModuleScopeIds = new HashSet<Guid>(
+                lowModules.Where(x => x.scopeId.HasValue).Select(x => x.scopeId!.Value)
+            );
 
-			var lowLessonEvals = lessonAll
-				.Where(e => e.ScopeId.HasValue && lowLessonScopeIds.Contains(e.ScopeId.Value))
-				.ToList();
+            var lowLessonEvals = lessonAll
+                .Where(e => e.ScopeId.HasValue && lowLessonScopeIds.Contains(e.ScopeId.Value))
+                .ToList();
 
-			var lowModuleEvals = moduleAll
-				.Where(e => e.ScopeId.HasValue && lowModuleScopeIds.Contains(e.ScopeId.Value))
-				.ToList();
-
-
-			double? minLessonAvg = lowLessons.Count > 0 ? Math.Round(lowLessons.Min(x => x.avg), 2) : (double?)null;
-			double? maxLessonAvg = lowLessons.Count > 0 ? Math.Round(lowLessons.Max(x => x.avg), 2) : (double?)null;
-			double? minModuleAvg = lowModules.Count > 0 ? Math.Round(lowModules.Min(x => x.avg), 2) : (double?)null;
-			double? maxModuleAvg = lowModules.Count > 0 ? Math.Round(lowModules.Max(x => x.avg), 2) : (double?)null;
-
-			string GetModuleName(Guid? lessonScopeId) =>
-						lessonScopeId.HasValue && lessonModuleMap.TryGetValue(lessonScopeId.Value, out var name)
-						? name
-						: "—";
+            var lowModuleEvals = moduleAll
+                .Where(e => e.ScopeId.HasValue && lowModuleScopeIds.Contains(e.ScopeId.Value))
+                .ToList();
 
 
-			var topModuleNames = lowLessons
-					.Select(x => GetModuleName(x.scopeId))
-					.GroupBy(n => n)
-					.Select(g => new { name = g.Key, count = g.Count() })
-					.OrderByDescending(g => g.count)
-					.Take(3)
-					.ToList();
+            double? minLessonAvg = lowLessons.Count > 0 ? Math.Round(lowLessons.Min(x => x.avg), 2) : (double?)null;
+            double? maxLessonAvg = lowLessons.Count > 0 ? Math.Round(lowLessons.Max(x => x.avg), 2) : (double?)null;
+            double? minModuleAvg = lowModules.Count > 0 ? Math.Round(lowModules.Min(x => x.avg), 2) : (double?)null;
+            double? maxModuleAvg = lowModules.Count > 0 ? Math.Round(lowModules.Max(x => x.avg), 2) : (double?)null;
+
+            string GetModuleName(Guid? lessonScopeId) =>
+                        lessonScopeId.HasValue && lessonModuleMap.TryGetValue(lessonScopeId.Value, out var name)
+                        ? name
+                        : "—";
 
 
-			// Tận dụng hàm collect(...) có sẵn để rút gọn gạch đầu dòng
-			var lowLessonIssues = collect(lowLessonEvals.Select(x => x.SkillGaps)
-										 .Concat(lowLessonEvals.Select(x => x.Improvements)))
-								  .Take(6).ToList();
-
-			var lowModuleIssues = collect(lowModuleEvals.Select(x => x.SkillGaps)
-										 .Concat(lowModuleEvals.Select(x => x.Improvements)))
-								  .Take(6).ToList();
-			// 5) Chuẩn hoá payload JSON cho prompt (không lộ raw)
-			var payload = new
-			{
-				courseId = req.CourseId,
-				totalEvaluations = total,
-				avgScoreAI = avgAdj,
-				avgScoreRaw,
-				avgAdjustDelta = avgDelta,
-				scopeStats,
-				// ⬇️ CHỈ GIỮ riskGroups
-				riskGroups = new
-				{
-					lessons = lowLessons.Select(x => new
-					{
-						x.label,
-						x.count,
-						avgAI = Math.Round(x.avg, 2),
-						module = GetModuleName(x.scopeId)
-					}),
-					modules = lowModules.Select(x => new
-					{
-						x.label,
-						x.count,
-						avgAI = Math.Round(x.avg, 2)
-					})
-				},
-				riskAnalysis = new
-				{
-					lessons = new
-					{
-						count = lowLessons.Count,
-						minAvg = minLessonAvg,
-						maxAvg = maxLessonAvg,
-						names = lowLessons.Select(x => x.label),
-						topModules = topModuleNames,          // [{ name, count }]
-						commonIssues = lowLessonIssues        // tối đa 6 bullet ngắn
-					},
-					modules = new
-					{
-						count = lowModules.Count,
-						minAvg = minModuleAvg,
-						maxAvg = maxModuleAvg,
-						names = lowModules.Select(x => x.label),
-						commonIssues = lowModuleIssues        // tối đa 6 bullet ngắn
-					}
-				},
-				samples = all
-				.OrderByDescending(x => x.CreatedAt)
-				.Take(16)
-				.Select(x => new
-				{
-					x.EvaluationId,
-					x.AttemptId,
-					x.QuizId,
-					name = x.Name,
-					scoreAI = x.Score100,
-					confidence = x.Confidence,
-					scope = x.Scope,
-					scopeId = x.ScopeId,
-					createdAt = x.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-					summary = Ellipsis(x.Summary, 160),
-					strengths = Ellipsis(x.Strengths, 120),
-					improvements = Ellipsis(x.Improvements, 120),
-					actions = Ellipsis(x.Actions, 120),
-					gaps = Ellipsis(x.SkillGaps, 120),
-					model = x.Model,
-					rubricVersion = x.RubricVersion
-				}),
-				bullets = new { strengths, improvements, actions, skillGaps = gaps },
-				hasLessonRisks = lowLessons.Count > 0,
-				hasModuleRisks = lowModules.Count > 0,
-				legend = "Điểm hiển thị là 'điểm do AI chấm' (score100). Không hiển thị điểm gốc."
-			};
-
-			static string Ellipsis(string s, int max) =>
-				string.IsNullOrWhiteSpace(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
+            var topModuleNames = lowLessons
+                    .Select(x => GetModuleName(x.scopeId))
+                    .GroupBy(n => n)
+                    .Select(g => new { name = g.Key, count = g.Count() })
+                    .OrderByDescending(g => g.count)
+                    .Take(3)
+                    .ToList();
 
 
-			var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-			{
-				PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-				WriteIndented = false,
-				DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-			});
-			Console.WriteLine(json);
+            // Tận dụng hàm collect(...) có sẵn để rút gọn gạch đầu dòng
+            var lowLessonIssues = collect(lowLessonEvals.Select(x => x.SkillGaps)
+                                         .Concat(lowLessonEvals.Select(x => x.Improvements)))
+                                  .Take(6).ToList();
 
-			// 6) Prompts — cấm lộ raw, dùng “điểm do AI chấm”
-			var systemPrompt = """
+            var lowModuleIssues = collect(lowModuleEvals.Select(x => x.SkillGaps)
+                                         .Concat(lowModuleEvals.Select(x => x.Improvements)))
+                                  .Take(6).ToList();
+            // 5) Chuẩn hoá payload JSON cho prompt (không lộ raw)
+            var payload = new
+            {
+                courseId = req.CourseId,
+                totalEvaluations = total,
+                avgScoreAI = avgAdj,
+                avgScoreRaw,
+                avgAdjustDelta = avgDelta,
+                scopeStats,
+                // ⬇️ CHỈ GIỮ riskGroups
+                riskGroups = new
+                {
+                    lessons = lowLessons.Select(x => new
+                    {
+                        x.label,
+                        x.count,
+                        avgAI = Math.Round(x.avg, 2),
+                        module = GetModuleName(x.scopeId)
+                    }),
+                    modules = lowModules.Select(x => new
+                    {
+                        x.label,
+                        x.count,
+                        avgAI = Math.Round(x.avg, 2)
+                    })
+                },
+                riskAnalysis = new
+                {
+                    lessons = new
+                    {
+                        count = lowLessons.Count,
+                        minAvg = minLessonAvg,
+                        maxAvg = maxLessonAvg,
+                        names = lowLessons.Select(x => x.label),
+                        topModules = topModuleNames,          // [{ name, count }]
+                        commonIssues = lowLessonIssues        // tối đa 6 bullet ngắn
+                    },
+                    modules = new
+                    {
+                        count = lowModules.Count,
+                        minAvg = minModuleAvg,
+                        maxAvg = maxModuleAvg,
+                        names = lowModules.Select(x => x.label),
+                        commonIssues = lowModuleIssues        // tối đa 6 bullet ngắn
+                    }
+                },
+                samples = all
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(16)
+                .Select(x => new
+                {
+                    x.EvaluationId,
+                    x.AttemptId,
+                    x.QuizId,
+                    name = x.Name,
+                    scoreAI = x.Score100,
+                    confidence = x.Confidence,
+                    scope = x.Scope,
+                    scopeId = x.ScopeId,
+                    createdAt = x.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                    summary = Ellipsis(x.Summary, 160),
+                    strengths = Ellipsis(x.Strengths, 120),
+                    improvements = Ellipsis(x.Improvements, 120),
+                    actions = Ellipsis(x.Actions, 120),
+                    gaps = Ellipsis(x.SkillGaps, 120),
+                    model = x.Model,
+                    rubricVersion = x.RubricVersion
+                }),
+                bullets = new { strengths, improvements, actions, skillGaps = gaps },
+                hasLessonRisks = lowLessons.Count > 0,
+                hasModuleRisks = lowModules.Count > 0,
+                legend = "Điểm hiển thị là 'điểm do AI chấm' (score100). Không hiển thị điểm gốc."
+            };
+
+            static string Ellipsis(string s, int max) =>
+                string.IsNullOrWhiteSpace(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
+
+
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                WriteIndented = false,
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            });
+            Console.WriteLine(json);
+
+            // 6) Prompts — cấm lộ raw, dùng “điểm do AI chấm”
+            var systemPrompt = """
             Bạn là trợ giảng AI viết báo cáo tóm tắt kết quả học tập bằng tiếng Việt.
 
             QUY TẮC BẮT BUỘC:
@@ -326,7 +332,7 @@ namespace AiService.Infrastructure.Implements
             - Số dòng của mỗi bảng = đúng độ dài mảng tương ứng; không tự thêm cho đủ 3.
             """;
 
-			var userPrompt = $$"""
+            var userPrompt = $$"""
             DỮ LIỆU (JSON, đã chuẩn hoá):Điểm hiện tại là 'điểm do AI chấm'. Khống hiển thị điểm gốc.
             
             ```json
@@ -415,37 +421,37 @@ namespace AiService.Infrastructure.Implements
             - Điểm hiển thị là **"điểm do AI chấm"**. Không hiển thị điểm gốc hay thuật ngữ kỹ thuật.
             """;
 
-			// 7) Gọi OpenAI Chat
-			string markdown;
-			try
-			{
-				ChatCompletion result = await chat.CompleteChatAsync(
-					new ChatMessage[]
-					{
-						new SystemChatMessage(systemPrompt),
-						new UserChatMessage(userPrompt)
-					},
-					new ChatCompletionOptions { Temperature = 0.2f },
-					ct
-				);
+            // 7) Gọi OpenAI Chat
+            string markdown;
+            try
+            {
+                ChatCompletion result = await chat.CompleteChatAsync(
+                    new ChatMessage[]
+                    {
+                        new SystemChatMessage(systemPrompt),
+                        new UserChatMessage(userPrompt)
+                    },
+                    new ChatCompletionOptions { Temperature = 0.2f },
+                    ct
+                );
 
-				var text = (result?.Content?.Count > 0)
-					? string.Concat(result.Content.Select(c => c.Text))
-					: null;
+                var text = (result?.Content?.Count > 0)
+                    ? string.Concat(result.Content.Select(c => c.Text))
+                    : null;
 
-				markdown = string.IsNullOrWhiteSpace(text)
-					? FallbackMarkdown(avgAdj, scopeStats.lesson.count, scopeStats.module.count)
-					: text!;
-			}
-			catch
-			{
-				markdown = FallbackMarkdown(avgAdj, scopeStats.lesson.count, scopeStats.module.count);
-			}
+                markdown = string.IsNullOrWhiteSpace(text)
+                    ? FallbackMarkdown(avgAdj, scopeStats.lesson.count, scopeStats.module.count)
+                    : text!;
+            }
+            catch
+            {
+                markdown = FallbackMarkdown(avgAdj, scopeStats.lesson.count, scopeStats.module.count);
+            }
 
-			return new AiSummaryResponse { Response = markdown };
-		}
+            return new AiSummaryResponse { Response = markdown };
+        }
 
-		private static string FallbackMarkdown(double avgAdj, int lessonsCount, int modulesCount) => $"""
+        private static string FallbackMarkdown(double avgAdj, int lessonsCount, int modulesCount) => $"""
         ## Đánh giá tổng thể khoá học (bản rút gọn)
 
         - Điểm do AI chấm (trung bình): **{avgAdj}**
@@ -672,5 +678,580 @@ namespace AiService.Infrastructure.Implements
             - Duy trì nhịp học đều mỗi ngày.
             - Ưu tiên ôn lại các phần còn cảm thấy khó, kết hợp làm thêm bài luyện tập ngắn.
             """;
+
+        #region Sinh feedback học tập
+        public async Task<AiRecommendImprovementResposne> GenerateLearningFeedbackMarkdownAsync(
+            AiRecommendImprovementRequest req,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(req);
+
+            var curriculumSubjects = req.Curriculum?.subjects ?? new List<SubjectCur>();
+            var abilityMarks = EnsureAbilityCoverage(req.AbilityMarks);
+            var subjectMarks = EnsureSubjectCoverage(req.SubjectMarks, curriculumSubjects);
+            var quizSurvey = req.QuizSurvey ?? new QuizSurvey();
+            var careerGoal = req.careerGoal?.Trim() ?? string.Empty;
+
+            var promptPayloads = await RunParallelAsync(
+                ct,
+                token => CompleteJsonChatAsync(
+                    AiRecommendPromptLibrary.SystemPrompt,
+                    AiRecommendPromptLibrary.BuildAbilityPrompt(abilityMarks, careerGoal),
+                    token),
+                token => CompleteJsonChatAsync(
+                    AiRecommendPromptLibrary.SystemPrompt,
+                    AiRecommendPromptLibrary.BuildSubjectPrompt(subjectMarks, curriculumSubjects, careerGoal),
+                    token),
+                token => CompleteJsonChatAsync(
+                    AiRecommendPromptLibrary.SystemPrompt,
+                    AiRecommendPromptLibrary.BuildPersonaPrompt(subjectMarks, abilityMarks, quizSurvey, careerGoal),
+                    token));
+
+            var abilityPayload = promptPayloads.Length > 0 ? promptPayloads[0] : null;
+            var subjectPayload = promptPayloads.Length > 1 ? promptPayloads[1] : null;
+            var personaPayload = promptPayloads.Length > 2 ? promptPayloads[2] : null;
+
+            var abilityAnalyses = TryParseAbilityAnalyses(abilityPayload) ?? BuildAbilityFallback(abilityMarks, careerGoal);
+            var subjectAnalyses = TryParseSubjectAnalyses(subjectPayload) ?? BuildSubjectFallback(subjectMarks, curriculumSubjects, careerGoal);
+            var personaSummary = TryParsePersonaSummary(personaPayload) ?? BuildPersonaFallback(subjectMarks, abilityMarks, quizSurvey, careerGoal);
+
+            return new AiRecommendImprovementResposne
+            {
+                Success = true,
+                Response = new AiAnalysisSubjectAndAbilityDto
+                {
+                    summaryFeedback = personaSummary.summaryFeedback,
+                    habitAndInterestAnalysis = personaSummary.habitAndInterestAnalysis,
+                    personality = personaSummary.personality,
+                    learningAbility = personaSummary.learningAbility,
+                    subjectAnalyses = subjectAnalyses,
+                    abilityAnalyses = abilityAnalyses
+                }
+            };
+        }
+        #endregion
+
+        private static readonly JsonSerializerOptions AiResponseJsonOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        private async Task<string?> CompleteJsonChatAsync(string systemPrompt, string userPrompt, CancellationToken ct)
+        {
+            try
+            {
+                ChatCompletion completion = await chat.CompleteChatAsync(
+                    new ChatMessage[]
+                    {
+                        new SystemChatMessage(systemPrompt),
+                        new UserChatMessage(userPrompt)
+                    },
+                    new ChatCompletionOptions
+                    {
+                        Temperature = 0.25f,
+                        ResponseFormat = ChatResponseFormat.CreateJsonObjectFormat()
+                    },
+                    ct);
+
+                var content = (completion.Content?.Count > 0)
+                    ? string.Concat(completion.Content.Select(c => c.Text))
+                    : null;
+
+                return string.IsNullOrWhiteSpace(content)
+                    ? null
+                    : AiQuizEvaluatorCommon.StripCodeFence(content);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static Task<TResult[]> RunParallelAsync<TResult>(
+            CancellationToken ct,
+            params Func<CancellationToken, Task<TResult>>[] operations)
+        {
+            if (operations is null || operations.Length == 0)
+            {
+                return Task.FromResult(System.Array.Empty<TResult>());
+            }
+
+            var tasks = operations.Select(op => op(ct)).ToArray();
+            return Task.WhenAll(tasks);
+        }
+
+        private static List<AbilityMark> EnsureAbilityCoverage(List<AbilityMark>? abilityMarks)
+        {
+            var normalized = abilityMarks?.Select(a => new AbilityMark
+            {
+                name = string.IsNullOrWhiteSpace(a.name) ? "Khả năng chưa đặt tên" : a.name,
+                mark = a.mark
+            }).ToList() ?? new List<AbilityMark>();
+
+            foreach (var label in AiRecommendPromptLibrary.AbilityLabels)
+            {
+                if (normalized.Any(a => label.Equals(a.name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    continue;
+                }
+
+                normalized.Add(new AbilityMark
+                {
+                    name = label,
+                    mark = 0
+                });
+            }
+
+            return normalized;
+        }
+
+        private static List<SubjectMark> EnsureSubjectCoverage(List<SubjectMark>? subjectMarks, List<SubjectCur> curriculumSubjects)
+        {
+            var normalized = subjectMarks?.Select(s => new SubjectMark
+            {
+                subjectCode = s.subjectCode,
+                subjectName = s.subjectName,
+                mark = s.mark
+            }).ToList() ?? new List<SubjectMark>();
+
+            if (normalized.Count == 0 && curriculumSubjects.Count > 0)
+            {
+                normalized.AddRange(curriculumSubjects
+                    .Take(4)
+                    .Select(subject => new SubjectMark
+                    {
+                        subjectCode = subject.subjectCode,
+                        subjectName = subject.subjectName,
+                        mark = 0
+                    }));
+            }
+
+            if (normalized.Count == 0)
+            {
+                normalized.Add(new SubjectMark
+                {
+                    subjectCode = "-",
+                    subjectName = "Chưa có dữ liệu",
+                    mark = 0
+                });
+            }
+
+            return normalized;
+        }
+
+        private static List<AbilityAnalysis>? TryParseAbilityAnalyses(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<AbilityAnalysisEnvelope>(json, AiResponseJsonOptions);
+                if (parsed?.AbilityAnalyses is { Count: > 0 } items)
+                {
+                    return items
+                        .Where(item => !string.IsNullOrWhiteSpace(item.name) &&
+                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .ToList();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+
+            return null;
+        }
+
+        private static List<SubjectAnalysis>? TryParseSubjectAnalyses(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<SubjectAnalysisEnvelope>(json, AiResponseJsonOptions);
+                if (parsed?.SubjectAnalyses is { Count: > 0 } items)
+                {
+                    return items
+                        .Where(item => !string.IsNullOrWhiteSpace(item.subjectName) &&
+                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .ToList();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+
+            return null;
+        }
+
+        private static PersonaSummaryState? TryParsePersonaSummary(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<PersonaEnvelope>(json, AiResponseJsonOptions);
+                return parsed == null
+                    ? null
+                    : new PersonaSummaryState(
+                        parsed.SummaryFeedback ?? string.Empty,
+                        parsed.HabitAndInterestAnalysis ?? string.Empty,
+                        parsed.Personality ?? string.Empty,
+                        parsed.LearningAbility ?? string.Empty);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static List<AbilityAnalysis> BuildAbilityFallback(
+            IReadOnlyCollection<AbilityMark> abilities,
+            string careerGoal)
+        {
+            var source = abilities.Count > 0
+                ? abilities
+                : AiRecommendPromptLibrary.AbilityLabels
+                    .Select(label => new AbilityMark { name = label, mark = 0 })
+                    .ToList();
+
+            return source.Select(ability =>
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"## {ability.name}");
+                sb.AppendLine("### Hiện trạng");
+                sb.AppendLine($"- Điểm hiện tại: **{ability.mark}/100** · Mức: {ClassifyScore(ability.mark)}.");
+                sb.AppendLine("- Chưa có báo cáo AI chi tiết nên tạm dùng đánh giá tổng quát.");
+                sb.AppendLine("### Kiến thức trọng tâm");
+                if (ability.mark >= 80)
+                {
+                    sb.AppendLine($"- Đào sâu các mẫu thiết kế nâng cao của {ability.name}, thực hành refactor.");
+                    sb.AppendLine("- Tập trung tối ưu hoá hiệu năng và viết tài liệu kỹ thuật song song.");
+                }
+                else if (ability.mark >= 60)
+                {
+                    sb.AppendLine($"- Ôn lại cấu trúc dữ liệu/cú pháp chính của {ability.name} bằng flashcard + mindmap.");
+                    sb.AppendLine("- Làm lại bộ bài mẫu chuẩn (ít nhất 5 bài) để củng cố phản xạ.");
+                }
+                else
+                {
+                    sb.AppendLine($"- Bắt đầu từ tài liệu nền tảng của {ability.name}: biến, hàm, cấu trúc điều khiển.");
+                    sb.AppendLine("- Nhờ mentor kiểm tra lại từng bước để tránh sai sót cơ bản.");
+                }
+                sb.AppendLine("### Lộ trình 2–4 tuần");
+                if (ability.mark >= 80)
+                {
+                    sb.AppendLine("- Tuần 1-2: 2 project mini/tuần bám sát case thực tế, viết post-mortem sau mỗi project.");
+                    sb.AppendLine("- Tuần 3-4: Mentor review code + luyện thử phỏng vấn hệ thống trong 2 buổi.");
+                }
+                else if (ability.mark >= 60)
+                {
+                    sb.AppendLine("- Tuần 1-2: 3 buổi/tuần ôn lý thuyết + 2 buổi luyện bài có chấm điểm.");
+                    sb.AppendLine("- Tuần 3-4: Ghép bài tập áp dụng vào mini project, tổng ít nhất 8 bài.");
+                }
+                else
+                {
+                    sb.AppendLine("- Tuần 1-2: 4 buổi/tuần học lại giáo trình chuẩn, ghi chú lại từng concept khó.");
+                    sb.AppendLine("- Tuần 3-4: Làm 6-8 bài cơ bản và nhờ mentor/bạn học phản hồi.");
+                }
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    sb.AppendLine($"- Liên kết với mục tiêu {careerGoal}: mỗi tuần chọn 1 bài tập mô phỏng yêu cầu công việc thực tế.");
+                }
+                sb.AppendLine("- Viết nhật ký cải thiện sau mỗi tuần để đo tiến bộ và điều chỉnh.");
+
+                return new AbilityAnalysis
+                {
+                    name = ability.name,
+                    analysisMarkdown = sb.ToString().Trim()
+                };
+            }).ToList();
+        }
+
+        private static List<SubjectAnalysis> BuildSubjectFallback(
+            IReadOnlyCollection<SubjectMark> subjects,
+            IReadOnlyCollection<SubjectCur> curriculumSubjects,
+            string careerGoal)
+        {
+            var source = subjects.Count > 0
+                ? subjects
+                : curriculumSubjects.Select(s => new SubjectMark
+                {
+                    subjectCode = s.subjectCode,
+                    subjectName = s.subjectName,
+                    mark = 0
+                }).ToList();
+
+            if (source.Count == 0)
+            {
+                var fallbackMarkdown = new StringBuilder();
+                fallbackMarkdown.AppendLine("## Tổng quan môn học");
+                fallbackMarkdown.AppendLine("### Tình hình");
+                fallbackMarkdown.AppendLine("- Chưa có điểm môn học nào để phân tích chi tiết.");
+                fallbackMarkdown.AppendLine("### Kiến thức trọng tâm");
+                fallbackMarkdown.AppendLine("- Ôn lại giáo trình cơ sở (PRF, OOP, cấu trúc dữ liệu) để tạo dữ liệu đầu vào.");
+                fallbackMarkdown.AppendLine("### Lộ trình 2–4 tuần");
+                fallbackMarkdown.AppendLine("- Bổ sung bảng điểm tối thiểu 3 môn và cập nhật sau mỗi bài kiểm tra.");
+                fallbackMarkdown.AppendLine("- Thu thập tài liệu môn nền tảng và ghi chú các phần chưa chắc.");
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    fallbackMarkdown.AppendLine($"- Liệt kê 2 môn quan trọng nhất với mục tiêu {careerGoal} để ưu tiên nhập điểm.");
+                }
+
+                return
+                [
+                    new SubjectAnalysis
+                    {
+                        subjectCode = "-",
+                        subjectName = "Chưa có dữ liệu",
+                        analysisMarkdown = fallbackMarkdown.ToString().Trim()
+                    }
+                ];
+            }
+
+            var dependencyMap = BuildSubjectDependencyMap(curriculumSubjects);
+
+            return source.Select(subject =>
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine($"## {subject.subjectName} ({subject.subjectCode})");
+                sb.AppendLine("### Tình hình");
+                sb.AppendLine($"- Điểm hiện tại: **{subject.mark}/100** · Mức: {ClassifyScore(subject.mark)}.");
+                if (subject.mark >= 80)
+                {
+                    sb.AppendLine("- Năng lực khá ổn, có thể thử thách bằng đề mở rộng hoặc dự án nhỏ.");
+                }
+                else if (subject.mark >= 65)
+                {
+                    sb.AppendLine("- Nên củng cố lại các chủ đề bị sai và tăng tần suất luyện đề.");
+                }
+                else
+                {
+                    sb.AppendLine("- Cần ôn lại lý thuyết nền và làm lại bài tập cơ bản để tránh hổng kiến thức.");
+                }
+
+                sb.AppendLine("### Kiến thức trọng tâm");
+                if (subject.mark >= 80)
+                {
+                    sb.AppendLine($"- Đào sâu các chủ đề nâng cao của {subject.subjectName} (tối ưu, mô hình hoá, kiến trúc).");
+                    sb.AppendLine("- Viết lại insight sau mỗi bài để chuẩn bị cho môn liên quan.");
+                }
+                else if (subject.mark >= 65)
+                {
+                    sb.AppendLine($"- Rà lại 2 chương trọng yếu của {subject.subjectName}, ghi chú công thức/thuật toán chính.");
+                    sb.AppendLine("- Hoàn thành 3-4 bài tập chuẩn để kiểm tra hiểu bài.");
+                }
+                else
+                {
+                    sb.AppendLine("- Ôn lại lý thuyết nền từ giáo trình/video chính thức và luyện ví dụ đơn giản.");
+                    sb.AppendLine("- Nhờ mentor/bạn học giải thích các phần còn mơ hồ trước khi luyện bài mới.");
+                }
+
+                if (dependencyMap.TryGetValue(subject.subjectCode, out var dependents) &&
+                    dependents.Count > 0 &&
+                    subject.mark < 70)
+                {
+                    sb.AppendLine("### Cảnh báo");
+                    sb.AppendLine($"- ⚠️ Môn này là nền cho {string.Join(", ", dependents)}. Giữ điểm thấp sẽ khiến các môn đó khó theo kịp.");
+                }
+                sb.AppendLine("### Lộ trình 2–4 tuần");
+                if (subject.mark >= 80)
+                {
+                    sb.AppendLine("- Tuần 1-2: 2 buổi ôn lý thuyết nâng cao + 2 buổi luyện đề theo dự án.");
+                    sb.AppendLine("- Tuần 3-4: Viết tóm tắt nội dung và chia sẻ/mentor review.");
+                }
+                else if (subject.mark >= 65)
+                {
+                    sb.AppendLine("- Tuần 1-2: 3 buổi củng cố lý thuyết + 2 buổi làm bài chuẩn hóa.");
+                    sb.AppendLine("- Tuần 3-4: Làm thêm 4-5 bài nâng dần độ khó và tự chấm lại.");
+                }
+                else
+                {
+                    sb.AppendLine("- Tuần 1-2: 4 buổi/tuần học lại lý thuyết nền, ghi chú từng ví dụ.");
+                    sb.AppendLine("- Tuần 3-4: 6 bài cơ bản + 2 buổi giải đáp với mentor/bạn học.");
+                }
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    sb.AppendLine($"- Chọn 1 chủ đề trong {subject.subjectName} liên quan tới {careerGoal} để làm mini note.");
+                }
+                sb.AppendLine("- Đánh giá lại bằng quiz hoặc flashcard sau mỗi 2 tuần.");
+
+                return new SubjectAnalysis
+                {
+                    subjectCode = subject.subjectCode,
+                    subjectName = subject.subjectName,
+                    analysisMarkdown = sb.ToString().Trim()
+                };
+            }).ToList();
+        }
+
+        private static Dictionary<string, List<string>> BuildSubjectDependencyMap(IEnumerable<SubjectCur> subjects)
+        {
+            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
+            {
+                foreach (var prerequisite in subject.sụbjectPrerequisiteCode ?? new List<string>())
+                {
+                    if (string.IsNullOrWhiteSpace(prerequisite)) continue;
+
+                    if (!map.TryGetValue(prerequisite, out var list))
+                    {
+                        list = new List<string>();
+                        map[prerequisite] = list;
+                    }
+
+                    var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
+                        ? subject.subjectCode
+                        : subject.subjectName;
+
+                    if (!list.Contains(dependentName, StringComparer.OrdinalIgnoreCase))
+                    {
+                        list.Add(dependentName);
+                    }
+                }
+            }
+
+            return map;
+        }
+
+        private static PersonaSummaryState BuildPersonaFallback(
+            IReadOnlyCollection<SubjectMark> subjectMarks,
+            IReadOnlyCollection<AbilityMark> abilityMarks,
+            QuizSurvey quizSurvey,
+            string careerGoal)
+        {
+            var avgSubject = subjectMarks.Count > 0 ? subjectMarks.Average(s => s.mark) : 0;
+            var avgAbility = abilityMarks.Count > 0 ? abilityMarks.Average(a => a.mark) : 0;
+            var strongSubjects = subjectMarks.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList();
+            var weakSubjects = subjectMarks.Where(s => s.mark < 65).Select(s => s.subjectName).ToList();
+            var strongAbilities = abilityMarks.Where(a => a.mark >= 80).Select(a => a.name).ToList();
+            var weakAbilities = abilityMarks.Where(a => a.mark < 65).Select(a => a.name).ToList();
+
+            var summaryBuilder = new StringBuilder();
+            summaryBuilder.AppendLine("## Tổng quan");
+            if (subjectMarks.Count == 0)
+            {
+                summaryBuilder.AppendLine("- Chưa có dữ liệu môn học để tổng hợp. Cập nhật bảng điểm để AI đưa ra đánh giá chính xác hơn.");
+            }
+            else
+            {
+                summaryBuilder.AppendLine($"- Điểm trung bình các môn đang quanh mức {avgSubject:F1}/100.");
+                if (strongSubjects.Count > 0)
+                {
+                    summaryBuilder.AppendLine($"- Điểm mạnh: {string.Join(", ", strongSubjects.Take(2))}.");
+                }
+                if (weakSubjects.Count > 0)
+                {
+                    summaryBuilder.AppendLine($"- Ưu tiên củng cố: {string.Join(", ", weakSubjects.Take(2))}.");
+                }
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    summaryBuilder.AppendLine($"- Liên hệ trực tiếp với mục tiêu {careerGoal} để chọn môn ưu tiên và đặt KPI 2–4 tuần.");
+                }
+            }
+            summaryBuilder.AppendLine("- Hành động: đặt checklist môn ưu tiên và cập nhật tiến độ mỗi tuần.");
+
+            var interests = quizSurvey.quizInterests ?? new List<QuizInterest>();
+            var habits = quizSurvey.quizHabits ?? new List<QuizHabit>();
+
+            var habitBuilder = new StringBuilder();
+            habitBuilder.AppendLine("## Thói quen & Sở thích");
+            if (habits.Count == 0 && interests.Count == 0)
+            {
+                habitBuilder.AppendLine("- Chưa có phản hồi khảo sát nên khó phân tích thói quen. Hoàn thành bảng hỏi để AI cá nhân hoá lộ trình.");
+            }
+            else
+            {
+                if (habits.Count > 0)
+                {
+                    habitBuilder.AppendLine($"- Thói quen học nổi bật: \"{habits.First().answer}\".");
+                }
+                if (interests.Count > 0)
+                {
+                    habitBuilder.AppendLine($"- Sở thích học tập: \"{interests.First().answer}\".");
+                }
+                habitBuilder.AppendLine("- Khai thác các yếu tố này để giữ động lực ổn định mỗi tuần.");
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    habitBuilder.AppendLine($"- Liên hệ thói quen/sở thích với mục tiêu {careerGoal} bằng các bài tập mô phỏng môi trường làm việc mong muốn.");
+                }
+            }
+            habitBuilder.AppendLine("- Hành động: cố định 3 khung giờ học/tuần và dùng sở thích để thiết kế bài tập dài hơi.");
+
+            var personalityBuilder = new StringBuilder();
+            personalityBuilder.AppendLine("## Phong cách học tập");
+            personalityBuilder.Append("- Người học cho thấy phong cách ");
+            personalityBuilder.Append(avgSubject >= 75 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
+            if (habits.Count > 0)
+            {
+                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits.First().answer}\"");
+            }
+            personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
+            personalityBuilder.AppendLine("- Hành động: sau mỗi tuần, tự đánh giá điểm tập trung và điều chỉnh phương pháp cho tuần kế tiếp.");
+
+            var learningAbilityBuilder = new StringBuilder();
+            learningAbilityBuilder.AppendLine("## Năng lực học & Lộ trình");
+            if (abilityMarks.Count == 0)
+            {
+                learningAbilityBuilder.AppendLine("- Chưa có dữ liệu năng lực để đánh giá tốc độ tiếp thu.");
+            }
+            else
+            {
+                learningAbilityBuilder.AppendLine($"- Điểm trung bình năng lực khoảng {avgAbility:F1}/100.");
+                if (strongAbilities.Count > 0)
+                {
+                    learningAbilityBuilder.AppendLine($"- Thế mạnh: {string.Join(", ", strongAbilities.Take(2))}.");
+                }
+                if (weakAbilities.Count > 0)
+                {
+                    learningAbilityBuilder.AppendLine($"- Cần cải thiện: {string.Join(", ", weakAbilities.Take(2))}.");
+                }
+                learningAbilityBuilder.AppendLine("- Thiết lập chu kỳ ôn luyện 14 ngày và đo lại bằng quiz tự tạo.");
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    learningAbilityBuilder.AppendLine($"- Nhắc nhở tiêu chí của {careerGoal} trước mỗi phiên học.");
+                }
+            }
+            learningAbilityBuilder.AppendLine("- Hành động: đặt mục tiêu 2–4 tuần với thang đo cụ thể (số bài, dự án nhỏ) và review định kỳ.");
+
+            return new PersonaSummaryState(
+                summaryBuilder.ToString(),
+                habitBuilder.ToString(),
+                personalityBuilder.ToString(),
+                learningAbilityBuilder.ToString());
+        }
+
+        private static string ClassifyScore(int mark) => mark switch
+        {
+            >= 85 => "Giỏi",
+            >= 70 => "Khá",
+            >= 50 => "Cần củng cố",
+            _ => "Nguy cơ"
+        };
+
+        private sealed class AbilityAnalysisEnvelope
+        {
+            public List<AbilityAnalysis>? AbilityAnalyses { get; set; }
+        }
+
+        private sealed class SubjectAnalysisEnvelope
+        {
+            public List<SubjectAnalysis>? SubjectAnalyses { get; set; }
+        }
+
+        private sealed class PersonaEnvelope
+        {
+            public string? SummaryFeedback { get; set; }
+            public string? HabitAndInterestAnalysis { get; set; }
+            public string? Personality { get; set; }
+            public string? LearningAbility { get; set; }
+        }
+
+        private sealed record PersonaSummaryState(
+            string summaryFeedback,
+            string habitAndInterestAnalysis,
+            string personality,
+            string learningAbility);
     }
 }
