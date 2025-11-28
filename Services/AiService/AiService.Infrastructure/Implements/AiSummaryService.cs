@@ -817,6 +817,7 @@ namespace AiService.Infrastructure.Implements
             if (normalized.Count == 0 && curriculumSubjects.Count > 0)
             {
                 normalized.AddRange(curriculumSubjects
+                    .OrderBy(subject => subject.index)
                     .Take(4)
                     .Select(subject => new SubjectMark
                     {
@@ -1011,13 +1012,27 @@ namespace AiService.Infrastructure.Implements
             }
 
             var dependencyMap = BuildSubjectDependencyMap(curriculumSubjects);
+            var curriculumLookup = (curriculumSubjects ?? Array.Empty<SubjectCur>())
+                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+                .ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+            var markLookup = source
+                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+                .ToDictionary(x => x.subjectCode, x => x.mark, StringComparer.OrdinalIgnoreCase);
 
             return source.Select(subject =>
             {
+                curriculumLookup.TryGetValue(subject.subjectCode, out var subjectInfo);
+                var subjectSemesterLabel = FormatSemesterLabel(subjectInfo?.index);
+                var warnings = new List<string>();
+
                 var sb = new StringBuilder();
                 sb.AppendLine($"## {subject.subjectName} ({subject.subjectCode})");
                 sb.AppendLine("### Tình hình");
                 sb.AppendLine($"- Điểm hiện tại: **{subject.mark}/100** · Mức: {ClassifyScore(subject.mark)}.");
+                if (subjectSemesterLabel is not null)
+                {
+                    sb.AppendLine($"- Thuộc {subjectSemesterLabel} trong chương trình; cần giữ tiến độ để tránh dồn môn.");
+                }
                 if (subject.mark >= 80)
                 {
                     sb.AppendLine("- Năng lực khá ổn, có thể thử thách bằng đề mở rộng hoặc dự án nhỏ.");
@@ -1048,13 +1063,74 @@ namespace AiService.Infrastructure.Implements
                     sb.AppendLine("- Nhờ mentor/bạn học giải thích các phần còn mơ hồ trước khi luyện bài mới.");
                 }
 
+                sb.AppendLine("### Liên kết tiền đề");
+                if (subjectInfo is null)
+                {
+                    sb.AppendLine("- Chưa có dữ liệu chương trình để xác định môn tiền đề.");
+                }
+                else
+                {
+                    var prereqCodes = subjectInfo.subjectPrerequisiteCode ?? new List<string>();
+                    var meaningfulCodes = prereqCodes.Where(code => !string.IsNullOrWhiteSpace(code)).ToList();
+
+                    if (meaningfulCodes.Count == 0)
+                    {
+                        sb.AppendLine("- Không có môn tiền đề.");
+                    }
+                    else
+                    {
+                        foreach (var prereqCode in meaningfulCodes)
+                        {
+                            curriculumLookup.TryGetValue(prereqCode, out var prereq);
+                            var prereqName = prereq == null
+                                ? prereqCode
+                                : (string.IsNullOrWhiteSpace(prereq.subjectName) ? prereqCode : prereq.subjectName);
+                            var prereqSemesterLabel = FormatSemesterLabel(prereq?.index);
+                            var prereqSuffix = prereqSemesterLabel is null ? string.Empty : $" ({prereqSemesterLabel})";
+
+                            if (markLookup.TryGetValue(prereqCode, out var prereqMark))
+                            {
+                                var status = prereqMark >= 70
+                                    ? $"điểm {prereqMark}/100 – đã đạt chuẩn, tiếp tục ôn định kỳ để hỗ trợ {subject.subjectName}"
+                                    : $"điểm {prereqMark}/100 – dưới chuẩn, cần củng cố trước khi học sâu {subject.subjectName}";
+                                sb.AppendLine($"- Ràng buộc {prereqName}{prereqSuffix}: {status}.");
+
+                                if (prereqMark < 70)
+                                {
+                                    warnings.Add($"- ⚠️ {prereqName}{prereqSuffix} đang dưới chuẩn ({prereqMark}/100) nhưng là điều kiện tiên quyết của {subject.subjectName}. Ưu tiên củng cố trước khi tiếp tục.");
+                                }
+                            }
+                            else
+                            {
+                                sb.AppendLine($"- Ràng buộc {prereqName}{prereqSuffix}: chưa có điểm – cần hoàn thành và cập nhật trước khi tiếp tục {subject.subjectName}.");
+                                warnings.Add($"- ⚠️ Chưa có điểm cho {prereqName}{prereqSuffix} (tiền đề của {subject.subjectName}); bổ sung dữ liệu để tránh rủi ro khi học môn này.");
+                            }
+                        }
+                    }
+                }
+
                 if (dependencyMap.TryGetValue(subject.subjectCode, out var dependents) &&
                     dependents.Count > 0 &&
                     subject.mark < 70)
                 {
-                    sb.AppendLine("### Cảnh báo");
-                    sb.AppendLine($"- ⚠️ Môn này là nền cho {string.Join(", ", dependents)}. Giữ điểm thấp sẽ khiến các môn đó khó theo kịp.");
+                    foreach (var dependent in dependents)
+                    {
+                        var dependentLabel = dependent.SemesterIndex.HasValue
+                            ? $"{dependent.SubjectName} (kỳ {dependent.SemesterIndex})"
+                            : dependent.SubjectName;
+                        warnings.Add($"- ⚠️ {subject.subjectName} là điều kiện đầu vào cho {dependentLabel}. Điểm hiện tại {subject.mark}/100 có thể khiến môn sau khó bắt nhịp.");
+                    }
                 }
+
+                if (warnings.Count > 0)
+                {
+                    sb.AppendLine("### Cảnh báo");
+                    foreach (var warning in warnings.Distinct())
+                    {
+                        sb.AppendLine(warning);
+                    }
+                }
+
                 sb.AppendLine("### Lộ trình 2–4 tuần");
                 if (subject.mark >= 80)
                 {
@@ -1086,34 +1162,43 @@ namespace AiService.Infrastructure.Implements
             }).ToList();
         }
 
-        private static Dictionary<string, List<string>> BuildSubjectDependencyMap(IEnumerable<SubjectCur> subjects)
+        private static Dictionary<string, List<SubjectDependency>> BuildSubjectDependencyMap(IEnumerable<SubjectCur> subjects)
         {
-            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, List<SubjectDependency>>(StringComparer.OrdinalIgnoreCase);
             foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
             {
-                foreach (var prerequisite in subject.sụbjectPrerequisiteCode ?? new List<string>())
+                foreach (var prerequisite in subject.subjectPrerequisiteCode ?? new List<string>())
                 {
                     if (string.IsNullOrWhiteSpace(prerequisite)) continue;
 
                     if (!map.TryGetValue(prerequisite, out var list))
                     {
-                        list = new List<string>();
+                        list = new List<SubjectDependency>();
                         map[prerequisite] = list;
                     }
 
                     var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
                         ? subject.subjectCode
                         : subject.subjectName;
+                    var dependent = new SubjectDependency(
+                        subject.subjectCode,
+                        dependentName,
+                        subject.index > 0 ? subject.index : (int?)null);
 
-                    if (!list.Contains(dependentName, StringComparer.OrdinalIgnoreCase))
+                    if (!list.Any(item => item.SubjectCode.Equals(subject.subjectCode, StringComparison.OrdinalIgnoreCase)))
                     {
-                        list.Add(dependentName);
+                        list.Add(dependent);
                     }
                 }
             }
 
             return map;
         }
+
+        private static string? FormatSemesterLabel(int? semesterIndex) =>
+            semesterIndex.HasValue && semesterIndex.Value > 0
+                ? $"Kỳ {semesterIndex.Value}"
+                : null;
 
         private static PersonaSummaryState BuildPersonaFallback(
             IReadOnlyCollection<SubjectMark> subjectMarks,
@@ -1248,6 +1333,8 @@ namespace AiService.Infrastructure.Implements
             public string? LearningAbility { get; set; }
         }
 
+        private sealed record SubjectDependency(string SubjectCode, string SubjectName, int? SemesterIndex);
+
         private sealed record PersonaSummaryState(
             string summaryFeedback,
             string habitAndInterestAnalysis,
@@ -1255,3 +1342,4 @@ namespace AiService.Infrastructure.Implements
             string learningAbility);
     }
 }
+

@@ -1,6 +1,4 @@
 using AiService.Application.Features.AiRecommend;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -84,30 +82,98 @@ YÊU CẦU ĐỊNH DẠNG:
         var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
         var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
 
-        var subjectList = subjectMarkList.Select(s => new
+        var curriculumLookup = curriculumListRaw
+            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .ToDictionary(
+                x => x.subjectCode,
+                x => x,
+                StringComparer.OrdinalIgnoreCase);
+
+        var markLookup = subjectMarkList
+            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .ToDictionary(
+                x => x.subjectCode,
+                x => x.mark,
+                StringComparer.OrdinalIgnoreCase);
+
+        var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
+
+        var subjectList = subjectMarkList.Select(s =>
         {
-            s.subjectCode,
-            s.subjectName,
-            s.mark
+            curriculumLookup.TryGetValue(s.subjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.subjectName)
+                ? subjectInfo.subjectName
+                : s.subjectName;
+
+            var prereqDetails = (subjectInfo?.subjectPrerequisiteCode ?? new List<string>())
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code =>
+                {
+                    curriculumLookup.TryGetValue(code, out var prereqInfo);
+                    var name = prereqInfo == null
+                        ? code
+                        : string.IsNullOrWhiteSpace(prereqInfo.subjectName) ? code : prereqInfo.subjectName;
+                    return new
+                    {
+                        subjectCode = code,
+                        subjectName = name,
+                        mark = markLookup.TryGetValue(code, out var prereqMark) ? prereqMark : (int?)null,
+                        semesterIndex = prereqInfo?.index
+                    } as object;
+                })
+                .ToList();
+
+            dependentsLookup.TryGetValue(s.subjectCode, out var dependents);
+            var dependentDetails = dependents?.Select(dep => new
+            {
+                subjectCode = dep.subjectCode,
+                subjectName = dep.subjectName,
+                semesterIndex = dep.semesterIndex
+            } as object).ToList() ?? new List<object>();
+
+            var dependentWarningTexts = dependents?.Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scope = semesterLabel == null ? "các kỳ sau" : semesterLabel.ToLowerInvariant();
+                return $"Điểm thấp ở {canonicalName} sẽ kéo theo {dep.subjectName} ({dep.subjectCode}) {scope} khó đạt yêu cầu và đạt được hiểu quả tốt Bạn nên xem xét nhé!.";
+            }).ToList() ?? new List<string>();
+
+            return new
+            {
+                s.subjectCode,
+                subjectName = canonicalName,
+                s.mark,
+                semesterIndex = subjectInfo?.index,
+                prerequisites = prereqDetails,
+                dependents = dependentDetails,
+                dependentWarnings = dependentWarningTexts
+            };
         }).ToList();
 
         var curriculumList = curriculumListRaw.Select(s => new
         {
             s.subjectCode,
             s.subjectName,
-            prerequisites = s.sụbjectPrerequisiteCode ?? new List<string>()
+            index = s.index,
+            prerequisites = s.subjectPrerequisiteCode ?? new List<string>()
         }).ToList();
 
         var dependencyEdges = curriculumListRaw
-            .SelectMany(subject => (subject.sụbjectPrerequisiteCode ?? new List<string>())
+            .SelectMany(subject => (subject.subjectPrerequisiteCode ?? new List<string>())
                 .Where(code => !string.IsNullOrWhiteSpace(code))
-                .Select(prerequisite => new
+                .Select(prerequisite =>
                 {
-                    prerequisite,
-                    dependentCode = subject.subjectCode,
-                    dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
-                        ? subject.subjectCode
-                        : subject.subjectName
+                    curriculumLookup.TryGetValue(prerequisite, out var prereqInfo);
+                    return new
+                    {
+                        prerequisite,
+                        prerequisiteIndex = prereqInfo?.index,
+                        dependentCode = subject.subjectCode,
+                        dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
+                            ? subject.subjectCode
+                            : subject.subjectName,
+                        dependentIndex = subject.index
+                    };
                 }))
             .ToList();
 
@@ -121,6 +187,8 @@ YÊU CẦU ĐỊNH DẠNG:
 
         var json = Serialize(payload);
 
+        //Console.WriteLine(json);
+
         return $$"""
 DỮ LIỆU MÔN HỌC VÀ CHƯƠNG TRÌNH:
 ```json
@@ -128,8 +196,15 @@ DỮ LIỆU MÔN HỌC VÀ CHƯƠNG TRÌNH:
 ```
 
 NHIỆM VỤ:
-- Phân loại từng môn theo thang 0-100 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, cảnh báo phụ thuộc (nếu có), kế hoạch hành động **2–4 tuần**.
-- Khi `dependencyEdges` cho thấy môn đang là tiên quyết và điểm < 70, phải tạo cảnh báo “⚠️ ...”.
+- Phân loại từng môn theo thang 0-100 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, **liên kết tiền đề** (nếu có trong `prerequisites`), cảnh báo ảnh hưởng đến môn kế tiếp (dựa trên `dependents`), kế hoạch hành động **2–4 tuần**.
+- `semesterIndex` thể hiện kỳ học (1 = kỳ 1, 2 = kỳ 2...). Trong `### Tình hình`, mở đầu bằng câu nêu rõ môn thuộc kỳ nào (nếu có dữ liệu) rồi mới đến đánh giá điểm.
+- `prerequisites` chính là các môn PHẢI hoàn thành tốt trước khi học môn hiện tại. Nếu điểm < 70 hoặc chưa có điểm, phải cảnh báo trực tiếp trong phần của môn hiện tại (ví dụ: “PRO192 phụ thuộc PRF192 đang thấp nên cần ôn lại”) và đề xuất cách củng cố trước khi tiếp tục.
+- Mỗi bullet trong `### Liên kết tiền đề` phải viết đúng mẫu:
+  `- Ràng buộc {tên} ({mã}){nếu có kỳ → " – Kỳ {index}"}: điểm {x}/100 – nhận xét về việc nên củng cố/duy trì để hỗ trợ môn hiện tại`
+  (nếu không có điểm → dùng “chưa có điểm – cần hoàn thành ...”).
+- Trường `dependents` trong từng môn liệt kê CHÍNH XÁC các môn bị ảnh hưởng khi điểm hiện tại thấp. Chỉ tạo cảnh báo dựa trên danh sách này, nêu rõ kỳ (`semesterIndex`) của từng môn phụ thuộc. Nếu điểm hiện tại < 70, bắt buộc liệt kê từng phần trong `dependents`.
+- `dependentWarnings` là danh sách câu văn đã chuẩn hoá cho từng phụ thuộc. Khi viết `### Tình hình` và đặc biệt là `### Cảnh báo`, **phải** chép nguyên văn từng câu (mỗi câu một bullet). Không được bỏ sót câu nào khi mảng này không rỗng.
+- Tuyệt đối không suy đoán thêm mối quan hệ ngoài dữ liệu được cung cấp. Nếu danh sách rỗng thì ghi rõ “—” hoặc “Không có”.
 - Luôn liên hệ với `careerGoal` (nếu có) để giải thích vì sao môn này quan trọng hoặc nên ưu tiên.
 
 OUTPUT JSON:
@@ -145,8 +220,8 @@ OUTPUT JSON:
 
 QUY TẮC ĐỊNH DẠNG:
 - `analysisMarkdown` phải mở đầu bằng `## <Tên môn> (<Mã>)`.
-- Luôn có `### Tình hình`, `### Kiến thức trọng tâm`, `### Lộ trình 2–4 tuần`.
-- Heading `### Cảnh báo` chỉ xuất hiện khi có phụ thuộc hoặc điểm < 70.
+- Luôn có `### Tình hình`, `### Kiến thức trọng tâm`, `### Liên kết tiền đề` (khi có `prerequisites`), `### Lộ trình 2–4 tuần`.
+- Heading `### Cảnh báo` bắt buộc xuất hiện khi `dependents` hoặc `dependentWarnings` không rỗng; mỗi bullet phải lặp lại đúng câu trong `dependentWarnings` (có thể bổ sung thêm nhấn mạnh nhưng không được bỏ câu).
 - Bullet cần viện dẫn thẳng tên môn hoặc kỹ năng để người học dễ áp dụng.
 """;
     }
@@ -226,5 +301,41 @@ LƯU Ý:
     }
 
     private static string Serialize(object payload) => JsonSerializer.Serialize(payload, PromptJsonOptions);
+
+    private static Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> BuildDependentsLookup(IEnumerable<SubjectCur> subjects)
+    {
+        var map = new Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
+        {
+            foreach (var prerequisite in subject.subjectPrerequisiteCode ?? new List<string>())
+            {
+                if (string.IsNullOrWhiteSpace(prerequisite)) continue;
+
+                if (!map.TryGetValue(prerequisite, out var list))
+                {
+                    list = new List<(string subjectCode, string subjectName, int? semesterIndex)>();
+                    map[prerequisite] = list;
+                }
+
+                var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
+                    ? subject.subjectCode
+                    : subject.subjectName;
+                var semesterIndex = subject.index > 0 ? subject.index : (int?)null;
+
+                if (!list.Any(dep => dep.subjectCode.Equals(subject.subjectCode, StringComparison.OrdinalIgnoreCase)))
+                {
+                    list.Add((subject.subjectCode, dependentName, semesterIndex));
+                }
+            }
+        }
+
+        return map;
+    }
+
+    private static string? FormatSemesterLabel(int? semesterIndex) =>
+        semesterIndex.HasValue && semesterIndex.Value > 0
+            ? $"Kỳ {semesterIndex.Value}"
+            : null;
 }
 
