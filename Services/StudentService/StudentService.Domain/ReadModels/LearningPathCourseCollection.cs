@@ -46,7 +46,7 @@ public class LearningPathCourseCollection
             InternalCourseId = model.InternalCourseId,
             Position = model.Position,
             Status = model.Status,
-            SubjectCode = model.SubjectCode,
+            // SubjectCode = model.SubjectCode,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

@@ -43,8 +43,8 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
     {
         public DateTime LastAccessed { get; set; }
         public short MostActiveSlot { get; set; }
-        public long TotalPauseCount { get; set; }
-        public long ScrollVideoCount { get; set; }
+        public long? TotalPauseCount { get; set; }
+        public long? ScrollVideoCount { get; set; }
         public int RewindTimes { get; set; }
         public double AverageRewatchPerLesson { get; set; }
         public double AveragePausePerLesson { get; set; }

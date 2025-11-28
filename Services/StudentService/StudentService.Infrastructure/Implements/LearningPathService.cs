@@ -242,7 +242,7 @@ public class LearningPathService : ILearningPathService
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
                             Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
-                            SubjectCode = course.SubjectCode,
+                            // SubjectCode = course.SubjectCode,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
@@ -265,7 +265,7 @@ public class LearningPathService : ILearningPathService
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
                             Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
-                            SubjectCode = course.SubjectCode
+                            // SubjectCode = course.SubjectCode
                         }).ToList()
                 };
 
@@ -1042,13 +1042,13 @@ public class LearningPathService : ILearningPathService
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(learningPathCourse.SubjectCode))
-            {
-                response.SetMessage(MessageId.E00000, "Khóa học không có mã môn học");
-                return false;
-            }
+            // if (string.IsNullOrWhiteSpace(learningPathCourse.SubjectCode))
+            // {
+            //     response.SetMessage(MessageId.E00000, "Khóa học không có mã môn học");
+            //     return false;
+            // }
 
-            var subjectCodeToSkip = learningPathCourse.SubjectCode;
+            // var subjectCodeToSkip = learningPathCourse.SubjectCode;
 
             // 2. Lấy tất cả PathId của user
             var studentPathIds = await _learningPathCommandRepository
@@ -1077,7 +1077,7 @@ public class LearningPathService : ILearningPathService
             // 4. Tìm tất cả LearningPathCourse có cùng SubjectCode của user
             var coursesToUpdate = await _learningPathCourseCommandRepository
                 .Find(c => studentMajorIds.Contains(c.LearningPathMajorId)
-                          && c.SubjectCode == subjectCodeToSkip
+                          // && c.SubjectCode == subjectCodeToSkip
                           && c.IsActive,
                       isTracking: true,
                       cancellationToken)
@@ -1142,7 +1142,7 @@ public class LearningPathService : ILearningPathService
             }
 
             response.Success = true;
-            response.Response = $"Đã cập nhật {updatedCourseIds.Count} khóa học có mã môn '{subjectCodeToSkip}' thành trạng thái Skipped";
+            // response.Response = $"Đã cập nhật {updatedCourseIds.Count} khóa học có mã môn '{subjectCodeToSkip}' thành trạng thái Skipped";
             response.SetMessage(MessageId.I00001, "Cập nhật trạng thái khóa học");
             return true;
         }, cancellationToken);
@@ -1201,8 +1201,8 @@ public class LearningPathService : ILearningPathService
                 .ToListAsync(cancellationToken);
 
             var coursesToUpdate = courses
-                .Where(c => !string.IsNullOrWhiteSpace(c.SubjectCode) &&
-                            string.Equals(c.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase))
+                // .Where(c => !string.IsNullOrWhiteSpace(c.SubjectCode) &&
+                //             string.Equals(c.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (!coursesToUpdate.Any())
@@ -1565,8 +1565,11 @@ public class LearningPathService : ILearningPathService
         // Lấy tất cả SubjectCodes trong LP
         var subjectGroups = majors
             .SelectMany(m => m.LearningPathCourses)
-            .Where(c => c.IsActive && c.SubjectCode != null)
-            .GroupBy(c => c.SubjectCode)
+            .Where(c => c.IsActive )
+            //             && c.SubjectCode != null)
+            // .GroupBy(c => c.SubjectCode)
+            // Để đại để fix lỗi
+            .GroupBy(c => c.Status)
             .ToList();
 
         // Check: SubjectCode nào được coi completed?

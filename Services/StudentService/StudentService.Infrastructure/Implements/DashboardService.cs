@@ -435,8 +435,8 @@ namespace StudentService.Infrastructure.Implements
             var streakItems = streakEntities
                 .Select(s => new LearningStreakItem
                 {
-                    StartDate = s.StartDate.ToDateTime(TimeOnly.MinValue),
-                    EndDate = s.EndDate.ToDateTime(TimeOnly.MinValue),
+                    // StartDate = s.StartDate.ToDateTime(TimeOnly.MinValue),
+                    // EndDate = s.EndDate.ToDateTime(TimeOnly.MinValue),
                     Days = (int)s.StreakDays
                 })
                 .OrderByDescending(x => x.EndDate)
@@ -480,11 +480,11 @@ namespace StudentService.Infrastructure.Implements
                 .OfType<VwUserVideoActionsAgg>()
                 .ToList();
 
-            long totalPauseCount = actionsAgg
+            long? totalPauseCount = actionsAgg
                 .Where(x => x.ActionType == UserBehaviourActionType.PauseVideo.ToString())
                 .Sum(x => x.ActionCount);
 
-            long scrollVideoCount = actionsAgg
+            long? scrollVideoCount = actionsAgg
                 .Where(x => x.ActionType == UserBehaviourActionType.ScrollVideo.ToString())
                 .Sum(x => x.ActionCount);
 
