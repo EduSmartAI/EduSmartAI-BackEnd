@@ -83,6 +83,8 @@ public partial class CourseDbContext : AppDbContext
 
     public virtual DbSet<VMajorSemesterSubjectCourses> VMajorSemesterSubjectCoursess { get; set; }
 
+	public virtual DbSet<VMajorSemesterSubjectPrereqs> VMajorSemesterSubjectPrereqss { get; set; }
+
 	public virtual DbSet<VwCourseInfo> VwCourseInfos { get; set; }
 
 	public virtual DbSet<VwOverviewCourseProgress> VwOverviewCourseProgresses { get; set; }
@@ -1476,6 +1478,20 @@ public partial class CourseDbContext : AppDbContext
             entity.Property(e => e.Description).HasColumnName("description");
             entity.Property(e => e.ShortDescription).HasColumnName("short_description");
         });
+
+		modelBuilder.Entity<VMajorSemesterSubjectPrereqs>(entity =>
+		{
+			entity
+				.HasNoKey()
+				.ToView("v_major_semester_subject_prereqs");
+
+			entity.Property(e => e.MajorCode).HasColumnName("major_code");
+			entity.Property(e => e.SemesterIndex).HasColumnName("semester_index");
+			entity.Property(e => e.SubjectIndex).HasColumnName("subject_index");
+			entity.Property(e => e.SubjectCode).HasColumnName("subject_code");
+			entity.Property(e => e.SubjectName).HasColumnName("subject_name");
+			entity.Property(e => e.PrereqSubjectCodes).HasColumnName("prereq_subject_codes");
+		});
 
 		modelBuilder.Entity<VwCourseInfo>(entity =>
 		{

@@ -47,6 +47,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetInfoCourseByCourseIdConsumer>();
                 x.AddConsumer<GetOverviewCourseConsumer>();
                 x.AddConsumer<GetUserCourseProgressEventConsumer>();
+                x.AddConsumer<GetSubjectInfoConsumer>();
                 x.AddConsumer<TranscriptUpsertConsumer>();
                 x.AddConsumer<CourseSelectsBySubjectCodeEventConsumer>();
                 x.AddConsumer<CoreSubjectSelectEventConsumer>();

@@ -1,6 +1,4 @@
 using AiService.Application.Features.AiRecommend;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -82,6 +80,7 @@ YÊU CẦU ĐỊNH DẠNG:
         string careerGoal)
     {
         var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.mark.HasValue).ToList();
         var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
 
         var curriculumLookup = curriculumListRaw
@@ -100,7 +99,7 @@ YÊU CẦU ĐỊNH DẠNG:
 
         var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
 
-        var subjectList = subjectMarkList.Select(s =>
+        var subjectList = scoredSubjects.Select(s =>
         {
             curriculumLookup.TryGetValue(s.subjectCode, out var subjectInfo);
             var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.subjectName)
@@ -136,15 +135,15 @@ YÊU CẦU ĐỊNH DẠNG:
             var dependentWarningTexts = dependents?.Select(dep =>
             {
                 var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
-                var scope = semesterLabel == null ? "các kỳ sau" : semesterLabel.ToLowerInvariant();
-                return $"Điểm thấp ở {canonicalName} → {dep.subjectName} ({dep.subjectCode}) {scope} dễ hụt chuẩn.";
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return $"Điểm thấp ở {canonicalName} → {dep.subjectName} ({dep.subjectCode}) {scopeSuffix} có thể ảnh hưởng đến kết quả sau cùng; cần củng cố sớm.";
             }).ToList() ?? new List<string>();
 
             return new
             {
                 s.subjectCode,
                 subjectName = canonicalName,
-                s.mark,
+                mark = s.mark!.Value,
                 semesterIndex = subjectInfo?.index,
                 prerequisites = prereqDetails,
                 dependents = dependentDetails,
@@ -152,7 +151,7 @@ YÊU CẦU ĐỊNH DẠNG:
             };
         }).ToList();
 
-        var curriculumScopeCodes = CollectCurriculumScope(subjectMarkList, curriculumLookup, dependentsLookup);
+        var curriculumScopeCodes = CollectCurriculumScope(scoredSubjects, curriculumLookup, dependentsLookup);
 
         var curriculumList = curriculumListRaw
             .Where(s => curriculumScopeCodes.Contains(s.subjectCode))
@@ -205,11 +204,11 @@ DỮ LIỆU MÔN HỌC VÀ CHƯƠNG TRÌNH:
 
 NHIỆM VỤ:
 - Phân loại từng môn theo thang 0-100 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, **liên kết tiền đề** (nếu có trong `prerequisites`), cảnh báo ảnh hưởng đến môn kế tiếp (dựa trên `dependents`), kế hoạch hành động **2–4 tuần**.
-- `semesterIndex` thể hiện kỳ học (1 = kỳ 1, 2 = kỳ 2...). Trong `### Tình hình`, mở đầu bằng câu nêu rõ môn thuộc kỳ nào (nếu có dữ liệu) rồi mới đến đánh giá điểm.
+- `semesterIndex` thể hiện kỳ học (1 = kỳ 1, 2 = kỳ 2...). Trong `### Tình hình`, mở đầu bằng câu nêu rõ môn học nào (nếu có dữ liệu) rồi mới đến đánh giá điểm.
 - `prerequisites` chính là các môn PHẢI hoàn thành tốt trước khi học môn hiện tại. Nếu điểm < 70 hoặc chưa có điểm, phải cảnh báo trực tiếp trong phần của môn hiện tại (ví dụ: “PRO192 phụ thuộc PRF192 đang thấp nên cần ôn lại”) và đề xuất cách củng cố trước khi tiếp tục.
-- Mỗi bullet trong `### Liên kết tiền đề` phải viết đúng mẫu:
-  `- Ràng buộc {tên} ({mã}){nếu có kỳ → " – Kỳ {index}"}: điểm {x}/100 – nhận xét về việc nên củng cố/duy trì để hỗ trợ môn hiện tại`
-  (nếu không có điểm → dùng “chưa có điểm – cần hoàn thành ...”).
+- Mỗi bullet trong `### Môn nền tảng quan trọng` phải viết theo mẫu:
+  `- {Tên môn tiền đề} ({mã}){nếu có kỳ → " – Kỳ {index}"}: {điểm/trạng thái hiện tại} – nhận xét ngắn gọn về cách hỗ trợ môn đang phân tích`
+  (nếu chưa có điểm → ghi “Chưa có điểm – cần hoàn thành trước khi học sâu môn hiện tại”).
 - Trường `dependents` trong từng môn liệt kê CHÍNH XÁC các môn bị ảnh hưởng khi điểm hiện tại thấp. Chỉ tạo cảnh báo dựa trên danh sách này, nêu rõ kỳ (`semesterIndex`) của từng môn phụ thuộc. Nếu điểm hiện tại < 70, bắt buộc liệt kê từng phần trong `dependents`.
 - `dependentWarnings` là danh sách câu văn đã chuẩn hoá cho từng phụ thuộc. Khi viết `### Tình hình` và đặc biệt là `### Cảnh báo`, **phải** chép nguyên văn từng câu (mỗi câu một bullet). Không được bỏ sót câu nào khi mảng này không rỗng.
 - Tuyệt đối không suy đoán thêm mối quan hệ ngoài dữ liệu được cung cấp. Nếu danh sách rỗng thì ghi rõ “—” hoặc “Không có”.
@@ -228,9 +227,106 @@ OUTPUT JSON:
 
 QUY TẮC ĐỊNH DẠNG:
 - `analysisMarkdown` phải mở đầu bằng `## <Tên môn> (<Mã>)`.
-- Luôn có `### Tình hình`, `### Kiến thức trọng tâm`, `### Liên kết tiền đề` (khi có `prerequisites`), `### Lộ trình 2–4 tuần`.
+- Luôn có `### Tình hình`, `### Kiến thức trọng tâm`, `### Môn nền tảng quan trọng` (khi có `prerequisites`), `### Lộ trình 2–4 tuần`.
 - Heading `### Cảnh báo` bắt buộc xuất hiện khi `dependents` hoặc `dependentWarnings` không rỗng; mỗi bullet phải lặp lại đúng câu trong `dependentWarnings` (có thể bổ sung thêm nhấn mạnh nhưng không được bỏ câu).
 - Bullet cần viện dẫn thẳng tên môn hoặc kỹ năng để người học dễ áp dụng.
+""";
+    }
+
+    public static string BuildMissingSubjectPrompt(
+        IEnumerable<SubjectMark> missingSubjects,
+        IEnumerable<SubjectCur> curriculumSubjects,
+        string careerGoal)
+    {
+        var missingList = (missingSubjects ?? Enumerable.Empty<SubjectMark>())
+            .Where(s => !string.IsNullOrWhiteSpace(s.subjectCode))
+            .ToList();
+
+        var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
+        var curriculumLookup = curriculumListRaw
+            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .ToDictionary(
+                x => x.subjectCode,
+                x => x,
+                StringComparer.OrdinalIgnoreCase);
+        var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
+
+        var subjects = missingList.Select(s =>
+        {
+            curriculumLookup.TryGetValue(s.subjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.subjectName)
+                ? subjectInfo.subjectName
+                : (string.IsNullOrWhiteSpace(s.subjectName) ? s.subjectCode : s.subjectName);
+
+            var semesterIndex = subjectInfo?.index;
+
+            var prereqDetails = (subjectInfo?.subjectPrerequisiteCode ?? new List<string>())
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code =>
+                {
+                    curriculumLookup.TryGetValue(code, out var prereqInfo);
+                    return new
+                    {
+                        subjectCode = code,
+                        subjectName = string.IsNullOrWhiteSpace(prereqInfo?.subjectName) ? code : prereqInfo.subjectName,
+                        semesterIndex = prereqInfo?.index
+                    };
+                })
+                .ToList();
+
+            dependentsLookup.TryGetValue(s.subjectCode, out var dependents);
+            var dependentDetails = dependents?.Select(dep => (object)new
+            {
+                subjectCode = dep.subjectCode,
+                subjectName = dep.subjectName,
+                semesterIndex = dep.semesterIndex
+            }).ToList() ?? new List<object>();
+
+            return new
+            {
+                subjectCode = s.subjectCode,
+                subjectName = canonicalName,
+                semesterIndex,
+                prerequisites = prereqDetails,
+                dependents = dependentDetails
+            };
+        }).ToList();
+
+        var payload = new
+        {
+            subjects,
+            careerGoal
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU MÔN THIẾU ĐIỂM:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+- Với mỗi môn (chưa học hoặc chưa có điểm), viết 1 phân tích Markdown gồm 3 heading:
+  1. `### Vì sao nên chuẩn bị sớm`: nêu lý do phải chuẩn bị trước khi vào môn (kỳ học, tiến độ, careerGoal).
+  2. `### Môn phụ thuộc dễ bị ảnh hưởng`: liệt kê các môn phụ thuộc trong `dependents`, giải thích hậu quả nếu nền tảng yếu.
+  3. `### Hành động cần làm`: 3–5 bullet nêu rõ phải ôn/làm bài gì để xây nền, ghi khối lượng cụ thể.
+- Liên hệ `careerGoal` khi có thông tin.
+
+OUTPUT JSON:
+{
+  "withoutMarkAnalysis": [
+    {
+      "subjectCode": "...",
+      "subjectName": "...",
+      "analysisMarkdown": "## <Tên môn> (<Mã>)\n### Vì sao nên chuẩn bị sớm\n- ...\n### Môn phụ thuộc dễ bị ảnh hưởng\n- ...\n### Hành động cần làm\n- ..."
+    }
+  ]
+}
+
+LƯU Ý:
+- Nếu không có môn phụ thuộc, ghi rõ “Không có môn phụ thuộc trực tiếp”.
+- Bullet phải bắt đầu bằng động từ và nêu khối lượng (ví dụ: “Ôn 2 buổi/tuần ...”).
 """;
     }
 
@@ -243,6 +339,7 @@ QUY TẮC ĐỊNH DẠNG:
         quizSurvey ??= new QuizSurvey();
 
         var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.mark.HasValue).ToList();
         var abilityMarkList = (abilityMarks ?? Enumerable.Empty<AbilityMark>()).ToList();
 
         var subjectList = subjectMarkList.Select(s => new
@@ -256,10 +353,10 @@ QUY TẮC ĐỊNH DẠNG:
 
         var stats = new
         {
-            avgSubject = subjectMarkList.Count > 0 ? subjectMarkList.Average(s => s.mark) : 0,
+            avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.mark!.Value) : 0,
             avgAbility = abilityMarkList.Count > 0 ? abilityMarkList.Average(a => a.mark) : 0,
-            strongSubjects = subjectMarkList.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList(),
-            weakSubjects = subjectMarkList.Where(s => s.mark < 65).Select(s => s.subjectName).ToList(),
+            strongSubjects = scoredSubjects.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList(),
+            weakSubjects = scoredSubjects.Where(s => s.mark < 65).Select(s => s.subjectName).ToList(),
             strongAbilities = abilityMarkList.Where(a => a.mark >= 80).Select(a => a.name).ToList(),
             weakAbilities = abilityMarkList.Where(a => a.mark < 65).Select(a => a.name).ToList()
         };

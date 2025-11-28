@@ -3,21 +3,22 @@ using AiService.Application.Features.AiSummary;
 using AiService.Application.Interfaces;
 using AiService.Infrastructure.Helpers.AiQuizEvaluator;
 using AiService.Infrastructure.Prompts;
+using BuildingBlocks.Messaging.Events.AIService.SubjectInfoEvent;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse; // NEW
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using MassTransit;
 using OpenAI.Chat;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace AiService.Infrastructure.Implements
 {
     public class AiSummaryService(
         IRequestClient<GetInfoEvaluationEvent> requestClient,
         IRequestClient<GetAllDetailCourseEvent> courseClient,
+        IRequestClient<SubjectInfoEvent> subjectInfoClient,
         ChatClient chat
     ) : IAiSummaryService
     {
@@ -681,19 +682,27 @@ namespace AiService.Infrastructure.Implements
             """;
 
         #region Sinh feedback học tập
+        /// <summary>
+        /// Generate feedback overall
+        /// </summary>
+        /// <param name="req"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
         public async Task<AiRecommendImprovementResposne> GenerateLearningFeedbackMarkdownAsync(
             AiRecommendImprovementRequest req,
             CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(req);
 
-            var curriculumSubjects = req.Curriculum?.subjects ?? new List<SubjectCur>();
+            var curriculumSubjects = await LoadCurriculumSubjectsAsync(req, ct);
             var abilityMarks = EnsureAbilityCoverage(req.AbilityMarks);
             var subjectMarks = EnsureSubjectCoverage(req.SubjectMarks, curriculumSubjects);
+            var scoredSubjectMarks = subjectMarks.Where(m => m.mark.HasValue).ToList();
+            var missingSubjectMarks = subjectMarks.Where(m => !m.mark.HasValue).ToList();
             var quizSurvey = req.QuizSurvey ?? new QuizSurvey();
             var careerGoal = req.careerGoal?.Trim() ?? string.Empty;
 
-            var subjectBatches = ChunkSubjects(subjectMarks, SubjectsPerPrompt).ToList();
+            var subjectBatches = ChunkSubjects(scoredSubjectMarks, SubjectsPerPrompt).ToList();
 
             var abilityTask = CompleteJsonChatAsync(
                 AiRecommendPromptLibrary.SystemPrompt,
@@ -712,14 +721,28 @@ namespace AiService.Infrastructure.Implements
                     ct))
                 .ToList();
 
-            var waitTasks = new List<Task>(subjectPromptTasks.Count + 2);
+            Task<string?>? dependencyTask = null;
+            if (missingSubjectMarks.Count > 0)
+            {
+                dependencyTask = CompleteJsonChatAsync(
+                    AiRecommendPromptLibrary.SystemPrompt,
+                    AiRecommendPromptLibrary.BuildMissingSubjectPrompt(missingSubjectMarks, curriculumSubjects, careerGoal),
+                    ct);
+            }
+
+            var waitTasks = new List<Task>(subjectPromptTasks.Count + 2 + (dependencyTask is null ? 0 : 1));
             waitTasks.AddRange(subjectPromptTasks);
             waitTasks.Add(abilityTask);
             waitTasks.Add(personaTask);
+            if (dependencyTask is not null)
+            {
+                waitTasks.Add(dependencyTask);
+            }
             await Task.WhenAll(waitTasks);
 
             var abilityPayload = await abilityTask;
             var personaPayload = await personaTask;
+            var dependencyPayload = dependencyTask is null ? null : await dependencyTask;
 
             var subjectAnalyses = new List<SubjectAnalysis>();
             foreach (var task in subjectPromptTasks)
@@ -734,11 +757,18 @@ namespace AiService.Infrastructure.Implements
 
             if (subjectAnalyses.Count == 0)
             {
-                subjectAnalyses = BuildSubjectFallback(subjectMarks, curriculumSubjects, careerGoal);
+                subjectAnalyses = BuildSubjectFallback(scoredSubjectMarks, curriculumSubjects, careerGoal);
+            }
+            else
+            {
+                EnrichSubjectAnalysesWithAcademicData(subjectAnalyses, curriculumSubjects, scoredSubjectMarks);
             }
 
             var abilityAnalyses = TryParseAbilityAnalyses(abilityPayload) ?? BuildAbilityFallback(abilityMarks, careerGoal);
             var personaSummary = TryParsePersonaSummary(personaPayload) ?? BuildPersonaFallback(subjectMarks, abilityMarks, quizSurvey, careerGoal);
+            var withoutMarkAnalyses = missingSubjectMarks.Count == 0
+                ? new List<SubjectWithoutMarkAnalysis>()
+                : TryParseWithoutMarkAnalyses(dependencyPayload) ?? BuildWithoutMarkFallback(missingSubjectMarks, curriculumSubjects, careerGoal);
 
             return new AiRecommendImprovementResposne
             {
@@ -750,7 +780,8 @@ namespace AiService.Infrastructure.Implements
                     personality = personaSummary.personality,
                     learningAbility = personaSummary.learningAbility,
                     subjectAnalyses = subjectAnalyses,
-                    abilityAnalyses = abilityAnalyses
+                    abilityAnalyses = abilityAnalyses,
+                    withoutMarkAnalysis = withoutMarkAnalyses
                 }
             };
         }
@@ -760,7 +791,13 @@ namespace AiService.Infrastructure.Implements
         {
             PropertyNameCaseInsensitive = true
         };
-
+        /// <summary>
+        /// Method chat use to call openAI
+        /// </summary>
+        /// <param name="systemPrompt"></param>
+        /// <param name="userPrompt"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
         private async Task<string?> CompleteJsonChatAsync(string systemPrompt, string userPrompt, CancellationToken ct)
         {
             try
@@ -815,6 +852,65 @@ namespace AiService.Infrastructure.Implements
             }
 
             return normalized;
+        }
+
+        private async Task<List<SubjectCur>> LoadCurriculumSubjectsAsync(AiRecommendImprovementRequest req, CancellationToken ct)
+        {
+            var fallback = NormalizeCurriculumSubjects(req.Curriculum?.subjects ?? new List<SubjectCur>());
+            var majorCode = NormalizeSubjectCode(req.MajorCode);
+            var requestedSubjectCodes = (req.SubjectMarks ?? new List<SubjectMark>())
+                .Select(mark => NormalizeSubjectCode(mark.subjectCode))
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(majorCode) && requestedSubjectCodes.Count == 0)
+            {
+                return fallback;
+            }
+
+            var eventRequest = new SubjectInfoEvent
+            {
+                MajorCode = majorCode,
+                SubjectCodes = requestedSubjectCodes
+            };
+
+            try
+            {
+                var response = await subjectInfoClient.GetResponse<SubjectInfoEventResponse>(eventRequest, ct);
+
+                var message = response.Message;
+                if (message.Success && message.Response is { Count: > 0 } items)
+                {
+                    var mappedSubjects = NormalizeCurriculumSubjects(
+                        items.Select(item => new SubjectCur
+                        {
+                            subjectCode = item.SubjectCode ?? string.Empty,
+                            subjectName = item.SubjectName ?? string.Empty,
+                            index = item.SemesterIndex.HasValue && item.SemesterIndex.Value > 0
+                                ? item.SemesterIndex.Value
+                                : item.SubjectIndex,
+                            subjectPrerequisiteCode = item.PrereqSubjectCodes ?? new List<string>()
+                        }));
+
+                    if (fallback.Count == 0)
+                    {
+                        return mappedSubjects;
+                    }
+
+                    return mappedSubjects
+                        .Concat(fallback)
+                        .GroupBy(subject => subject.subjectCode, StringComparer.OrdinalIgnoreCase)
+                        .Select(group => group.First())
+                        .ToList();
+                }
+            }
+            catch
+            {
+                // Fall back to legacy payload if remote lookup fails
+            }
+
+            return fallback;
         }
 
         private static List<SubjectMark> EnsureSubjectCoverage(List<SubjectMark>? subjectMarks, List<SubjectCur> curriculumSubjects)
@@ -886,6 +982,29 @@ namespace AiService.Infrastructure.Implements
                 {
                     return items
                         .Where(item => !string.IsNullOrWhiteSpace(item.subjectName) &&
+                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .ToList();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+
+            return null;
+        }
+
+        private static List<SubjectWithoutMarkAnalysis>? TryParseWithoutMarkAnalyses(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<DependencyAnalysisEnvelope>(json, AiResponseJsonOptions);
+                if (parsed?.DependencyAnalyses is { Count: > 0 } items)
+                {
+                    return items
+                        .Where(item => !string.IsNullOrWhiteSpace(item.subjectCode) &&
                                        !string.IsNullOrWhiteSpace(item.analysisMarkdown))
                         .ToList();
                 }
@@ -1023,33 +1142,41 @@ namespace AiService.Infrastructure.Implements
                 ];
             }
 
-            var dependencyMap = BuildSubjectDependencyMap(curriculumSubjects);
-            var curriculumLookup = (curriculumSubjects ?? Array.Empty<SubjectCur>())
-                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? Array.Empty<SubjectCur>());
+            var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
+            var curriculumLookup = normalizedCurriculum
                 .ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
             var markLookup = source
                 .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
-                .ToDictionary(x => x.subjectCode, x => x.mark, StringComparer.OrdinalIgnoreCase);
+                .GroupBy(x => NormalizeSubjectCode(x.subjectCode))
+                .ToDictionary(g => g.Key, g => g.First().mark!.Value, StringComparer.OrdinalIgnoreCase);
 
             return source.Select(subject =>
             {
-                curriculumLookup.TryGetValue(subject.subjectCode, out var subjectInfo);
+                var subjectCodeNormalized = NormalizeSubjectCode(subject.subjectCode);
+                curriculumLookup.TryGetValue(subjectCodeNormalized, out var subjectInfo);
                 var subjectSemesterLabel = FormatSemesterLabel(subjectInfo?.index);
-                var warnings = new List<string>();
+                var subjectDisplayCode = string.IsNullOrWhiteSpace(subject.subjectCode)
+                    ? subjectCodeNormalized
+                    : subject.subjectCode.Trim();
+                var subjectDisplayName = string.IsNullOrWhiteSpace(subject.subjectName)
+                    ? subjectDisplayCode
+                    : subject.subjectName.Trim();
+                var subjectScore = subject.mark ?? 0;
 
                 var sb = new StringBuilder();
-                sb.AppendLine($"## {subject.subjectName} ({subject.subjectCode})");
+                sb.AppendLine($"## {subjectDisplayName} ({subjectDisplayCode})");
                 sb.AppendLine("### Tình hình");
-                sb.AppendLine($"- Điểm hiện tại: **{subject.mark}/100** · Mức: {ClassifyScore(subject.mark)}.");
+                sb.AppendLine($"- Điểm hiện tại: **{subjectScore}/100** · Mức: {ClassifyScore(subjectScore)}.");
                 if (subjectSemesterLabel is not null)
                 {
                     sb.AppendLine($"- Thuộc {subjectSemesterLabel} trong chương trình; cần giữ tiến độ để tránh dồn môn.");
                 }
-                if (subject.mark >= 80)
+                if (subjectScore >= 80)
                 {
                     sb.AppendLine("- Năng lực khá ổn, có thể thử thách bằng đề mở rộng hoặc dự án nhỏ.");
                 }
-                else if (subject.mark >= 65)
+                else if (subjectScore >= 65)
                 {
                     sb.AppendLine("- Nên củng cố lại các chủ đề bị sai và tăng tần suất luyện đề.");
                 }
@@ -1059,14 +1186,14 @@ namespace AiService.Infrastructure.Implements
                 }
 
                 sb.AppendLine("### Kiến thức trọng tâm");
-                if (subject.mark >= 80)
+                if (subjectScore >= 80)
                 {
-                    sb.AppendLine($"- Đào sâu các chủ đề nâng cao của {subject.subjectName} (tối ưu, mô hình hoá, kiến trúc).");
+                    sb.AppendLine($"- Đào sâu các chủ đề nâng cao của {subjectDisplayName} (tối ưu, mô hình hoá, kiến trúc).");
                     sb.AppendLine("- Viết lại insight sau mỗi bài để chuẩn bị cho môn liên quan.");
                 }
-                else if (subject.mark >= 65)
+                else if (subjectScore >= 65)
                 {
-                    sb.AppendLine($"- Rà lại 2 chương trọng yếu của {subject.subjectName}, ghi chú công thức/thuật toán chính.");
+                    sb.AppendLine($"- Rà lại 2 chương trọng yếu của {subjectDisplayName}, ghi chú công thức/thuật toán chính.");
                     sb.AppendLine("- Hoàn thành 3-4 bài tập chuẩn để kiểm tra hiểu bài.");
                 }
                 else
@@ -1075,81 +1202,28 @@ namespace AiService.Infrastructure.Implements
                     sb.AppendLine("- Nhờ mentor/bạn học giải thích các phần còn mơ hồ trước khi luyện bài mới.");
                 }
 
-                sb.AppendLine("### Liên kết tiền đề");
-                if (subjectInfo is null)
-                {
-                    sb.AppendLine("- Chưa có dữ liệu chương trình để xác định môn tiền đề.");
-                }
-                else
-                {
-                    var prereqCodes = subjectInfo.subjectPrerequisiteCode ?? new List<string>();
-                    var meaningfulCodes = prereqCodes.Where(code => !string.IsNullOrWhiteSpace(code)).ToList();
+                var warnings = new List<string>();
 
-                    if (meaningfulCodes.Count == 0)
-                    {
-                        sb.AppendLine("- Không có môn tiền đề.");
-                    }
-                    else
-                    {
-                        foreach (var prereqCode in meaningfulCodes)
-                        {
-                            curriculumLookup.TryGetValue(prereqCode, out var prereq);
-                            var prereqName = prereq == null
-                                ? prereqCode
-                                : (string.IsNullOrWhiteSpace(prereq.subjectName) ? prereqCode : prereq.subjectName);
-                            var prereqSemesterLabel = FormatSemesterLabel(prereq?.index);
-                            var prereqSuffix = prereqSemesterLabel is null ? string.Empty : $" ({prereqSemesterLabel})";
+                var prerequisiteBullets = BuildPrerequisiteBullets(subjectInfo, subjectDisplayName, curriculumLookup, markLookup, warnings);
+                var dependencyWarnings = BuildDependencyWarnings(subjectCodeNormalized, subjectDisplayName, subjectScore, dependencyMap);
+                warnings.AddRange(dependencyWarnings);
 
-                            if (markLookup.TryGetValue(prereqCode, out var prereqMark))
-                            {
-                                var status = prereqMark >= 70
-                                    ? $"điểm {prereqMark}/100 – đã đạt chuẩn, tiếp tục ôn định kỳ để hỗ trợ {subject.subjectName}"
-                                    : $"điểm {prereqMark}/100 – dưới chuẩn, cần củng cố trước khi học sâu {subject.subjectName}";
-                                sb.AppendLine($"- Ràng buộc {prereqName}{prereqSuffix}: {status}.");
-
-                                if (prereqMark < 70)
-                                {
-                                    warnings.Add($"- ⚠️ {prereqName}{prereqSuffix} đang dưới chuẩn ({prereqMark}/100) nhưng là điều kiện tiên quyết của {subject.subjectName}. Ưu tiên củng cố trước khi tiếp tục.");
-                                }
-                            }
-                            else
-                            {
-                                sb.AppendLine($"- Ràng buộc {prereqName}{prereqSuffix}: chưa có điểm – cần hoàn thành và cập nhật trước khi tiếp tục {subject.subjectName}.");
-                                warnings.Add($"- ⚠️ Chưa có điểm cho {prereqName}{prereqSuffix} (tiền đề của {subject.subjectName}); bổ sung dữ liệu để tránh rủi ro khi học môn này.");
-                            }
-                        }
-                    }
-                }
-
-                if (dependencyMap.TryGetValue(subject.subjectCode, out var dependents) &&
-                    dependents.Count > 0 &&
-                    subject.mark < 70)
-                {
-                    foreach (var dependent in dependents)
-                    {
-                        var dependentLabel = dependent.SemesterIndex.HasValue
-                            ? $"{dependent.SubjectName} (kỳ {dependent.SemesterIndex})"
-                            : dependent.SubjectName;
-                        warnings.Add($"- ⚠️ {subject.subjectName} là điều kiện đầu vào cho {dependentLabel}. Điểm hiện tại {subject.mark}/100 có thể khiến môn sau khó bắt nhịp.");
-                    }
-                }
+                sb.AppendLine("### Môn tiền đề quan trọng");
+                AppendBullets(sb, prerequisiteBullets);
 
                 if (warnings.Count > 0)
                 {
                     sb.AppendLine("### Cảnh báo");
-                    foreach (var warning in warnings.Distinct())
-                    {
-                        sb.AppendLine(warning);
-                    }
+                    AppendBullets(sb, warnings.Distinct().ToList());
                 }
 
                 sb.AppendLine("### Lộ trình 2–4 tuần");
-                if (subject.mark >= 80)
+                if (subjectScore >= 80)
                 {
                     sb.AppendLine("- Tuần 1-2: 2 buổi ôn lý thuyết nâng cao + 2 buổi luyện đề theo dự án.");
                     sb.AppendLine("- Tuần 3-4: Viết tóm tắt nội dung và chia sẻ/mentor review.");
                 }
-                else if (subject.mark >= 65)
+                else if (subjectScore >= 65)
                 {
                     sb.AppendLine("- Tuần 1-2: 3 buổi củng cố lý thuyết + 2 buổi làm bài chuẩn hóa.");
                     sb.AppendLine("- Tuần 3-4: Làm thêm 4-5 bài nâng dần độ khó và tự chấm lại.");
@@ -1161,7 +1235,7 @@ namespace AiService.Infrastructure.Implements
                 }
                 if (!string.IsNullOrWhiteSpace(careerGoal))
                 {
-                    sb.AppendLine($"- Chọn 1 chủ đề trong {subject.subjectName} liên quan tới {careerGoal} để làm mini note.");
+                    sb.AppendLine($"- Chọn 1 chủ đề trong {subjectDisplayName} liên quan tới {careerGoal} để làm mini note.");
                 }
                 sb.AppendLine("- Đánh giá lại bằng quiz hoặc flashcard sau mỗi 2 tuần.");
 
@@ -1192,8 +1266,15 @@ namespace AiService.Infrastructure.Implements
             var map = new Dictionary<string, List<SubjectDependency>>(StringComparer.OrdinalIgnoreCase);
             foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
             {
-                foreach (var prerequisite in subject.subjectPrerequisiteCode ?? new List<string>())
+                var subjectCode = NormalizeSubjectCode(subject.subjectCode);
+                if (string.IsNullOrWhiteSpace(subjectCode))
                 {
+                    continue;
+                }
+
+                foreach (var prerequisiteRaw in subject.subjectPrerequisiteCode ?? new List<string>())
+                {
+                    var prerequisite = NormalizeSubjectCode(prerequisiteRaw);
                     if (string.IsNullOrWhiteSpace(prerequisite)) continue;
 
                     if (!map.TryGetValue(prerequisite, out var list))
@@ -1203,14 +1284,14 @@ namespace AiService.Infrastructure.Implements
                     }
 
                     var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
-                        ? subject.subjectCode
-                        : subject.subjectName;
+                        ? subjectCode
+                        : subject.subjectName.Trim();
                     var dependent = new SubjectDependency(
-                        subject.subjectCode,
+                        subjectCode,
                         dependentName,
                         subject.index > 0 ? subject.index : (int?)null);
 
-                    if (!list.Any(item => item.SubjectCode.Equals(subject.subjectCode, StringComparison.OrdinalIgnoreCase)))
+                    if (!list.Any(item => item.SubjectCode.Equals(subjectCode, StringComparison.OrdinalIgnoreCase)))
                     {
                         list.Add(dependent);
                     }
@@ -1225,16 +1306,306 @@ namespace AiService.Infrastructure.Implements
                 ? $"Kỳ {semesterIndex.Value}"
                 : null;
 
+        private static string NormalizeSubjectCode(string? code) =>
+            string.IsNullOrWhiteSpace(code) ? string.Empty : code.Trim().ToUpperInvariant();
+
+        private static List<SubjectCur> NormalizeCurriculumSubjects(IEnumerable<SubjectCur> subjects)
+        {
+            if (subjects is null)
+            {
+                return new List<SubjectCur>();
+            }
+
+            return subjects
+                .Where(subject => subject is not null)
+                .Select(subject =>
+                {
+                    var normalizedCode = NormalizeSubjectCode(subject.subjectCode);
+                    if (string.IsNullOrWhiteSpace(normalizedCode))
+                    {
+                        return null;
+                    }
+
+                    var normalizedPrereqs = (subject.subjectPrerequisiteCode ?? new List<string>())
+                        .Select(NormalizeSubjectCode)
+                        .Where(code => !string.IsNullOrWhiteSpace(code))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    return new SubjectCur
+                    {
+                        subjectCode = normalizedCode,
+                        subjectName = string.IsNullOrWhiteSpace(subject.subjectName)
+                            ? normalizedCode
+                            : subject.subjectName.Trim(),
+                        index = subject.index,
+                        subjectPrerequisiteCode = normalizedPrereqs
+                    };
+                })
+                .Where(subject => subject is not null)
+                .Select(subject => subject!)
+                .GroupBy(subject => subject.subjectCode, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+        }
+
+        private static List<string> BuildPrerequisiteBullets(
+            SubjectCur? subjectInfo,
+            string subjectDisplayName,
+            Dictionary<string, SubjectCur> curriculumLookup,
+            Dictionary<string, int> markLookup,
+            List<string> warningCollector)
+        {
+            var bullets = new List<string>();
+
+            if (subjectInfo?.subjectPrerequisiteCode == null || subjectInfo.subjectPrerequisiteCode.Count == 0)
+            {
+                bullets.Add("Không có môn tiền đề.");
+                return bullets;
+            }
+
+            foreach (var prereqCodeRaw in subjectInfo.subjectPrerequisiteCode)
+            {
+                var prereqCode = NormalizeSubjectCode(prereqCodeRaw);
+                if (string.IsNullOrWhiteSpace(prereqCode)) continue;
+
+                curriculumLookup.TryGetValue(prereqCode, out var prereqInfo);
+                var prereqDisplayCode = prereqInfo?.subjectCode ?? prereqCode;
+                var prereqDisplayName = string.IsNullOrWhiteSpace(prereqInfo?.subjectName)
+                    ? prereqDisplayCode
+                    : prereqInfo.subjectName.Trim();
+                var prereqSemesterLabel = FormatSemesterLabel(prereqInfo?.index);
+                var prereqDisplay = prereqSemesterLabel is null
+                    ? $"{prereqDisplayName} ({prereqDisplayCode})"
+                    : $"{prereqDisplayName} ({prereqDisplayCode}) – {prereqSemesterLabel}";
+
+                if (markLookup.TryGetValue(prereqCode, out var prereqMark))
+                {
+                    var status = prereqMark >= 70
+                        ? $"điểm {prereqMark}/100 – đã đạt chuẩn, duy trì nhịp ôn để hỗ trợ {subjectDisplayName}"
+                        : $"điểm {prereqMark}/100 – đang dưới chuẩn, ưu tiên củng cố trước khi học sâu {subjectDisplayName}";
+                    bullets.Add($"{prereqDisplay}: {status}");
+
+                    if (prereqMark < 70)
+                    {
+                        warningCollector.Add($"⚠️ {prereqDisplay}: điểm {prereqMark}/100 đang dưới chuẩn nhưng là tiền đề của {subjectDisplayName}. Cần củng cố sớm.");
+                    }
+                }
+                else
+                {
+                    bullets.Add($"{prereqDisplay}: Chưa có điểm – cần hoàn thành trước khi học sâu {subjectDisplayName}.");
+                    warningCollector.Add($"⚠️ {prereqDisplay}: chưa có điểm nhưng là tiền đề của {subjectDisplayName}; bổ sung dữ liệu để tránh rủi ro.");
+                }
+            }
+
+            if (bullets.Count == 0)
+            {
+                bullets.Add("Không có môn tiền đề.");
+            }
+
+            return bullets;
+        }
+
+        private static List<string> BuildDependencyWarnings(
+            string normalizedSubjectCode,
+            string subjectDisplayName,
+            int subjectMark,
+            Dictionary<string, List<SubjectDependency>> dependencyMap)
+        {
+            var warnings = new List<string>();
+
+            if (dependencyMap.TryGetValue(normalizedSubjectCode, out var dependents) &&
+                dependents.Count > 0 &&
+                subjectMark < 70)
+            {
+                foreach (var dependent in dependents)
+                {
+                    var dependentLabel = dependent.SemesterIndex.HasValue
+                        ? $"{dependent.SubjectName} (kỳ {dependent.SemesterIndex})"
+                        : dependent.SubjectName;
+                    warnings.Add($"⚠️ {subjectDisplayName} là điều kiện đầu vào cho {dependentLabel}. Điểm hiện tại {subjectMark}/100 có thể khiến môn sau khó bắt nhịp nếu không củng cố.");
+                }
+            }
+
+            return warnings;
+        }
+
+        private static void AppendBullets(StringBuilder sb, IReadOnlyList<string> bullets)
+        {
+            if (bullets == null || bullets.Count == 0)
+            {
+                sb.AppendLine("- Không có.");
+                return;
+            }
+
+            foreach (var line in bullets)
+            {
+                sb.AppendLine($"- {line}");
+            }
+        }
+
+        private static string UpsertSection(string markdown, string heading, IReadOnlyList<string> bullets)
+        {
+            var lines = (bullets is { Count: > 0 })
+                ? bullets
+                : new List<string> { "Không có." };
+
+            var content = new StringBuilder();
+            foreach (var line in lines)
+            {
+                content.AppendLine($"- {line}");
+            }
+
+            var sectionBody = $"{heading}\n{content}".TrimEnd();
+            var pattern = $"{Regex.Escape(heading)}\\n(?:(?!\\n### ).)*";
+
+            if (Regex.IsMatch(markdown, pattern, RegexOptions.Singleline))
+            {
+                return Regex.Replace(markdown, pattern, sectionBody, RegexOptions.Singleline);
+            }
+
+            return markdown.TrimEnd() + "\n\n" + sectionBody;
+        }
+
+        private static void EnrichSubjectAnalysesWithAcademicData(
+            IEnumerable<SubjectAnalysis> analyses,
+            List<SubjectCur> curriculumSubjects,
+            List<SubjectMark> subjectMarks)
+        {
+            if (analyses is null) return;
+
+            var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? new List<SubjectCur>());
+            if (normalizedCurriculum.Count == 0) return;
+
+            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+            var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
+            var markLookup = subjectMarks
+                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode) && x.mark.HasValue)
+                .GroupBy(x => NormalizeSubjectCode(x.subjectCode))
+                .ToDictionary(g => g.Key, g => g.First().mark!.Value, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var analysis in analyses)
+            {
+                if (analysis is null) continue;
+
+                var normalizedCode = NormalizeSubjectCode(analysis.subjectCode);
+                if (string.IsNullOrWhiteSpace(normalizedCode)) continue;
+
+                curriculumLookup.TryGetValue(normalizedCode, out var subjectInfo);
+                var subjectDisplayName = string.IsNullOrWhiteSpace(analysis.subjectName)
+                    ? normalizedCode
+                    : analysis.subjectName.Trim();
+                var subjectMark = markLookup.TryGetValue(normalizedCode, out var mark) ? mark : 0;
+
+                var warnings = new List<string>();
+                var prereqBullets = BuildPrerequisiteBullets(subjectInfo, subjectDisplayName, curriculumLookup, markLookup, warnings);
+                var dependencyWarnings = BuildDependencyWarnings(normalizedCode, subjectDisplayName, subjectMark, dependencyMap);
+                warnings.AddRange(dependencyWarnings);
+
+                analysis.analysisMarkdown = UpsertSection(analysis.analysisMarkdown, "### Môn tiền đề quan trọng", prereqBullets);
+                analysis.analysisMarkdown = UpsertSection(analysis.analysisMarkdown, "### Cảnh báo", warnings.Distinct().ToList());
+            }
+        }
+
+        private static List<SubjectWithoutMarkAnalysis> BuildWithoutMarkFallback(
+            IEnumerable<SubjectMark> missingSubjects,
+            List<SubjectCur> curriculumSubjects,
+            string careerGoal)
+        {
+            var result = new List<SubjectWithoutMarkAnalysis>();
+            var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? new List<SubjectCur>());
+            if (normalizedCurriculum.Count == 0) return result;
+
+            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+            var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
+
+            foreach (var subject in missingSubjects ?? Enumerable.Empty<SubjectMark>())
+            {
+                var normalizedCode = NormalizeSubjectCode(subject.subjectCode);
+                if (string.IsNullOrWhiteSpace(normalizedCode)) continue;
+
+                var displayName = string.IsNullOrWhiteSpace(subject.subjectName)
+                    ? normalizedCode
+                    : subject.subjectName.Trim();
+
+                curriculumLookup.TryGetValue(normalizedCode, out var subjectInfo);
+
+                var dependentBullets = new List<string>();
+                if (dependencyMap.TryGetValue(normalizedCode, out var dependents) && dependents.Count > 0)
+                {
+                    foreach (var dependent in dependents)
+                    {
+                        var semesterLabel = FormatSemesterLabel(dependent.SemesterIndex);
+                        var suffix = semesterLabel is null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                        dependentBullets.Add($"{dependent.SubjectName} ({dependent.SubjectCode}) {suffix} – cần nền tảng {displayName} để theo kịp tiến độ.");
+                    }
+                }
+                else
+                {
+                    dependentBullets.Add("Không có môn phụ thuộc trực tiếp.");
+                }
+
+                var actionBullets = new List<string>
+                {
+                    "Hoàn thành ít nhất 1 bài đánh giá/quiz để cập nhật điểm và phát hiện khoảng trống kiến thức.",
+                    "Ôn lại slide/bài giảng trọng tâm và ghi chú 3-4 câu hỏi tự kiểm tra trước khi bước vào môn phụ thuộc."
+                };
+
+                if (subjectInfo?.subjectPrerequisiteCode is { Count: > 0 })
+                {
+                    var prereqNames = subjectInfo.subjectPrerequisiteCode
+                        .Select(NormalizeSubjectCode)
+                        .Where(code => !string.IsNullOrWhiteSpace(code))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Select(code =>
+                        {
+                            curriculumLookup.TryGetValue(code, out var prereq);
+                            return string.IsNullOrWhiteSpace(prereq?.subjectName) ? code : prereq.subjectName.Trim();
+                        })
+                        .ToList();
+
+                    if (prereqNames.Count > 0)
+                    {
+                        actionBullets.Add($"Rà soát nhanh các môn nền tảng: {string.Join(", ", prereqNames)} để đảm bảo nền vững trước khi cập nhật điểm.");
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    actionBullets.Add($"Liên hệ mục tiêu {careerGoal}: mô phỏng 1 mini-task thực tế sau khi cập nhật điểm để khóa kiến thức.");
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"## {displayName} ({normalizedCode})");
+                sb.AppendLine("### Vì sao nên chuẩn bị sớm");
+                sb.AppendLine("- Môn này chưa được học/đánh giá; chuẩn bị trước giúp tránh hụt hơi khi bước vào kỳ chính.");
+                sb.AppendLine("### Môn phụ thuộc dễ bị ảnh hưởng");
+                AppendBullets(sb, dependentBullets);
+                sb.AppendLine("### Hành động cần làm");
+                AppendBullets(sb, actionBullets);
+
+                result.Add(new SubjectWithoutMarkAnalysis
+                {
+                    subjectCode = normalizedCode,
+                    subjectName = displayName,
+                    analysisMarkdown = sb.ToString().Trim()
+                });
+            }
+
+            return result;
+        }
+
         private static PersonaSummaryState BuildPersonaFallback(
             IReadOnlyCollection<SubjectMark> subjectMarks,
             IReadOnlyCollection<AbilityMark> abilityMarks,
             QuizSurvey quizSurvey,
             string careerGoal)
         {
-            var avgSubject = subjectMarks.Count > 0 ? subjectMarks.Average(s => s.mark) : 0;
+            var scoredSubjects = subjectMarks.Where(s => s.mark.HasValue).ToList();
+            var avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.mark!.Value) : 0;
             var avgAbility = abilityMarks.Count > 0 ? abilityMarks.Average(a => a.mark) : 0;
-            var strongSubjects = subjectMarks.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList();
-            var weakSubjects = subjectMarks.Where(s => s.mark < 65).Select(s => s.subjectName).ToList();
+            var strongSubjects = scoredSubjects.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList();
+            var weakSubjects = scoredSubjects.Where(s => s.mark < 65).Select(s => s.subjectName).ToList();
             var strongAbilities = abilityMarks.Where(a => a.mark >= 80).Select(a => a.name).ToList();
             var weakAbilities = abilityMarks.Where(a => a.mark < 65).Select(a => a.name).ToList();
 
@@ -1279,7 +1650,7 @@ namespace AiService.Infrastructure.Implements
                 }
                 if (interests.Count > 0)
                 {
-                    habitBuilder.AppendLine($"- Sở thích học tập: \"{interests.First().answer}\".");
+                    habitBuilder.AppendLine($"- Sở thích học tập: \"{interests[0].answer}\".");
                 }
                 habitBuilder.AppendLine("- Khai thác các yếu tố này để giữ động lực ổn định mỗi tuần.");
                 if (!string.IsNullOrWhiteSpace(careerGoal))
@@ -1295,7 +1666,7 @@ namespace AiService.Infrastructure.Implements
             personalityBuilder.Append(avgSubject >= 75 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
             if (habits.Count > 0)
             {
-                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits.First().answer}\"");
+                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].answer}\"");
             }
             personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
             personalityBuilder.AppendLine("- Hành động: sau mỗi tuần, tự đánh giá điểm tập trung và điều chỉnh phương pháp cho tuần kế tiếp.");
@@ -1342,20 +1713,25 @@ namespace AiService.Infrastructure.Implements
 
         private sealed class AbilityAnalysisEnvelope
         {
-            public List<AbilityAnalysis>? AbilityAnalyses { get; set; }
+            public List<AbilityAnalysis>? AbilityAnalyses { get; set; } = [];
         }
 
         private sealed class SubjectAnalysisEnvelope
         {
-            public List<SubjectAnalysis>? SubjectAnalyses { get; set; }
+            public List<SubjectAnalysis>? SubjectAnalyses { get; set; } = [];
         }
 
         private sealed class PersonaEnvelope
         {
-            public string? SummaryFeedback { get; set; }
-            public string? HabitAndInterestAnalysis { get; set; }
-            public string? Personality { get; set; }
-            public string? LearningAbility { get; set; }
+            public string? SummaryFeedback { get; set; } = string.Empty;
+            public string? HabitAndInterestAnalysis { get; set; } = string.Empty;
+            public string? Personality { get; set; } = string.Empty;
+            public string? LearningAbility { get; set; } = string.Empty;
+        }
+
+        private sealed class DependencyAnalysisEnvelope
+        {
+            public List<SubjectWithoutMarkAnalysis>? DependencyAnalyses { get; set; } = [];
         }
 
         private sealed record SubjectDependency(string SubjectCode, string SubjectName, int? SemesterIndex);

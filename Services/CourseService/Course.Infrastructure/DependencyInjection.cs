@@ -1,6 +1,7 @@
 ﻿using BaseService.Infrastructure.Contexts;
 using BaseService.Infrastructure.Identities;
 using BaseService.Infrastructure.Repositories;
+using Course.Application.Interfaces;
 using Course.Application.Interfaces.Helpers.Wishlists;
 using Course.Domain.ReadModels;
 using Course.Infrastructure.Data;
@@ -56,6 +57,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<Module>, CommandRepository<Module>>();
             services.AddScoped<ICommandRepository<VMajorSemesterSubjectCourses>, CommandRepository<VMajorSemesterSubjectCourses>>();
             services.AddScoped<ICommandRepository<VMajorSemesterSubjectCourses>, CommandRepository<VMajorSemesterSubjectCourses>>();
+            services.AddScoped<ICommandRepository<VMajorSemesterSubjectPrereqs>, CommandRepository<VMajorSemesterSubjectPrereqs>>();
             services.AddScoped<ICommandRepository<VwCourseInfo>, CommandRepository<VwCourseInfo>>();
             services.AddScoped<ICommandRepository<VwOverviewCourseProgress>, CommandRepository<VwOverviewCourseProgress>>();
             services.AddScoped<ICommandRepository<VUserCourseProgress>, CommandRepository<VUserCourseProgress>>();
@@ -88,6 +90,7 @@ namespace Course.Infrastructure
             services.AddScoped<IModuleDiscussionCommentService, ModuleDiscussionCommentService>();
             services.AddScoped<ILessonNoteService, LessonNoteService>();
             services.AddScoped<ISyllabusService, SyllabusService>();
+            services.AddScoped<ISubjectInfoService, SubjectInfoService>();
 
             // Helpers
             services.AddScoped<ISlugService, SlugService>();
