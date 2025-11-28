@@ -1,4 +1,6 @@
 using AiService.Application.Features.AiRecommend;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -135,7 +137,7 @@ YÊU CẦU ĐỊNH DẠNG:
             {
                 var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
                 var scope = semesterLabel == null ? "các kỳ sau" : semesterLabel.ToLowerInvariant();
-                return $"Điểm thấp ở {canonicalName} sẽ kéo theo {dep.subjectName} ({dep.subjectCode}) {scope} khó đạt yêu cầu và đạt được hiểu quả tốt Bạn nên xem xét nhé!.";
+                return $"Điểm thấp ở {canonicalName} → {dep.subjectName} ({dep.subjectCode}) {scope} dễ hụt chuẩn.";
             }).ToList() ?? new List<string>();
 
             return new
@@ -150,15 +152,20 @@ YÊU CẦU ĐỊNH DẠNG:
             };
         }).ToList();
 
-        var curriculumList = curriculumListRaw.Select(s => new
-        {
-            s.subjectCode,
-            s.subjectName,
-            index = s.index,
-            prerequisites = s.subjectPrerequisiteCode ?? new List<string>()
-        }).ToList();
+        var curriculumScopeCodes = CollectCurriculumScope(subjectMarkList, curriculumLookup, dependentsLookup);
+
+        var curriculumList = curriculumListRaw
+            .Where(s => curriculumScopeCodes.Contains(s.subjectCode))
+            .Select(s => new
+            {
+                s.subjectCode,
+                s.subjectName,
+                index = s.index,
+                prerequisites = s.subjectPrerequisiteCode ?? new List<string>()
+            }).ToList();
 
         var dependencyEdges = curriculumListRaw
+            .Where(subject => curriculumScopeCodes.Contains(subject.subjectCode))
             .SelectMany(subject => (subject.subjectPrerequisiteCode ?? new List<string>())
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Select(prerequisite =>
@@ -175,6 +182,7 @@ YÊU CẦU ĐỊNH DẠNG:
                         dependentIndex = subject.index
                     };
                 }))
+            .Where(edge => curriculumScopeCodes.Contains(edge.prerequisite) && curriculumScopeCodes.Contains(edge.dependentCode))
             .ToList();
 
         var payload = new
@@ -301,6 +309,45 @@ LƯU Ý:
     }
 
     private static string Serialize(object payload) => JsonSerializer.Serialize(payload, PromptJsonOptions);
+
+    private static HashSet<string> CollectCurriculumScope(
+        IEnumerable<SubjectMark> subjects,
+        Dictionary<string, SubjectCur> curriculumLookup,
+        Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> dependentsLookup)
+    {
+        var scope = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var subject in subjects ?? Enumerable.Empty<SubjectMark>())
+        {
+            if (string.IsNullOrWhiteSpace(subject.subjectCode)) continue;
+
+            scope.Add(subject.subjectCode);
+
+            if (curriculumLookup.TryGetValue(subject.subjectCode, out var subjectInfo))
+            {
+                foreach (var prereq in subjectInfo.subjectPrerequisiteCode ?? Enumerable.Empty<string>())
+                {
+                    if (!string.IsNullOrWhiteSpace(prereq))
+                    {
+                        scope.Add(prereq);
+                    }
+                }
+            }
+
+            if (dependentsLookup.TryGetValue(subject.subjectCode, out var dependents))
+            {
+                foreach (var dependent in dependents)
+                {
+                    if (!string.IsNullOrWhiteSpace(dependent.subjectCode))
+                    {
+                        scope.Add(dependent.subjectCode);
+                    }
+                }
+            }
+        }
+
+        return scope;
+    }
 
     private static Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> BuildDependentsLookup(IEnumerable<SubjectCur> subjects)
     {

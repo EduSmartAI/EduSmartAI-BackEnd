@@ -21,6 +21,7 @@ namespace AiService.Infrastructure.Implements
         ChatClient chat
     ) : IAiSummaryService
     {
+        private const int SubjectsPerPrompt = 6;
         public async Task<AiSummaryResponse> FeedBackCourseByAI(AiSummaryRequest req, CancellationToken ct)
         {
             var @event = new GetInfoEvaluationEvent(req.StudentId, req.CourseId);
@@ -692,27 +693,51 @@ namespace AiService.Infrastructure.Implements
             var quizSurvey = req.QuizSurvey ?? new QuizSurvey();
             var careerGoal = req.careerGoal?.Trim() ?? string.Empty;
 
-            var promptPayloads = await RunParallelAsync(
-                ct,
-                token => CompleteJsonChatAsync(
-                    AiRecommendPromptLibrary.SystemPrompt,
-                    AiRecommendPromptLibrary.BuildAbilityPrompt(abilityMarks, careerGoal),
-                    token),
-                token => CompleteJsonChatAsync(
-                    AiRecommendPromptLibrary.SystemPrompt,
-                    AiRecommendPromptLibrary.BuildSubjectPrompt(subjectMarks, curriculumSubjects, careerGoal),
-                    token),
-                token => CompleteJsonChatAsync(
-                    AiRecommendPromptLibrary.SystemPrompt,
-                    AiRecommendPromptLibrary.BuildPersonaPrompt(subjectMarks, abilityMarks, quizSurvey, careerGoal),
-                    token));
+            var subjectBatches = ChunkSubjects(subjectMarks, SubjectsPerPrompt).ToList();
 
-            var abilityPayload = promptPayloads.Length > 0 ? promptPayloads[0] : null;
-            var subjectPayload = promptPayloads.Length > 1 ? promptPayloads[1] : null;
-            var personaPayload = promptPayloads.Length > 2 ? promptPayloads[2] : null;
+            var abilityTask = CompleteJsonChatAsync(
+                AiRecommendPromptLibrary.SystemPrompt,
+                AiRecommendPromptLibrary.BuildAbilityPrompt(abilityMarks, careerGoal),
+                ct);
+
+            var personaTask = CompleteJsonChatAsync(
+                AiRecommendPromptLibrary.SystemPrompt,
+                AiRecommendPromptLibrary.BuildPersonaPrompt(subjectMarks, abilityMarks, quizSurvey, careerGoal),
+                ct);
+
+            var subjectPromptTasks = subjectBatches
+                .Select(batch => CompleteJsonChatAsync(
+                    AiRecommendPromptLibrary.SystemPrompt,
+                    AiRecommendPromptLibrary.BuildSubjectPrompt(batch, curriculumSubjects, careerGoal),
+                    ct))
+                .ToList();
+
+            var waitTasks = new List<Task>(subjectPromptTasks.Count + 2);
+            waitTasks.AddRange(subjectPromptTasks);
+            waitTasks.Add(abilityTask);
+            waitTasks.Add(personaTask);
+            await Task.WhenAll(waitTasks);
+
+            var abilityPayload = await abilityTask;
+            var personaPayload = await personaTask;
+
+            var subjectAnalyses = new List<SubjectAnalysis>();
+            foreach (var task in subjectPromptTasks)
+            {
+                var payload = task.Result;
+                var parsed = TryParseSubjectAnalyses(payload);
+                if (parsed is { Count: > 0 })
+                {
+                    subjectAnalyses.AddRange(parsed);
+                }
+            }
+
+            if (subjectAnalyses.Count == 0)
+            {
+                subjectAnalyses = BuildSubjectFallback(subjectMarks, curriculumSubjects, careerGoal);
+            }
 
             var abilityAnalyses = TryParseAbilityAnalyses(abilityPayload) ?? BuildAbilityFallback(abilityMarks, careerGoal);
-            var subjectAnalyses = TryParseSubjectAnalyses(subjectPayload) ?? BuildSubjectFallback(subjectMarks, curriculumSubjects, careerGoal);
             var personaSummary = TryParsePersonaSummary(personaPayload) ?? BuildPersonaFallback(subjectMarks, abilityMarks, quizSurvey, careerGoal);
 
             return new AiRecommendImprovementResposne
@@ -765,19 +790,6 @@ namespace AiService.Infrastructure.Implements
             {
                 return null;
             }
-        }
-
-        private static Task<TResult[]> RunParallelAsync<TResult>(
-            CancellationToken ct,
-            params Func<CancellationToken, Task<TResult>>[] operations)
-        {
-            if (operations is null || operations.Length == 0)
-            {
-                return Task.FromResult(System.Array.Empty<TResult>());
-            }
-
-            var tasks = operations.Select(op => op(ct)).ToArray();
-            return Task.WhenAll(tasks);
         }
 
         private static List<AbilityMark> EnsureAbilityCoverage(List<AbilityMark>? abilityMarks)
@@ -1160,6 +1172,19 @@ namespace AiService.Infrastructure.Implements
                     analysisMarkdown = sb.ToString().Trim()
                 };
             }).ToList();
+        }
+
+        private static IEnumerable<List<SubjectMark>> ChunkSubjects(List<SubjectMark> subjects, int batchSize)
+        {
+            if (subjects.Count == 0 || batchSize <= 0)
+            {
+                yield break;
+            }
+
+            for (var i = 0; i < subjects.Count; i += batchSize)
+            {
+                yield return subjects.Skip(i).Take(batchSize).ToList();
+            }
         }
 
         private static Dictionary<string, List<SubjectDependency>> BuildSubjectDependencyMap(IEnumerable<SubjectCur> subjects)
