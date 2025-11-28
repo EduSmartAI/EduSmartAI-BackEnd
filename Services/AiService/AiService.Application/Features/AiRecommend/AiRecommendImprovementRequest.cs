@@ -30,7 +30,8 @@ namespace AiService.Application.Features.AiRecommend
     {
         public string subjectCode { get; set; } = string.Empty;
         public string subjectName { get; set; } = string.Empty;
-        public List<string> sụbjectPrerequisiteCode { get; set; } = [];
+        public int index { get; set; }
+        public List<string> subjectPrerequisiteCode { get; set; } = [];
     }
     public class QuizSurvey
     {
