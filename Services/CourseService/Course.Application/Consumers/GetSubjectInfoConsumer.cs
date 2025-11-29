@@ -24,31 +24,37 @@ public class GetSubjectInfoConsumer(
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var hasQuery =
+            !string.IsNullOrWhiteSpace(evt.MajorCode) ||
+            requestedSubjectCodes.Count > 0;
+
+        if (!hasQuery)
+        {
+            response.Success = false;
+            response.Message = "MajorCode or SubjectCodes is required";
+            await context.RespondAsync(response);
+            return;
+        }
+
         try
         {
-            var tasks = new List<Task<IReadOnlyList<SubjectInfoItem>>>();
+            var subjectItems = new List<SubjectInfoItem>();
 
             if (!string.IsNullOrWhiteSpace(evt.MajorCode))
             {
-                tasks.Add(subjectInfoService.GetByMajorAsync(evt.MajorCode, context.CancellationToken));
+                var majorSubjects = await subjectInfoService
+                    .GetByMajorAsync(evt.MajorCode, context.CancellationToken);
+                subjectItems.AddRange(majorSubjects);
             }
 
             if (requestedSubjectCodes.Count > 0)
             {
-                tasks.Add(subjectInfoService.GetBySubjectCodesAsync(requestedSubjectCodes, context.CancellationToken));
+                var codeSubjects = await subjectInfoService
+                    .GetBySubjectCodesAsync(requestedSubjectCodes, context.CancellationToken);
+                subjectItems.AddRange(codeSubjects);
             }
 
-            if (tasks.Count == 0)
-            {
-                response.Success = false;
-                response.Message = "MajorCode or SubjectCodes is required";
-                await context.RespondAsync(response);
-                return;
-            }
-
-            var results = await Task.WhenAll(tasks);
-            var subjects = results
-                .SelectMany(list => list)
+            var subjects = subjectItems
                 .GroupBy(item => item.SubjectCode, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();

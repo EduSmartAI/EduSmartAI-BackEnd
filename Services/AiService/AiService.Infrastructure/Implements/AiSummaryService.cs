@@ -856,7 +856,7 @@ namespace AiService.Infrastructure.Implements
 
         private async Task<List<SubjectCur>> LoadCurriculumSubjectsAsync(AiRecommendImprovementRequest req, CancellationToken ct)
         {
-            var fallback = NormalizeCurriculumSubjects(req.Curriculum?.subjects ?? new List<SubjectCur>());
+            var fallback = NormalizeCurriculumSubjects(BuildCurriculumFallbackFromRequest(req));
             var majorCode = NormalizeSubjectCode(req.MajorCode);
             var requestedSubjectCodes = (req.SubjectMarks ?? new List<SubjectMark>())
                 .Select(mark => NormalizeSubjectCode(mark.subjectCode))
@@ -911,6 +911,27 @@ namespace AiService.Infrastructure.Implements
             }
 
             return fallback;
+        }
+
+        private static IEnumerable<SubjectCur> BuildCurriculumFallbackFromRequest(AiRecommendImprovementRequest req)
+        {
+            if (req.SubjectMarks is not { Count: > 0 })
+            {
+                return Array.Empty<SubjectCur>();
+            }
+
+            return req.SubjectMarks
+                .Where(mark => !string.IsNullOrWhiteSpace(mark.subjectCode))
+                .Select(mark => new SubjectCur
+                {
+                    subjectCode = mark.subjectCode,
+                    subjectName = string.IsNullOrWhiteSpace(mark.subjectName)
+                        ? mark.subjectCode
+                        : mark.subjectName,
+                    index = 0,
+                    subjectPrerequisiteCode = []
+                })
+                .ToList();
         }
 
         private static List<SubjectMark> EnsureSubjectCoverage(List<SubjectMark>? subjectMarks, List<SubjectCur> curriculumSubjects)

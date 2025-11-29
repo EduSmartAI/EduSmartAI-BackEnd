@@ -8,7 +8,6 @@ namespace AiService.Application.Features.AiRecommend
         public required List<SubjectMark> SubjectMarks { get; set; }
         public required List<AbilityMark> AbilityMarks { get; set; }
         public string MajorCode { get; set; } = string.Empty;
-        public Curriculum? Curriculum { get; set; } = new();
         public required QuizSurvey QuizSurvey { get; set; }
 
     }
@@ -22,10 +21,6 @@ namespace AiService.Application.Features.AiRecommend
     {
         public string name { get; set; } = string.Empty;
         public int mark { get; set; }
-    }
-    public class Curriculum
-    {
-        public List<SubjectCur> subjects { get; set; } = [];
     }
     public class SubjectCur
     {
