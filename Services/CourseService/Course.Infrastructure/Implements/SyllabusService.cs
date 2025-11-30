@@ -130,15 +130,15 @@ namespace Course.Infrastructure.Implements
 				// Save new syllabus
 				await _syllabusCommandRepository.AddAsync(newSyllabus, email);
 
-				// Copy foundation S1–S4
-				var foundationSem = await _syllabusSemesterCommandRepository
-					.Find(x => x.SyllabusId == seFoundation.SyllabusId, false, ct, x => x.Semester)
-					.ToListAsync(ct);
+				//// Copy foundation S1–S4
+				//var foundationSem = await _syllabusSemesterCommandRepository
+				//	.Find(x => x.SyllabusId == seFoundation.SyllabusId, false, ct, x => x.Semester)
+				//	.ToListAsync(ct)
 
-				foreach (var s in foundationSem.Where(s => s.Semester.SemesterNumber <= 4))
-				{
-					await CloneSemesterAndSubjects(seFoundation.SyllabusId, newSyllabusId, s.SemesterId, ct);
-				}
+				//foreach (var s in foundationSem.Where(s => s.Semester.SemesterNumber <= 4))
+				//{/
+				//	await CloneSemesterAndSubjects(seFoundation.SyllabusId, newSyllabusId, s.SemesterId, ct)
+				//}/
 
 				// Copy specialized S5–S9 (only is_active subjects)
 				var childSemesters = await _syllabusSemesterCommandRepository
@@ -412,47 +412,71 @@ namespace Course.Infrastructure.Implements
 		/// <param name="ct"></param>
 		/// <param name="onlyActive"></param>
 		/// <returns></returns>
-		private async Task CloneSemesterAndSubjects(Guid oldSyllabusId, Guid newSyllabusId, Guid semesterId, CancellationToken ct, bool onlyActive = false)
+		private async Task CloneSemesterAndSubjects(
+			Guid oldSyllabusId,
+			Guid newSyllabusId,
+			Guid semesterId,
+			CancellationToken ct,
+			bool onlyActive = false)
 		{
-			// Load Semester entity to get SemesterNumber
+			// ----- 1. Clone semester entry -----
 			var semester = await _semesterCommandRepository.FirstOrDefaultAsync(
 				x => x.SemesterId == semesterId, ct);
 
-			// Clone semester
-			var entitySemester = new SyllabusSemester
+			var newSem = new SyllabusSemester
 			{
 				SyllabusId = newSyllabusId,
 				SemesterId = semesterId,
 				PositionIndex = semester.SemesterNumber
 			};
-			await _syllabusSemesterCommandRepository.AddAsync(entitySemester);
 
-			// Load all syllabus-subject mapping
-			var subjects = await _syllabusSubjectCommandRepository
+			await _syllabusSemesterCommandRepository.AddAsync(newSem);
+
+
+			// ----- 2. Load subjects from old syllabus -----
+			var rawSubjects = await _syllabusSubjectCommandRepository
 				.Find(x => x.SyllabusId == oldSyllabusId && x.SemesterId == semesterId, false, ct)
 				.ToListAsync(ct);
 
-			foreach (var sb in subjects)
+
+			// ----- 3. Filter only active subjects if needed -----
+			var subjects = new List<SyllabusSubject>();
+
+			foreach (var sb in rawSubjects)
 			{
-				// Load subject để check active
 				var subjectEntity = await _subjectCommandRepository.FirstOrDefaultAsync(
 					x => x.SubjectId == sb.SubjectId, ct);
 
-				// Nếu onlyActive = true → chỉ clone Subject.IsActive = true
-				if (onlyActive && (subjectEntity == null || subjectEntity.IsActive == false))
+				if (onlyActive && (subjectEntity == null || !subjectEntity.IsActive))
 					continue;
 
-				var newItem = new SyllabusSubject
+				subjects.Add(sb);
+			}
+
+
+			// ----- 4. Sort subjects by original PositionIndex (FPT cách làm chuẩn) -----
+			subjects = subjects
+				.OrderBy(x => x.PositionIndex)
+				.ThenBy(x => x.SubjectId) // tránh tie-break
+				.ToList();
+
+
+			// ----- 5. Reset PositionIndex = 1,2,3,4… for this semester -----
+			int newIndex = 1;
+
+			foreach (var sb in subjects)
+			{
+				var newSb = new SyllabusSubject
 				{
 					SyllabusId = newSyllabusId,
-					SemesterId = sb.SemesterId,
+					SemesterId = semesterId,
 					SubjectId = sb.SubjectId,
 					Credit = sb.Credit,
 					IsMandatory = sb.IsMandatory,
-					PositionIndex = sb.PositionIndex
+					PositionIndex = newIndex++        // ← Reset index here
 				};
 
-				await _syllabusSubjectCommandRepository.AddAsync(newItem);
+				await _syllabusSubjectCommandRepository.AddAsync(newSb);
 			}
 		}
 
