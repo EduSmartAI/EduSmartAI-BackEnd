@@ -27,7 +27,7 @@ public class PaymentCallbackCommandHandler(
         };
         
         // Process callback
-        var callbackResult = await paymentServiceClient.PaymentCallbackAsync(callbackRequest, currentUser);
+        var callbackResult = await paymentServiceClient.PaymentCallbackAsync(callbackRequest, currentUser, cancellationToken);
         
         if (!callbackResult.Success)
         {
