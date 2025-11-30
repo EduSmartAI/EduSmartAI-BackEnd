@@ -46,7 +46,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
         }
         
-        await _unitOfWork.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
         
         // Todo: Update in Read Model
         // Store to Collection
