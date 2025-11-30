@@ -1,5 +1,8 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
@@ -46,6 +49,10 @@ public static class MessagingExtensions
 
                 cfg.UseInMemoryOutbox(); 
             });
+            
+            x.AddRequestClient<SubjectCodeSelectEvent>();
+            x.AddRequestClient<AiRecommendImprovementEvent>();
+            x.AddRequestClient<InsertLearningPathEvent>();
         });
         
         return services;

@@ -8,30 +8,30 @@ namespace AiService.Application.Features.AiRecommend
     }
     public class AiAnalysisSubjectAndAbilityDto
     {
-        public string summaryFeedback { get; set; } = string.Empty;
-        public string habitAndInterestAnalysis { get; set; } = string.Empty;
-        public string personality { get; set; } = string.Empty;
-        public string learningAbility { get; set; } = string.Empty;
-        public required List<SubjectAnalysis> subjectAnalyses { get; set; }
-        public required List<AbilityAnalysis> abilityAnalyses { get; set; }
-        public List<SubjectWithoutMarkAnalysis> withoutMarkAnalysis { get; set; } = new();
+        public string SummaryFeedback { get; set; } = string.Empty;
+        public string HabitAndInterestAnalysis { get; set; } = string.Empty;
+        public string Personality { get; set; } = string.Empty;
+        public string LearningAbility { get; set; } = string.Empty;
+        public required List<SubjectAnalysis> SubjectAnalyses { get; set; }
+        public required List<AbilityAnalysis> AbilityAnalyses { get; set; }
+        public List<SubjectWithoutMarkAnalysis> WithoutMarkAnalysis { get; set; } = new();
     }
     public class SubjectAnalysis
     {
-        public string subjectCode { get; set; } = string.Empty;
-        public string subjectName { get; set; } = string.Empty;
-        public string analysisMarkdown { get; set; } = string.Empty;
+        public string SubjectCode { get; set; } = string.Empty;
+        public string SubjectName { get; set; } = string.Empty;
+        public string AnalysisMarkdown { get; set; } = string.Empty;
     }
     public class AbilityAnalysis
     {
-        public string name { get; set; } = string.Empty;
-        public string analysisMarkdown { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string AnalysisMarkdown { get; set; } = string.Empty;
     }
 
     public class SubjectWithoutMarkAnalysis
     {
-        public string subjectCode { get; set; } = string.Empty;
-        public string subjectName { get; set; } = string.Empty;
-        public string analysisMarkdown { get; set; } = string.Empty;
+        public string SubjectCode { get; set; } = string.Empty;
+        public string SubjectName { get; set; } = string.Empty;
+        public string AnalysisMarkdown { get; set; } = string.Empty;
     }
 }

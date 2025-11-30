@@ -1,3 +1,4 @@
+using AiService.Application.Consumers;
 using AiService.Application.Consumers.AiQuizEvaluates;
 using AiService.Application.Consumers.AiSearch;
 using AiService.Application.Consumers.AiSummaryAndFeedback;
@@ -38,6 +39,7 @@ public static class MessagingExtensions
             x.AddConsumer<QuizAiFeedBackOverviewEventConsumer>();
             x.AddConsumer<QuizAiFeedBackModuleEventConsumer>();
             x.AddConsumer<SearchAiRecommendImproveConsumer>();
+            x.AddConsumer<AiRecommendImprovementEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
 

@@ -1,4 +1,5 @@
 ﻿using BaseService.Common.ApiEntities;
+using BuildingBlocks.Messaging.Events.QuizService;
 
 namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent
 {
@@ -9,7 +10,8 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorE
         string CurrentUserEmail,
         IReadOnlyList<InternalMajorItem> Majors,
         Guid SemesterId,
-        List<string>? StudentPassedSubjects);
+        List<string>? StudentPassedSubjects,
+        List<CourseImprove>? CourseImproves);
         
     public sealed record InternalMajorItem(
         string MajorCode,

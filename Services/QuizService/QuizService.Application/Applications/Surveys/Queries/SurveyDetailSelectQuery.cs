@@ -8,4 +8,6 @@ public record SurveyDetailSelectQuery : PaginationRequest, IQuery<SurveyDetailSe
 {
     [Required(ErrorMessage = "SurveyId is required")]
     public Guid SurveyId { get; set; }
+    
+    public int SemesterNumber { get; set; }
 }

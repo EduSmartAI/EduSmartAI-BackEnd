@@ -10,6 +10,10 @@ public class CoursesSelectEvent{
     public int LimitTime { get; set; }
     public short StudentLevel { get; set; }
     public List<string>? StudentPassedSubjects { get; set; }
+    
+    public required List<CourseImprove>? CourseImproves { get; set; }
+    
+    public List<string>? CourseEvaluations { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>
@@ -29,4 +33,13 @@ public class CoursesSelectEventCourseResponseEntity
     public Guid CourseId { get; set; }
     
     public string SubjectCode { get; set; }
+}
+
+public class CourseImprove
+{
+    public string SubjectCode { get; set; } = null!;
+
+    public string? SubjectPrerequisiteCode { get; set; }
+
+    public int Level { get; set; }
 }

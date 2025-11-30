@@ -43,6 +43,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<VwUserVideoActionsAgg>, CommandRepository<VwUserVideoActionsAgg>>();
         services.AddScoped<ICommandRepository<StudentTranscript>, CommandRepository<StudentTranscript>>();
         services.AddScoped<ICommandRepository<AiEvaluationImprovement>, CommandRepository<AiEvaluationImprovement>>();
+        services.AddScoped<ICommandRepository<LearningPathSubjectCode>, CommandRepository<LearningPathSubjectCode>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();

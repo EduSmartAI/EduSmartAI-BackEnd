@@ -8,7 +8,7 @@ namespace AiService.Application.Handler.AiRecommend
     {
         public async Task<AiRecommendImprovementResposne> Handle(AiRecommendImprovementRequest request, CancellationToken cancellationToken)
         {
-            var res = await _aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request);
+            var res = await _aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, cancellationToken);
             return res;
         }
     }

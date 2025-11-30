@@ -1,12 +1,13 @@
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BaseService.Domain.Snapshort;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.Admin.Queries.StudentSurveys;
@@ -17,7 +18,6 @@ using QuizService.Application.Applications.StudentSurveys.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
-using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -34,6 +34,11 @@ public class StudentSurveyService : IStudentSurveyService
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILearningPathService _learningPathService;
+    private readonly IRequestClient<SubjectCodeSelectEvent> _subjectCodeSelectEventRequestClient;
+    private readonly IRequestClient<MajorAndSemesterSelectEvent> _requestMajorAndSemesterSelectEventClient;
+    private readonly IRequestClient<AiRecommendImprovementEvent> _requestAiRecommendImprovementEventClient;
+    private readonly IRequestClient<InsertLearningPathEvent> _requestInsertLearningPathEventClient;
+
 
     /// <summary>
     /// Constructor
@@ -59,7 +64,10 @@ public class StudentSurveyService : IStudentSurveyService
         ICommandRepository<OutboxMessage> outboxService,
         IRequestClient<CoreSubjectSelectEvent> requestCoreSubjectClient,
         IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient1,
-        ILearningPathService learningPathService)
+        ILearningPathService learningPathService,
+        IRequestClient<SubjectCodeSelectEvent> subjectCodeSelectEventRequestClient,
+        IRequestClient<MajorAndSemesterSelectEvent> requestMajorAndSemesterSelectEventClient,
+        IRequestClient<AiRecommendImprovementEvent> requestAiRecommendImprovementEventClient, IRequestClient<InsertLearningPathEvent> requestInsertLearningPathEventClient)
     {
         _studentQuizCommandRepository = studentQuizCommandRepository;
         _studentQuizQueryRepository = studentQuizQueryRepository;
@@ -72,6 +80,10 @@ public class StudentSurveyService : IStudentSurveyService
         _requestStudentInterestAnalysisClient = requestStudentInterestAnalysisClient1;
         _requestStudentTranscriptClient = requestStudentInterestAnalysisClient;
         _learningPathService = learningPathService;
+        _subjectCodeSelectEventRequestClient = subjectCodeSelectEventRequestClient;
+        _requestMajorAndSemesterSelectEventClient = requestMajorAndSemesterSelectEventClient;
+        _requestAiRecommendImprovementEventClient = requestAiRecommendImprovementEventClient;
+        _requestInsertLearningPathEventClient = requestInsertLearningPathEventClient;
     }
 
     /// <summary>
@@ -83,6 +95,42 @@ public class StudentSurveyService : IStudentSurveyService
     public async Task<StudentSurveyInsertResponse> InsertStudentSurveyAsync(StudentSurveyInsertCommand request, CancellationToken cancellationToken)
     {
         var response = new StudentSurveyInsertResponse { Success = false };
+
+        // Validate request contains both INTEREST and HABIT surveys
+        var requiredCodes = new[] { nameof(ConstantEnum.SurveyCode.INTEREST), nameof(ConstantEnum.SurveyCode.HABIT) };
+
+        var presentCodes = request.StudentSurveys
+            .Select(s => s.SurveyCode?.ToString() ?? string.Empty)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!requiredCodes.All(rc => presentCodes.Contains(rc)))
+        {
+            response.SetMessage(MessageId.E00000, "Sinh viên phải làm cả khảo sát INTEREST và HABIT");
+            return response;
+        }
+        
+        // Get course, major, semester info from CourseService
+        var courseInfoResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
+            new CourseMajorSemesterSelectEvent
+            {
+                MajorId = request.StudentInformation.MajorId,
+                SemesterId = request.StudentInformation.SemesterId,
+            }, cancellationToken);
+
+        if (!courseInfoResponse.Message.Success)
+        {
+            response.MessageId = courseInfoResponse.Message.MessageId;
+            response.Message = courseInfoResponse.Message.Message;
+            return response;
+        }
+
+        if (!request.IsWantToTakeTest && courseInfoResponse.Message.Response.SemesterNumber < 5)
+        {
+            response.SetMessage(MessageId.E00000, "Chỉ những sinh viên từ học kỳ 5 trở lên mới được phép tạo lộ trình học tập mà không tham gia kiểm tra đánh giá đầu vào.");
+            return response;
+        }
 
         // Validate survey existence
         var surveyExist = await ValidateSurveyExistenceAsync(request, response);
@@ -103,7 +151,7 @@ public class StudentSurveyService : IStudentSurveyService
         // Flatten all questions and answers for outbox message
         var allQuestions = surveyExist.SelectMany(q => q.Questions).ToList();
         var allAnswers = allQuestions.SelectMany(q => q.Answers).ToList();
-
+        
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             // Build StudentQuiz entities
@@ -116,21 +164,6 @@ public class StudentSurveyService : IStudentSurveyService
 
             // Outbox for StudentQuizCollectionInsertEvent
            var studentQuizCollections = BuildOutboxForSurveyCollection(studentQuizzes, surveyExist, allQuestions, allAnswers, outboxMessages);
-
-            // Get course, major, semester info from CourseService
-            var courseInfoResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
-                    new CourseMajorSemesterSelectEvent
-                    {
-                        MajorId = request.StudentInformation.MajorId,
-                        SemesterId = request.StudentInformation.SemesterId,
-                    }, cancellationToken);
-
-            if (!courseInfoResponse.Message.Success)
-            {
-                response.MessageId = courseInfoResponse.Message.MessageId;
-                response.Message = courseInfoResponse.Message.Message;
-                return false;
-            }
             
             var majorSemesterInfoInsertEvent = new StudentMajorSemesterInformationEvent
             {
@@ -152,11 +185,134 @@ public class StudentSurveyService : IStudentSurveyService
                 OccurredOnUtc = DateTime.UtcNow,
             });
             
-            await _outboxService.AddRangeAsync(outboxMessages);
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+            string learningGoalName = request.StudentInformation.LearningGoal.LearningGoalName;
+            
+            if (request.StudentInformation.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
+            {
+                var interestSurvey = studentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+                if (interestSurvey == null)
+                {
+                    response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
+                    return false;
+                }
+
+                var selectedAnswerIds = interestSurvey.StudentQuizAnswers
+                    .Select(a => a.AnswerId)
+                    .ToHashSet();
+
+                var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
+                {
+                    QuestionId = question.QuestionId,
+                    QuestionText = question.QuestionText,
+                    StudentAnswers = question.Answers
+                        .Where(a => selectedAnswerIds.Contains(a.AnswerId))
+                        .Select(a => a.AnswerText)
+                        .ToList()
+                }).Where(q => q.StudentAnswers.Any()).ToList();
+
+                var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
+                {
+                    StudentId = currentUser.UserId,
+                    Questions = interestQuestions
+                };
+
+                var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(
+                    studentInterestAnalysisEvent, 
+                    cancellationToken);
+                
+                if (!aiAnalysisResponse.Message.Success)
+                {
+                    response.SetMessage(MessageId.E99999);
+                    return false;
+                }
+
+                learningGoalName = aiAnalysisResponse.Message.Response.LearningGoal;
+            }
             
             if (!request.IsWantToTakeTest)
             {
+                List<StudentTranscriptSelectEventResponseEntity> studentTranscripts = new();
+                // Check OtherQuestionAnswerCodes for course improvement and evaluation requests
+                List<CourseImproveContext> courseImporve = new();
+                if (request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any())
+                {
+                    // Check if student wants course improvement (codes 1, 3, 5)
+                    if (request.OtherQuestionAnswerCodes.Any())
+                    {
+                        // Publish event to StudentService to get student transcript
+                        var studentTranscriptEvent = new StudentTranscriptSelectEvent
+                        {
+                            StudentId = currentUser.UserId
+                        };
+                        
+                        var eventResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
+                        studentTranscripts = eventResponse.Message.Response;
+                        if (!eventResponse.Message.Success)
+                        {
+                            response.SetMessage(MessageId.I00000, eventResponse.Message.Message);
+                            return false;
+                        }
+                        
+                        // Publish event to CourseService to get all subject codes
+                        var subjectCodeEventResponse = await _subjectCodeSelectEventRequestClient.GetResponse<SubjectCodeSelectEventResponse>(new SubjectCodeSelectEvent(), cancellationToken);
+                        if (!subjectCodeEventResponse.Message.Success)
+                        {
+                            response.SetMessage(MessageId.I00000, subjectCodeEventResponse.Message.Message);
+                            return false;
+                        }
+        
+                        var subjectCodes = subjectCodeEventResponse.Message.Response;
+                        foreach (var questionCode in request.OtherQuestionAnswerCodes)
+                        {
+                            switch (questionCode)
+                            {
+                                case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE:
+                                    courseImporve.AddRange(
+                                        studentTranscripts
+                                            .Where(t => t.Grade >= 5 && t.Grade < 7)
+                                            .Select(t => new CourseImproveContext
+                                            {
+                                                SubjectCode = t.SubjectCode,
+                                                Level = (short)ConstantEnum.CourseLevel.Beginner,
+                                                SubjectPrerequisiteCode = t.Prerequisite
+                                            })
+                                            .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                    );
+                                    break;
+
+                                case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE:
+                                    courseImporve.AddRange(
+                                        studentTranscripts
+                                            .Where(t => t.Grade >= 7 && t.Grade < 8)
+                                            .Select(t => new CourseImproveContext
+                                            {
+                                                SubjectCode = t.SubjectCode,
+                                                Level = (short)ConstantEnum.CourseLevel.Intermidiate,
+                                                SubjectPrerequisiteCode = t.Prerequisite
+                                            })
+                                            .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                    );
+                                    break;
+
+                                case ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE:
+                                    courseImporve.AddRange(
+                                        studentTranscripts
+                                            .Where(t => t.Grade >= 8 && t.Grade < 9)
+                                            .Select(t => new CourseImproveContext
+                                            {
+                                                SubjectCode = t.SubjectCode,
+                                                Level = (short)ConstantEnum.CourseLevel.Advanced,
+                                                SubjectPrerequisiteCode = t.Prerequisite
+                                            })
+                                            .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                    );
+                                    break;
+                            }
+                        }
+                        
+                    }
+                }
+                
                 var studentLevelResult = await _learningPathService.CalculateStudentLevelFromTranscriptAsync(currentUser.UserId, cancellationToken);
                 if (!studentLevelResult.Success)
                 {
@@ -166,9 +322,24 @@ public class StudentSurveyService : IStudentSurveyService
                 }
                 
                 var learningPathId = Guid.NewGuid();
-                
-                var surveyHabit = studentQuizCollections.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
+                var learningPathEvent = new InsertLearningPathEvent
+                {
+                    LearningPathId = learningPathId,
+                    StudentId = currentUser.UserId,
+                    CurrentUserEmail = currentUser.Email,
+                    PathName = $"Lộ trình {learningGoalName}"
+                };
+                var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
+                if (!learningPathResponse.Message.Success)
+                {
+                    response.MessageId = learningPathResponse.Message.MessageId;
+                    response.Message = learningPathResponse.Message.Message;
+                    return false;
+                }
+                
+                // Get Interest and Habit surveys
+                var surveyHabit = studentQuizCollections.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
                 var selectedAnswerIds = surveyHabit.Quiz.Questions
                     .SelectMany(q => q.Answers)
                     .Select(a => a.AnswerId)
@@ -183,10 +354,19 @@ public class StudentSurveyService : IStudentSurveyService
                         Answer = a,
                     })
                     .ToList();
-
+                
                 int limitTime = GetStudentStudyTime(studentQuizAnswers);
                 
-                var context = new LearningPathCreationContext
+                var surveyInterest = studentQuizCollections.FirstOrDefault(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+
+                var majorCodeSelectEventResponse = await _requestMajorAndSemesterSelectEventClient
+                    .GetResponse<MajorAndSemesterSelectEventResponse>(new MajorAndSemesterSelectEvent
+                    {
+                        MajorId = request.StudentInformation.MajorId,
+                        SemesterId = request.StudentInformation.SemesterId
+                    }, cancellationToken);
+                
+                var learningPathCreateRequest = new LearningPathCreationContext
                 {
                     StudentQuizCollections = studentQuizCollections,
                     CurrentUser = currentUser,
@@ -194,7 +374,7 @@ public class StudentSurveyService : IStudentSurveyService
                     {
                         SemesterId = request.StudentInformation.SemesterId,
                         LearningGoalName = request.StudentInformation.LearningGoal.LearningGoalName,
-                        LearningGoalType = request.StudentInformation.LearningGoal.LearningGoalType,
+                        LearningGoalType = (short) request.StudentInformation.LearningGoal.LearningGoalType,
                         Technologies = request.StudentInformation.Technologies.Select(x => new StudentTechnologySelectsEventResponseEntity
                         {
                             TechnologyName = x.TechnologyName,
@@ -204,19 +384,64 @@ public class StudentSurveyService : IStudentSurveyService
                     LearningPathId = learningPathId,
                     LimitTime = limitTime,
                     StudentLevel = studentLevelResult.Response.Level,
-                    StudentPassedSubjects = studentLevelResult.Response.PassedSubjects
+                    StudentPassedSubjects = studentLevelResult.Response.PassedSubjects,
+                    CourseImprove = courseImporve,
                 };
-                
-                var result = await _learningPathService.CreateLearningPathAsync(context, cancellationToken);
-                if (!result.Success)
+
+                var learningPathInsertResult = await _learningPathService.CreateLearningPathAsync(learningPathCreateRequest, cancellationToken);
+                if (!learningPathInsertResult.Success)
                 {
-                    response.MessageId = result.MessageId;
-                    response.Message = result.Message;
+                    response.MessageId = learningPathInsertResult.MessageId;
+                    response.Message = learningPathInsertResult.Message;
                     return false;
                 }
                 
+                var aiRecommendImprovementEvent = new AiRecommendImprovementEvent
+                {
+                    CareerGoal = learningGoalName,
+                    MajorCode = majorCodeSelectEventResponse.Message.Response.Major!.MajorCode,
+                    AbilityMarks = null,
+                    SubjectMarks = studentTranscripts
+                        .Select(x => new SubjectMarkEvent
+                        {
+                            SubjectCode = x.SubjectCode,
+                            SubjectName = x.SubjectName,
+                            Mark = x.Grade
+                        })
+                        .ToList(),
+                    QuizSurveyEvent = new QuizSurveyEvent
+                    {
+                        QuizInterests = surveyInterest?.StudentQuizAnswers
+                            .Select(qa => new QuizInterestEvent
+                            {
+                                Question = qa.Question?.QuestionText ?? string.Empty,
+                                Answer = qa.Answer?.AnswerText ?? string.Empty
+                            })
+                            .ToList() ?? new List<QuizInterestEvent>(),
+                        QuizHabits = surveyHabit.StudentQuizAnswers
+                            .Select(qa => new QuizHabitEvent
+                            {
+                                Question = qa.Question?.QuestionText ?? string.Empty,
+                                Answer = qa.Answer?.AnswerText ?? string.Empty
+                            })
+                            .ToList()
+                    },
+                    LearningPathId = learningPathId,
+                    Email = currentUser.Email,
+                };
+                
+                outboxMessages.Add(new OutboxMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Type = nameof(AiRecommendImprovementEvent),
+                    Content = JsonSerializer.Serialize(aiRecommendImprovementEvent),
+                    OccurredOnUtc = DateTime.UtcNow,
+                });
                 response.Response = learningPathId;
             }
+            
+            await _outboxService.AddRangeAsync(outboxMessages);
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             
             // Remove old related cache
             await _unitOfWork.CacheRemoveAsync(CacheKey.StudentMajorSemesterInformation(currentUser.UserId));
@@ -613,7 +838,7 @@ public class StudentSurveyService : IStudentSurveyService
         return questionResults;
     }
     
-    private int GetStudentStudyTime(IEnumerable<StudentQuizAnswerCollection> studentQuizAnswers)
+    private int GetStudentStudyTime(List<StudentQuizAnswerCollection> studentQuizAnswers)
     {
         var answerRules = studentQuizAnswers
             .SelectMany(a => a.Answer!.AnswerRule!)

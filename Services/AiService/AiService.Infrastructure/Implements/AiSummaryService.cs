@@ -89,7 +89,7 @@ namespace AiService.Infrastructure.Implements
                              .FirstOrDefault() ?? g.ScopeId.ToString();
 
 
-            const double RISK_ABS = 60.0;                 // ngưỡng tuyệt đối
+            const double RISK_ABS = 6.0;                 // ngưỡng tuyệt đối
 
             // Top/bottom group theo điểm trung bình (CÓ label)
             var lessonGroups = data.Lessons
@@ -370,7 +370,7 @@ namespace AiService.Infrastructure.Implements
             ## Phân tầng chất lượng
             - Hãy phân loại mang tính định tính theo ngưỡng tham khảo:
 
-            - Xuất sắc: ≥ 85 · Vững: 70–84 · Cần củng cố: 50–69 · Nguy cơ: < 50.
+            - Xuất sắc: ≥ 8.5 · Vững: 7.0–8.4 · Cần củng cố: 5.0–6.9 · Nguy cơ: < 5.0.
 
             - Viết 1 đoạn ngắn (4-8 câu) nêu tỷ trọng ước lượng dựa trên các mẫu gần nhất (samples) và hàm ý học tập, Đoạn văn này là phân tích chất lượng làm bài của người dùng hiện tại. Nếu số mẫu < 6, nêu hạn chế dữ liệu.
 
@@ -501,19 +501,19 @@ namespace AiService.Infrastructure.Implements
 
             string masteryLevel;
 
-            if (req.Score100 >= 95)
+            if (req.Score100 >= 9.5)
             {
                 masteryLevel = "excellent";
             }
-            else if (req.Score100 >= 85)
+            else if (req.Score100 >= 8.5)
             {
                 masteryLevel = "strong";
             }
-            else if (req.Score100 >= 70)
+            else if (req.Score100 >= 7.0)
             {
                 masteryLevel = "solid";
             }
-            else if (req.Score100 >= 50)
+            else if (req.Score100 >= 5.0)
             {
                 masteryLevel = "weak";
             }
@@ -697,10 +697,10 @@ namespace AiService.Infrastructure.Implements
             var curriculumSubjects = await LoadCurriculumSubjectsAsync(req, ct);
             var abilityMarks = EnsureAbilityCoverage(req.AbilityMarks);
             var subjectMarks = EnsureSubjectCoverage(req.SubjectMarks, curriculumSubjects);
-            var scoredSubjectMarks = subjectMarks.Where(m => m.mark.HasValue).ToList();
-            var missingSubjectMarks = subjectMarks.Where(m => !m.mark.HasValue).ToList();
+            var scoredSubjectMarks = subjectMarks.Where(m => m.Mark.HasValue).ToList();
+            var missingSubjectMarks = subjectMarks.Where(m => !m.Mark.HasValue).ToList();
             var quizSurvey = req.QuizSurvey ?? new QuizSurvey();
-            var careerGoal = req.careerGoal?.Trim() ?? string.Empty;
+            var careerGoal = req.CareerGoal?.Trim() ?? string.Empty;
 
             var subjectBatches = ChunkSubjects(scoredSubjectMarks, SubjectsPerPrompt).ToList();
 
@@ -775,13 +775,13 @@ namespace AiService.Infrastructure.Implements
                 Success = true,
                 Response = new AiAnalysisSubjectAndAbilityDto
                 {
-                    summaryFeedback = personaSummary.summaryFeedback,
-                    habitAndInterestAnalysis = personaSummary.habitAndInterestAnalysis,
-                    personality = personaSummary.personality,
-                    learningAbility = personaSummary.learningAbility,
-                    subjectAnalyses = subjectAnalyses,
-                    abilityAnalyses = abilityAnalyses,
-                    withoutMarkAnalysis = withoutMarkAnalyses
+                    SummaryFeedback = personaSummary.summaryFeedback,
+                    HabitAndInterestAnalysis = personaSummary.habitAndInterestAnalysis,
+                    Personality = personaSummary.personality,
+                    LearningAbility = personaSummary.learningAbility,
+                    SubjectAnalyses = subjectAnalyses,
+                    AbilityAnalyses = abilityAnalyses,
+                    WithoutMarkAnalysis = withoutMarkAnalyses
                 }
             };
         }
@@ -829,28 +829,23 @@ namespace AiService.Infrastructure.Implements
             }
         }
 
-        private static List<AbilityMark> EnsureAbilityCoverage(List<AbilityMark>? abilityMarks)
+        private static List<AbilityMark>? EnsureAbilityCoverage(List<AbilityMark>? abilityMarks)
         {
-            var normalized = abilityMarks?.Select(a => new AbilityMark
+            // Nếu abilityMarks null hoặc rỗng, trả về null để AI biết chưa có dữ liệu
+            if (abilityMarks == null || abilityMarks.Count == 0)
             {
-                name = string.IsNullOrWhiteSpace(a.name) ? "Khả năng chưa đặt tên" : a.name,
-                mark = a.mark
-            }).ToList() ?? new List<AbilityMark>();
-
-            foreach (var label in AiRecommendPromptLibrary.AbilityLabels)
-            {
-                if (normalized.Any(a => label.Equals(a.name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    continue;
-                }
-
-                normalized.Add(new AbilityMark
-                {
-                    name = label,
-                    mark = 0
-                });
+                return null;
             }
 
+            // Normalize các ability marks có sẵn
+            var normalized = abilityMarks.Select(a => new AbilityMark
+            {
+                Name = string.IsNullOrWhiteSpace(a.Name) ? "Khả năng chưa đặt tên" : a.Name,
+                Mark = a.Mark
+            }).ToList();
+
+            // Không tự động thêm các ability thiếu với mark = 0
+            // Để AI tự xử lý khi không có đủ dữ liệu
             return normalized;
         }
 
@@ -858,8 +853,8 @@ namespace AiService.Infrastructure.Implements
         {
             var fallback = NormalizeCurriculumSubjects(BuildCurriculumFallbackFromRequest(req));
             var majorCode = NormalizeSubjectCode(req.MajorCode);
-            var requestedSubjectCodes = (req.SubjectMarks ?? new List<SubjectMark>())
-                .Select(mark => NormalizeSubjectCode(mark.subjectCode))
+            var requestedSubjectCodes = (req.SubjectMarks)
+                .Select(mark => NormalizeSubjectCode(mark.SubjectCode))
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -885,12 +880,12 @@ namespace AiService.Infrastructure.Implements
                     var mappedSubjects = NormalizeCurriculumSubjects(
                         items.Select(item => new SubjectCur
                         {
-                            subjectCode = item.SubjectCode ?? string.Empty,
-                            subjectName = item.SubjectName ?? string.Empty,
-                            index = item.SemesterIndex.HasValue && item.SemesterIndex.Value > 0
+                            SubjectCode = item.SubjectCode,
+                            SubjectName = item.SubjectName,
+                            Index = item.SemesterIndex.HasValue && item.SemesterIndex.Value > 0
                                 ? item.SemesterIndex.Value
                                 : item.SubjectIndex,
-                            subjectPrerequisiteCode = item.PrereqSubjectCodes ?? new List<string>()
+                            SubjectPrerequisiteCode = item.PrereqSubjectCodes
                         }));
 
                     if (fallback.Count == 0)
@@ -900,7 +895,7 @@ namespace AiService.Infrastructure.Implements
 
                     return mappedSubjects
                         .Concat(fallback)
-                        .GroupBy(subject => subject.subjectCode, StringComparer.OrdinalIgnoreCase)
+                        .GroupBy(subject => subject.SubjectCode, StringComparer.OrdinalIgnoreCase)
                         .Select(group => group.First())
                         .ToList();
                 }
@@ -921,15 +916,15 @@ namespace AiService.Infrastructure.Implements
             }
 
             return req.SubjectMarks
-                .Where(mark => !string.IsNullOrWhiteSpace(mark.subjectCode))
+                .Where(mark => !string.IsNullOrWhiteSpace(mark.SubjectCode))
                 .Select(mark => new SubjectCur
                 {
-                    subjectCode = mark.subjectCode,
-                    subjectName = string.IsNullOrWhiteSpace(mark.subjectName)
-                        ? mark.subjectCode
-                        : mark.subjectName,
-                    index = 0,
-                    subjectPrerequisiteCode = []
+                    SubjectCode = mark.SubjectCode,
+                    SubjectName = string.IsNullOrWhiteSpace(mark.SubjectName)
+                        ? mark.SubjectCode
+                        : mark.SubjectName,
+                    Index = 0,
+                    SubjectPrerequisiteCode = []
                 })
                 .ToList();
         }
@@ -938,21 +933,21 @@ namespace AiService.Infrastructure.Implements
         {
             var normalized = subjectMarks?.Select(s => new SubjectMark
             {
-                subjectCode = s.subjectCode,
-                subjectName = s.subjectName,
-                mark = s.mark
+                SubjectCode = s.SubjectCode,
+                SubjectName = s.SubjectName,
+                Mark = s.Mark
             }).ToList() ?? new List<SubjectMark>();
 
             if (normalized.Count == 0 && curriculumSubjects.Count > 0)
             {
                 normalized.AddRange(curriculumSubjects
-                    .OrderBy(subject => subject.index)
+                    .OrderBy(subject => subject.Index)
                     .Take(4)
                     .Select(subject => new SubjectMark
                     {
-                        subjectCode = subject.subjectCode,
-                        subjectName = subject.subjectName,
-                        mark = 0
+                        SubjectCode = subject.SubjectCode,
+                        SubjectName = subject.SubjectName,
+                        Mark = 0
                     }));
             }
 
@@ -960,9 +955,9 @@ namespace AiService.Infrastructure.Implements
             {
                 normalized.Add(new SubjectMark
                 {
-                    subjectCode = "-",
-                    subjectName = "Chưa có dữ liệu",
-                    mark = 0
+                    SubjectCode = "-",
+                    SubjectName = "Chưa có dữ liệu",
+                    Mark = 0
                 });
             }
 
@@ -979,8 +974,8 @@ namespace AiService.Infrastructure.Implements
                 if (parsed?.AbilityAnalyses is { Count: > 0 } items)
                 {
                     return items
-                        .Where(item => !string.IsNullOrWhiteSpace(item.name) &&
-                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .Where(item => !string.IsNullOrWhiteSpace(item.Name) &&
+                                       !string.IsNullOrWhiteSpace(item.AnalysisMarkdown))
                         .ToList();
                 }
             }
@@ -1002,8 +997,8 @@ namespace AiService.Infrastructure.Implements
                 if (parsed?.SubjectAnalyses is { Count: > 0 } items)
                 {
                     return items
-                        .Where(item => !string.IsNullOrWhiteSpace(item.subjectName) &&
-                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .Where(item => !string.IsNullOrWhiteSpace(item.SubjectName) &&
+                                       !string.IsNullOrWhiteSpace(item.AnalysisMarkdown))
                         .ToList();
                 }
             }
@@ -1025,8 +1020,8 @@ namespace AiService.Infrastructure.Implements
                 if (parsed?.DependencyAnalyses is { Count: > 0 } items)
                 {
                     return items
-                        .Where(item => !string.IsNullOrWhiteSpace(item.subjectCode) &&
-                                       !string.IsNullOrWhiteSpace(item.analysisMarkdown))
+                        .Where(item => !string.IsNullOrWhiteSpace(item.SubjectCode) &&
+                                       !string.IsNullOrWhiteSpace(item.AnalysisMarkdown))
                         .ToList();
                 }
             }
@@ -1063,42 +1058,63 @@ namespace AiService.Infrastructure.Implements
             IReadOnlyCollection<AbilityMark> abilities,
             string careerGoal)
         {
-            var source = abilities.Count > 0
-                ? abilities
-                : AiRecommendPromptLibrary.AbilityLabels
-                    .Select(label => new AbilityMark { name = label, mark = 0 })
-                    .ToList();
+            // Nếu không có ability marks (sinh viên kỳ 5+), không cần đánh giá năng lực cơ bản
+            if (abilities == null || abilities.Count == 0)
+            {
+                return new List<AbilityAnalysis>
+                {
+                    new AbilityAnalysis
+                    {
+                        Name = "Phân tích dựa trên kết quả học tập",
+                        AnalysisMarkdown = @"## Phân tích năng lực từ bảng điểm
 
-            return source.Select(ability =>
+                        ### Ghi chú
+                        - Bạn đã có bảng điểm môn học đầy đủ, không cần đánh giá năng lực cơ bản riêng biệt.
+                        - Hệ thống sẽ phân tích năng lực của bạn dựa trên **kết quả học tập thực tế** từ các môn đã hoàn thành.
+
+                        ### Phân tích năng lực
+                        - **Lập trình hướng đối tượng**: Được đánh giá qua các môn PRF192, PRO192, OOP.
+                        - **Lập trình Web**: Được đánh giá qua các môn HTML/CSS, JavaScript, Web Development.
+                        - **Cấu trúc dữ liệu & Giải thuật**: Được đánh giá qua các môn DSA, Algorithm, Data Structures.
+                        - **Cơ sở dữ liệu**: Được đánh giá qua các môn DBI, Database Design, SQL.
+
+                        ### Khuyến nghị
+                        - Xem phần **Phân tích môn học** bên dưới để biết chi tiết về điểm mạnh/yếu của từng môn.
+                        - Tập trung vào các môn có điểm dưới 7.0 để củng cố kiến thức nền tảng."
+                    }
+                };
+            }
+
+            return abilities.Select(ability =>
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"## {ability.name}");
+                sb.AppendLine($"## {ability.Name}");
                 sb.AppendLine("### Hiện trạng");
-                sb.AppendLine($"- Điểm hiện tại: **{ability.mark}/100** · Mức: {ClassifyScore(ability.mark)}.");
+                sb.AppendLine($"- Điểm hiện tại: **{ability.Mark}/10** · Mức: {ClassifyScore(ability.Mark)}.");
                 sb.AppendLine("- Chưa có báo cáo AI chi tiết nên tạm dùng đánh giá tổng quát.");
                 sb.AppendLine("### Kiến thức trọng tâm");
-                if (ability.mark >= 80)
+                if (ability.Mark >= 8.0)
                 {
-                    sb.AppendLine($"- Đào sâu các mẫu thiết kế nâng cao của {ability.name}, thực hành refactor.");
+                    sb.AppendLine($"- Đào sâu các mẫu thiết kế nâng cao của {ability.Name}, thực hành refactor.");
                     sb.AppendLine("- Tập trung tối ưu hoá hiệu năng và viết tài liệu kỹ thuật song song.");
                 }
-                else if (ability.mark >= 60)
+                else if (ability.Mark >= 6.0)
                 {
-                    sb.AppendLine($"- Ôn lại cấu trúc dữ liệu/cú pháp chính của {ability.name} bằng flashcard + mindmap.");
+                    sb.AppendLine($"- Ôn lại cấu trúc dữ liệu/cú pháp chính của {ability.Name} bằng flashcard + mindmap.");
                     sb.AppendLine("- Làm lại bộ bài mẫu chuẩn (ít nhất 5 bài) để củng cố phản xạ.");
                 }
                 else
                 {
-                    sb.AppendLine($"- Bắt đầu từ tài liệu nền tảng của {ability.name}: biến, hàm, cấu trúc điều khiển.");
+                    sb.AppendLine($"- Bắt đầu từ tài liệu nền tảng của {ability.Name}: biến, hàm, cấu trúc điều khiển.");
                     sb.AppendLine("- Nhờ mentor kiểm tra lại từng bước để tránh sai sót cơ bản.");
                 }
                 sb.AppendLine("### Lộ trình 2–4 tuần");
-                if (ability.mark >= 80)
+                if (ability.Mark >= 8.0)
                 {
                     sb.AppendLine("- Tuần 1-2: 2 project mini/tuần bám sát case thực tế, viết post-mortem sau mỗi project.");
                     sb.AppendLine("- Tuần 3-4: Mentor review code + luyện thử phỏng vấn hệ thống trong 2 buổi.");
                 }
-                else if (ability.mark >= 60)
+                else if (ability.Mark >= 6.0)
                 {
                     sb.AppendLine("- Tuần 1-2: 3 buổi/tuần ôn lý thuyết + 2 buổi luyện bài có chấm điểm.");
                     sb.AppendLine("- Tuần 3-4: Ghép bài tập áp dụng vào mini project, tổng ít nhất 8 bài.");
@@ -1116,8 +1132,8 @@ namespace AiService.Infrastructure.Implements
 
                 return new AbilityAnalysis
                 {
-                    name = ability.name,
-                    analysisMarkdown = sb.ToString().Trim()
+                    Name = ability.Name,
+                    AnalysisMarkdown = sb.ToString().Trim()
                 };
             }).ToList();
         }
@@ -1131,9 +1147,9 @@ namespace AiService.Infrastructure.Implements
                 ? subjects
                 : curriculumSubjects.Select(s => new SubjectMark
                 {
-                    subjectCode = s.subjectCode,
-                    subjectName = s.subjectName,
-                    mark = 0
+                    SubjectCode = s.SubjectCode,
+                    SubjectName = s.SubjectName,
+                    Mark = 0
                 }).ToList();
 
             if (source.Count == 0)
@@ -1156,48 +1172,48 @@ namespace AiService.Infrastructure.Implements
                 [
                     new SubjectAnalysis
                     {
-                        subjectCode = "-",
-                        subjectName = "Chưa có dữ liệu",
-                        analysisMarkdown = fallbackMarkdown.ToString().Trim()
+                        SubjectCode = "-",
+                        SubjectName = "Chưa có dữ liệu",
+                        AnalysisMarkdown = fallbackMarkdown.ToString().Trim()
                     }
                 ];
             }
 
-            var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? Array.Empty<SubjectCur>());
+            var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects);
             var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
             var curriculumLookup = normalizedCurriculum
-                .ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+                .ToDictionary(x => x.SubjectCode, x => x, StringComparer.OrdinalIgnoreCase);
             var markLookup = source
-                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
-                .GroupBy(x => NormalizeSubjectCode(x.subjectCode))
-                .ToDictionary(g => g.Key, g => g.First().mark!.Value, StringComparer.OrdinalIgnoreCase);
+                .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
+                .GroupBy(x => NormalizeSubjectCode(x.SubjectCode))
+                .ToDictionary(g => g.Key, g => g.First().Mark!.Value, StringComparer.OrdinalIgnoreCase);
 
             return source.Select(subject =>
             {
-                var subjectCodeNormalized = NormalizeSubjectCode(subject.subjectCode);
+                var subjectCodeNormalized = NormalizeSubjectCode(subject.SubjectCode);
                 curriculumLookup.TryGetValue(subjectCodeNormalized, out var subjectInfo);
-                var subjectSemesterLabel = FormatSemesterLabel(subjectInfo?.index);
-                var subjectDisplayCode = string.IsNullOrWhiteSpace(subject.subjectCode)
+                var subjectSemesterLabel = FormatSemesterLabel(subjectInfo?.Index);
+                var subjectDisplayCode = string.IsNullOrWhiteSpace(subject.SubjectCode)
                     ? subjectCodeNormalized
-                    : subject.subjectCode.Trim();
-                var subjectDisplayName = string.IsNullOrWhiteSpace(subject.subjectName)
+                    : subject.SubjectCode.Trim();
+                var subjectDisplayName = string.IsNullOrWhiteSpace(subject.SubjectName)
                     ? subjectDisplayCode
-                    : subject.subjectName.Trim();
-                var subjectScore = subject.mark ?? 0;
+                    : subject.SubjectName.Trim();
+                var subjectScore = subject.Mark ?? 0;
 
                 var sb = new StringBuilder();
                 sb.AppendLine($"## {subjectDisplayName} ({subjectDisplayCode})");
                 sb.AppendLine("### Tình hình");
-                sb.AppendLine($"- Điểm hiện tại: **{subjectScore}/100** · Mức: {ClassifyScore(subjectScore)}.");
+                sb.AppendLine($"- Điểm hiện tại: **{subjectScore}/10** · Mức: {ClassifyScore(subjectScore)}.");
                 if (subjectSemesterLabel is not null)
                 {
                     sb.AppendLine($"- Thuộc {subjectSemesterLabel} trong chương trình; cần giữ tiến độ để tránh dồn môn.");
                 }
-                if (subjectScore >= 80)
+                if (subjectScore >= 8.0)
                 {
                     sb.AppendLine("- Năng lực khá ổn, có thể thử thách bằng đề mở rộng hoặc dự án nhỏ.");
                 }
-                else if (subjectScore >= 65)
+                else if (subjectScore >= 6.5)
                 {
                     sb.AppendLine("- Nên củng cố lại các chủ đề bị sai và tăng tần suất luyện đề.");
                 }
@@ -1207,12 +1223,12 @@ namespace AiService.Infrastructure.Implements
                 }
 
                 sb.AppendLine("### Kiến thức trọng tâm");
-                if (subjectScore >= 80)
+                if (subjectScore >= 8.0)
                 {
                     sb.AppendLine($"- Đào sâu các chủ đề nâng cao của {subjectDisplayName} (tối ưu, mô hình hoá, kiến trúc).");
                     sb.AppendLine("- Viết lại insight sau mỗi bài để chuẩn bị cho môn liên quan.");
                 }
-                else if (subjectScore >= 65)
+                else if (subjectScore >= 6.5)
                 {
                     sb.AppendLine($"- Rà lại 2 chương trọng yếu của {subjectDisplayName}, ghi chú công thức/thuật toán chính.");
                     sb.AppendLine("- Hoàn thành 3-4 bài tập chuẩn để kiểm tra hiểu bài.");
@@ -1239,12 +1255,12 @@ namespace AiService.Infrastructure.Implements
                 }
 
                 sb.AppendLine("### Lộ trình 2–4 tuần");
-                if (subjectScore >= 80)
+                if (subjectScore >= 8.0)
                 {
                     sb.AppendLine("- Tuần 1-2: 2 buổi ôn lý thuyết nâng cao + 2 buổi luyện đề theo dự án.");
                     sb.AppendLine("- Tuần 3-4: Viết tóm tắt nội dung và chia sẻ/mentor review.");
                 }
-                else if (subjectScore >= 65)
+                else if (subjectScore >= 6.5)
                 {
                     sb.AppendLine("- Tuần 1-2: 3 buổi củng cố lý thuyết + 2 buổi làm bài chuẩn hóa.");
                     sb.AppendLine("- Tuần 3-4: Làm thêm 4-5 bài nâng dần độ khó và tự chấm lại.");
@@ -1262,9 +1278,9 @@ namespace AiService.Infrastructure.Implements
 
                 return new SubjectAnalysis
                 {
-                    subjectCode = subject.subjectCode,
-                    subjectName = subject.subjectName,
-                    analysisMarkdown = sb.ToString().Trim()
+                    SubjectCode = subject.SubjectCode,
+                    SubjectName = subject.SubjectName,
+                    AnalysisMarkdown = sb.ToString().Trim()
                 };
             }).ToList();
         }
@@ -1285,15 +1301,15 @@ namespace AiService.Infrastructure.Implements
         private static Dictionary<string, List<SubjectDependency>> BuildSubjectDependencyMap(IEnumerable<SubjectCur> subjects)
         {
             var map = new Dictionary<string, List<SubjectDependency>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
+            foreach (var subject in subjects)
             {
-                var subjectCode = NormalizeSubjectCode(subject.subjectCode);
+                var subjectCode = NormalizeSubjectCode(subject.SubjectCode);
                 if (string.IsNullOrWhiteSpace(subjectCode))
                 {
                     continue;
                 }
 
-                foreach (var prerequisiteRaw in subject.subjectPrerequisiteCode ?? new List<string>())
+                foreach (var prerequisiteRaw in subject.SubjectPrerequisiteCode)
                 {
                     var prerequisite = NormalizeSubjectCode(prerequisiteRaw);
                     if (string.IsNullOrWhiteSpace(prerequisite)) continue;
@@ -1304,13 +1320,13 @@ namespace AiService.Infrastructure.Implements
                         map[prerequisite] = list;
                     }
 
-                    var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
+                    var dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
                         ? subjectCode
-                        : subject.subjectName.Trim();
+                        : subject.SubjectName.Trim();
                     var dependent = new SubjectDependency(
                         subjectCode,
                         dependentName,
-                        subject.index > 0 ? subject.index : (int?)null);
+                        subject.Index > 0 ? subject.Index : (int?)null);
 
                     if (!list.Any(item => item.SubjectCode.Equals(subjectCode, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -1341,13 +1357,13 @@ namespace AiService.Infrastructure.Implements
                 .Where(subject => subject is not null)
                 .Select(subject =>
                 {
-                    var normalizedCode = NormalizeSubjectCode(subject.subjectCode);
+                    var normalizedCode = NormalizeSubjectCode(subject.SubjectCode);
                     if (string.IsNullOrWhiteSpace(normalizedCode))
                     {
                         return null;
                     }
 
-                    var normalizedPrereqs = (subject.subjectPrerequisiteCode ?? new List<string>())
+                    var normalizedPrereqs = (subject.SubjectPrerequisiteCode)
                         .Select(NormalizeSubjectCode)
                         .Where(code => !string.IsNullOrWhiteSpace(code))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1355,17 +1371,17 @@ namespace AiService.Infrastructure.Implements
 
                     return new SubjectCur
                     {
-                        subjectCode = normalizedCode,
-                        subjectName = string.IsNullOrWhiteSpace(subject.subjectName)
+                        SubjectCode = normalizedCode,
+                        SubjectName = string.IsNullOrWhiteSpace(subject.SubjectName)
                             ? normalizedCode
-                            : subject.subjectName.Trim(),
-                        index = subject.index,
-                        subjectPrerequisiteCode = normalizedPrereqs
+                            : subject.SubjectName.Trim(),
+                        Index = subject.Index,
+                        SubjectPrerequisiteCode = normalizedPrereqs
                     };
                 })
                 .Where(subject => subject is not null)
                 .Select(subject => subject!)
-                .GroupBy(subject => subject.subjectCode, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(subject => subject.SubjectCode, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
         }
@@ -1374,42 +1390,42 @@ namespace AiService.Infrastructure.Implements
             SubjectCur? subjectInfo,
             string subjectDisplayName,
             Dictionary<string, SubjectCur> curriculumLookup,
-            Dictionary<string, int> markLookup,
+            Dictionary<string, double> markLookup,
             List<string> warningCollector)
         {
             var bullets = new List<string>();
 
-            if (subjectInfo?.subjectPrerequisiteCode == null || subjectInfo.subjectPrerequisiteCode.Count == 0)
+            if (subjectInfo?.SubjectPrerequisiteCode == null || subjectInfo.SubjectPrerequisiteCode.Count == 0)
             {
                 bullets.Add("Không có môn tiền đề.");
                 return bullets;
             }
 
-            foreach (var prereqCodeRaw in subjectInfo.subjectPrerequisiteCode)
+            foreach (var prereqCodeRaw in subjectInfo.SubjectPrerequisiteCode)
             {
                 var prereqCode = NormalizeSubjectCode(prereqCodeRaw);
                 if (string.IsNullOrWhiteSpace(prereqCode)) continue;
 
                 curriculumLookup.TryGetValue(prereqCode, out var prereqInfo);
-                var prereqDisplayCode = prereqInfo?.subjectCode ?? prereqCode;
-                var prereqDisplayName = string.IsNullOrWhiteSpace(prereqInfo?.subjectName)
+                var prereqDisplayCode = prereqInfo?.SubjectCode ?? prereqCode;
+                var prereqDisplayName = string.IsNullOrWhiteSpace(prereqInfo?.SubjectName)
                     ? prereqDisplayCode
-                    : prereqInfo.subjectName.Trim();
-                var prereqSemesterLabel = FormatSemesterLabel(prereqInfo?.index);
+                    : prereqInfo.SubjectName.Trim();
+                var prereqSemesterLabel = FormatSemesterLabel(prereqInfo?.Index);
                 var prereqDisplay = prereqSemesterLabel is null
                     ? $"{prereqDisplayName} ({prereqDisplayCode})"
                     : $"{prereqDisplayName} ({prereqDisplayCode}) – {prereqSemesterLabel}";
 
                 if (markLookup.TryGetValue(prereqCode, out var prereqMark))
                 {
-                    var status = prereqMark >= 70
-                        ? $"điểm {prereqMark}/100 – đã đạt chuẩn, duy trì nhịp ôn để hỗ trợ {subjectDisplayName}"
-                        : $"điểm {prereqMark}/100 – đang dưới chuẩn, ưu tiên củng cố trước khi học sâu {subjectDisplayName}";
+                    var status = prereqMark >= 7.0
+                        ? $"điểm {prereqMark}/10 – đã đạt chuẩn, duy trì nhịp ôn để hỗ trợ {subjectDisplayName}"
+                        : $"điểm {prereqMark}/10 – đang dưới chuẩn, ưu tiên củng cố trước khi học sâu {subjectDisplayName}";
                     bullets.Add($"{prereqDisplay}: {status}");
 
-                    if (prereqMark < 70)
+                    if (prereqMark < 7.0)
                     {
-                        warningCollector.Add($"⚠️ {prereqDisplay}: điểm {prereqMark}/100 đang dưới chuẩn nhưng là tiền đề của {subjectDisplayName}. Cần củng cố sớm.");
+                        warningCollector.Add($"⚠️ {prereqDisplay}: điểm {prereqMark}/10 đang dưới chuẩn nhưng là tiền đề của {subjectDisplayName}. Cần củng cố sớm.");
                     }
                 }
                 else
@@ -1430,21 +1446,21 @@ namespace AiService.Infrastructure.Implements
         private static List<string> BuildDependencyWarnings(
             string normalizedSubjectCode,
             string subjectDisplayName,
-            int subjectMark,
+            double subjectMark,
             Dictionary<string, List<SubjectDependency>> dependencyMap)
         {
             var warnings = new List<string>();
 
             if (dependencyMap.TryGetValue(normalizedSubjectCode, out var dependents) &&
                 dependents.Count > 0 &&
-                subjectMark < 70)
+                subjectMark < 7.0)
             {
                 foreach (var dependent in dependents)
                 {
                     var dependentLabel = dependent.SemesterIndex.HasValue
                         ? $"{dependent.SubjectName} (kỳ {dependent.SemesterIndex})"
                         : dependent.SubjectName;
-                    warnings.Add($"⚠️ {subjectDisplayName} là điều kiện đầu vào cho {dependentLabel}. Điểm hiện tại {subjectMark}/100 có thể khiến môn sau khó bắt nhịp nếu không củng cố.");
+                    warnings.Add($"⚠️ {subjectDisplayName} là điều kiện đầu vào cho {dependentLabel}. Điểm hiện tại {subjectMark}/10 có thể khiến môn sau khó bắt nhịp nếu không củng cố.");
                 }
             }
 
@@ -1498,24 +1514,24 @@ namespace AiService.Infrastructure.Implements
             var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? new List<SubjectCur>());
             if (normalizedCurriculum.Count == 0) return;
 
-            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.SubjectCode, x => x, StringComparer.OrdinalIgnoreCase);
             var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
             var markLookup = subjectMarks
-                .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode) && x.mark.HasValue)
-                .GroupBy(x => NormalizeSubjectCode(x.subjectCode))
-                .ToDictionary(g => g.Key, g => g.First().mark!.Value, StringComparer.OrdinalIgnoreCase);
+                .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode) && x.Mark.HasValue)
+                .GroupBy(x => NormalizeSubjectCode(x.SubjectCode))
+                .ToDictionary(g => g.Key, g => g.First().Mark!.Value, StringComparer.OrdinalIgnoreCase);
 
             foreach (var analysis in analyses)
             {
                 if (analysis is null) continue;
 
-                var normalizedCode = NormalizeSubjectCode(analysis.subjectCode);
+                var normalizedCode = NormalizeSubjectCode(analysis.SubjectCode);
                 if (string.IsNullOrWhiteSpace(normalizedCode)) continue;
 
                 curriculumLookup.TryGetValue(normalizedCode, out var subjectInfo);
-                var subjectDisplayName = string.IsNullOrWhiteSpace(analysis.subjectName)
+                var subjectDisplayName = string.IsNullOrWhiteSpace(analysis.SubjectName)
                     ? normalizedCode
-                    : analysis.subjectName.Trim();
+                    : analysis.SubjectName.Trim();
                 var subjectMark = markLookup.TryGetValue(normalizedCode, out var mark) ? mark : 0;
 
                 var warnings = new List<string>();
@@ -1523,8 +1539,8 @@ namespace AiService.Infrastructure.Implements
                 var dependencyWarnings = BuildDependencyWarnings(normalizedCode, subjectDisplayName, subjectMark, dependencyMap);
                 warnings.AddRange(dependencyWarnings);
 
-                analysis.analysisMarkdown = UpsertSection(analysis.analysisMarkdown, "### Môn tiền đề quan trọng", prereqBullets);
-                analysis.analysisMarkdown = UpsertSection(analysis.analysisMarkdown, "### Cảnh báo", warnings.Distinct().ToList());
+                analysis.AnalysisMarkdown = UpsertSection(analysis.AnalysisMarkdown, "### Môn tiền đề quan trọng", prereqBullets);
+                analysis.AnalysisMarkdown = UpsertSection(analysis.AnalysisMarkdown, "### Cảnh báo", warnings.Distinct().ToList());
             }
         }
 
@@ -1537,17 +1553,17 @@ namespace AiService.Infrastructure.Implements
             var normalizedCurriculum = NormalizeCurriculumSubjects(curriculumSubjects ?? new List<SubjectCur>());
             if (normalizedCurriculum.Count == 0) return result;
 
-            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.subjectCode, x => x, StringComparer.OrdinalIgnoreCase);
+            var curriculumLookup = normalizedCurriculum.ToDictionary(x => x.SubjectCode, x => x, StringComparer.OrdinalIgnoreCase);
             var dependencyMap = BuildSubjectDependencyMap(normalizedCurriculum);
 
             foreach (var subject in missingSubjects ?? Enumerable.Empty<SubjectMark>())
             {
-                var normalizedCode = NormalizeSubjectCode(subject.subjectCode);
+                var normalizedCode = NormalizeSubjectCode(subject.SubjectCode);
                 if (string.IsNullOrWhiteSpace(normalizedCode)) continue;
 
-                var displayName = string.IsNullOrWhiteSpace(subject.subjectName)
+                var displayName = string.IsNullOrWhiteSpace(subject.SubjectName)
                     ? normalizedCode
-                    : subject.subjectName.Trim();
+                    : subject.SubjectName.Trim();
 
                 curriculumLookup.TryGetValue(normalizedCode, out var subjectInfo);
 
@@ -1572,16 +1588,16 @@ namespace AiService.Infrastructure.Implements
                     "Ôn lại slide/bài giảng trọng tâm và ghi chú 3-4 câu hỏi tự kiểm tra trước khi bước vào môn phụ thuộc."
                 };
 
-                if (subjectInfo?.subjectPrerequisiteCode is { Count: > 0 })
+                if (subjectInfo?.SubjectPrerequisiteCode is { Count: > 0 })
                 {
-                    var prereqNames = subjectInfo.subjectPrerequisiteCode
+                    var prereqNames = subjectInfo.SubjectPrerequisiteCode
                         .Select(NormalizeSubjectCode)
                         .Where(code => !string.IsNullOrWhiteSpace(code))
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .Select(code =>
                         {
                             curriculumLookup.TryGetValue(code, out var prereq);
-                            return string.IsNullOrWhiteSpace(prereq?.subjectName) ? code : prereq.subjectName.Trim();
+                            return string.IsNullOrWhiteSpace(prereq?.SubjectName) ? code : prereq.SubjectName.Trim();
                         })
                         .ToList();
 
@@ -1607,9 +1623,9 @@ namespace AiService.Infrastructure.Implements
 
                 result.Add(new SubjectWithoutMarkAnalysis
                 {
-                    subjectCode = normalizedCode,
-                    subjectName = displayName,
-                    analysisMarkdown = sb.ToString().Trim()
+                    SubjectCode = normalizedCode,
+                    SubjectName = displayName,
+                    AnalysisMarkdown = sb.ToString().Trim()
                 });
             }
 
@@ -1622,13 +1638,13 @@ namespace AiService.Infrastructure.Implements
             QuizSurvey quizSurvey,
             string careerGoal)
         {
-            var scoredSubjects = subjectMarks.Where(s => s.mark.HasValue).ToList();
-            var avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.mark!.Value) : 0;
-            var avgAbility = abilityMarks.Count > 0 ? abilityMarks.Average(a => a.mark) : 0;
-            var strongSubjects = scoredSubjects.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList();
-            var weakSubjects = scoredSubjects.Where(s => s.mark < 65).Select(s => s.subjectName).ToList();
-            var strongAbilities = abilityMarks.Where(a => a.mark >= 80).Select(a => a.name).ToList();
-            var weakAbilities = abilityMarks.Where(a => a.mark < 65).Select(a => a.name).ToList();
+            var scoredSubjects = subjectMarks.Where(s => s.Mark.HasValue).ToList();
+            var avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.Mark!.Value) : 0;
+            var avgAbility = (abilityMarks != null && abilityMarks.Count > 0) ? abilityMarks.Average(a => a.Mark) : 0;
+            var strongSubjects = scoredSubjects.Where(s => s.Mark >= 8.0).Select(s => s.SubjectName).ToList();
+            var weakSubjects = scoredSubjects.Where(s => s.Mark < 6.5).Select(s => s.SubjectName).ToList();
+            var strongAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark >= 8.0).Select(a => a.Name).ToList() : new List<string>();
+            var weakAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark < 6.5).Select(a => a.Name).ToList() : new List<string>();
 
             var summaryBuilder = new StringBuilder();
             summaryBuilder.AppendLine("## Tổng quan");
@@ -1638,7 +1654,7 @@ namespace AiService.Infrastructure.Implements
             }
             else
             {
-                summaryBuilder.AppendLine($"- Điểm trung bình các môn đang quanh mức {avgSubject:F1}/100.");
+                summaryBuilder.AppendLine($"- Điểm trung bình các môn đang quanh mức {avgSubject:F1}/10.");
                 if (strongSubjects.Count > 0)
                 {
                     summaryBuilder.AppendLine($"- Điểm mạnh: {string.Join(", ", strongSubjects.Take(2))}.");
@@ -1654,8 +1670,8 @@ namespace AiService.Infrastructure.Implements
             }
             summaryBuilder.AppendLine("- Hành động: đặt checklist môn ưu tiên và cập nhật tiến độ mỗi tuần.");
 
-            var interests = quizSurvey.quizInterests ?? new List<QuizInterest>();
-            var habits = quizSurvey.quizHabits ?? new List<QuizHabit>();
+            var interests = quizSurvey.QuizInterests ?? new List<QuizInterest>();
+            var habits = quizSurvey.QuizHabits ?? new List<QuizHabit>();
 
             var habitBuilder = new StringBuilder();
             habitBuilder.AppendLine("## Thói quen & Sở thích");
@@ -1667,11 +1683,11 @@ namespace AiService.Infrastructure.Implements
             {
                 if (habits.Count > 0)
                 {
-                    habitBuilder.AppendLine($"- Thói quen học nổi bật: \"{habits.First().answer}\".");
+                    habitBuilder.AppendLine($"- Thói quen học nổi bật: \"{habits.First().Answer}\".");
                 }
                 if (interests.Count > 0)
                 {
-                    habitBuilder.AppendLine($"- Sở thích học tập: \"{interests[0].answer}\".");
+                    habitBuilder.AppendLine($"- Sở thích học tập: \"{interests[0].Answer}\".");
                 }
                 habitBuilder.AppendLine("- Khai thác các yếu tố này để giữ động lực ổn định mỗi tuần.");
                 if (!string.IsNullOrWhiteSpace(careerGoal))
@@ -1684,23 +1700,44 @@ namespace AiService.Infrastructure.Implements
             var personalityBuilder = new StringBuilder();
             personalityBuilder.AppendLine("## Phong cách học tập");
             personalityBuilder.Append("- Người học cho thấy phong cách ");
-            personalityBuilder.Append(avgSubject >= 75 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
+            personalityBuilder.Append(avgSubject >= 7.5 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
             if (habits.Count > 0)
             {
-                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].answer}\"");
+                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].Answer}\"");
             }
             personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
             personalityBuilder.AppendLine("- Hành động: sau mỗi tuần, tự đánh giá điểm tập trung và điều chỉnh phương pháp cho tuần kế tiếp.");
 
             var learningAbilityBuilder = new StringBuilder();
             learningAbilityBuilder.AppendLine("## Năng lực học & Lộ trình");
-            if (abilityMarks.Count == 0)
+            if (abilityMarks == null || abilityMarks.Count == 0)
             {
-                learningAbilityBuilder.AppendLine("- Chưa có dữ liệu năng lực để đánh giá tốc độ tiếp thu.");
+                // Sinh viên kỳ 5+ đã có bảng điểm đầy đủ, phân tích dựa trên môn học
+                learningAbilityBuilder.AppendLine("- Bạn đã có bảng điểm môn học đầy đủ, hệ thống phân tích năng lực dựa trên kết quả học tập thực tế.");
+                if (scoredSubjects.Count > 0)
+                {
+                    learningAbilityBuilder.AppendLine($"- Điểm trung bình các môn: {avgSubject:F1}/10 - phản ánh năng lực tổng thể của bạn.");
+                    
+                    var techSubjects = scoredSubjects.Where(s => 
+                        s.SubjectCode.Contains("PRO") || s.SubjectCode.Contains("PRF") || 
+                        s.SubjectCode.Contains("WEB") || s.SubjectCode.Contains("DSA") || 
+                        s.SubjectCode.Contains("DBI")).ToList();
+                    
+                    if (techSubjects.Count > 0)
+                    {
+                        var avgTech = techSubjects.Average(s => s.Mark!.Value);
+                        learningAbilityBuilder.AppendLine($"- Năng lực kỹ thuật (các môn chuyên ngành): {avgTech:F1}/10.");
+                    }
+                }
+                learningAbilityBuilder.AppendLine("- Khuyến nghị: Tập trung vào các môn chuyên sâu và dự án thực tế thay vì ôn lại kiến thức cơ bản.");
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    learningAbilityBuilder.AppendLine($"- Xây dựng portfolio và kinh nghiệm thực tế phù hợp với mục tiêu {careerGoal}.");
+                }
             }
             else
             {
-                learningAbilityBuilder.AppendLine($"- Điểm trung bình năng lực khoảng {avgAbility:F1}/100.");
+                learningAbilityBuilder.AppendLine($"- Điểm trung bình năng lực khoảng {avgAbility:F1}/10.");
                 if (strongAbilities.Count > 0)
                 {
                     learningAbilityBuilder.AppendLine($"- Thế mạnh: {string.Join(", ", strongAbilities.Take(2))}.");
@@ -1724,11 +1761,11 @@ namespace AiService.Infrastructure.Implements
                 learningAbilityBuilder.ToString());
         }
 
-        private static string ClassifyScore(int mark) => mark switch
+        private static string ClassifyScore(double mark) => mark switch
         {
-            >= 85 => "Giỏi",
-            >= 70 => "Khá",
-            >= 50 => "Cần củng cố",
+            >= 8.5 => "Giỏi",
+            >= 7.0 => "Khá",
+            >= 5.0 => "Cần củng cố",
             _ => "Nguy cơ"
         };
 

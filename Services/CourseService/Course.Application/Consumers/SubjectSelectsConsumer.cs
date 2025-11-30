@@ -1,4 +1,4 @@
-using BuildingBlocks.Messaging.Events.QuizService.SubjectSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.Subjects.Queries.SelectSubject;
 
 namespace Course.Application.Consumers;

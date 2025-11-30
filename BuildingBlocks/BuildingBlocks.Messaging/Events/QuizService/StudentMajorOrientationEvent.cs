@@ -19,6 +19,7 @@ public class StudentMajorOrientationEvent
     public short StudentLevel { get; set; }
     
     public List<string>? StudentPassedSubjects { get; set; }
+    public required List<CourseImprove>? CourseImproves { get; set; }
 }
 
 public class IdentityEntity

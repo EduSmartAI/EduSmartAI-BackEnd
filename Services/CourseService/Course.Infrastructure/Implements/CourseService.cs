@@ -1166,7 +1166,6 @@ namespace Course.Infrastructure.Implements
 				.Find(s => s.SemesterId == request.SemesterId)
 				.Select(s => new { s.SemesterId, s.SemesterNumber })
 				.FirstOrDefaultAsync(cancellationToken: ct);
-
 			if (semester == null)
 			{
 				response.SetMessage(MessageId.E00000, "Semester not found");
@@ -1184,16 +1183,16 @@ namespace Course.Infrastructure.Implements
 
 			var coursesData = await _courseRepository
 				.Find(c => c.Subject.SyllabusSubjects.Any(
-							   ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) &&
-					  // c.Level == request.StudentLevel &&
-					  c.IsActive,
-
+					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) &&
+				           c.Level == request.StudentLevel &&
+				           c.IsActive,
 					includes: c => c.Subject
 				)
 				.Select(c => new
 				{
 					c.CourseId,
 					c.Subject.SubjectCode,
+					c.Level,
 					MajorCodes = c.Subject.SyllabusSubjects
 						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
 						.Select(ss => ss.Syllabus.Major.MajorCode)
@@ -1201,7 +1200,70 @@ namespace Course.Infrastructure.Implements
 				})
 				.ToListAsync(cancellationToken: ct);
 
-			// 3. Filter out courses with SubjectCode in StudentPassedSubjects
+			// 3. Add courses from CourseImproves (if provided)
+			if (request.CourseImproves != null && request.CourseImproves.Any())
+			{
+				var courseImproveSubjectCodes = request.CourseImproves.Select(ci => ci.SubjectCode).Distinct().ToList();
+			
+				// Get all courses matching the subject codes from CourseImproves
+				var courseImprovesData = await _courseRepository
+					.Find(c => courseImproveSubjectCodes.Contains(c.Subject.SubjectCode) &&
+					           c.IsActive,
+						includes: c => c.Subject
+					)
+					.Select(c => new
+					{
+						c.CourseId,
+						c.Subject.SubjectCode,
+						c.Level,
+						MajorCodes = c.Subject.SyllabusSubjects
+							.Select(ss => ss.Syllabus.Major.MajorCode)
+							.Distinct()
+					})
+					.ToListAsync(cancellationToken: ct);
+			
+				// Filter to only include courses with matching SubjectCode and Level from CourseImproves
+				var filteredCourseImproves = courseImprovesData
+					.Where(c => c.Level.HasValue && request.CourseImproves.Any(ci => 
+						ci.SubjectCode == c.SubjectCode && ci.Level == c.Level.Value))
+					.ToList();
+			
+				// Merge with existing coursesData
+				coursesData = coursesData
+					.Concat(filteredCourseImproves)
+					.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
+					.Select(g => g.First())
+					.ToList();
+			}
+
+			// 4. Add courses from CourseEvaluations (if provided)
+			if (request.CourseEvaluations != null && request.CourseEvaluations.Any())
+			{
+				var courseEvaluationsData = await _courseRepository
+					.Find(c => request.CourseEvaluations.Contains(c.Subject.SubjectCode) &&
+					           c.IsActive,
+						includes: c => c.Subject
+					)
+					.Select(c => new
+					{
+						c.CourseId,
+						c.Subject.SubjectCode,
+						c.Level,
+						MajorCodes = c.Subject.SyllabusSubjects
+							.Select(ss => ss.Syllabus.Major.MajorCode)
+							.Distinct()
+					})
+					.ToListAsync(cancellationToken: ct);
+			
+				// Merge with existing coursesData
+				coursesData = coursesData
+					.Concat(courseEvaluationsData)
+					.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
+					.Select(g => g.First())
+					.ToList();
+			}
+
+			// 5. Filter out courses with SubjectCode in StudentPassedSubjects
 			if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
 			{
 				coursesData = coursesData
@@ -1209,7 +1271,7 @@ namespace Course.Infrastructure.Implements
 					.ToList();
 			}
 
-			// 4. Flatten và group by major
+			// 6. Flatten và group by major
 			var groupedCourses = coursesData
 				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
 				.GroupBy(x => x.MajorCode)
@@ -1224,7 +1286,7 @@ namespace Course.Infrastructure.Implements
 				})
 				.ToList();
 
-			// 4. Build response
+			// 7. Build response
 			response.Success = true;
 			response.Response = groupedCourses;
 			response.SetMessage(MessageId.I00001);

@@ -7,8 +7,6 @@ public partial class LearningPathSubjectCode
 {
     public Guid LearningPathSubjectCodeId { get; set; }
 
-    public Guid LearningPathMajorId { get; set; }
-
     public string SubjectCode { get; set; } = null!;
 
     public string? AnalysisMarkdown { get; set; }
@@ -23,7 +21,9 @@ public partial class LearningPathSubjectCode
 
     public bool IsActive { get; set; }
 
-    public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
+    public Guid LearningPathId { get; set; }
 
-    public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
+    public virtual LearningPath LearningPath { get; set; } = null!;
+
+    public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
 }

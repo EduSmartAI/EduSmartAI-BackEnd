@@ -19,7 +19,8 @@ namespace AiService.Application.Handler.AiEvaluate
                 IdentityEntity = request.IdentityEntity,
                 LearningPathId = request.LearningPathId,
                 SemesterId = request.SemesterId,
-                StudentLevel = request.StudentLevel
+                StudentLevel = request.StudentLevel,
+                CourseImproves = request.CourseImproves,
             };
 
             // Gọi service

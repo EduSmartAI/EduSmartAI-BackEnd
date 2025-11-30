@@ -17,6 +17,8 @@ public class LearningPathMajorInsertCommand : ICommand<LearningPathMajorInternal
     public short StudentLevel { get; set; }
     
     public List<string>? StudentPassedSubjects { get; set; }
+    
+    public required List<CourseImprove>? CourseImproves { get; set; }
 }
 
 public class LearningPathMajorRequest
@@ -24,4 +26,13 @@ public class LearningPathMajorRequest
     public string MajorCode { get; set; }
     
     public string Reason { get; set; }
+}
+
+public class CourseImprove
+{
+    public string SubjectCode { get; set; } = null!;
+    
+    public string? SubjectPrerequisiteCode { get; set; }
+
+    public int Level { get; set; }
 }

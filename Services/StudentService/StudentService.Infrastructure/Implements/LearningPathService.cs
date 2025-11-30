@@ -86,7 +86,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short)ConstantEnum.LearningPathStatus.Generating,
+                Status = (short) ConstantEnum.LearningPathStatus.Generating,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -211,7 +211,13 @@ public class LearningPathService : ILearningPathService
                 SemesterId = request.SemesterId,
                 LimitTime = request.LimitTime * 60,
                 StudentLevel = request.StudentLevel,
-                StudentPassedSubjects = request.StudentPassedSubjects
+                StudentPassedSubjects = request.StudentPassedSubjects,
+                CourseImproves = request.CourseImproves?.Select(x => new BuildingBlocks.Messaging.Events.QuizService.CourseImprove
+                {
+                    SubjectCode = x.SubjectCode,
+                    SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
+                    Level = x.Level
+                }).ToList(),
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 

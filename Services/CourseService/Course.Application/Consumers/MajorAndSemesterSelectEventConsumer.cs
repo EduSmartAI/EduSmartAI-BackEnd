@@ -32,7 +32,8 @@ public class MajorAndSemesterSelectEventConsumer(ICommandRepository<Semester> se
             var majorSelectEntity = new MajorSelectEventResponseEntity
             {
                 MajorId = majorSelect.MajorId,
-                MajorName = majorSelect.MajorName
+                MajorName = majorSelect.MajorName,
+                MajorCode = majorSelect.MajorCode
             };
             response.Response.Major = majorSelectEntity;
         } 

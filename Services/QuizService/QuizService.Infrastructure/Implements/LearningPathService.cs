@@ -162,7 +162,16 @@ public class LearningPathService : ILearningPathService
     {
         var result = new LearningPathCreationResult { Success = false };
         
-        var studentMajorOrientationEvent = new StudentMajorOrientationEvent();
+        var studentMajorOrientationEvent = new StudentMajorOrientationEvent
+        {
+            CourseImproves = context.CourseImprove.Select(x =>
+                new BuildingBlocks.Messaging.Events.QuizService.CourseImprove
+                {
+                    SubjectCode = x.SubjectCode,
+                    SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
+                    Level = x.Level
+                }).ToList()
+        };
 
         var learningGoalType = context.InformationResponse.LearningGoalType;
         

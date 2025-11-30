@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 
 namespace QuizService.Application.Applications.StudentSurveys.Commands;
@@ -13,6 +14,8 @@ public record StudentSurveyInsertCommand : ICommand<StudentSurveyInsertResponse>
     
     [Required(ErrorMessage = "IsWantToTakeTest is required")]
     public bool IsWantToTakeTest { get; set; }
+
+    public List<ConstantEnum.OtherQuestionCode>? OtherQuestionAnswerCodes { get; set; }
 }
 
 public class StudentInformation
@@ -44,7 +47,7 @@ public class LearningGoal
 {
     public Guid LearningGoalId { get; set; }
     
-    public short LearningGoalType { get; set; }
+    public ConstantEnum.LearningGoalType LearningGoalType { get; set; }
     
     public string LearningGoalName { get; set; } = null!;
 }

@@ -30,7 +30,13 @@ public class InternalMajorEventConsumer(ILearningPathService learningPathService
             StudentLevel = evt.StudentLevel,
             CurrentUserEmail = evt.CurrentUserEmail,
             SemesterId = evt.SemesterId,
-            StudentPassedSubjects = evt.StudentPassedSubjects
+            StudentPassedSubjects = evt.StudentPassedSubjects,
+            CourseImproves = evt.CourseImproves?.Select(x => new StudentService.Application.Applications.LearningPaths.Commands.CourseImprove
+            {
+                SubjectCode = x.SubjectCode,
+                SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
+                Level = x.Level
+            }).ToList()
         };
 
         // Insert internal majors using the learning path service

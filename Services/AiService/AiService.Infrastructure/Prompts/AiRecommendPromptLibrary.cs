@@ -27,17 +27,17 @@ Bạn là cố vấn học tập bậc đại học. Luôn trả về duy nhất
 - Nếu dữ liệu thiếu, hãy ghi chú "chưa có đủ dữ liệu" thay vì suy đoán.
 """;
 
-    public static string BuildAbilityPrompt(IEnumerable<AbilityMark> abilityMarks, string careerGoal)
+    public static string BuildAbilityPrompt(IEnumerable<AbilityMark>? abilityMarks, string careerGoal)
     {
-        var abilityEntries = (abilityMarks ?? Enumerable.Empty<AbilityMark>())
-            .Select(m => new { m.name, m.mark })
+        var abilityEntries = (abilityMarks ?? [])
+            .Select(m => new { name = m.Name, mark = m.Mark })
             .ToList();
 
         var payload = new
         {
             abilityMarks = abilityEntries,
             expectedAbilities = AbilityLabels,
-            markScale = "0-100",
+            markScale = "0-10",
             careerGoal = careerGoal
         };
 
@@ -50,22 +50,25 @@ DỮ LIỆU NĂNG LỰC:
 ```
 
 NHIỆM VỤ:
-- Đánh giá từng khả năng lập trình theo thang 0-100 và liên hệ trực tiếp với mục tiêu nghề nghiệp `careerGoal` (nếu có).
-- Với mỗi khả năng, mô tả rõ:
-  1. Tình trạng hiện tại.
+- Nếu `abilityMarks` rỗng hoặc null: Điều này có nghĩa là sinh viên đã ở kỳ 5 trở lên và đã có bảng điểm môn học đầy đủ, không cần đánh giá năng lực cơ bản nữa. 
+  Trong trường hợp này, trả về JSON với thông báo rằng sinh viên đã vượt qua giai đoạn đánh giá năng lực cơ bản, và hệ thống sẽ phân tích dựa trên **kết quả học tập thực tế từ bảng điểm môn học**.
+- Nếu có `abilityMarks`: Đánh giá từng khả năng lập trình theo thang 0-10 và liên hệ trực tiếp với mục tiêu nghề nghiệp `careerGoal` (nếu có).
+  1. Tình trạng hiện tại (điểm/10).
   2. Kiến thức/nền tảng cần củng cố (nêu ví dụ cụ thể).
   3. Lộ trình hành động **2–4 tuần** với số buổi/bài cụ thể.
-- Nếu thiếu điểm cho một khả năng, hãy ghi chú "chưa có đủ dữ liệu" và đề xuất cách xây dựng nền tảng.
 
 OUTPUT JSON (không thêm văn bản khác):
 {
   "abilityAnalyses": [
     {
-      "name": "<trùng tên khả năng>",
+      "name": "<trùng tên khả năng HOẶC 'Phân tích dựa trên bảng điểm' nếu null>",
       "analysisMarkdown": "## <Tên khả năng>\n### Hiện trạng\n- ...\n### Kiến thức trọng tâm\n- ...\n### Lộ trình 2–4 tuần\n- ... (nêu rõ khối lượng luyện tập và liên hệ careerGoal)"
     }
   ]
 }
+
+LƯU Ý ĐẶC BIỆT:
+- Nếu `abilityMarks` null/rỗng, trả về 1 phần tử duy nhất với `name: "Phân tích dựa trên bảng điểm"` và nội dung giải thích rằng sinh viên đã có đủ bảng điểm môn học, không cần đánh giá năng lực cơ bản riêng.
 
 YÊU CẦU ĐỊNH DẠNG:
 - Luôn mở đầu `analysisMarkdown` bằng `## <Tên khả năng>`.
@@ -80,51 +83,51 @@ YÊU CẦU ĐỊNH DẠNG:
         string careerGoal)
     {
         var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
-        var scoredSubjects = subjectMarkList.Where(s => s.mark.HasValue).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.Mark.HasValue).ToList();
         var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
 
         var curriculumLookup = curriculumListRaw
-            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
             .ToDictionary(
-                x => x.subjectCode,
+                x => x.SubjectCode,
                 x => x,
                 StringComparer.OrdinalIgnoreCase);
 
         var markLookup = subjectMarkList
-            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
             .ToDictionary(
-                x => x.subjectCode,
-                x => x.mark,
+                x => x.SubjectCode,
+                x => x.Mark,
                 StringComparer.OrdinalIgnoreCase);
 
         var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
 
         var subjectList = scoredSubjects.Select(s =>
         {
-            curriculumLookup.TryGetValue(s.subjectCode, out var subjectInfo);
-            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.subjectName)
-                ? subjectInfo.subjectName
-                : s.subjectName;
+            curriculumLookup.TryGetValue(s.SubjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.SubjectName)
+                ? subjectInfo.SubjectName
+                : s.SubjectName;
 
-            var prereqDetails = (subjectInfo?.subjectPrerequisiteCode ?? new List<string>())
+            var prereqDetails = (subjectInfo?.SubjectPrerequisiteCode ?? new List<string>())
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Select(code =>
                 {
                     curriculumLookup.TryGetValue(code, out var prereqInfo);
                     var name = prereqInfo == null
                         ? code
-                        : string.IsNullOrWhiteSpace(prereqInfo.subjectName) ? code : prereqInfo.subjectName;
+                        : string.IsNullOrWhiteSpace(prereqInfo.SubjectName) ? code : prereqInfo.SubjectName;
                     return new
                     {
                         subjectCode = code,
                         subjectName = name,
                         mark = markLookup.TryGetValue(code, out var prereqMark) ? prereqMark : (int?)null,
-                        semesterIndex = prereqInfo?.index
+                        semesterIndex = prereqInfo?.Index
                     } as object;
                 })
                 .ToList();
 
-            dependentsLookup.TryGetValue(s.subjectCode, out var dependents);
+            dependentsLookup.TryGetValue(s.SubjectCode, out var dependents);
             var dependentDetails = dependents?.Select(dep => new
             {
                 subjectCode = dep.subjectCode,
@@ -141,10 +144,10 @@ YÊU CẦU ĐỊNH DẠNG:
 
             return new
             {
-                s.subjectCode,
+                subjectCode = s.SubjectCode,
                 subjectName = canonicalName,
-                mark = s.mark!.Value,
-                semesterIndex = subjectInfo?.index,
+                mark = s.Mark!.Value,
+                semesterIndex = subjectInfo?.Index,
                 prerequisites = prereqDetails,
                 dependents = dependentDetails,
                 dependentWarnings = dependentWarningTexts
@@ -154,18 +157,18 @@ YÊU CẦU ĐỊNH DẠNG:
         var curriculumScopeCodes = CollectCurriculumScope(scoredSubjects, curriculumLookup, dependentsLookup);
 
         var curriculumList = curriculumListRaw
-            .Where(s => curriculumScopeCodes.Contains(s.subjectCode))
+            .Where(s => curriculumScopeCodes.Contains(s.SubjectCode))
             .Select(s => new
             {
-                s.subjectCode,
-                s.subjectName,
-                index = s.index,
-                prerequisites = s.subjectPrerequisiteCode ?? new List<string>()
+                subjectCode = s.SubjectCode,
+                subjectName = s.SubjectName,
+                index = s.Index,
+                prerequisites = s.SubjectPrerequisiteCode ?? new List<string>()
             }).ToList();
 
         var dependencyEdges = curriculumListRaw
-            .Where(subject => curriculumScopeCodes.Contains(subject.subjectCode))
-            .SelectMany(subject => (subject.subjectPrerequisiteCode ?? new List<string>())
+            .Where(subject => curriculumScopeCodes.Contains(subject.SubjectCode))
+            .SelectMany(subject => (subject.SubjectPrerequisiteCode ?? new List<string>())
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Select(prerequisite =>
                 {
@@ -173,12 +176,12 @@ YÊU CẦU ĐỊNH DẠNG:
                     return new
                     {
                         prerequisite,
-                        prerequisiteIndex = prereqInfo?.index,
-                        dependentCode = subject.subjectCode,
-                        dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
-                            ? subject.subjectCode
-                            : subject.subjectName,
-                        dependentIndex = subject.index
+                        prerequisiteIndex = prereqInfo?.Index,
+                        dependentCode = subject.SubjectCode,
+                        dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
+                            ? subject.SubjectCode
+                            : subject.SubjectName,
+                        dependentIndex = subject.Index
                     };
                 }))
             .Where(edge => curriculumScopeCodes.Contains(edge.prerequisite) && curriculumScopeCodes.Contains(edge.dependentCode))
@@ -203,9 +206,9 @@ DỮ LIỆU MÔN HỌC VÀ CHƯƠNG TRÌNH:
 ```
 
 NHIỆM VỤ:
-- Phân loại từng môn theo thang 0-100 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, **liên kết tiền đề** (nếu có trong `prerequisites`), cảnh báo ảnh hưởng đến môn kế tiếp (dựa trên `dependents`), kế hoạch hành động **2–4 tuần**.
+- Phân loại từng môn theo thang 0-10 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, **liên kết tiền đề** (nếu có trong `prerequisites`), cảnh báo ảnh hưởng đến môn kế tiếp (dựa trên `dependents`), kế hoạch hành động **2–4 tuần**.
 - `semesterIndex` thể hiện kỳ học (1 = kỳ 1, 2 = kỳ 2...). Trong `### Tình hình`, mở đầu bằng câu nêu rõ môn học nào (nếu có dữ liệu) rồi mới đến đánh giá điểm.
-- `prerequisites` chính là các môn PHẢI hoàn thành tốt trước khi học môn hiện tại. Nếu điểm < 70 hoặc chưa có điểm, phải cảnh báo trực tiếp trong phần của môn hiện tại (ví dụ: “PRO192 phụ thuộc PRF192 đang thấp nên cần ôn lại”) và đề xuất cách củng cố trước khi tiếp tục.
+- `prerequisites` chính là các môn PHẢI hoàn thành tốt trước khi học môn hiện tại. Nếu điểm < 7.0 hoặc chưa có điểm, phải cảnh báo trực tiếp trong phần của môn hiện tại (ví dụ: "PRO192 phụ thuộc PRF192 đang thấp nên cần ôn lại") và đề xuất cách củng cố trước khi tiếp tục.
 - Mỗi bullet trong `### Môn nền tảng quan trọng` phải viết theo mẫu:
   `- {Tên môn tiền đề} ({mã}){nếu có kỳ → " – Kỳ {index}"}: {điểm/trạng thái hiện tại} – nhận xét ngắn gọn về cách hỗ trợ môn đang phân tích`
   (nếu chưa có điểm → ghi “Chưa có điểm – cần hoàn thành trước khi học sâu môn hiện tại”).
@@ -239,28 +242,28 @@ QUY TẮC ĐỊNH DẠNG:
         string careerGoal)
     {
         var missingList = (missingSubjects ?? Enumerable.Empty<SubjectMark>())
-            .Where(s => !string.IsNullOrWhiteSpace(s.subjectCode))
+            .Where(s => !string.IsNullOrWhiteSpace(s.SubjectCode))
             .ToList();
 
         var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
         var curriculumLookup = curriculumListRaw
-            .Where(x => !string.IsNullOrWhiteSpace(x.subjectCode))
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
             .ToDictionary(
-                x => x.subjectCode,
+                x => x.SubjectCode,
                 x => x,
                 StringComparer.OrdinalIgnoreCase);
         var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
 
         var subjects = missingList.Select(s =>
         {
-            curriculumLookup.TryGetValue(s.subjectCode, out var subjectInfo);
-            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.subjectName)
-                ? subjectInfo.subjectName
-                : (string.IsNullOrWhiteSpace(s.subjectName) ? s.subjectCode : s.subjectName);
+            curriculumLookup.TryGetValue(s.SubjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.SubjectName)
+                ? subjectInfo.SubjectName
+                : (string.IsNullOrWhiteSpace(s.SubjectName) ? s.SubjectCode : s.SubjectName);
 
-            var semesterIndex = subjectInfo?.index;
+            var semesterIndex = subjectInfo?.Index;
 
-            var prereqDetails = (subjectInfo?.subjectPrerequisiteCode ?? new List<string>())
+            var prereqDetails = (subjectInfo?.SubjectPrerequisiteCode ?? new List<string>())
                 .Where(code => !string.IsNullOrWhiteSpace(code))
                 .Select(code =>
                 {
@@ -268,13 +271,13 @@ QUY TẮC ĐỊNH DẠNG:
                     return new
                     {
                         subjectCode = code,
-                        subjectName = string.IsNullOrWhiteSpace(prereqInfo?.subjectName) ? code : prereqInfo.subjectName,
-                        semesterIndex = prereqInfo?.index
+                        subjectName = string.IsNullOrWhiteSpace(prereqInfo?.SubjectName) ? code : prereqInfo.SubjectName,
+                        semesterIndex = prereqInfo?.Index
                     };
                 })
                 .ToList();
 
-            dependentsLookup.TryGetValue(s.subjectCode, out var dependents);
+            dependentsLookup.TryGetValue(s.SubjectCode, out var dependents);
             var dependentDetails = dependents?.Select(dep => (object)new
             {
                 subjectCode = dep.subjectCode,
@@ -284,7 +287,7 @@ QUY TẮC ĐỊNH DẠNG:
 
             return new
             {
-                subjectCode = s.subjectCode,
+                subjectCode = s.SubjectCode,
                 subjectName = canonicalName,
                 semesterIndex,
                 prerequisites = prereqDetails,
@@ -339,32 +342,31 @@ LƯU Ý:
         quizSurvey ??= new QuizSurvey();
 
         var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
-        var scoredSubjects = subjectMarkList.Where(s => s.mark.HasValue).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.Mark.HasValue).ToList();
         var abilityMarkList = (abilityMarks ?? Enumerable.Empty<AbilityMark>()).ToList();
 
         var subjectList = subjectMarkList.Select(s => new
         {
-            s.subjectCode,
-            s.subjectName,
-            s.mark
+            subjectCode = s.SubjectCode,
+            subjectName = s.SubjectName,
+            mark = s.Mark
         }).ToList();
 
-        var abilityList = abilityMarkList.Select(a => new { a.name, a.mark }).ToList();
+        var abilityList = abilityMarkList.Select(a => new { name = a.Name, mark = a.Mark }).ToList();
 
         var stats = new
         {
-            avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.mark!.Value) : 0,
-            avgAbility = abilityMarkList.Count > 0 ? abilityMarkList.Average(a => a.mark) : 0,
-            strongSubjects = scoredSubjects.Where(s => s.mark >= 80).Select(s => s.subjectName).ToList(),
-            weakSubjects = scoredSubjects.Where(s => s.mark < 65).Select(s => s.subjectName).ToList(),
-            strongAbilities = abilityMarkList.Where(a => a.mark >= 80).Select(a => a.name).ToList(),
-            weakAbilities = abilityMarkList.Where(a => a.mark < 65).Select(a => a.name).ToList()
+            avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.Mark!.Value) : 0,
+            avgAbility = abilityMarkList.Count > 0 ? abilityMarkList.Average(a => a.Mark) : 0,
+            strongSubjects = scoredSubjects.Where(s => s.Mark >= 8.0).Select(s => s.SubjectName).ToList(),
+            weakSubjects = scoredSubjects.Where(s => s.Mark < 6.5).Select(s => s.SubjectName).ToList(),
+            strongAbilities = abilityMarkList.Where(a => a.Mark >= 8.0).Select(a => a.Name).ToList(),
+            weakAbilities = abilityMarkList.Where(a => a.Mark < 6.5).Select(a => a.Name).ToList()
         };
 
         var surveyPayload = new
         {
-            quizSurvey.quizHabits,
-            quizSurvey.quizInterests
+            quizHabits = quizSurvey.QuizHabits, quizInterests = quizSurvey.QuizInterests
         };
 
         var payload = new
@@ -386,8 +388,10 @@ DỮ LIỆU TỔNG HỢP:
 
 NHIỆM VỤ:
 - Viết 4 đoạn mô tả bằng tiếng Việt, mỗi đoạn bắt đầu bằng tiêu đề `##` và kết thúc bằng gợi ý hành động cụ thể (ưu tiên tầm 2–4 tuần).
-- Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu và chỉ rõ người học nên làm gì để tiến gần `careerGoal`.
-- Nhấn mạnh các môn/khả năng nổi bật và liệt kê tối đa 2 ưu tiên cải thiện rõ ràng, đo được.
+- Nếu `abilityMarks` null/rỗng: Đây là sinh viên kỳ 5+ đã có bảng điểm đầy đủ. Phân tích dựa trên **kết quả môn học thực tế** thay vì năng lực cơ bản. 
+  Trong `learningAbility`, nhấn mạnh rằng sinh viên đã vượt qua giai đoạn đánh giá cơ bản, nên tập trung vào chuyên môn sâu và dự án thực tế.
+- Nếu có `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
+- Nhấn mạnh các môn/khả năng nổi bật và liệt kê tối đa 2 ưu tiên cải thiện rõ ràng, đo được để tiến gần `careerGoal`.
 
 OUTPUT JSON:
 {
@@ -402,6 +406,7 @@ LƯU Ý:
 - Dẫn chứng bằng tên môn hoặc khả năng cụ thể thay vì nói chung chung.
 - Nếu khảo sát thiếu câu trả lời, ghi chú rõ và đề xuất 1 hành động để bổ sung dữ liệu.
 - Mỗi đoạn phải đề cập tới kế hoạch hành động (ít nhất 2 tuần) để tiến gần mục tiêu.
+- **learningAbility**: Nếu `abilityMarks` null/rỗng (sinh viên kỳ 5+), phân tích dựa trên điểm trung bình các môn chuyên ngành, khuyến nghị tập trung dự án thực tế thay vì kiến thức cơ bản.
 """;
     }
 
@@ -416,13 +421,13 @@ LƯU Ý:
 
         foreach (var subject in subjects ?? Enumerable.Empty<SubjectMark>())
         {
-            if (string.IsNullOrWhiteSpace(subject.subjectCode)) continue;
+            if (string.IsNullOrWhiteSpace(subject.SubjectCode)) continue;
 
-            scope.Add(subject.subjectCode);
+            scope.Add(subject.SubjectCode);
 
-            if (curriculumLookup.TryGetValue(subject.subjectCode, out var subjectInfo))
+            if (curriculumLookup.TryGetValue(subject.SubjectCode, out var subjectInfo))
             {
-                foreach (var prereq in subjectInfo.subjectPrerequisiteCode ?? Enumerable.Empty<string>())
+                foreach (var prereq in subjectInfo.SubjectPrerequisiteCode ?? Enumerable.Empty<string>())
                 {
                     if (!string.IsNullOrWhiteSpace(prereq))
                     {
@@ -431,7 +436,7 @@ LƯU Ý:
                 }
             }
 
-            if (dependentsLookup.TryGetValue(subject.subjectCode, out var dependents))
+            if (dependentsLookup.TryGetValue(subject.SubjectCode, out var dependents))
             {
                 foreach (var dependent in dependents)
                 {
@@ -452,7 +457,7 @@ LƯU Ý:
 
         foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
         {
-            foreach (var prerequisite in subject.subjectPrerequisiteCode ?? new List<string>())
+            foreach (var prerequisite in subject.SubjectPrerequisiteCode ?? new List<string>())
             {
                 if (string.IsNullOrWhiteSpace(prerequisite)) continue;
 
@@ -462,14 +467,14 @@ LƯU Ý:
                     map[prerequisite] = list;
                 }
 
-                var dependentName = string.IsNullOrWhiteSpace(subject.subjectName)
-                    ? subject.subjectCode
-                    : subject.subjectName;
-                var semesterIndex = subject.index > 0 ? subject.index : (int?)null;
+                var dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
+                    ? subject.SubjectCode
+                    : subject.SubjectName;
+                var semesterIndex = subject.Index > 0 ? subject.Index : (int?)null;
 
-                if (!list.Any(dep => dep.subjectCode.Equals(subject.subjectCode, StringComparison.OrdinalIgnoreCase)))
+                if (!list.Any(dep => dep.subjectCode.Equals(subject.SubjectCode, StringComparison.OrdinalIgnoreCase)))
                 {
-                    list.Add((subject.subjectCode, dependentName, semesterIndex));
+                    list.Add((subject.SubjectCode, dependentName, semesterIndex));
                 }
             }
         }

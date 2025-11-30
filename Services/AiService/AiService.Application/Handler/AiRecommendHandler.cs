@@ -70,7 +70,8 @@ namespace AiService.Application.Handler
                         CurrentUserEmail: request.IdentityEntity.Email,
                         Majors: majors,
                         SemesterId: request.SemesterId,
-                        StudentPassedSubjects: request.StudentPassedSubjects
+                        StudentPassedSubjects: request.StudentPassedSubjects,
+                        CourseImproves: request.CourseImproves
                     );
                     internalInsertTask = _requestClientInternalMajor.GetResponse<InternalMajorEventResponse>(internalMajorEvent, cancellationToken);
                     

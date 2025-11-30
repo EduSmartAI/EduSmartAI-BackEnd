@@ -392,4 +392,16 @@ public static class ConstantEnum
         [Description("Payment process failed")]
         Failed = 3
     }
+    
+    public enum OtherQuestionCode
+    {
+        [Description("Điểm của bạn có môn từ 5 đến dưới 7, bạn có muốn học thêm khóa học để cải thiện không?")]
+        GRADE_5_TO_7_COURSE = 1,
+        
+        [Description("Điểm của bạn có môn từ 7 đến dưới 8, bạn có muốn học thêm khóa học để cải thiện không?")]
+        GRADE_7_TO_8_COURSE = 2,
+        
+        [Description("Điểm của bạn có môn từ 8 đến 9, bạn có muốn học thêm khóa học để cải thiện thêm kiến thức không?")]
+        GRADE_8_TO_9_COURSE = 3
+    }
 }

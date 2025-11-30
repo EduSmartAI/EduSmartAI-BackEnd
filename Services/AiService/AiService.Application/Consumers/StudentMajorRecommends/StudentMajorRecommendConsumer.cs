@@ -26,7 +26,8 @@ public class StudentMajorRecommendConsumer(IMediator mediator) : IConsumer<Stude
             LearningPathId = evt.LearningPathId,
             SemesterId = evt.SemesterId,
             StudentLevel = evt.StudentLevel,
-            StudentPassedSubjects = evt.StudentPassedSubjects ?? null
+            StudentPassedSubjects = evt.StudentPassedSubjects ?? null,
+            CourseImproves = evt.CourseImproves ?? null,
         };
         
         await mediator.Send(request, context.CancellationToken);

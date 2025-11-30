@@ -223,14 +223,18 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.CreatedBy)
                 .HasMaxLength(100)
                 .HasColumnName("created_by");
+            entity.Property(e => e.HabitAndInterestAnalysis).HasColumnName("habit_and_interest_analysis");
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
+            entity.Property(e => e.LearningAbility).HasColumnName("learning_ability");
             entity.Property(e => e.PathName)
                 .HasMaxLength(200)
                 .HasColumnName("path_name");
+            entity.Property(e => e.Personality).HasColumnName("personality");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.SummaryFeedback).HasColumnName("summary_feedback");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -371,7 +375,7 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
+            entity.Property(e => e.LearningPathId).HasColumnName("learning_path_id");
             entity.Property(e => e.SubjectCode)
                 .HasMaxLength(20)
                 .HasColumnName("subject_code");
@@ -382,9 +386,9 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
 
-            entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathSubjectCodes)
-                .HasForeignKey(d => d.LearningPathMajorId)
-                .HasConstraintName("fk_lpsc_lpm");
+            entity.HasOne(d => d.LearningPath).WithMany(p => p.LearningPathSubjectCodes)
+                .HasForeignKey(d => d.LearningPathId)
+                .HasConstraintName("fk_lpsc_lp");
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>

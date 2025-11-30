@@ -1,5 +1,6 @@
-﻿using BaseService.Application.Interfaces.IdentityHepers;
+﻿using BuildingBlocks.Messaging.Events.QuizService;
 using MediatR;
+using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace AiService.Application.Features.AiEvaluate
 {
@@ -19,5 +20,6 @@ namespace AiService.Application.Features.AiEvaluate
         public short StudentLevel { get; set; }
         
         public List<string>? StudentPassedSubjects { get; set; }
+        public required List<CourseImprove>? CourseImproves { get; set; }
     }
 }

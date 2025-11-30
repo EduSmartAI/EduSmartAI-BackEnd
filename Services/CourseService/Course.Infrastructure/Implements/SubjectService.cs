@@ -1,5 +1,5 @@
 using BaseService.Application.Common;
-using BuildingBlocks.Messaging.Events.QuizService.SubjectSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using Course.Application.DTOs.SyllabusDTO.Subjects;
 using Course.Application.Subjects.Commands.CreateSubject;
 using Course.Application.Subjects.Queries.GetSubjectDetails;
@@ -181,7 +181,9 @@ public class SubjectService(
             .Select(x => new SubjectSelectEventResponseEntity
             {
                 SubjectId = x.SubjectId,
-                SubjectName = $"{x.SubjectName} - {x.SubjectCode}",
+                SubjectNameCode = $"{x.SubjectName} - {x.SubjectCode}",
+                SubjectName = x.SubjectName,
+				SubjectCode = x.SubjectCode
             }).ToListAsync(cancellationToken: cancellationToken);
         
         if (subjectSelects.Count != request.SubjectIds.Count)
