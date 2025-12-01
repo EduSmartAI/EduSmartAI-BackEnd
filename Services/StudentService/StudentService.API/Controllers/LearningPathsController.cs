@@ -5,6 +5,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
@@ -52,12 +53,13 @@ namespace StudentService.API.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpGet]
+        [ProducesResponseType(typeof(LearningPathSelectResponse), StatusCodes.Status200OK)]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         [SwaggerOperation(
             Summary = "Lấy Learning Path (hỗ trợ SSE)",
             Description = "Nếu client gửi Accept: text/event-stream thì server trả SSE realtime, ngược lại trả JSON thông thường."
         )]
-        public async Task<IActionResult> GetLearningPathById([FromQuery] LearningPathSelectsQuery request, CancellationToken cancellationToken)
+        public async Task<ActionResult<LearningPathSelectResponse>> GetLearningPathById([FromQuery] LearningPathSelectsQuery request, CancellationToken cancellationToken)
         {
             if (IsSseRequest())
             {
