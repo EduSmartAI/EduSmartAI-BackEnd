@@ -402,6 +402,12 @@ public static class ConstantEnum
         GRADE_7_TO_8_COURSE = 2,
         
         [Description("Điểm của bạn có môn từ 8 đến 9, bạn có muốn học thêm khóa học để cải thiện thêm kiến thức không?")]
-        GRADE_8_TO_9_COURSE = 3
+        GRADE_8_TO_9_COURSE = 3,
+        
+        [Description("Điểm của bạn có môn từ 5 đến dưới 7, bạn có muốn chúng tôi đánh giá để cải thiện về các môn đó không?")]
+        GRADE_5_TO_7_EVALUATION = 4,
+        
+        [Description("Điểm của bạn có môn từ 7 đến dưới 8, bạn có muốn chúng tôi đánh giá để cải thiện về các môn đó không?")]
+        GRADE_7_TO_8_EVALUATION = 5
     }
 }

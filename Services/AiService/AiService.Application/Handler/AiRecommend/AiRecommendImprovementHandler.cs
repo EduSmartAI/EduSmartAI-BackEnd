@@ -4,11 +4,11 @@ using MediatR;
 
 namespace AiService.Application.Handler.AiRecommend
 {
-    public class AiRecommendImprovementHandler(IAiSummaryService _aiSummaryService) : IRequestHandler<AiRecommendImprovementRequest, AiRecommendImprovementResposne>
+    public class AiRecommendImprovementHandler(IAiSummaryService aiSummaryService) : IRequestHandler<AiRecommendImprovementRequest, AiRecommendImprovementResponse>
     {
-        public async Task<AiRecommendImprovementResposne> Handle(AiRecommendImprovementRequest request, CancellationToken cancellationToken)
+        public async Task<AiRecommendImprovementResponse> Handle(AiRecommendImprovementRequest request, CancellationToken cancellationToken)
         {
-            var res = await _aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, cancellationToken);
+            var res = await aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, cancellationToken);
             return res;
         }
     }

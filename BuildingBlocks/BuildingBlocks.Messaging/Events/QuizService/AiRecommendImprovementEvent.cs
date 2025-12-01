@@ -5,11 +5,24 @@ public class AiRecommendImprovementEvent
     public string CareerGoal { get; set; } = null!;
     public List<SubjectMarkEvent> SubjectMarks { get; set; }
     public List<AbilityMarkEvent>? AbilityMarks { get; set; }
-    public string MajorCode { get; set; } = null!;
+    
+    public List<MajorInfoEvent> Majors { get; set; } = new();
+    
     public QuizSurveyEvent QuizSurveyEvent { get; set; }
     public required Guid LearningPathId { get; set; }
     
     public required string Email { get; set; }
+}
+
+/// <summary>
+/// Information about a major for AI processing
+/// </summary>
+public class MajorInfoEvent
+{
+    public string MajorCode { get; set; } = null!;
+    public string MajorName { get; set; } = null!;
+    
+    public Guid? LearningPathMajorId { get; set; }
 }
 public class SubjectMarkEvent
 {

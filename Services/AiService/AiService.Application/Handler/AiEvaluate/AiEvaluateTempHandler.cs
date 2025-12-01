@@ -4,7 +4,7 @@ using MediatR;
 
 namespace AiService.Application.Handler.AiEvaluate
 {
-    public class AiEvaluateTempHandler(IAdvisorService _advisorService) : IRequestHandler<AiEvaluateTempRequest, AiEvaluateResponse>
+    public class AiEvaluateTempHandler(IAdvisorService advisorService) : IRequestHandler<AiEvaluateTempRequest, AiEvaluateResponse>
     {
         public async Task<AiEvaluateResponse> Handle(AiEvaluateTempRequest request, CancellationToken cancellationToken)
         {
@@ -24,7 +24,7 @@ namespace AiService.Application.Handler.AiEvaluate
             };
 
             // Gọi service
-            var result = await _advisorService.EvaluateAsync(evalReq, cancellationToken);
+            var result = await advisorService.EvaluateAsync(evalReq, cancellationToken);
             return new AiEvaluateResponse
             {
                 Response = result,

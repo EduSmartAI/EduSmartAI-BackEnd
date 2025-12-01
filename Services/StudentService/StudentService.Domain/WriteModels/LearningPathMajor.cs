@@ -32,5 +32,7 @@ public partial class LearningPathMajor
 
     public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
 
+    public virtual ICollection<LearningPathSubjectCode> LearningPathSubjectCodes { get; set; } = new List<LearningPathSubjectCode>();
+
     public virtual LearningPath Path { get; set; } = null!;
 }

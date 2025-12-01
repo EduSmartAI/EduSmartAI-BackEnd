@@ -2,7 +2,7 @@
 
 namespace AiService.Application.Features.AiRecommend
 {
-    public record AiRecommendImprovementResposne : AbstractApiResponse<AiAnalysisSubjectAndAbilityDto>
+    public record AiRecommendImprovementResponse : AbstractApiResponse<AiAnalysisSubjectAndAbilityDto>
     {
         public override AiAnalysisSubjectAndAbilityDto Response { get; set; } = null!;
     }

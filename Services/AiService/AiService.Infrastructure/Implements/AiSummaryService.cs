@@ -688,7 +688,7 @@ namespace AiService.Infrastructure.Implements
         /// <param name="req"></param>
         /// <param name="ct"></param>
         /// <returns></returns>
-        public async Task<AiRecommendImprovementResposne> GenerateLearningFeedbackMarkdownAsync(
+        public async Task<AiRecommendImprovementResponse> GenerateLearningFeedbackMarkdownAsync(
             AiRecommendImprovementRequest req,
             CancellationToken ct = default)
         {
@@ -699,7 +699,7 @@ namespace AiService.Infrastructure.Implements
             var subjectMarks = EnsureSubjectCoverage(req.SubjectMarks, curriculumSubjects);
             var scoredSubjectMarks = subjectMarks.Where(m => m.Mark.HasValue).ToList();
             var missingSubjectMarks = subjectMarks.Where(m => !m.Mark.HasValue).ToList();
-            var quizSurvey = req.QuizSurvey ?? new QuizSurvey();
+            var quizSurvey = req.QuizSurvey;
             var careerGoal = req.CareerGoal?.Trim() ?? string.Empty;
 
             var subjectBatches = ChunkSubjects(scoredSubjectMarks, SubjectsPerPrompt).ToList();
@@ -770,7 +770,7 @@ namespace AiService.Infrastructure.Implements
                 ? new List<SubjectWithoutMarkAnalysis>()
                 : TryParseWithoutMarkAnalyses(dependencyPayload) ?? BuildWithoutMarkFallback(missingSubjectMarks, curriculumSubjects, careerGoal);
 
-            return new AiRecommendImprovementResposne
+            return new AiRecommendImprovementResponse
             {
                 Success = true,
                 Response = new AiAnalysisSubjectAndAbilityDto
@@ -852,7 +852,12 @@ namespace AiService.Infrastructure.Implements
         private async Task<List<SubjectCur>> LoadCurriculumSubjectsAsync(AiRecommendImprovementRequest req, CancellationToken ct)
         {
             var fallback = NormalizeCurriculumSubjects(BuildCurriculumFallbackFromRequest(req));
-            var majorCode = NormalizeSubjectCode(req.MajorCode);
+            
+            // ✅ UPDATED: Handle multiple majors - use first major or empty if none
+            var majorCode = req.Majors != null && req.Majors.Count > 0 
+                ? NormalizeSubjectCode(req.Majors[0].MajorCode) 
+                : string.Empty;
+            
             var requestedSubjectCodes = (req.SubjectMarks)
                 .Select(mark => NormalizeSubjectCode(mark.SubjectCode))
                 .Where(code => !string.IsNullOrWhiteSpace(code))

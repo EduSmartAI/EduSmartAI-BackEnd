@@ -245,6 +245,48 @@ public class LearningPathService : ILearningPathService
         studentMajorOrientationEvent.SemesterId = context.InformationResponse.SemesterId;
         studentMajorOrientationEvent.StudentLevel = context.StudentLevel;
         studentMajorOrientationEvent.StudentPassedSubjects = context.StudentPassedSubjects;
+        
+        studentMajorOrientationEvent.SubjectMarks = context.SubjectMarks?.Select(sm => 
+            new StudentSubjectMark
+            {
+                SubjectCode = sm.SubjectCode,
+                SubjectName = sm.SubjectName,
+                Mark = sm.Mark
+            }).ToList();
+        
+        studentMajorOrientationEvent.AbilityMarks = context.AbilityMarks?.Select(am =>
+            new StudentAbilityMark
+            {
+                Name = am.Name,
+                Mark = am.Mark
+            }).ToList();
+        
+        var surveyInterest = context.StudentQuizCollections.FirstOrDefault(x => 
+            x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+        var surveyHabit = context.StudentQuizCollections.FirstOrDefault(x => 
+            x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+        
+        if (surveyInterest != null || surveyHabit != null)
+        {
+            studentMajorOrientationEvent.QuizSurvey = new StudentQuizSurvey
+            {
+                QuizInterests = surveyInterest?.StudentQuizAnswers
+                    .Select(qa => new StudentQuizInterest
+                    {
+                        Question = qa.Question?.QuestionText ?? string.Empty,
+                        Answer = qa.Answer?.AnswerText ?? string.Empty
+                    })
+                    .ToList() ?? new List<StudentQuizInterest>(),
+                    
+                QuizHabits = surveyHabit?.StudentQuizAnswers
+                    .Select(qa => new StudentQuizHabit
+                    {
+                        Question = qa.Question?.QuestionText ?? string.Empty,
+                        Answer = qa.Answer?.AnswerText ?? string.Empty
+                    })
+                    .ToList() ?? new List<StudentQuizHabit>()
+            };
+        }
 
         var outboxMessage = new OutboxMessage
         {

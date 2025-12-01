@@ -334,8 +334,8 @@ LƯU Ý:
     }
 
     public static string BuildPersonaPrompt(
-        IEnumerable<SubjectMark> subjectMarks,
-        IEnumerable<AbilityMark> abilityMarks,
+        IEnumerable<SubjectMark>? subjectMarks,
+        IEnumerable<AbilityMark>? abilityMarks,
         QuizSurvey quizSurvey,
         string careerGoal)
     {

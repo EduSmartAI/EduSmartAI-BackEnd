@@ -26,7 +26,7 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<LearningPathMajor> LearningPathMajors { get; set; }
 
     public virtual DbSet<LearningPathSubjectCode> LearningPathSubjectCodes { get; set; }
-
+    
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<Student> Students { get; set; }
@@ -40,6 +40,10 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<Technology> Technologies { get; set; }
 
     public virtual DbSet<UserBehaviour> UserBehaviours { get; set; }
+
+    public virtual DbSet<VLearningPathCourseCount> VLearningPathCourseCounts { get; set; }
+
+    public virtual DbSet<VLearningPathCourseDetail> VLearningPathCourseDetails { get; set; }
 
     public virtual DbSet<VwUserPlayvideoStreak> VwUserPlayvideoStreaks { get; set; }
 
@@ -295,6 +299,9 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.StepName)
                 .HasMaxLength(255)
                 .HasColumnName("step_name");
+            entity.Property(e => e.SubjectCode)
+                .HasMaxLength(20)
+                .HasColumnName("subject_code");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");
@@ -375,7 +382,7 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.IsActive)
                 .HasDefaultValue(true)
                 .HasColumnName("is_active");
-            entity.Property(e => e.LearningPathId).HasColumnName("learning_path_id");
+            entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
             entity.Property(e => e.SubjectCode)
                 .HasMaxLength(20)
                 .HasColumnName("subject_code");
@@ -386,11 +393,11 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(100)
                 .HasColumnName("updated_by");
 
-            entity.HasOne(d => d.LearningPath).WithMany(p => p.LearningPathSubjectCodes)
-                .HasForeignKey(d => d.LearningPathId)
-                .HasConstraintName("fk_lpsc_lp");
+            entity.HasOne(d => d.LearningPathMajor).WithMany(p => p.LearningPathSubjectCodes)
+                .HasForeignKey(d => d.LearningPathMajorId)
+                .HasConstraintName("fk_lpsc_lpm");
         });
-
+        
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -648,6 +655,75 @@ public partial class StudentServiceContext : AppDbContext
                 .HasForeignKey(d => d.StudentId)
                 .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("fk_user_behaviour_user");
+        });
+
+        modelBuilder.Entity<VLearningPathCourseCount>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_learning_path_course_count");
+
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.PathId).HasColumnName("path_id");
+            entity.Property(e => e.PathName)
+                .HasMaxLength(200)
+                .HasColumnName("path_name");
+            entity.Property(e => e.Status).HasColumnName("status");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.TotalCourses).HasColumnName("total_courses");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        });
+
+        modelBuilder.Entity<VLearningPathCourseDetail>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("v_learning_path_course_detail");
+
+            entity.Property(e => e.CoursePosition).HasColumnName("course_position");
+            entity.Property(e => e.CourseStatus).HasColumnName("course_status");
+            entity.Property(e => e.ExternalCourseDuration)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_duration");
+            entity.Property(e => e.ExternalCourseLevel)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_level");
+            entity.Property(e => e.ExternalCourseLink)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_link");
+            entity.Property(e => e.ExternalCourseProvider)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_provider");
+            entity.Property(e => e.ExternalCourseRating)
+                .HasPrecision(3, 2)
+                .HasColumnName("external_course_rating");
+            entity.Property(e => e.ExternalCourseReason)
+                .HasMaxLength(255)
+                .HasColumnName("external_course_reason");
+            entity.Property(e => e.HabitAndInterestAnalysis).HasColumnName("habit_and_interest_analysis");
+            entity.Property(e => e.InternalCourseId).HasColumnName("internal_course_id");
+            entity.Property(e => e.LearningAbility).HasColumnName("learning_ability");
+            entity.Property(e => e.LearningPathCourseId).HasColumnName("learning_path_course_id");
+            entity.Property(e => e.LearningPathMajorId).HasColumnName("learning_path_major_id");
+            entity.Property(e => e.LearningPathSubjectCodeId).HasColumnName("learning_path_subject_code_id");
+            entity.Property(e => e.MajorCode)
+                .HasColumnType("character varying")
+                .HasColumnName("major_code");
+            entity.Property(e => e.MajorType).HasColumnName("major_type");
+            entity.Property(e => e.PathId).HasColumnName("path_id");
+            entity.Property(e => e.PathName)
+                .HasMaxLength(200)
+                .HasColumnName("path_name");
+            entity.Property(e => e.PathStatus).HasColumnName("path_status");
+            entity.Property(e => e.Personality).HasColumnName("personality");
+            entity.Property(e => e.StepName)
+                .HasMaxLength(255)
+                .HasColumnName("step_name");
+            entity.Property(e => e.StudentId).HasColumnName("student_id");
+            entity.Property(e => e.SubjectCode)
+                .HasMaxLength(20)
+                .HasColumnName("subject_code");
+            entity.Property(e => e.SummaryFeedback).HasColumnName("summary_feedback");
         });
 
         modelBuilder.Entity<VwUserPlayvideoStreak>(entity =>

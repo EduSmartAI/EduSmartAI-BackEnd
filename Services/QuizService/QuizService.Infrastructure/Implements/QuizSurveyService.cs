@@ -215,6 +215,11 @@ public class QuizSurveyService : IQuizSurveyService
                     OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE,
                     OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE.GetDescription()
                 });
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION.GetDescription()
+                });
             }
             
             // Check for grades in range 7.0 - 7.9 (ask 2 separate questions: course + evaluation)
@@ -225,6 +230,11 @@ public class QuizSurveyService : IQuizSurveyService
                 {
                     OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE,
                     OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE.GetDescription()
+                });
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION.GetDescription()
                 });
             }
             

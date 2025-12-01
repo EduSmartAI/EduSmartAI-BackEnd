@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
@@ -848,7 +849,7 @@ public class StudentService : IStudentService
                         // Validate Credit (column 7)
                         var creditStr = row[7].ToString()?.Trim();
                         var credit = 0;
-                        if (string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
+                        if (!string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
                                                                 status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
                         {
                             if (!int.TryParse(creditStr, out var creditOut))
@@ -869,13 +870,28 @@ public class StudentService : IStudentService
                             }
                             continue;
                         }
-                        if (string.IsNullOrEmpty(gradeStr) || (!double.TryParse(gradeStr, out var grade) && !int.TryParse(gradeStr, out var gradeInt)))
+                        double parsedGrade = 0;
+                        if (!string.IsNullOrEmpty(gradeStr))
                         {
-                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
-                            return false;
+                            if (double.TryParse(gradeStr, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var g))
+                            {
+                                parsedGrade = g;
+                            }
+                            else if (int.TryParse(gradeStr, out var gi))
+                            {
+                                parsedGrade = gi;
+                            }
+                            else
+                            {
+                                response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
+                                return false;}
                         }
 
-                        if (string.IsNullOrEmpty(semester) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        var statusNormalized = status?.Trim() ?? string.Empty;
+
+                        if (string.IsNullOrWhiteSpace(semester) &&
+                            !(string.Equals(statusNormalized, ConstantEnum.StudentTranscriptStatus.Studying.GetDescription(), StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(statusNormalized, ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription(), StringComparison.OrdinalIgnoreCase)))
                         {
                             response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Học kỳ' (cột 3) không được để trống");
                             return false;
@@ -889,7 +905,7 @@ public class StudentService : IStudentService
                             Prerequisite = row[4].ToString()?.Trim(),
                             SubjectName = subjectName,
                             Credit = credit,
-                            Grade = grade,
+                            Grade = parsedGrade,
                             Status = status,
                             StudentId = currentUser.UserId
                         };

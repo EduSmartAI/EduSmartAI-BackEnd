@@ -29,21 +29,6 @@ namespace AiService.Application.Handler
         {
             try
             {
-                // Send message to StudentService to insert learning path
-                var insertLearningPathEvent = new InsertLearningPathEvent
-                {
-                    LearningPathId = request.LearningPathId,
-                    PathName = "Lộ trình " + request.CareerGoal,
-                    StudentId = request.IdentityEntity!.UserId,
-                    CurrentUserEmail = request.IdentityEntity.Email
-                };
-
-                var insertLearningPathResponse = await _requestClientInsertLearningPath.GetResponse<InsertLearningPathEventResponse>(insertLearningPathEvent, cancellationToken);
-                if (!insertLearningPathResponse.Message.Success)
-                {
-                    throw new Exception(insertLearningPathResponse.Message.Message);
-                }
-                
                 // AI recommend major
                 var result = await _advisorService.EvaluateAsync(request, cancellationToken);
                 var matched = result.Matched;
@@ -71,7 +56,29 @@ namespace AiService.Application.Handler
                         Majors: majors,
                         SemesterId: request.SemesterId,
                         StudentPassedSubjects: request.StudentPassedSubjects,
-                        CourseImproves: request.CourseImproves
+                        CourseImproves: request.CourseImproves,
+                        
+                        CareerGoal: request.CareerGoal,
+                        SubjectMarks: request.SubjectMarks?.Select(sm => new SubjectMarkForAI(
+                            SubjectCode: sm.SubjectCode,
+                            SubjectName: sm.SubjectName,
+                            Mark: sm.Mark
+                        )).ToList(),
+                        AbilityMarks: request.AbilityMarks?.Select(am => new AbilityMarkForAI(
+                            Name: am.Name,
+                            Mark: am.Mark
+                        )).ToList(),
+                        QuizSurvey: request.QuizSurvey != null ? new QuizSurveyForAI(
+                            QuizInterests: request.QuizSurvey.QuizInterests.Select(qi => new QuizInterestForAI(
+                                Question: qi.Question,
+                                Answer: qi.Answer
+                            )).ToList(),
+                            QuizHabits: request.QuizSurvey.QuizHabits.Select(qh => new QuizHabitForAI(
+                                Question: qh.Question,
+                                Answer: qh.Answer
+                            )).ToList()
+                        ) : null,
+                        StudentEmail: request.IdentityEntity.Email
                     );
                     internalInsertTask = _requestClientInternalMajor.GetResponse<InternalMajorEventResponse>(internalMajorEvent, cancellationToken);
                     

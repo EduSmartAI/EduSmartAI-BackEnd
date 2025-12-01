@@ -14,8 +14,23 @@ public class LearningPathCreationContext
     public short StudentLevel { get; init; }
     
     public List<CourseImproveContext> CourseImprove { get; init; }
-    public List<string> ShouldRequestEvaluation { get; init; }
     public List<string> StudentPassedSubjects { get; set; }
+    
+    public List<SubjectMarkContext>? SubjectMarks { get; set; }
+    public List<AbilityMarkContext>? AbilityMarks { get; set; }
+}
+
+public class SubjectMarkContext
+{
+    public string SubjectCode { get; set; } = null!;
+    public string SubjectName { get; set; } = null!;
+    public double? Mark { get; set; }
+}
+
+public class AbilityMarkContext
+{
+    public string Name { get; set; } = null!;
+    public double Mark { get; set; }
 }
 
 public class CourseImproveContext

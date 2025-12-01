@@ -12,8 +12,6 @@ public class CoursesSelectEvent{
     public List<string>? StudentPassedSubjects { get; set; }
     
     public required List<CourseImprove>? CourseImproves { get; set; }
-    
-    public List<string>? CourseEvaluations { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>

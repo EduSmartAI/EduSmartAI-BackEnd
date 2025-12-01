@@ -28,6 +28,32 @@ public class StudentMajorRecommendConsumer(IMediator mediator) : IConsumer<Stude
             StudentLevel = evt.StudentLevel,
             StudentPassedSubjects = evt.StudentPassedSubjects ?? null,
             CourseImproves = evt.CourseImproves ?? null,
+            SubjectMarks = evt.SubjectMarks?.Select(sm => new StudentSubjectMarkRequest
+            {
+                SubjectCode = sm.SubjectCode,
+                SubjectName = sm.SubjectName,
+                Mark = sm.Mark
+            }).ToList(),
+            
+            AbilityMarks = evt.AbilityMarks?.Select(am => new StudentAbilityMarkRequest
+            {
+                Name = am.Name,
+                Mark = am.Mark
+            }).ToList(),
+            
+            QuizSurvey = evt.QuizSurvey != null ? new StudentQuizSurveyRequest
+            {
+                QuizInterests = evt.QuizSurvey.QuizInterests.Select(qi => new StudentQuizInterestRequest
+                {
+                    Question = qi.Question,
+                    Answer = qi.Answer
+                }).ToList(),
+                QuizHabits = evt.QuizSurvey.QuizHabits.Select(qh => new StudentQuizHabitRequest
+                {
+                    Question = qh.Question,
+                    Answer = qh.Answer
+                }).ToList()
+            } : null
         };
         
         await mediator.Send(request, context.CancellationToken);

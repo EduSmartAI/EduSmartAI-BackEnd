@@ -1,15 +1,22 @@
-﻿using MediatR;
+﻿﻿using MediatR;
 
 namespace AiService.Application.Features.AiRecommend
 {
-    public class AiRecommendImprovementRequest : IRequest<AiRecommendImprovementResposne>
+    public class AiRecommendImprovementRequest : IRequest<AiRecommendImprovementResponse>
     {
         public string CareerGoal { get; set; } = string.Empty;
         public required List<SubjectMark> SubjectMarks { get; set; }
         public required List<AbilityMark>? AbilityMarks { get; set; }
-        public string MajorCode { get; set; } = string.Empty;
+        
+        public List<MajorInfo> Majors { get; set; } = new();
+        
         public required QuizSurvey QuizSurvey { get; set; }
-
+    }
+    
+    public class MajorInfo
+    {
+        public string MajorCode { get; set; } = string.Empty;
+        public string MajorName { get; set; } = string.Empty;
     }
     public class SubjectMark
     {

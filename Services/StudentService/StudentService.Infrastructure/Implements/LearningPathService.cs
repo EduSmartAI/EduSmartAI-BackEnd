@@ -248,7 +248,7 @@ public class LearningPathService : ILearningPathService
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
                             Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
-                            // SubjectCode = course.SubjectCode,
+                            SubjectCode = course.SubjectCode,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
             }).ToList();
@@ -264,14 +264,14 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = "SE",
                     Reason = "Chuyên ngành cơ bản cho các sinh viên dưới kỳ 4 theo học Software Engineering",
-                    Type = (short)ConstantEnum.LearningPathMajor.Basic,
+                    Type = (short) ConstantEnum.LearningPathMajor.Basic,
                     LearningPathCourses = seCourses!.Courses
                         .Select(course => new LearningPathCourse
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
                             Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
-                            // SubjectCode = course.SubjectCode
+                            SubjectCode = course.SubjectCode
                         }).ToList()
                 };
 
@@ -285,7 +285,7 @@ public class LearningPathService : ILearningPathService
             var allCourses = learningPathMajors
                 .SelectMany(m => m.LearningPathCourses.Select(c =>
                 {
-                    c.LearningPathMajorId = m.LearningPathMajorId; // Set foreign key
+                    c.LearningPathMajorId = m.LearningPathMajorId;
                     return c;
                 }))
                 .ToList();
@@ -316,7 +316,11 @@ public class LearningPathService : ILearningPathService
 
             await _unitOfWork.SessionSaveChangesAsync();
 
-            // True
+            response.InsertedMajorIds = learningPathMajors
+                .Take(request.Majors.Count)
+                .Select(m => m.LearningPathMajorId)
+                .ToList();
+            
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm chuyên ngành vào lộ trình học tập");
             return true;
@@ -356,7 +360,7 @@ public class LearningPathService : ILearningPathService
                     PathId = request.PathId,
                     MajorCode = majorItem.MajorCode.Trim(),
                     Reason = majorItem.Reason,
-                    Type = (short)ConstantEnum.LearningPathMajor.External,
+                    Type = (short) ConstantEnum.LearningPathMajor.External,
                 };
 
                 allMajors.Add(major);

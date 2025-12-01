@@ -1181,95 +1181,84 @@ namespace Course.Infrastructure.Implements
 				majorCodesToQuery.Add("SE");
 			}
 
+			// Get courses for future semesters (SemesterNumber > current semester)
 			var coursesData = await _courseRepository
 				.Find(c => c.Subject.SyllabusSubjects.Any(
-					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode)) &&
+					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+					                 ss.Semester.SemesterNumber > semester.SemesterNumber) &&
 				           c.Level == request.StudentLevel &&
 				           c.IsActive,
 					includes: c => c.Subject
 				)
+			.Select(c => new
+			{
+				c.CourseId,
+				SubjectCode = c.Subject.SubjectCode,
+				c.Level,
+				MajorCodes = c.Subject.SyllabusSubjects
+					.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+					             ss.Semester.SemesterNumber > semester.SemesterNumber)
+					.Select(ss => ss.Syllabus.Major.MajorCode)
+					.Distinct()
+					.ToList()
+			})
+			.ToListAsync(cancellationToken: ct);
+
+		// 3. Extract CourseImprove subject codes for later use
+		var courseImproveSubjectCodes = request.CourseImproves != null && request.CourseImproves.Any()
+			? request.CourseImproves.Select(ci => ci.SubjectCode).Distinct().ToList()
+			: new List<string>();
+		
+		// 4. Add courses from CourseImproves (if provided)
+		if (request.CourseImproves != null && request.CourseImproves.Any())
+		{
+			var courseImproveLevels = request.CourseImproves
+				.Select(ci => ci.Level)
+				.Distinct()
+				.ToList();
+			
+			// Get all courses matching the subject codes from CourseImproves
+			var courseImprovesData = await _courseRepository
+				.Find(c =>
+					courseImproveSubjectCodes.Contains(c.Subject.SubjectCode) &&
+					c.IsActive &&
+					(courseImproveLevels.Count == 0 || (c.Level.HasValue && courseImproveLevels.Contains(c.Level.Value))),
+					includes: c => c.Subject)
 				.Select(c => new
 				{
 					c.CourseId,
-					c.Subject.SubjectCode,
+					SubjectCode = c.Subject.SubjectCode,
 					c.Level,
 					MajorCodes = c.Subject.SyllabusSubjects
-						.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode))
 						.Select(ss => ss.Syllabus.Major.MajorCode)
 						.Distinct()
+						.ToList()
 				})
 				.ToListAsync(cancellationToken: ct);
-
-			// 3. Add courses from CourseImproves (if provided)
-			if (request.CourseImproves != null && request.CourseImproves.Any())
-			{
-				var courseImproveSubjectCodes = request.CourseImproves.Select(ci => ci.SubjectCode).Distinct().ToList();
 			
-				// Get all courses matching the subject codes from CourseImproves
-				var courseImprovesData = await _courseRepository
-					.Find(c => courseImproveSubjectCodes.Contains(c.Subject.SubjectCode) &&
-					           c.IsActive,
-						includes: c => c.Subject
-					)
-					.Select(c => new
-					{
-						c.CourseId,
-						c.Subject.SubjectCode,
-						c.Level,
-						MajorCodes = c.Subject.SyllabusSubjects
-							.Select(ss => ss.Syllabus.Major.MajorCode)
-							.Distinct()
-					})
-					.ToListAsync(cancellationToken: ct);
+			// Filter to only include courses with matching SubjectCode and Level from CourseImproves
+			var filteredCourseImproves = courseImprovesData
+				.Where(c => c.Level.HasValue && request.CourseImproves.Any(ci => 
+					ci.SubjectCode == c.SubjectCode && ci.Level == c.Level.Value))
+				.ToList();
 			
-				// Filter to only include courses with matching SubjectCode and Level from CourseImproves
-				var filteredCourseImproves = courseImprovesData
-					.Where(c => c.Level.HasValue && request.CourseImproves.Any(ci => 
-						ci.SubjectCode == c.SubjectCode && ci.Level == c.Level.Value))
-					.ToList();
-			
-				// Merge with existing coursesData
-				coursesData = coursesData
-					.Concat(filteredCourseImproves)
-					.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
-					.Select(g => g.First())
-					.ToList();
-			}
-
-			// 4. Add courses from CourseEvaluations (if provided)
-			if (request.CourseEvaluations != null && request.CourseEvaluations.Any())
-			{
-				var courseEvaluationsData = await _courseRepository
-					.Find(c => request.CourseEvaluations.Contains(c.Subject.SubjectCode) &&
-					           c.IsActive,
-						includes: c => c.Subject
-					)
-					.Select(c => new
-					{
-						c.CourseId,
-						c.Subject.SubjectCode,
-						c.Level,
-						MajorCodes = c.Subject.SyllabusSubjects
-							.Select(ss => ss.Syllabus.Major.MajorCode)
-							.Distinct()
-					})
-					.ToListAsync(cancellationToken: ct);
-			
-				// Merge with existing coursesData
-				coursesData = coursesData
-					.Concat(courseEvaluationsData)
-					.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
-					.Select(g => g.First())
-					.ToList();
-			}
-
-			// 5. Filter out courses with SubjectCode in StudentPassedSubjects
-			if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
-			{
-				coursesData = coursesData
-					.Where(c => !request.StudentPassedSubjects.Contains(c.SubjectCode))
-					.ToList();
-			}
+			// Merge with existing coursesData (keep both future semester courses and improvement courses)
+			coursesData = coursesData
+				.Concat(filteredCourseImproves)
+				.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
+				.Select(g => g.First())
+				.ToList();
+		}
+		
+		// 5. Filter out passed subjects EXCEPT those in CourseImproves (student wants to retake them)
+		if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
+		{
+			coursesData = coursesData
+				.Where(c => 
+					!request.StudentPassedSubjects.Contains(c.SubjectCode) ||
+					courseImproveSubjectCodes.Contains(c.SubjectCode))
+				.ToList();
+		}
 
 			// 6. Flatten và group by major
 			var groupedCourses = coursesData

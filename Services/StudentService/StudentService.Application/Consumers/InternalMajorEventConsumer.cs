@@ -1,13 +1,15 @@
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
-using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Interfaces;
 
 namespace StudentService.Application.Consumers;
 
-public class InternalMajorEventConsumer(ILearningPathService learningPathService) : IConsumer<InternalMajorEvent>
+public class InternalMajorEventConsumer(
+    ILearningPathService learningPathService,
+    IPublishEndpoint publishEndpoint) : IConsumer<InternalMajorEvent>
 {
     public async Task Consume(ConsumeContext<InternalMajorEvent> context)
     {
@@ -31,16 +33,74 @@ public class InternalMajorEventConsumer(ILearningPathService learningPathService
             CurrentUserEmail = evt.CurrentUserEmail,
             SemesterId = evt.SemesterId,
             StudentPassedSubjects = evt.StudentPassedSubjects,
-            CourseImproves = evt.CourseImproves?.Select(x => new StudentService.Application.Applications.LearningPaths.Commands.CourseImprove
+            CourseImproves = evt.CourseImproves?.Select(ci => new Applications.LearningPaths.Commands.CourseImprove
             {
-                SubjectCode = x.SubjectCode,
-                SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
-                Level = x.Level
+                SubjectCode = ci.SubjectCode,
+                SubjectPrerequisiteCode = ci.SubjectPrerequisiteCode,
+                Level = ci.Level
             }).ToList()
         };
 
         // Insert internal majors using the learning path service
         var learningPathMajorInternalInsertResponse = await learningPathService.InsertLearningPathMajorAsync(request);
+        
+        if (learningPathMajorInternalInsertResponse.Success && (evt.SubjectMarks != null || evt.QuizSurvey != null) && learningPathMajorInternalInsertResponse.InsertedMajorIds != null)
+        {
+            try
+            {
+                // Map inserted LearningPathMajorIds to MajorCodes
+                var majorInfos = evt.Majors
+                    .Zip(learningPathMajorInternalInsertResponse.InsertedMajorIds, 
+                        (major, majorId) => new MajorInfoEvent
+                        {
+                            MajorCode = major.MajorCode,
+                            MajorName = major.MajorCode,
+                            LearningPathMajorId = majorId
+                        })
+                    .ToList();
+                
+                // Publish AiRecommendImprovementEvent with ALL majors (with their IDs)
+                var aiEvent = new AiRecommendImprovementEvent
+                {
+                    CareerGoal = evt.CareerGoal ?? string.Empty,
+                    Majors = majorInfos,
+                    SubjectMarks = evt.SubjectMarks?.Select(sm => new SubjectMarkEvent
+                    {
+                        SubjectCode = sm.SubjectCode,
+                        SubjectName = sm.SubjectName,
+                        Mark = sm.Mark
+                    }).ToList() ?? new List<SubjectMarkEvent>(),
+                    AbilityMarks = evt.AbilityMarks?.Select(am => new AbilityMarkEvent
+                    {
+                        Name = am.Name,
+                        Mark = am.Mark
+                    }).ToList(),
+                    QuizSurveyEvent = evt.QuizSurvey != null ? new QuizSurveyEvent
+                    {
+                        QuizInterests = evt.QuizSurvey.QuizInterests.Select(qi => new QuizInterestEvent
+                        {
+                            Question = qi.Question,
+                            Answer = qi.Answer
+                        }).ToList(),
+                        QuizHabits = evt.QuizSurvey.QuizHabits.Select(qh => new QuizHabitEvent
+                        {
+                            Question = qh.Question,
+                            Answer = qh.Answer
+                        }).ToList()
+                    } : new QuizSurveyEvent(),
+                    LearningPathId = evt.LearningPathId,
+                    Email = evt.StudentEmail ?? evt.CurrentUserEmail
+                };
+                
+                await publishEndpoint.Publish(aiEvent, context.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the response
+                // AI feedback generation is async and can be retried
+                Console.WriteLine($"Failed to publish AiRecommendImprovementEvent: {ex.Message}");
+            }
+        }
         
         await context.RespondAsync(new InternalMajorEventResponse
         {

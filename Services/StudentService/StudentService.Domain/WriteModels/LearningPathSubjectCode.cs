@@ -21,9 +21,9 @@ public partial class LearningPathSubjectCode
 
     public bool IsActive { get; set; }
 
-    public Guid LearningPathId { get; set; }
-
-    public virtual LearningPath LearningPath { get; set; } = null!;
+    public Guid LearningPathMajorId { get; set; }
 
     public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
+
+    public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }

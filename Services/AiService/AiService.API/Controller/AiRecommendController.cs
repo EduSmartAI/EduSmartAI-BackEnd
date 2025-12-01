@@ -90,9 +90,9 @@ public class AiRecommendController : ControllerBase
     }
     [HttpPost("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    public async Task<AiRecommendImprovementResposne> GenAnalysis(AiRecommendImprovementRequest request)
+    public async Task<AiRecommendImprovementResponse> GenAnalysis(AiRecommendImprovementRequest request)
     {
-        return await ApiControllerHelper.HandleRequest<AiRecommendImprovementRequest, AiRecommendImprovementResposne, AiAnalysisSubjectAndAbilityDto>(
+        return await ApiControllerHelper.HandleRequest<AiRecommendImprovementRequest, AiRecommendImprovementResponse, AiAnalysisSubjectAndAbilityDto>(
             request,
             _logger,
             ModelState,
@@ -100,6 +100,6 @@ public class AiRecommendController : ControllerBase
             _identityService,
             _identityEntity,
             _httpContextAccessor,
-            new AiRecommendImprovementResposne());
+            new AiRecommendImprovementResponse());
     }
 }

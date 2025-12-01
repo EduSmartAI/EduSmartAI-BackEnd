@@ -14,7 +14,12 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
         var request = new AiRecommendImprovementRequest
         {
             CareerGoal = evt.CareerGoal,
-            MajorCode = evt.MajorCode,
+            Majors = evt.Majors.Select(m => new MajorInfo
+            {
+                MajorCode = m.MajorCode,
+                MajorName = m.MajorName
+            }).ToList(),
+            
             QuizSurvey = new QuizSurvey
             {
                 QuizHabits = evt.QuizSurveyEvent.QuizHabits.Select(x => new QuizHabit
@@ -40,8 +45,6 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 SubjectName = x.SubjectName
             }).ToList(),
         };
-        
-        // TODO: Thêm phần khoá học bên ngoài vào, logic insert đã xử lý xong
         
         var generateLearningFeedbackResult = await aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, context.CancellationToken);
         
