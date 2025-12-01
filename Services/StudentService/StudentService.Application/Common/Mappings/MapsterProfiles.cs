@@ -14,7 +14,7 @@ namespace StudentService.Application.Common.Mappings
             // Course -> CourseItemDto
             config.NewConfig<LearningPathCourseCollection, CourseItemDto>()
             .Map(d => d.CourseId, s => s.InternalCourseId.HasValue ? s.InternalCourseId.Value.ToString() : null)
-            .Map(d => d.SubjectCode, _ => string.Empty)
+            .Map(d => d.SubjectCode, s => s.SubjectCode ?? string.Empty)
             .Map(d => d.SemesterPosition, s => s.Position ?? 0)
             .Map(d => d.Status, s => s.Status);
 
@@ -28,7 +28,10 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.ShortDescription, s => s.info == null ? string.Empty : s.info.ShortDescription)
                 .Map(d => d.Title, s => s.info == null ? null : s.info.SubjectName)
                 .Map(d => d.Slug, s => s.info == null ? null : s.info.Slug)
-                .Map(d => d.SubjectCode, s => s.info == null ? string.Empty : s.info.SubjectCode)
+                .Map(d => d.SubjectCode,
+                    s => s.info != null
+                        ? (s.info.SubjectCode ?? string.Empty)
+                        : (s.c.SubjectCode ?? string.Empty))
                 .Map(d => d.CourseImageUrl, s => s.info == null ? null : s.info.CourseImageUrl)
                 .Map(d => d.LearnerCount, s => s.info != null && s.info.LearnerCount.HasValue ? s.info.LearnerCount.Value : 0)
                 .Map(d => d.DurationMinutes, s => s.info != null && s.info.DurationMinutes.HasValue ? s.info.DurationMinutes.Value : 0)
@@ -79,6 +82,10 @@ namespace StudentService.Application.Common.Mappings
             config.NewConfig<LearningPathCollection, LearningPathSelectDto>()
                 .Map(d => d.Status, s => s.Status)
                 .Map(d => d.PathName, s => s.PathName)
+                .Map(d => d.SummaryFeedback, s => s.SummaryFeedback)
+                .Map(d => d.HabitAndInterestAnalysis, s => s.HabitAndInterestAnalysis)
+                .Map(d => d.Personality, s => s.Personality)
+                .Map(d => d.LearningAbility, s => s.LearningAbility)
                 .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto { CourseGroups = new List<CourseGroupDto>() })
                 .Map(d => d.InternalLearningPath,
                     s => (s.LearningPathMajors ?? new List<LearningPathMajorCollection>())

@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
+using StudentService.Domain.WriteModels;
+
 namespace StudentService.Domain.ReadModels;
 
 public class LearningPathCollection
@@ -11,11 +15,21 @@ public class LearningPathCollection
     public bool IsActive { get; set; }
     public Guid? StudentId { get; set; }
     public short Status { get; set; }
+    public string? SummaryFeedback { get; set; }
+    public string? HabitAndInterestAnalysis { get; set; }
+    public string? Personality { get; set; }
+    public string? LearningAbility { get; set; }
 
-    public List<LearningPathMajorCollection> LearningPathMajors { get; set; }
+    public List<LearningPathMajorCollection> LearningPathMajors { get; set; } = new();
 
-    public static LearningPathCollection FromWriteModel(WriteModels.LearningPath model)
+    public static LearningPathCollection FromWriteModel(LearningPath model)
     {
+        var majors = (model.LearningPathMajors ?? new List<LearningPathMajor>())
+            .Where(m => m.IsActive)
+            .OrderBy(m => m.PositionIndex ?? int.MaxValue)
+            .Select(LearningPathMajorCollection.FromWriteModel)
+            .ToList();
+
         return new LearningPathCollection
         {
             PathId = model.PathId,
@@ -27,11 +41,11 @@ public class LearningPathCollection
             IsActive = model.IsActive,
             StudentId = model.StudentId,
             Status = model.Status,
-            LearningPathMajors = (model.LearningPathMajors ?? new List<WriteModels.LearningPathMajor>())
-                .OrderBy(m => m.PositionIndex ?? int.MaxValue)
-                .Select(LearningPathMajorCollection.FromWriteModel)
-                .ToList()
+            SummaryFeedback = model.SummaryFeedback,
+            HabitAndInterestAnalysis = model.HabitAndInterestAnalysis,
+            Personality = model.Personality,
+            LearningAbility = model.LearningAbility,
+            LearningPathMajors = majors
         };
     }
-
 }

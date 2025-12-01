@@ -41,6 +41,8 @@ public partial class LearningPathCourse
 
     public Guid? LearningPathSubjectCodeId { get; set; }
 
+    public string? SubjectCode { get; set; }
+
     public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 
     public virtual LearningPathSubjectCode? LearningPathSubjectCode { get; set; }

@@ -38,6 +38,7 @@ public static class DatabaseExtensions
             options.Schema.For<LearningGoalCollection>().Identity(x => x.GoalId);
             options.Schema.For<TechnologyCollection>().Identity(x => x.TechnologyId);
             options.Schema.For<LearningPathMajorCollection>().Identity(x => x.LearningPathMajorId);
+            options.Schema.For<LearningPathSubjectCodeCollection>().Identity(x => x.LearningPathSubjectCodeId);
             options.Schema.For<LearningPathCourseCollection>().Identity(x => x.LearningPathCourseId);
             options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
             options.Schema.For<StudentTechnologyCollection>().Identity(x => x.Id);

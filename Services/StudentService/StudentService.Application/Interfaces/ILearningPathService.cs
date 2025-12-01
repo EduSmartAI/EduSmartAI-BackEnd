@@ -17,6 +17,8 @@ public interface ILearningPathService
 {
     Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken);
 
+    Task<LearningPathRenameResponse> RenameLearningPathAsync(LearningPathRenameCommand request, CancellationToken cancellationToken);
+
     Task<InsertLearningPathsMajorResponse> InsertLearningPathMajorCourseAsync(InsertLearningPathsMajorCommand request, CancellationToken cancellationToken);
 
     Task<LearningPathMajorInternalInsertResponse> InsertLearningPathMajorAsync(LearningPathMajorInsertCommand request, CancellationToken cancellationToken = default);
