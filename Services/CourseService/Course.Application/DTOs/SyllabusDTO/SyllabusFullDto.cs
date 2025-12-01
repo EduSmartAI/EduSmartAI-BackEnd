@@ -3,6 +3,7 @@
 	public record SyllabusFullDto(
 		Guid SyllabusId,
 		Guid MajorId,
+		string MajorCode,
 		string VersionLabel,
 		DateOnly EffectiveFrom,
 		DateOnly? EffectiveTo,
@@ -22,6 +23,14 @@
 		string SubjectName,
 		short? Credit,
 		bool IsMandatory,
-		int PositionIndex
+		int PositionIndex,
+		List<SubjectPrerequisiteDto> Prerequisites
 	);
+
+	public record SubjectPrerequisiteDto(
+		Guid SubjectId,
+		string SubjectCode,
+		string SubjectName
+	);
+
 }
