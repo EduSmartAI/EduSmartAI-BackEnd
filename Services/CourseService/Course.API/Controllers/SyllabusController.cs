@@ -110,14 +110,14 @@ namespace Course.API.Controllers
 			);
 		}
 
-		[HttpGet("full/{versionLabel}")]
+		[HttpGet("full/{versionLabel}/{majorCode}")]
 		[SwaggerOperation(
 			Summary = "Lấy đầy đủ thông tin chương trình đào tạo theo phiên bản",
 			Description = "Lấy đầy đủ thông tin chương trình đào tạo theo phiên bản."
 		)]
-		public async Task<GetFullSyllabusResponse> GetFullSyllabus([FromRoute] string versionLabel)
+		public async Task<GetFullSyllabusResponse> GetFullSyllabus([FromRoute] string versionLabel, [FromRoute] string majorCode)
 		{
-			var query = new GetFullSyllabusQuery(versionLabel);
+			var query = new GetFullSyllabusQuery(versionLabel, majorCode);
 			return await ApiControllerHelper.HandleRequest<GetFullSyllabusQuery, GetFullSyllabusResponse, SyllabusFullDto>(
 				query,
 				_logger,

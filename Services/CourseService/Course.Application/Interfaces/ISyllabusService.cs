@@ -13,7 +13,7 @@ namespace Course.Application.Interfaces
 		Task<CreateSyllabusResponse> CreateSyllabusAsync(CreateSyllabusCommand cmd, CancellationToken ct);
 		Task<CreateFullSyllabusResponse> CreateFullSyllabusAsync(CreateFullSyllabusDto dto, CancellationToken ct);
 		Task<AddSubjectResponse> AddSubjectAsync(AddSubjectCommand cmd, CancellationToken ct);
-		Task<GetFullSyllabusResponse> GetFullSyllabusAsync(string versionLabel, CancellationToken ct);
+		Task<GetFullSyllabusResponse> GetFullSyllabusAsync(string versionLabel, string majorCode, CancellationToken ct);
 		Task<CloneCascadeSyllabusResponse> CloneCascadeAsync(CloneCascadeSyllabusDto dto, CancellationToken ct);
 		Task<CloneFoundationSyllabusResponse> CloneFoundationAsync(CloneFoundationSyllabusDto dto, CancellationToken ct);
 
