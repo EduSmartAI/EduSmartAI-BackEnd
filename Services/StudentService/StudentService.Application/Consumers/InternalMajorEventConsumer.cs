@@ -107,8 +107,6 @@ public class InternalMajorEventConsumer(
             }
             catch (Exception ex)
             {
-                // Log error but don't fail the response
-                // AI feedback generation is async and can be retried
                 Console.WriteLine($"Failed to publish AiRecommendImprovementEvent: {ex.Message}");
             }
         }
