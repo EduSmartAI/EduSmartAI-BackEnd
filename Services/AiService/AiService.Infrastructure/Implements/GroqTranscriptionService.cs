@@ -56,8 +56,9 @@ namespace AiService.Infrastructure.Implements
 			}
 
 			// 1) Thử nén 1 phát
-			var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt);
-			var attempt = await TryTranscribeUrlOnce(http, job, audioUrl, 0, ct);
+			//var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt)
+			var videoUrlMp4 = CloudinaryAudio.BuildMp4Url(cloud, versionedIdNoExt);
+			var attempt = await TryTranscribeUrlOnce(http, job, videoUrlMp4, 0, ct);
 			if (attempt.succeeded && attempt.result is not null)
 			{
 				await SaveAndPublish(job, attempt.result, ct);
@@ -69,59 +70,62 @@ namespace AiService.Infrastructure.Implements
 				return response;
 			}
 
+			#region Comment
 			// 2) Fallback: chunk 60s
-			var duration = job.DurationSec ?? 3600;
-			var totalText = new StringBuilder();
-			var allSegs = new List<Segment>();
-			var allWords = new List<Word>();
+			//var duration = job.DurationSec ?? 3600;
+			//var totalText = new StringBuilder();
+			//var allSegs = new List<Segment>();
+			//var allWords = new List<Word>();
 
-			int start = 0, safety = 0;
-			while (start < duration + 1 && safety < 10000)
-			{
-				safety++;
-				var chunkUrl = CloudinaryAudio.BuildAudioChunkUrl(cloud, versionedIdNoExt, start, ChunkSeconds);
-				var res = await CallGroqVerboseJson(http, job.Language, chunkUrl, ct);
+			//int start = 0, safety = 0;
+			//while (start < duration + 1 && safety < 10000)
+			//{
+			//	safety++;
+			//	var chunkUrl = CloudinaryAudio.BuildAudioChunkUrl(cloud, versionedIdNoExt, start, ChunkSeconds);
+			//	var res = await CallGroqVerboseJson(http, job.Language, chunkUrl, ct);
 
-				if (!res.success)
-				{
-					log.LogWarning("Chunk at {start}s failed: {err}", start, res.error);
-					if (res.retriableErrors >= 3) break;
-					start += ChunkSeconds;
-					continue;
-				}
+			//	if (!res.success)
+			//	{
+			//		log.LogWarning("Chunk at {start}s failed: {err}", start, res.error);
+			//		if (res.retriableErrors >= 3) break;
+			//		start += ChunkSeconds;
+			//		continue;
+			//	}
 
-				var offset = (double)start;
-				var text = res.parsed?.Text ?? "";
-				totalText.Append(' ').Append(text);
+			//	var offset = (double)start;
+			//	var text = res.parsed?.Text ?? "";
+			//	totalText.Append(' ').Append(text);
 
-				if (res.parsed?.Segments is not null)
-					allSegs.AddRange(res.parsed.Segments.Select(s => new Segment { Start = s.Start + offset, End = s.End + offset, Text = s.Text }));
-				if (res.parsed?.Words is not null)
-					allWords.AddRange(res.parsed.Words.Select(w => new Word { Start = w.Start + offset, End = w.End + offset, Text = w.Word }));
+			//	if (res.parsed?.Segments is not null)
+			//		allSegs.AddRange(res.parsed.Segments.Select(s => new Segment { Start = s.Start + offset, End = s.End + offset, Text = s.Text }));
+			//	if (res.parsed?.Words is not null)
+			//		allWords.AddRange(res.parsed.Words.Select(w => new Word { Start = w.Start + offset, End = w.End + offset, Text = w.Word }));
 
-				start += ChunkSeconds;
-			}
+			//	start += ChunkSeconds;
+			//}
 
-			var merged = new TranscriptResult
-			{
-				LessonId = job.LessonId,
-				Language = job.Language,
-				Text = totalText.ToString().Trim(),
-				Segments = allSegs,
-				Words = allWords
-			};
+			//var merged = new TranscriptResult
+			//{
+			//	LessonId = job.LessonId,
+			//	Language = job.Language,
+			//	Text = totalText.ToString().Trim(),
+			//	Segments = allSegs,
+			//	Words = allWords
+			//};
 
-			if (await SaveAndPublish(job, merged, ct))
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
-				response.Response = merged;
-			}
-			else
-			{
-				response.SetMessage(MessageId.E10000, "Lưu kết quả thất bại.");
-			}
+			//if (await SaveAndPublish(job, merged, ct))
+			//{
+			//	response.Success = true;
+			//	response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
+			//	response.Response = merged;
+			//}
+			//else
+			//{
+			//	response.SetMessage(MessageId.E10000, "Lưu kết quả thất bại.");
+			//}
+			#endregion
 
+			response.SetMessage(MessageId.E00000, "Chuyển văn bản thất bại sau nhiều lần thử.");
 			return response;
 		}
 
