@@ -364,6 +364,10 @@ public class StudentService : IStudentService
 
         var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
 
+        var learningGoal = studentCollection!.LearningGoals!
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+        
         var studentInfo = new StudentInformationSelectsEventResponseEntity
         {
             SemesterId = studentCollection!.SemesterId ?? Guid.Empty, 
@@ -372,6 +376,9 @@ public class StudentService : IStudentService
                 TechnologyName = x.Technology.TechnologyName,
                 TechnologyType = x.Technology.TechnologyType,
             }).ToList(),
+            MajorId = studentCollection.MajorId,
+            LearningGoalName = learningGoal!.Goal!.GoalName,
+            LearningGoalType = learningGoal.Goal.LearningGoalType
         };
         
         // Set response

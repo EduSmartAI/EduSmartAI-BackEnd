@@ -2,21 +2,23 @@ namespace BuildingBlocks.Messaging.Events.QuizService;
 
 public class StudentMajorOrientationEvent
 {
-    public string LearningGoal { get; set; } = null!;
+    public required string LearningGoal { get; set; } = null!;
 
-    public List<string> Languages { get; set; } = null!;
+    public required List<string> Languages { get; set; } = null!;
 
-    public List<string> Frameworks { get; set; } = null!;
+    public required List<string> Frameworks { get; set; } = null!;
 
-    public string LimitTime { get; set; } = null!;
+    public required string LimitTime { get; set; } = null!;
 
-    public IdentityEntity IdentityEntity { get; set; } = null!;
+    public required IdentityEntity IdentityEntity { get; set; } = null!;
     
-    public Guid LearningPathId { get; set; }
+    public required Guid LearningPathId { get; set; }
     
-    public Guid SemesterId { get; set; }
+    public required Guid SemesterId { get; set; }
     
-    public short StudentLevel { get; set; }
+    public required short StudentLevel { get; set; }
+    
+    public required StudentMajor StudentMajor { get; set; }
     
     public List<string>? StudentPassedSubjects { get; set; }
     public required List<CourseImprove>? CourseImproves { get; set; }
@@ -24,6 +26,13 @@ public class StudentMajorOrientationEvent
     public List<StudentSubjectMark>? SubjectMarks { get; set; }
     public List<StudentAbilityMark>? AbilityMarks { get; set; }
     public StudentQuizSurvey? QuizSurvey { get; set; }
+}
+
+public class StudentMajor
+{
+    public string MajorCode { get; set; } = null!;
+    
+    public string MajorName { get; set; } = null!;
 }
 
 /// <summary>

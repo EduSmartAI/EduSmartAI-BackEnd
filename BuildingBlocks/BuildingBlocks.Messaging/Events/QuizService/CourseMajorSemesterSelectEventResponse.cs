@@ -14,4 +14,6 @@ public class CourseMajorSemesterSelectEventResponseEntity
     public short SemesterNumber { get; set; }
     
     public string MajorName { get; set; }
+    
+    public string MajorCode { get; set; }
 }

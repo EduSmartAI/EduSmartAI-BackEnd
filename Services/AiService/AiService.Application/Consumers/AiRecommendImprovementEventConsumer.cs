@@ -60,8 +60,9 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 SubjectCode = x.SubjectCode,
                 AnalysisMarkdown = x.AnalysisMarkdown
             }).ToList(),
-            LearningPathId = evt.LearningPathId,
-            Email = evt.Email
+            LearningPathMajorId = evt.LearningPathMajorId,
+            Email = evt.Email,
+            LearningPathId = evt.LearningPathId
         };
         
         learningFeedbackEvent

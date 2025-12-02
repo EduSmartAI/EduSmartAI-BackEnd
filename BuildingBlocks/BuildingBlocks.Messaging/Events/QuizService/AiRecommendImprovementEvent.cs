@@ -9,9 +9,10 @@ public class AiRecommendImprovementEvent
     public List<MajorInfoEvent> Majors { get; set; } = new();
     
     public QuizSurveyEvent QuizSurveyEvent { get; set; }
-    public required Guid LearningPathId { get; set; }
+    public required Guid LearningPathMajorId { get; set; }
     
     public required string Email { get; set; }
+    public required Guid LearningPathId { get; set; }
 }
 
 /// <summary>

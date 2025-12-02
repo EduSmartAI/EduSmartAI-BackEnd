@@ -6,7 +6,6 @@ using BaseService.Common.Utils.Const;
 using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
-using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
@@ -92,22 +91,22 @@ public class StudentSurveyService : IStudentSurveyService
         }
         
         // 1.2. Get and validate course, major, semester info from CourseService
-        var courseInfoResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
+        var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
             new CourseMajorSemesterSelectEvent
             {
                 MajorId = request.StudentInformation.MajorId,
                 SemesterId = request.StudentInformation.SemesterId,
             }, cancellationToken);
 
-        if (!courseInfoResponse.Message.Success)
+        if (!majorAndSemesterEventResponse.Message.Success)
         {
-            response.MessageId = courseInfoResponse.Message.MessageId;
-            response.Message = courseInfoResponse.Message.Message;
+            response.MessageId = majorAndSemesterEventResponse.Message.MessageId;
+            response.Message = majorAndSemesterEventResponse.Message.Message;
             return response;
         }
 
         // 1.3. Validate semester requirement for skipping test
-        if (!request.IsWantToTakeTest && courseInfoResponse.Message.Response.SemesterNumber < 5)
+        if (!request.IsWantToTakeTest && majorAndSemesterEventResponse.Message.Response.SemesterNumber < 5)
         {
             response.SetMessage(MessageId.E00000, "Chỉ những sinh viên từ học kỳ 5 trở lên mới được phép tạo lộ trình học tập mà không tham gia kiểm tra đánh giá đầu vào.");
             return response;
@@ -158,8 +157,8 @@ public class StudentSurveyService : IStudentSurveyService
                 StudentId = currentUser.UserId,
                 MajorId = request.StudentInformation.MajorId,
                 SemesterId = request.StudentInformation.SemesterId,
-                MajorName = courseInfoResponse.Message.Response.MajorName,
-                SemesterName = courseInfoResponse.Message.Response.SemesterName,
+                MajorName = majorAndSemesterEventResponse.Message.Response.MajorName,
+                SemesterName = majorAndSemesterEventResponse.Message.Response.SemesterName,
                 ProgramingLanguages = request.StudentInformation.Technologies.Select(x => x.TechnologyId).ToList(),
                 LearningGoalId = request.StudentInformation.LearningGoal.LearningGoalId,
             };
@@ -388,14 +387,6 @@ public class StudentSurveyService : IStudentSurveyService
                 
                 int limitTime = GetStudentStudyTime(studentQuizAnswers);
                 
-                // Get major code
-                // var majorCodeSelectEventResponse = await _requestMajorAndSemesterSelectEventClient
-                //     .GetResponse<MajorAndSemesterSelectEventResponse>(new MajorAndSemesterSelectEvent
-                //     {
-                //         MajorId = request.StudentInformation.MajorId,
-                //         SemesterId = request.StudentInformation.SemesterId
-                //     }, cancellationToken);
-                
                 #endregion
                 
                 #region 3.4.5. Create Learning Path with Courses
@@ -433,7 +424,12 @@ public class StudentSurveyService : IStudentSurveyService
                             Mark = x.Grade
                         })
                         .ToList(),
-                    AbilityMarks = null
+                    AbilityMarks = null,
+                    StudentMajor = new StudentMajor
+                    {
+                        MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
+                        MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
+                    }
                 };
 
                 var learningPathInsertResult = await _learningPathService.CreateLearningPathAsync(learningPathCreateRequest, cancellationToken);

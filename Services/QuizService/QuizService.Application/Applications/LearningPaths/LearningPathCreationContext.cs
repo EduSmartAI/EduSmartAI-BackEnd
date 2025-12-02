@@ -6,18 +6,19 @@ namespace QuizService.Application.Applications.LearningPaths;
 
 public class LearningPathCreationContext
 {
-    public List<StudentQuizCollection> StudentQuizCollections { get; init; } = null!;
-    public IdentityEntity CurrentUser { get; init; } = null!;
-    public StudentInformationSelectsEventResponseEntity InformationResponse { get; init; } = null!;
-    public Guid LearningPathId { get; init; }
-    public int LimitTime { get; init; }
-    public short StudentLevel { get; init; }
-    
-    public List<CourseImproveContext> CourseImprove { get; init; }
-    public List<string> StudentPassedSubjects { get; set; }
+    public required List<StudentQuizCollection> StudentQuizCollections { get; init; } = null!;
+    public required IdentityEntity CurrentUser { get; init; } = null!;
+    public required StudentInformationSelectsEventResponseEntity InformationResponse { get; init; } = null!;
+    public required Guid LearningPathId { get; init; }
+    public required int LimitTime { get; init; }
+    public required short StudentLevel { get; init; }
+    public required StudentMajor StudentMajor { get; set; }
+    public List<CourseImproveContext>? CourseImprove { get; init; }
+    public List<string>? StudentPassedSubjects { get; set; }
     
     public List<SubjectMarkContext>? SubjectMarks { get; set; }
-    public List<AbilityMarkContext>? AbilityMarks { get; set; }
+    public List<AbilityMarkContext>? AbilityMarks { get; set; } 
+    
 }
 
 public class SubjectMarkContext
@@ -29,8 +30,8 @@ public class SubjectMarkContext
 
 public class AbilityMarkContext
 {
-    public string Name { get; set; } = null!;
-    public double Mark { get; set; }
+    public required string Name { get; set; }
+    public required double Mark { get; init; }
 }
 
 public class CourseImproveContext

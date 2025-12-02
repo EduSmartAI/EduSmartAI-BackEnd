@@ -30,15 +30,15 @@ public class CourseMajorSemesterSelectQueryHandler : IQueryHandler<CourseMajorSe
         var response = new CourseMajorSemesterSelectEventResponse {Success = false};
         
         // Get Major Name
-        var majorName = await _majorService.SelectMajorAsync(request.MajorId, cancellationToken);
-        if (string.IsNullOrEmpty(majorName))
+        var majorSelect = await _majorService.SelectMajorAsync(request.MajorId ?? Guid.Empty, cancellationToken);
+        if (majorSelect == null)
         {
             response.SetMessage(MessageId.E00000, "Ngành học không tồn tại");
             return response;
         }
         
         // Get Semester Name
-        var semester = await _semesterService.SelectSemesterAsync(request.SemesterId, cancellationToken);
+        var semester = await _semesterService.SelectSemesterAsync(request.SemesterId ?? Guid.Empty, cancellationToken);
         if (semester == null)
         {
             response.SetMessage(MessageId.E00000, "Kỳ học không tồn tại");
@@ -48,9 +48,10 @@ public class CourseMajorSemesterSelectQueryHandler : IQueryHandler<CourseMajorSe
         // Set Response
         response.Response = new CourseMajorSemesterSelectEventResponseEntity
         {
-            MajorName = majorName,
+            MajorName = majorSelect.MajorName,
+            MajorCode = majorSelect.MajorCode,
             SemesterName = semester.SemesterName,
-            SemesterNumber = semester.SemesterNumber
+            SemesterNumber = semester.SemesterNumber,
         };
         
         // True

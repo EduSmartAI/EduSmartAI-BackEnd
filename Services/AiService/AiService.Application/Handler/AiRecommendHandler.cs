@@ -3,6 +3,7 @@ using AiService.Application.Interfaces;
 using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using MediatR;
 
@@ -55,9 +56,9 @@ namespace AiService.Application.Handler
                         CurrentUserEmail: request.IdentityEntity.Email,
                         Majors: majors,
                         SemesterId: request.SemesterId,
+                        StudentMajor: request.StudentMajor,
                         StudentPassedSubjects: request.StudentPassedSubjects,
                         CourseImproves: request.CourseImproves,
-                        
                         CareerGoal: request.CareerGoal,
                         SubjectMarks: request.SubjectMarks?.Select(sm => new SubjectMarkForAI(
                             SubjectCode: sm.SubjectCode,

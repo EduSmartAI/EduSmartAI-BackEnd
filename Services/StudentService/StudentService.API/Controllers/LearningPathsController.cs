@@ -1,4 +1,5 @@
 ﻿using BaseService.API.BaseControllers;
+using BaseService.API.Sse;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPathCourse.Commands.UpdateLearningPathCourseStatus;
+using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
@@ -16,6 +18,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatu
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
+using StudentService.Application.Interfaces;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace StudentService.API.Controllers
@@ -28,13 +31,20 @@ namespace StudentService.API.Controllers
     /// <param name="httpContextAccessor"></param>
     [Route("api/[controller]")]
     [ApiController]
-    public class LearningPathsController(IMediator mediator, IIdentityService identityService, IHttpContextAccessor httpContextAccessor) : ControllerBase
+    public class LearningPathsController(
+        IMediator mediator,
+        IIdentityService identityService,
+        IHttpContextAccessor httpContextAccessor,
+        IServerSentEventsService sseService,
+        ILearningPathRealtimeNotifier learningPathRealtimeNotifier) : ControllerBase
     {
         private readonly IMediator _mediator = mediator;
         private readonly IIdentityService _identityService = identityService;
-        private readonly IdentityEntity _identityEntity;
+        private readonly IdentityEntity _identityEntity = default!;
         private readonly Logger _logger = LogManager.GetCurrentClassLogger();
         private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
+        private readonly IServerSentEventsService _sseService = sseService;
+        private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
 
         /// <summary>
         /// Get LearningPath
@@ -42,22 +52,139 @@ namespace StudentService.API.Controllers
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpGet]
+        [ProducesResponseType(typeof(LearningPathSelectResponse), StatusCodes.Status200OK)]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
         [SwaggerOperation(
-            Summary = "Lấy Learning Path",
-            Description = "Trả về Learning Path theo tham số query. Cần xác thực Bearer."
+            Summary = "Lấy Learning Path (hỗ trợ SSE)",
+            Description = "Nếu client gửi Accept: text/event-stream thì server trả SSE realtime, ngược lại trả JSON thông thường."
         )]
-        public async Task<LearningPathSelectResponse> GetLearningPathById([FromQuery] LearningPathSelectsQuery request)
+        public async Task<ActionResult<LearningPathSelectResponse>> GetLearningPathById([FromQuery] LearningPathSelectsQuery request, CancellationToken cancellationToken)
         {
-            return await ApiControllerHelper.HandleRequest<LearningPathSelectsQuery, LearningPathSelectResponse, LearningPathSelectDto>(
+            if (IsSseRequest())
+            {
+                if (request.LearningPathId == Guid.Empty)
+                {
+                    return BadRequest("LearningPathId is required for SSE streaming.");
+                }
+
+                await _sseService.StreamAsync(Response, async (client, ct) =>
+                {
+                    await client.SendCommentAsync("streaming learning path", ct);
+
+                    var payload = await ApiControllerHelper.HandleRequest<LearningPathSelectsQuery, LearningPathSelectResponse, LearningPathSelectDto>(
+                        request,
+                        _logger,
+                        ModelState,
+                        async () => await _mediator.Send(request, ct),
+                        _identityService,
+                        _identityEntity,
+                        _httpContextAccessor,
+                        new LearningPathSelectResponse());
+
+                    await client.SendEventAsync("learning-path", payload, ct);
+
+                    if (!payload.Success)
+                    {
+                        await client.SendEventAsync("completed", new { success = false }, ct);
+                        return;
+                    }
+
+                    await foreach (var update in _learningPathRealtimeNotifier.SubscribeAsync(request.LearningPathId, ct))
+                    {
+                        await client.SendEventAsync("learning-path", update, ct);
+                    }
+
+                    await client.SendEventAsync("completed", new { success = true }, ct);
+                }, cancellationToken);
+
+                return new EmptyResult();
+            }
+
+            var response = await ApiControllerHelper.HandleRequest<LearningPathSelectsQuery, LearningPathSelectResponse, LearningPathSelectDto>(
                 request,
                 _logger,
                 ModelState,
-                async () => await _mediator.Send(request),
+                async () => await _mediator.Send(request, cancellationToken),
                 _identityService,
                 _identityEntity,
                 _httpContextAccessor,
                 new LearningPathSelectResponse());
+
+            return Ok(response);
+        }
+
+        /// <summary>
+        /// Rename learning path
+        /// </summary>
+        [HttpPut("rename")]
+        [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Đổi tên Learning Path",
+            Description = "Chỉ cập nhật PathName của lộ trình."
+        )]
+        public async Task<LearningPathRenameResponse> RenameLearningPath([FromBody] LearningPathRenameCommand request, CancellationToken cancellationToken)
+        {
+            return await ApiControllerHelper.HandleRequest<LearningPathRenameCommand, LearningPathRenameResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request, cancellationToken),
+                _identityService,
+                _identityEntity,
+                _httpContextAccessor,
+                new LearningPathRenameResponse());
+        }
+
+        /// <summary>
+        /// Stream learning path detail by Id using SSE
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
+        [HttpPost("stream-by-id")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+            Summary = "Streaming Learning Path theo Id",
+            Description = "Sử dụng SSE để lấy Learning PathById (POST body)."
+        )]
+        public async Task<IActionResult> StreamLearningPathById([FromBody] LearningPathSelectsQuery request, CancellationToken cancellationToken)
+        {
+            if (request.LearningPathId == Guid.Empty)
+            {
+                return BadRequest("LearningPathId is required");
+            }
+
+            await _sseService.StreamAsync(Response, async (client, ct) =>
+            {
+                await client.SendCommentAsync("processing learning path", ct);
+
+                var payload = await ApiControllerHelper.HandleRequest<LearningPathSelectsQuery, LearningPathSelectResponse, LearningPathSelectDto>(
+                    request,
+                    _logger,
+                    ModelState,
+                    async () => await _mediator.Send(request, ct),
+                    _identityService,
+                    _identityEntity,
+                    _httpContextAccessor,
+                    new LearningPathSelectResponse());
+
+                await client.SendEventAsync("learning-path", payload, ct);
+
+                if (!payload.Success)
+                {
+                    await client.SendEventAsync("completed", new { success = false }, ct);
+                    return;
+                }
+
+                await foreach (var update in _learningPathRealtimeNotifier.SubscribeAsync(request.LearningPathId, ct))
+                {
+                    await client.SendEventAsync("learning-path", update, ct);
+                }
+
+                await client.SendEventAsync("completed", new { success = true }, ct);
+            }, cancellationToken);
+
+            return new EmptyResult();
         }
         /// <summary>
         /// Update selected courses in learning path
@@ -151,7 +278,7 @@ namespace StudentService.API.Controllers
                 _httpContextAccessor,
                 new SelectAllLearningPathResponse());
         }
-        
+
         /// <summary>
         /// Update course status to Skipped (Student accepts course overload/skip)
         /// </summary>
@@ -176,24 +303,24 @@ namespace StudentService.API.Controllers
                 new UpdateCourseStatusToSkippedResponse());
         }
 
-		[HttpPost("update-course-status")]
-		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-		[SwaggerOperation(
-		Summary = "Update course status in all learning paths for a user",
-		Description = "Internal debug endpoint - userId lấy từ body, không dùng token")]
-		public async Task<UpdateLearningPathCourseStatusResponse> UpdateCourseStatus(
-		[FromBody] UpdateLearningPathCourseStatusCommand command)
-		{
-			return await ApiControllerHelper.HandleRequest<
-				UpdateLearningPathCourseStatusCommand,
-				UpdateLearningPathCourseStatusResponse,
-				string>(
-				command,
-				_logger,
-				ModelState,
-				async () => await _mediator.Send(command),
-				new UpdateLearningPathCourseStatusResponse());
-		}
+        [HttpPost("update-course-status")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        [SwaggerOperation(
+        Summary = "Update course status in all learning paths for a user",
+        Description = "Internal debug endpoint - userId lấy từ body, không dùng token")]
+        public async Task<UpdateLearningPathCourseStatusResponse> UpdateCourseStatus(
+        [FromBody] UpdateLearningPathCourseStatusCommand command)
+        {
+            return await ApiControllerHelper.HandleRequest<
+                UpdateLearningPathCourseStatusCommand,
+                UpdateLearningPathCourseStatusResponse,
+                string>(
+                command,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(command),
+                new UpdateLearningPathCourseStatusResponse());
+        }
 
         [HttpPost("[action]")]
         [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
@@ -208,6 +335,26 @@ namespace StudentService.API.Controllers
                 _identityEntity,
                 _httpContextAccessor,
                 new UpdateLearningPathStatusResponse());
-		}
-	}
+        }
+
+        private bool IsSseRequest()
+        {
+            var context = _httpContextAccessor?.HttpContext ?? HttpContext;
+            var request = context?.Request;
+            if (request == null)
+            {
+                return false;
+            }
+
+            var accept = request.GetTypedHeaders()?.Accept;
+            if (accept == null || accept.Count == 0)
+            {
+                return false;
+            }
+
+            return accept.Any(mediaType =>
+                mediaType.MediaType.HasValue &&
+                mediaType.MediaType.Value.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase));
+        }
+    }
 }

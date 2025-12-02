@@ -1,3 +1,4 @@
+using BaseService.API.Sse;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
@@ -13,6 +14,7 @@ using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 using StudentService.Infrastructure.Implements;
+using StudentService.Infrastructure.Realtime;
 
 namespace StudentService.API.Extensions;
 
@@ -55,6 +57,8 @@ public static class RepositoryExtensions
         services.AddScoped<IQueryRepository<UserBehaviourCollection>, QueryRepository<UserBehaviourCollection>>();
         services.AddScoped<IQueryRepository<LearningPathCourseCollection>, QueryRepository<LearningPathCourseCollection>>();
         services.AddScoped<IQueryRepository<CourseSuggestionCollection>, QueryRepository<CourseSuggestionCollection>>();
+        services.AddSingleton<IServerSentEventsService, ServerSentEventsService>();
+        services.AddSingleton<ILearningPathRealtimeNotifier, LearningPathRealtimeNotifier>();
 
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();

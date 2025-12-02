@@ -12,6 +12,8 @@ public class LearningFeedbackEvent
     
     public required string Email { get; set; } = null!;
     
+    public required Guid LearningPathMajorId { get; set; }
+    
     public required Guid LearningPathId { get; set; }
     
     public List<LearningPathSubjectCodeEvent> LearningPathSubjectCodes { get; set; } = null!;

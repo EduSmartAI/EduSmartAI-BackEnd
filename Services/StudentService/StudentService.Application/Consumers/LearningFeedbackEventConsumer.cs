@@ -38,10 +38,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         
         // 1. Update Learning Path global feedback
         var learningPath = await _learningPathRepository.FirstOrDefaultAsync(x => x.PathId == evt.LearningPathId && x.IsActive)!;
-        
         if (learningPath == null)
         {
-            // Log error: Learning path not found
             return;
         }
         
@@ -51,47 +49,78 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         learningPath.LearningAbility = evt.LearningAbility;
         _learningPathRepository.Update(learningPath);
         
-        // ⚠️ TEMPORARY FIX: Current event structure is flat (Phase 0)
         // TODO Phase 2: Update to handle MajorFeedbacks hierarchy when event structure is updated
         
         // 2. Get first major as fallback (since we don't have major info in current event)
         var learningPathMajor = await _learningPathMajorRepository
-            .Find(x => x.PathId == evt.LearningPathId && x.IsActive)
+            .Find(x => x.LearningPathMajorId == evt.LearningPathMajorId && x.IsActive)
+            .Include(x => x.LearningPathSubjectCodes)
             .FirstOrDefaultAsync(context.CancellationToken);
         
         if (learningPathMajor == null)
         {
-            // No major found - save what we have and return
             await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
             return;
         }
         
-        // 3. ✅ FIX: Insert LearningPathSubjectCodes with CORRECT foreign key
+        // Insert LearningPathSubjectCodes with CORRECT foreign key
+        var learningPathSubjectCodes = new List<LearningPathSubjectCode>();
         foreach (var subCode in evt.LearningPathSubjectCodes)
         {
             var learningPathSubjectCode = new LearningPathSubjectCode
             {
-                LearningPathMajorId = learningPathMajor.LearningPathMajorId, // ✅ CORRECT FK
+                LearningPathSubjectCodeId = Guid.NewGuid(),
+                LearningPathMajorId = learningPathMajor.LearningPathMajorId,
                 SubjectCode = subCode.SubjectCode,
                 AnalysisMarkdown = subCode.AnalysisMarkdown,
             };
+            learningPathSubjectCodes.Add(learningPathSubjectCode);
             await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
         }
         
         await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
         
-        // 4. ✅ NEW: Link Courses with SubjectCodes
-        await LinkCoursesWithSubjectsAsync(evt.LearningPathId, evt.Email, context.CancellationToken);
+        await LinkCoursesWithSubjectsAsync(evt.LearningPathMajorId, evt.Email, context.CancellationToken);
         
-        // TODO Phase 5: Update Read Model
-        // var learningPathCollection = await _learningPathQueryRepository.FirstOrDefaultAsync(x => x.PathId == evt.LearningPathId && x.IsActive);
-        // if (learningPathCollection != null)
-        // {
-        //     learningPathCollection.SummaryFeedback = evt.SummaryFeedback;
-        //     learningPathCollection.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
-        //     learningPathCollection.Personality = evt.Personality;
-        //     learningPathCollection.LearningAbility = evt.LearningAbility;
-        // }
+        var learningPathCollection = await _learningPathQueryRepository.FirstOrDefaultAsync(x => x.PathId == evt.LearningPathId && x.IsActive);
+        if (learningPathCollection != null)
+        {
+            learningPathCollection.SummaryFeedback = evt.SummaryFeedback;
+            learningPathCollection.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
+            learningPathCollection.Personality = evt.Personality;
+            learningPathCollection.LearningAbility = evt.LearningAbility;
+
+            foreach (var subCode in learningPathSubjectCodes)
+            {
+                var learningPathMajorCollection = learningPathCollection.LearningPathMajors
+                    .FirstOrDefault(x => x.LearningPathMajorId == learningPathMajor.LearningPathMajorId);
+                
+                var existingSubjectCode = learningPathMajorCollection?.LearningPathSubjectCodes
+                    .FirstOrDefault(x => x.SubjectCode == subCode.SubjectCode);
+                if (existingSubjectCode != null)
+                {
+                    existingSubjectCode.AnalysisMarkdown = subCode.AnalysisMarkdown;
+                }
+                else
+                {
+                    learningPathMajorCollection.LearningPathSubjectCodes.Add(new LearningPathSubjectCodeCollection
+                    {
+                        LearningPathSubjectCodeId = subCode.LearningPathSubjectCodeId,
+                        SubjectCode = subCode.SubjectCode,
+                        AnalysisMarkdown = subCode.AnalysisMarkdown,
+                        CreatedAt = DateTime.Now,
+                        UpdatedAt = DateTime.Now,
+                        CreatedBy = evt.Email,
+                        UpdatedBy = evt.Email,
+                        LearningPathMajorId = learningPathMajorCollection.LearningPathMajorId,
+                        IsActive = true,
+                    });
+                }
+
+            }
+        }
+        _unitOfWork.Store(learningPathCollection);
+        await _unitOfWork.SessionSaveChangesAsync();
     }
     
     /// <summary>
@@ -133,7 +162,6 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     course.LearningPathSubjectCodeId = matchingSubject.LearningPathSubjectCodeId;
                     _learningPathCourseRepository.Update(course);
                 }
-                // Else: Course doesn't have feedback (e.g., soft skills, external courses)
             }
         }
         

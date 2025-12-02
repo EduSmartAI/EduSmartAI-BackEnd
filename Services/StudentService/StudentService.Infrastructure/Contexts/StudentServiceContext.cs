@@ -1,4 +1,4 @@
-﻿using BaseService.Infrastructure.Contexts;
+using BaseService.Infrastructure.Contexts;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Domain.WriteModels;
 
@@ -6,6 +6,7 @@ namespace StudentService.Infrastructure.Contexts;
 
 public partial class StudentServiceContext : AppDbContext
 {
+
     public StudentServiceContext(DbContextOptions<StudentServiceContext> options)
         : base(options)
     {
@@ -26,7 +27,7 @@ public partial class StudentServiceContext : AppDbContext
     public virtual DbSet<LearningPathMajor> LearningPathMajors { get; set; }
 
     public virtual DbSet<LearningPathSubjectCode> LearningPathSubjectCodes { get; set; }
-    
+
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<Student> Students { get; set; }
@@ -397,7 +398,7 @@ public partial class StudentServiceContext : AppDbContext
                 .HasForeignKey(d => d.LearningPathMajorId)
                 .HasConstraintName("fk_lpsc_lpm");
         });
-        
+
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");

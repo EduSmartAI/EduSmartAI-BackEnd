@@ -11,9 +11,9 @@ using MassTransit.Initializers;
 namespace Course.Infrastructure.Implements;
 
 public class MajorService(
-	IIdentityService _identityService,
+	IIdentityService identityService,
 	IUnitOfWork unitOfWork,
-	ICommandRepository<Major> _majorCommandRepository) : IMajorService
+	ICommandRepository<Major> majorCommandRepository) : IMajorService
 {
 	/// <summary>
 	/// Create Major
@@ -24,14 +24,14 @@ public class MajorService(
 	public async Task<CreateMajorResponse> CreateMajorAsync(CreateMajorCommand request, CancellationToken cancellationToken)
 	{
 		var response = new CreateMajorResponse { Success = false };
-		var userEmail = _identityService.GetCurrentUser()!.Email;
+		var userEmail = identityService.GetCurrentUser()!.Email;
 
 		var dto = request.CreateMajorDto;
 		var code = dto.MajorCode?.Trim().ToUpperInvariant();
 		var name = dto.MajorName?.Trim();
 		var description = TrimOrNull(dto.Description);
 
-		var existed = await _majorCommandRepository.FirstOrDefaultAsync(
+		var existed = await majorCommandRepository.FirstOrDefaultAsync(
 			m => m.MajorCode.ToUpper() == code,
 			cancellationToken
 		);
@@ -44,7 +44,7 @@ public class MajorService(
 
 		var parentMajorCode = "SE";
 
-		var parentMajor = await _majorCommandRepository.FirstOrDefaultAsync(
+		var parentMajor = await majorCommandRepository.FirstOrDefaultAsync(
 			m => m.MajorCode.ToUpper() == parentMajorCode,
 			cancellationToken
 		);
@@ -64,7 +64,7 @@ public class MajorService(
 			ParentMajorId = parentMajor.MajorId,
 		};
 
-		await _majorCommandRepository.AddAsync(entity, userEmail);
+		await majorCommandRepository.AddAsync(entity, userEmail);
 		await unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
 
 		response.Success = true;
@@ -80,8 +80,8 @@ public class MajorService(
 	/// <param name="id"></param>
 	/// <param name="cancellationToken"></param>
 	/// <returns></returns>
-	public async Task<string> SelectMajorAsync(Guid id, CancellationToken cancellationToken)
-		=> await _majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == id, cancellationToken).Select(x => x.MajorName);
+	public async Task<Major?> SelectMajorAsync(Guid id, CancellationToken cancellationToken)
+		=> await majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == id, cancellationToken);
 
 	/// <summary>
 	/// Select all majors
@@ -94,7 +94,7 @@ public class MajorService(
 		var response = new MajorSelectsEventResponse { Success = false };
 
 		// Get data
-		var majorsQuery = _majorCommandRepository.Find(x => x.IsActive, isTracking: false);
+		var majorsQuery = majorCommandRepository.Find(x => x.IsActive, isTracking: false);
 
 		if (request.MajorCodes != null && request.MajorCodes.Any())
 		{
@@ -145,7 +145,7 @@ public class MajorService(
 				: predicate.AndAlso(x => x.MajorCode.ToLower().Contains(s) || x.MajorName.ToLower().Contains(s));
 		}
 
-		var paged = await _majorCommandRepository.PagedAsync(
+		var paged = await majorCommandRepository.PagedAsync(
 			pageNumber: page,
 			pageSize: size,
 			predicate: predicate,
@@ -187,7 +187,7 @@ public class MajorService(
 	{
 		var response = new GetMajorDetailResponse { Success = false };
 
-		var entity = await _majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == majorId, ct);
+		var entity = await majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == majorId, ct);
 		if (entity is null)
 		{
 			response.SetMessage(MessageId.E00000, "Không tìm thấy ngành học");

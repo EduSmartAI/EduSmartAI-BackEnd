@@ -1,3 +1,7 @@
+using System.Collections.Generic;
+using System.Linq;
+using StudentService.Domain.WriteModels;
+
 namespace StudentService.Domain.ReadModels;
 
 public class LearningPathMajorCollection
@@ -16,11 +20,31 @@ public class LearningPathMajorCollection
     public short Type { get; set; }
     public int? PositionIndex { get; set; }
 
-    public virtual ICollection<LearningPathCourseCollection> LearningPathCourses { get; set; }
-        = new List<LearningPathCourseCollection>();
+    public List<LearningPathCourseCollection> LearningPathCourses { get; set; }
+        = new();
 
-    public static LearningPathMajorCollection FromWriteModel(WriteModels.LearningPathMajor model)
+    public List<LearningPathSubjectCodeCollection> LearningPathSubjectCodes { get; set; }
+        = new();
+
+    public static LearningPathMajorCollection FromWriteModel(LearningPathMajor model)
     {
+        var courses = (model.LearningPathCourses ?? new List<LearningPathCourse>())
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.Position ?? int.MaxValue)
+            .ToList();
+
+        var subjectCodes = (model.LearningPathSubjectCodes ?? new List<LearningPathSubjectCode>())
+            .Where(sc => sc.IsActive)
+            .OrderBy(sc => sc.SubjectCode)
+            .Select(sc =>
+            {
+                var subjectCourses = courses
+                    .Where(c => c.LearningPathSubjectCodeId == sc.LearningPathSubjectCodeId);
+
+                return LearningPathSubjectCodeCollection.FromWriteModel(sc, subjectCourses);
+            })
+            .ToList();
+
         return new LearningPathMajorCollection
         {
             LearningPathMajorId = model.LearningPathMajorId,
@@ -34,9 +58,10 @@ public class LearningPathMajorCollection
             IsActive = model.IsActive,
             Type = model.Type,
             PositionIndex = model.PositionIndex,
-            LearningPathCourses = (model.LearningPathCourses ?? new List<WriteModels.LearningPathCourse>())
-                .Select(LearningPathCourseCollection.FromWriteModel)
-                .ToList()
+            LearningPathCourses = courses
+                .Select(c => LearningPathCourseCollection.FromWriteModel(c))
+                .ToList(),
+            LearningPathSubjectCodes = subjectCodes
         };
     }
 

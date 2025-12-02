@@ -1,3 +1,6 @@
+using System;
+using StudentService.Domain.WriteModels;
+
 namespace StudentService.Domain.ReadModels;
 
 public class LearningPathCourseCollection
@@ -12,8 +15,6 @@ public class LearningPathCourseCollection
     
     public short Status { get; set; }
     
-    public string? SubjectCode { get; set; }
-
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -37,7 +38,13 @@ public class LearningPathCourseCollection
     public string? ExternalCourseDuration { get; set; }
 
     public string? ExternalCourseProvider { get; set; }
-    public static LearningPathCourseCollection FromWriteModel(WriteModels.LearningPathCourse model)
+
+    public Guid? LearningPathSubjectCodeId { get; set; }
+
+    public string? SubjectCode { get; set; }
+    public static LearningPathCourseCollection FromWriteModel(
+        LearningPathCourse model,
+        string? subjectCodeOverride = null)
     {
         return new LearningPathCourseCollection
         {
@@ -46,7 +53,9 @@ public class LearningPathCourseCollection
             InternalCourseId = model.InternalCourseId,
             Position = model.Position,
             Status = model.Status,
-            // SubjectCode = model.SubjectCode,
+            SubjectCode = string.IsNullOrWhiteSpace(model.SubjectCode)
+                ? subjectCodeOverride
+                : model.SubjectCode,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,
@@ -58,7 +67,8 @@ public class LearningPathCourseCollection
             ExternalCourseRating = model.ExternalCourseRating,
             ExternalCourseLevel = model.ExternalCourseLevel,
             ExternalCourseDuration = model.ExternalCourseDuration,
-            ExternalCourseProvider = model.ExternalCourseProvider
+            ExternalCourseProvider = model.ExternalCourseProvider,
+            LearningPathSubjectCodeId = model.LearningPathSubjectCodeId
         };
     }
 

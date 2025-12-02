@@ -38,8 +38,18 @@ public class InternalMajorEventConsumer(
                 SubjectCode = ci.SubjectCode,
                 SubjectPrerequisiteCode = ci.SubjectPrerequisiteCode,
                 Level = ci.Level
-            }).ToList()
+            }).ToList(),
+            StudentMajor = evt.StudentMajor,
         };
+
+        if (!request.Majors.Select(x => x.MajorCode).Contains(request.StudentMajor.MajorCode))
+        {
+            request.Majors.Add(new LearningPathMajorRequest
+            {
+                MajorCode = request.StudentMajor.MajorCode,
+                Reason = "Đây là những đánh giá, những môn học liên quan đến chuyên ngành hiện tại của bạn."
+            });
+        }
 
         // Insert internal majors using the learning path service
         var learningPathMajorInternalInsertResponse = await learningPathService.InsertLearningPathMajorAsync(request);
@@ -88,6 +98,7 @@ public class InternalMajorEventConsumer(
                             Answer = qh.Answer
                         }).ToList()
                     } : new QuizSurveyEvent(),
+                    LearningPathMajorId = learningPathMajorInternalInsertResponse.StudentMajorId,
                     LearningPathId = evt.LearningPathId,
                     Email = evt.StudentEmail ?? evt.CurrentUserEmail
                 };

@@ -10,6 +10,7 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorE
         string CurrentUserEmail,
         IReadOnlyList<InternalMajorItem> Majors,
         Guid SemesterId,
+        StudentMajor StudentMajor,
         List<string>? StudentPassedSubjects,
         List<CourseImprove>? CourseImproves,
         string? CareerGoal = null,
