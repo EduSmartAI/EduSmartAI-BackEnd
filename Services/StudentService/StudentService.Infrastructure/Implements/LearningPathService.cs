@@ -597,6 +597,54 @@ public class LearningPathService : ILearningPathService
             .ToList();
     }
 
+    private static List<LearningPathSubjectCodeCollection> ExtractSubjectCodesWithCourses(
+        IEnumerable<LearningPathMajorCollection> majors)
+    {
+        var result = new List<LearningPathSubjectCodeCollection>();
+
+        foreach (var major in majors ?? Enumerable.Empty<LearningPathMajorCollection>())
+        {
+            if (major == null)
+            {
+                continue;
+            }
+
+            var majorCourses = (major.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
+                .Where(c => c.IsActive)
+                .ToList();
+
+            foreach (var subject in major.LearningPathSubjectCodes ?? Enumerable.Empty<LearningPathSubjectCodeCollection>())
+            {
+                if (subject == null || !subject.IsActive)
+                {
+                    continue;
+                }
+
+                var subjectCourses = subject.LearningPathCourses ?? new List<LearningPathCourseCollection>();
+                if (!subjectCourses.Any())
+                {
+                    subjectCourses = majorCourses
+                        .Where(c => c.LearningPathSubjectCodeId.HasValue &&
+                                    c.LearningPathSubjectCodeId.Value == subject.LearningPathSubjectCodeId)
+                        .ToList();
+
+                    if (!subjectCourses.Any() && !string.IsNullOrWhiteSpace(subject.SubjectCode))
+                    {
+                        subjectCourses = majorCourses
+                            .Where(c => !string.IsNullOrWhiteSpace(c.SubjectCode) &&
+                                        string.Equals(c.SubjectCode, subject.SubjectCode, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                    }
+                }
+
+                subject.LearningPathCourses = subjectCourses;
+                result.Add(subject);
+            }
+        }
+
+        return result;
+    }
+
     private List<CourseGroupDto> BuildCourseGroupsFromSubjectCodes(
         IEnumerable<LearningPathSubjectCodeCollection> subjectCodes,
         IDictionary<Guid, InternalCourseInfoDto> infoLookup)
@@ -615,11 +663,6 @@ public class LearningPathService : ILearningPathService
                 {
                     courseItems.Add(dto);
                 }
-            }
-
-            if (!courseItems.Any())
-            {
-                continue;
             }
 
             var ordered = courseItems.OrderBy(x => x.SemesterPosition).ToList();
@@ -800,14 +843,8 @@ public class LearningPathService : ILearningPathService
             .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
             .ToList();
 
-        var basicSubjectCodes = basicMajors
-            .SelectMany(m => m.LearningPathSubjectCodes ?? Enumerable.Empty<LearningPathSubjectCodeCollection>())
-            .Where(sc => sc.IsActive)
-            .ToList();
-        var internalSubjectCodes = internalMajorsRead
-            .SelectMany(m => m.LearningPathSubjectCodes ?? Enumerable.Empty<LearningPathSubjectCodeCollection>())
-            .Where(sc => sc.IsActive)
-            .ToList();
+        var basicSubjectCodes = ExtractSubjectCodesWithCourses(basicMajors);
+        var internalSubjectCodes = ExtractSubjectCodesWithCourses(internalMajorsRead);
 
         var basicCourses = basicMajors
             .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
