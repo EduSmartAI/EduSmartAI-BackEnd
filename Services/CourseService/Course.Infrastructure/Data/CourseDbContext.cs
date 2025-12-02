@@ -89,6 +89,8 @@ public partial class CourseDbContext : AppDbContext
 
 	public virtual DbSet<VwOverviewCourseProgress> VwOverviewCourseProgresses { get; set; }
 
+	public virtual DbSet<VwSubjectDependency> VwSubjectDependencies { get; set; }
+
 	protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
@@ -1038,34 +1040,39 @@ public partial class CourseDbContext : AppDbContext
 				.HasForeignKey(d => d.LessonId)
 				.HasConstraintName("fk_notes_lesson");
 		});
-        
-        modelBuilder.Entity<CoreSubject>(entity =>
-        {
-            entity.ToTable("core_subjects");
-            entity.HasKey(e => e.CoreSubjectId)
-                .HasName("core_subjects_pkey");
-            entity.HasIndex(e => e.SubjectCode, "core_subjects_subject_code_key")
-                .IsUnique();
-            entity.Property(e => e.CoreSubjectId)
-                .HasColumnName("core_subject_id");
-            entity.Property(e => e.SubjectCode)
-                .IsRequired()
-                .HasMaxLength(15)
-                .HasColumnName("subject_code");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.CreatedBy)
-                .HasColumnName("created_by");
-            entity.Property(e => e.UpdatedBy)
-                .HasColumnName("updated_by");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-        });
+
+		modelBuilder.Entity<CoreSubject>(entity =>
+		{
+			entity.HasKey(e => e.CoreSubjectId).HasName("core_subjects_pkey");
+
+			entity.ToTable("core_subjects");
+
+			entity.Property(e => e.CoreSubjectId).HasColumnName("core_subject_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("created_by");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.SubjectCode)
+				.IsRequired()
+				.HasMaxLength(15)
+				.HasColumnName("subject_code");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("updated_by");
+
+			entity.HasOne(d => d.SubjectCodeNavigation).WithMany(p => p.CoreSubjects)
+				.HasPrincipalKey(p => p.SubjectCode)
+				.HasForeignKey(d => d.SubjectCode)
+				.HasConstraintName("core_subjects_subject_code_fkey");
+		});
 
 		modelBuilder.Entity<Semester>(entity =>
         {
@@ -1566,6 +1573,34 @@ public partial class CourseDbContext : AppDbContext
 			entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 			entity.Property(e => e.UserCourseProgressId).HasColumnName("user_course_progress_id");
 			entity.Property(e => e.UserId).HasColumnName("user_id");
+		});
+
+		modelBuilder.Entity<VwSubjectDependency>(entity =>
+		{
+			entity
+				.HasNoKey()
+				.ToView("vw_subject_dependencies");
+
+			entity.Property(e => e.PrereqMajorCode)
+				.HasMaxLength(15)
+				.HasColumnName("prereq_major_code");
+			entity.Property(e => e.PrereqSubjectCode)
+				.HasMaxLength(15)
+				.HasColumnName("prereq_subject_code");
+			entity.Property(e => e.PrereqSubjectName)
+				.HasMaxLength(200)
+				.HasColumnName("prereq_subject_name");
+			entity.Property(e => e.SemesterIndex).HasColumnName("semester_index");
+			entity.Property(e => e.SemesterNumber).HasColumnName("semester_number");
+			entity.Property(e => e.SubjectCode)
+				.HasMaxLength(15)
+				.HasColumnName("subject_code");
+			entity.Property(e => e.SubjectMajorCode)
+				.HasMaxLength(15)
+				.HasColumnName("subject_major_code");
+			entity.Property(e => e.SubjectName)
+				.HasMaxLength(200)
+				.HasColumnName("subject_name");
 		});
 
 		OnModelCreatingPartial(modelBuilder);

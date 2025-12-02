@@ -4,16 +4,24 @@
    "ContextNamespace": null,
    "FilterSchemas": false,
    "IncludeConnectionString": false,
+   "IrregularWords": null,
+   "MinimumProductVersion": "2.6.1248",
    "ModelNamespace": null,
    "OutputContextPath": null,
    "OutputPath": "Models",
+   "PluralRules": null,
    "PreserveCasingWithRegex": true,
    "ProjectRootNamespace": "Course.Domain",
    "Schemas": null,
    "SelectedHandlebarsLanguage": 2,
    "SelectedToBeGenerated": 2,
+   "SingularRules": null,
    "T4TemplatePath": null,
    "Tables": [
+      {
+         "Name": "public.core_subjects",
+         "ObjectType": 0
+      },
       {
          "Name": "public.course_audiences",
          "ObjectType": 0
@@ -156,6 +164,10 @@
       },
       {
          "Name": "public.vw_overview_course_progress",
+         "ObjectType": 3
+      },
+      {
+         "Name": "public.vw_subject_dependencies",
          "ObjectType": 3
       },
       {

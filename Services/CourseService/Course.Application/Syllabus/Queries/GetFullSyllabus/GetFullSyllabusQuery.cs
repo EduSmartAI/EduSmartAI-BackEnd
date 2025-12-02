@@ -2,7 +2,7 @@
 
 namespace Course.Application.Syllabus.Queries.GetFullSyllabus
 {
-	public record GetFullSyllabusQuery(string VersionLabel) : IQuery<GetFullSyllabusResponse>;
+	public record GetFullSyllabusQuery(string VersionLabel, string MajorCode) : IQuery<GetFullSyllabusResponse>;
 
 	public record GetFullSyllabusResponse : AbstractApiResponse<SyllabusFullDto>
 	{
