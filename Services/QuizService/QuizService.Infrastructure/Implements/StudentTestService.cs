@@ -430,7 +430,7 @@ public class StudentTestService : IStudentTestService
                     var score = practiceTestByDifficulty[difficulty] > 0 ? 100.0 : 0.0;
                     abilityMarks.Add(new AbilityMarkContext
                     {
-                        Name = $"Bài test tự lâunj cấu trúc dữ liệu và giải thuật với độ khó: {difficulty}",
+                        Name = $"Bài test tự luận cấu trúc dữ liệu và giải thuật với độ khó: {difficulty}",
                         Mark = score
                     });
                 }
@@ -463,7 +463,7 @@ public class StudentTestService : IStudentTestService
                 LearningPathId = learningPathId,
                 StudentId = currentUser.UserId,
                 CurrentUserEmail = currentUser.Email,
-                PathName = $"Lộ trình {informationResponse.Message.Response.LearningGoalName}"
+                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}"
             };
             var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
             if (!learningPathResponse.Message.Success)
@@ -511,7 +511,14 @@ public class StudentTestService : IStudentTestService
             {
                 StudentQuizCollections = studentSurveys,
                 CurrentUser = currentUser,
-                InformationResponse = informationResponse.Message.Response,
+                InformationResponse = new StudentInformationSelectsEventResponseEntity
+                {
+                    LearningGoalName = request.LearningGoal.LearningGoalName,
+                    LearningGoalType = (short) request.LearningGoal.LearningGoalType,
+                    Technologies = informationResponse.Message.Response.Technologies,
+                    SemesterId = informationResponse.Message.Response.SemesterId,
+                    MajorId = informationResponse.Message.Response.MajorId
+                },
                 LearningPathId = learningPathId,
                 LimitTime = limitTime,
                 StudentLevel = (short)studentLevel,

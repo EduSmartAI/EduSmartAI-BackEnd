@@ -22,6 +22,8 @@ public class StudentTestInsertCommand : ICommand<StudentTestInsertResponse>
     public List<PracticeTestStudentAnswerRequest>? PracticeTestAnswers { get; set; }
     
     public List<ConstantEnum.OtherQuestionCode>? OtherQuestionAnswerCodes { get; set; }
+
+    public StudentSurveys.Commands.LearningGoal LearningGoal { get; set; }
 }
 
 public record StudentAnswerRequest
