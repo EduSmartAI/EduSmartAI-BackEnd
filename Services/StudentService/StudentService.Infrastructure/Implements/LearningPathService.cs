@@ -30,6 +30,7 @@ public class LearningPathService : ILearningPathService
     private readonly ICommandRepository<LearningPath> _learningPathCommandRepository;
     private readonly ICommandRepository<LearningPathMajor> _learningPathMajorCommandRepository;
     private readonly ICommandRepository<LearningPathCourse> _learningPathCourseCommandRepository;
+    private readonly ICommandRepository<LearningPathSubjectCode> _learningPathSubjectCodeCommandRepository;
     private readonly IRequestClient<CoursesSelectEvent> _requestClientCoursesSelectEvent;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
@@ -56,6 +57,7 @@ public class LearningPathService : ILearningPathService
         ICommandRepository<LearningPathMajor> learningPathMajorCommandRepository,
         ICommandRepository<LearningPath> learningPathCommandRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseCommandRepository,
+        ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeCommandRepository,
         IRequestClient<CoursesSelectEvent> requestClientCoursesSelectEvent,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
         IIdentityService identityService,
@@ -68,6 +70,7 @@ public class LearningPathService : ILearningPathService
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
         _learningPathCommandRepository = learningPathCommandRepository;
         _learningPathCourseCommandRepository = learningPathCourseCommandRepository;
+        _learningPathSubjectCodeCommandRepository = learningPathSubjectCodeCommandRepository;
         _requestClientCoursesSelectEvent = requestClientCoursesSelectEvent;
         _learningPathQueryRepository = learningPathQueryRepository;
         _identityService = identityService;
@@ -1059,6 +1062,9 @@ public class LearningPathService : ILearningPathService
 
             // 4) Cập nhật toàn bộ majors theo rule "không có trong request => IsActive = false"
 
+            var activeMajorIds = new List<Guid>();
+            var deactiveMajorIds = new List<Guid>();
+
             foreach (var m in allInternalMajors)
             {
                 var inRequest = activeSet.Contains(m.LearningPathMajorId);
@@ -1068,11 +1074,42 @@ public class LearningPathService : ILearningPathService
                     var posInt = internalPosMap[m.LearningPathMajorId];
                     m.PositionIndex = posInt;
                     _learningPathMajorCommandRepository.Update(m, currentUserEmail, needLogicalDelete: false);
+                    activeMajorIds.Add(m.LearningPathMajorId);
                 }
                 else
                 {
                     m.PositionIndex = null;
                     _learningPathMajorCommandRepository.Update(m, currentUserEmail, needLogicalDelete: true);
+                    deactiveMajorIds.Add(m.LearningPathMajorId);
+                }
+            }
+
+            // 5) Xóa các subject codes trùng lặp trong các majors bị deactive
+            if (activeMajorIds.Any() && deactiveMajorIds.Any())
+            {
+                // Lấy tất cả subject codes từ các majors được active
+                var activeSubjectCodes = await _learningPathSubjectCodeCommandRepository
+                    .Find(sc => activeMajorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
+                        isTracking: false, cancellationToken: cancellationToken)
+                    .Select(sc => sc.SubjectCode)
+                    .Distinct()
+                    .ToListAsync(cancellationToken);
+
+                // Lấy các subject codes trùng lặp trong các majors bị deactive
+                var duplicateSubjectCodesInDeactiveMajors = await _learningPathSubjectCodeCommandRepository
+                    .Find(sc => deactiveMajorIds.Contains(sc.LearningPathMajorId) 
+                        && sc.IsActive 
+                        && activeSubjectCodes.Contains(sc.SubjectCode),
+                        isTracking: true, cancellationToken: cancellationToken)
+                    .ToListAsync(cancellationToken);
+
+                // Soft delete các subject codes trùng
+                foreach (var subjectCode in duplicateSubjectCodesInDeactiveMajors)
+                {
+                    if (subjectCode != null)
+                    {
+                        _learningPathSubjectCodeCommandRepository.Update(subjectCode, currentUserEmail, needLogicalDelete: true);
+                    }
                 }
             }
 
