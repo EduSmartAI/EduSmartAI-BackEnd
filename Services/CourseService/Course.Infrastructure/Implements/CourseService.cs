@@ -1266,20 +1266,36 @@ namespace Course.Infrastructure.Implements
 				.ToList();
 		}
 
-			// 6. Flatten và group by major
-			var groupedCourses = coursesData
-				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
-				.GroupBy(x => x.MajorCode)
-				.Select(g => new CoursesSelectEventResponseEntity
+		// 6. Flatten và group by major
+		// 6.1. Get all unique major codes from coursesData
+		var allMajorCodes = coursesData
+			.SelectMany(c => c.MajorCodes)
+			.Distinct()
+			.ToList();
+		
+		// 6.2. Query Major names for these major codes
+		var majorDictionary = await _syllabusSubjectRepository
+			.Find(ss => ss.Syllabus != null && ss.Syllabus.Major != null && allMajorCodes.Contains(ss.Syllabus.Major.MajorCode))
+			.Select(ss => new { ss.Syllabus.Major.MajorCode, ss.Syllabus.Major.MajorName })
+			.Distinct()
+			.ToDictionaryAsync(m => m.MajorCode, m => m.MajorName, cancellationToken: ct);
+		
+		// 6.3. Group courses by major and map major name
+		var groupedCourses = coursesData
+			.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode, c.Level }))
+			.GroupBy(x => x.MajorCode)
+			.Select(g => new CoursesSelectEventResponseEntity
+			{
+				MajorCode = g.Key,
+				MajorName = majorDictionary.TryGetValue(g.Key, out var value) ? value : g.Key,
+				Courses = g.Select(x => new CoursesSelectEventCourseResponseEntity
 				{
-					MajorCode = g.Key,
-					Courses = g.Select(x => new CoursesSelectEventCourseResponseEntity
-					{
-						CourseId = x.CourseId,
-						SubjectCode = x.SubjectCode
-					}).Distinct().ToList()
-				})
-				.ToList();
+					CourseId = x.CourseId,
+					SubjectCode = x.SubjectCode,
+					Level = x.Level
+				}).Distinct().ToList()
+			})
+			.ToList();
 			
 			// 7. Build StudentCurriculums: StudentTranscriptSelectEvent + Not Started subjects
 			var studentCurriculums = new List<StudentCurriculumEvent>();

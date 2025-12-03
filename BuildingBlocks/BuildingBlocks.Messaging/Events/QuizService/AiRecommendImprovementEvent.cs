@@ -23,8 +23,7 @@ public class MajorInfoEvent
 {
     public string MajorCode { get; set; } = null!;
     public string MajorName { get; set; } = null!;
-    
-    public Guid? LearningPathMajorId { get; set; }
+    public Guid LearningPathMajorId { get; set; }
 }
 public class SubjectMarkEvent
 {

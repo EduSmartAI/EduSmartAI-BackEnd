@@ -8,6 +8,7 @@ using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
+using Course.Application.Comments;
 using Course.Application.Consumers;
 using Course.Application.Consumers.Dashboard;
 using Course.Application.Consumers.GetInfoCourse;
@@ -56,6 +57,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<CheckIsCourseEnrolledEventConsumer>();
                 x.AddConsumer<PaymentSucceededEventConsumer>();
                 x.AddConsumer<SubjectCodeSelectEventConsumer>();
+                x.AddConsumer<MappingSubjectCodeWithMajorCodeEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 

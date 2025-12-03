@@ -313,14 +313,14 @@ public class LearningPathService : ILearningPathService
                     MajorCode = x.MajorCode,
                     Reason = x.Reason,
                     Type = x.MajorCode == "SE"
-                        ? (short)ConstantEnum.LearningPathMajor.Basic
+                        ? (short) ConstantEnum.LearningPathMajor.Basic
                         : request.MajorType,
                     LearningPathCourses = matchedCourses?.Courses
                         .Select(course => new LearningPathCourse
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
-                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                             SubjectCode = course.SubjectCode,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
@@ -367,7 +367,7 @@ public class LearningPathService : ILearningPathService
             {
                 await _learningPathCourseCommandRepository.AddRangeAsync(allCourses);
             }
-
+            
             await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, cancellationToken);
 
             // Ensure LearningPathCourses are properly set BEFORE storing to read-model
@@ -392,11 +392,18 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
+            await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
 
-            response.InsertedMajorIds = learningPathMajors
-                .Take(request.Majors.Count)
-                .Select(m => m.LearningPathMajorId)
-                .ToList();
+            // Create dictionary to map MajorCode to MajorName from courseSelectEvent
+            var majorNameDictionary = courseSelectEvent.Message.Response
+                .ToDictionary(r => r.MajorCode, r => r.MajorName);
+
+            response.Majors = learningPathMajors.Select(x => new MajorInternalInsertResponse
+            {
+                LearningPathMajorId = x.LearningPathMajorId,
+                MajorCode = x.MajorCode,
+                MajorName = majorNameDictionary.TryGetValue(x.MajorCode, out var majorName) ? majorName : x.MajorCode,
+            }).ToList();
             response.StudentCurriculums = courseSelectEvent.Message.StudentCurriculums;
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm chuyên ngành vào lộ trình học tập");
@@ -533,6 +540,7 @@ public class LearningPathService : ILearningPathService
 
         _unitOfWork.Store(learningPathRead);
         await _unitOfWork.SessionSaveChangesAsync();
+        await PublishLearningPathSnapshotAsync(learningPathId, learningPath.StudentId, contextCancellationToken);
 
         return true;
     }

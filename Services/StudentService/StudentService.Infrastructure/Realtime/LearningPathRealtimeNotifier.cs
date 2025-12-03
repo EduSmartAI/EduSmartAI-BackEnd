@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
 
@@ -9,6 +10,12 @@ namespace StudentService.Infrastructure.Realtime;
 public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
 {
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Channel<LearningPathSelectResponse>>> _subscriptions = new();
+    private readonly ILearningPathService _learningPathService;
+
+    public LearningPathRealtimeNotifier(ILearningPathService learningPathService)
+    {
+        _learningPathService = learningPathService;
+    }
 
     public IAsyncEnumerable<LearningPathSelectResponse> SubscribeAsync(Guid pathId, CancellationToken cancellationToken = default)
     {
@@ -89,6 +96,24 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
         if (subscribers.IsEmpty)
         {
             _subscriptions.TryRemove(pathId, out _);
+        }
+    }
+    
+    public async Task PublishLearningPathSnapshotAsync(Guid pathId, Guid? studentId, CancellationToken cancellationToken)
+    {
+        if (pathId == Guid.Empty || !studentId.HasValue || studentId == Guid.Empty)
+        {
+            return;
+        }
+
+        var snapshot = await _learningPathService.GetLearningPathById(
+            new LearningPathSelectsQuery { LearningPathId = pathId },
+            studentId.Value,
+            cancellationToken);
+
+        if (snapshot.Success)
+        {
+            await PublishAsync(pathId, snapshot, cancellationToken);
         }
     }
 }
