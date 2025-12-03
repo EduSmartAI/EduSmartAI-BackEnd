@@ -713,6 +713,9 @@ public partial class CourseDbContext : AppDbContext
 				.HasMaxLength(150)
 				.HasColumnName("major_name");
 			entity.Property(e => e.ParentMajorId).HasColumnName("parent_major_id");
+			entity.Property(e => e.RequiredCredits)
+				.HasDefaultValue((short)0)
+				.HasColumnName("required_credits");
 			entity.Property(e => e.UpdatedAt)
 				.HasDefaultValueSql("now()")
 				.HasColumnName("updated_at");
@@ -1103,75 +1106,76 @@ public partial class CourseDbContext : AppDbContext
                 .HasColumnName("updated_at");
         });
 
-        modelBuilder.Entity<Subject>(entity =>
-        {
-            entity.HasKey(e => e.SubjectId).HasName("subjects_pkey");
+		modelBuilder.Entity<Subject>(entity =>
+		{
+			entity.HasKey(e => e.SubjectId).HasName("subjects_pkey");
 
-            entity.ToTable("subjects");
+			entity.ToTable("subjects");
 
-            entity.HasIndex(e => e.SubjectCode, "subjects_subject_code_key").IsUnique();
+			entity.HasIndex(e => e.SubjectCode, "subjects_subject_code_key").IsUnique();
 
-            entity.Property(e => e.SubjectId)
-                .HasDefaultValueSql("gen_random_uuid()")
-                .HasColumnName("subject_id");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("created_at");
-            entity.Property(e => e.CreatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("created_by");
-            entity.Property(e => e.IsActive)
-                .HasDefaultValue(true)
-                .HasColumnName("is_active");
-            entity.Property(e => e.SubjectCode)
-                .IsRequired()
-                .HasMaxLength(15)
-                .HasColumnName("subject_code");
-            entity.Property(e => e.SubjectName)
-                .IsRequired()
-                .HasMaxLength(200)
-                .HasColumnName("subject_name");
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("now()")
-                .HasColumnName("updated_at");
-            entity.Property(e => e.UpdatedBy)
-                .HasMaxLength(100)
-                .HasColumnName("updated_by");
+			entity.Property(e => e.SubjectId)
+				.HasDefaultValueSql("gen_random_uuid()")
+				.HasColumnName("subject_id");
+			entity.Property(e => e.CreatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("created_at");
+			entity.Property(e => e.CreatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("created_by");
+			entity.Property(e => e.IsActive)
+				.HasDefaultValue(true)
+				.HasColumnName("is_active");
+			entity.Property(e => e.SubjectCode)
+				.IsRequired()
+				.HasMaxLength(15)
+				.HasColumnName("subject_code");
+			entity.Property(e => e.SubjectDescription).HasColumnName("subject_description");
+			entity.Property(e => e.SubjectName)
+				.IsRequired()
+				.HasMaxLength(200)
+				.HasColumnName("subject_name");
+			entity.Property(e => e.UpdatedAt)
+				.HasDefaultValueSql("now()")
+				.HasColumnName("updated_at");
+			entity.Property(e => e.UpdatedBy)
+				.HasMaxLength(100)
+				.HasColumnName("updated_by");
 
-            entity.HasMany(d => d.PrereqSubjects).WithMany(p => p.Subjects)
-                .UsingEntity<Dictionary<string, object>>(
-                    "SubjectPrerequisite",
-                    r => r.HasOne<Subject>().WithMany()
-                        .HasForeignKey("PrereqSubjectId")
-                        .HasConstraintName("fk_subject_prereq_prereq"),
-                    l => l.HasOne<Subject>().WithMany()
-                        .HasForeignKey("SubjectId")
-                        .HasConstraintName("fk_subject_prereq_subject"),
-                    j =>
-                    {
-                        j.HasKey("SubjectId", "PrereqSubjectId").HasName("subject_prerequisites_pkey");
-                        j.ToTable("subject_prerequisites");
-                        j.IndexerProperty<Guid>("SubjectId").HasColumnName("subject_id");
-                        j.IndexerProperty<Guid>("PrereqSubjectId").HasColumnName("prereq_subject_id");
-                    });
+			entity.HasMany(d => d.PrereqSubjects).WithMany(p => p.Subjects)
+				.UsingEntity<Dictionary<string, object>>(
+					"SubjectPrerequisite",
+					r => r.HasOne<Subject>().WithMany()
+						.HasForeignKey("PrereqSubjectId")
+						.HasConstraintName("fk_subject_prereq_prereq"),
+					l => l.HasOne<Subject>().WithMany()
+						.HasForeignKey("SubjectId")
+						.HasConstraintName("fk_subject_prereq_subject"),
+					j =>
+					{
+						j.HasKey("SubjectId", "PrereqSubjectId").HasName("subject_prerequisites_pkey");
+						j.ToTable("subject_prerequisites");
+						j.IndexerProperty<Guid>("SubjectId").HasColumnName("subject_id");
+						j.IndexerProperty<Guid>("PrereqSubjectId").HasColumnName("prereq_subject_id");
+					});
 
-            entity.HasMany(d => d.Subjects).WithMany(p => p.PrereqSubjects)
-                .UsingEntity<Dictionary<string, object>>(
-                    "SubjectPrerequisite",
-                    r => r.HasOne<Subject>().WithMany()
-                        .HasForeignKey("SubjectId")
-                        .HasConstraintName("fk_subject_prereq_subject"),
-                    l => l.HasOne<Subject>().WithMany()
-                        .HasForeignKey("PrereqSubjectId")
-                        .HasConstraintName("fk_subject_prereq_prereq"),
-                    j =>
-                    {
-                        j.HasKey("SubjectId", "PrereqSubjectId").HasName("subject_prerequisites_pkey");
-                        j.ToTable("subject_prerequisites");
-                        j.IndexerProperty<Guid>("SubjectId").HasColumnName("subject_id");
-                        j.IndexerProperty<Guid>("PrereqSubjectId").HasColumnName("prereq_subject_id");
-                    });
-        });
+			entity.HasMany(d => d.Subjects).WithMany(p => p.PrereqSubjects)
+				.UsingEntity<Dictionary<string, object>>(
+					"SubjectPrerequisite",
+					r => r.HasOne<Subject>().WithMany()
+						.HasForeignKey("SubjectId")
+						.HasConstraintName("fk_subject_prereq_subject"),
+					l => l.HasOne<Subject>().WithMany()
+						.HasForeignKey("PrereqSubjectId")
+						.HasConstraintName("fk_subject_prereq_prereq"),
+					j =>
+					{
+						j.HasKey("SubjectId", "PrereqSubjectId").HasName("subject_prerequisites_pkey");
+						j.ToTable("subject_prerequisites");
+						j.IndexerProperty<Guid>("SubjectId").HasColumnName("subject_id");
+						j.IndexerProperty<Guid>("PrereqSubjectId").HasColumnName("prereq_subject_id");
+					});
+		});
 
 		modelBuilder.Entity<Syllabus>(entity =>
 		{

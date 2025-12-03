@@ -3,6 +3,7 @@
 	public sealed record SubjectDto(
 		Guid SubjectId,
 		string SubjectCode,
-		string SubjectName
+		string SubjectName,
+		string? SubjectDescription = null
 	);
 }
