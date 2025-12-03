@@ -12,11 +12,8 @@ using System.Text.Json;
 namespace AiService.Infrastructure.Implements
 {
 	public class GroqTranscriptionService(
-		//ITranscriptStore store,
-		ISubtitlePublisher subtitlePublisher,
-		ILogger<GroqTranscriptionService> log) : ITranscriptionService
+		ISubtitlePublisher subtitlePublisher) : ITranscriptionService
 	{
-		const int ChunkSeconds = 60;
 		const string GroqUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
 		const string Model = "whisper-large-v3-turbo";
 
@@ -38,7 +35,7 @@ namespace AiService.Infrastructure.Implements
 			using var http = new HttpClient();
 
 			// Lấy API key từ .env
-			var apiKey = Environment.GetEnvironmentVariable("GROQ_AI_VOICE_TO_TEXT_KEY")?.Trim();
+			var apiKey = Environment.GetEnvironmentVariable(ConstEnv.GroqAIVoiceToText)?.Trim();
 			if (string.IsNullOrWhiteSpace(apiKey))
 			{
 				response.SetMessage(MessageId.E11006, "Groq API key không có. Kiểm tra GroqAI:ApiKey hoặc env.");
@@ -212,20 +209,20 @@ namespace AiService.Infrastructure.Implements
 			return form;
 		}
 
-		async Task<(bool success, int retriableErrors, GroqVerboseJson? parsed, string? error)> CallGroqVerboseJson(
-		HttpClient http, string language, string url, CancellationToken ct)
-		{
-			var res = await http.PostAsync(GroqUrl, BuildForm(language, url), ct);
-			var body = await res.Content.ReadAsStringAsync(ct);
-			if (!res.IsSuccessStatusCode)
-			{
-				var retriable = body.Contains("media file too large", StringComparison.OrdinalIgnoreCase)
-								|| (int)res.StatusCode == 429 || (int)res.StatusCode >= 500;
-				return (false, retriable ? 1 : 3, null, body);
-			}
-			var parsed = JsonSerializer.Deserialize<GroqVerboseJson>(body);
-			return (true, 0, parsed, null);
-		}
+		//async Task<(bool success, int retriableErrors, GroqVerboseJson? parsed, string? error)> CallGroqVerboseJson(
+		//HttpClient http, string language, string url, CancellationToken ct)
+		//{
+		//	var res = await http.PostAsync(GroqUrl, BuildForm(language, url), ct);
+		//	var body = await res.Content.ReadAsStringAsync(ct);
+		//	if (!res.IsSuccessStatusCode)
+		//	{
+		//		var retriable = body.Contains("media file too large", StringComparison.OrdinalIgnoreCase)
+		//						|| (int)res.StatusCode == 429 || (int)res.StatusCode >= 500;
+		//		return (false, retriable ? 1 : 3, null, body);
+		//	}
+		//	var parsed = JsonSerializer.Deserialize<GroqVerboseJson>(body);
+		//	return (true, 0, parsed, null);
+		//}
 
 		async Task<bool> SaveAndPublish(TranscribeJob job, TranscriptResult result, CancellationToken ct)
 		{
@@ -242,7 +239,7 @@ namespace AiService.Infrastructure.Implements
 			result.VttUrl = vttUrl;
 			result.VttPublicId = vttPid;
 
-			//await store.Upsert(result);
+			//await store.Upsert(result)
 			return true;
 
 		}

@@ -1,21 +1,21 @@
 ﻿using AiService.Application.Interfaces;
+using BaseService.Common.Utils.Const;
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
-using Microsoft.Extensions.Configuration;
 using System.Text;
 
 namespace AiService.Infrastructure.Helpers.TranscriptHelpers
 {
-	public class CloudinarySubtitlePublisher(IConfiguration config) : ISubtitlePublisher
+	public class CloudinarySubtitlePublisher : ISubtitlePublisher
 	{
 		public async Task<(string? url, string? publicId)> UploadVttAsync(string lessonId, string vtt, CancellationToken ct)
 		{
-			//var cloudName = config["Cloudinary:CloudName"];
-			var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
-			//var apiKey = config["Cloudinary:ApiKey"];
-			var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY");
-			//var apiSecret = config["Cloudinary:ApiSecret"];
-			var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET");
+			//var cloudName = config["Cloudinary:CloudName"]
+			var cloudName = Environment.GetEnvironmentVariable(ConstEnv.CloudinaryCloudName);
+			//var apiKey = config["Cloudinary:ApiKey"]
+			var apiKey = Environment.GetEnvironmentVariable(ConstEnv.CloudApiKey);
+			//var apiSecret = config["Cloudinary:ApiSecret"]
+			var apiSecret = Environment.GetEnvironmentVariable(ConstEnv.CloudApiSecret);
 
 			if (string.IsNullOrWhiteSpace(cloudName) ||
 				string.IsNullOrWhiteSpace(apiKey) ||
@@ -43,7 +43,7 @@ namespace AiService.Infrastructure.Helpers.TranscriptHelpers
 
 			// Dùng UploadAsync để tải lên tệp nhỏ (.vtt thường là file nhỏ)
 			var uploadResult = await cld.UploadAsync(uploadParams);
-			//var uploadResult = await cld.UploadLargeAsync(uploadParams);
+			//var uploadResult = await cld.UploadLargeAsync(uploadParams)
 
 			return (uploadResult?.SecureUrl?.ToString(), uploadResult?.PublicId);
 		}

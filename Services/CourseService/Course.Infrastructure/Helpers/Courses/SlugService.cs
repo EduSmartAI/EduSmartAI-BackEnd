@@ -1,4 +1,8 @@
-﻿namespace Course.Infrastructure.Helpers.Courses
+﻿using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace Course.Infrastructure.Helpers.Courses
 {
 	public sealed class SlugService(ICommandRepository<CourseEntity> _courseRepository) : ISlugService
 	{
@@ -74,12 +78,43 @@
 		/// <returns></returns>
 		public string ToSlug(string input)
 		{
-			if (string.IsNullOrWhiteSpace(input)) return Guid.NewGuid().ToString("n")[..8];
-			var s = input.ToLowerInvariant().Trim();
-			s = System.Text.RegularExpressions.Regex.Replace(s, @"\s+", "-");
-			s = System.Text.RegularExpressions.Regex.Replace(s, @"[^a-z0-9\-]", "");
-			s = System.Text.RegularExpressions.Regex.Replace(s, "-{2,}", "-").Trim('-');
+			if (string.IsNullOrWhiteSpace(input))
+				return Guid.NewGuid().ToString("n")[..8];
+
+			// 1. Chuyển đổi tiếng Việt có dấu thành không dấu
+			var s = RemoveDiacritics(input).ToLowerInvariant().Trim();
+
+			// 2. Thay thế khoảng trắng (hoặc các chuỗi ký tự trắng) bằng dấu gạch ngang
+			s = Regex.Replace(s, @"\s+", "-");
+
+			// 3. Loại bỏ tất cả các ký tự không phải chữ cái Latin thường (a-z), số (0-9), hoặc dấu gạch ngang (-)
+			s = Regex.Replace(s, @"[^a-z0-9\-]", "");
+
+			// 4. Thay thế nhiều dấu gạch ngang liên tiếp bằng một dấu gạch ngang duy nhất và loại bỏ dấu gạch ngang ở đầu/cuối
+			s = Regex.Replace(s, "-{2,}", "-").Trim('-');
+
+			// 5. Trả về slug hoặc một GUID ngắn nếu slug bị rỗng sau khi xử lý
 			return string.IsNullOrWhiteSpace(s) ? Guid.NewGuid().ToString("n")[..8] : s;
+		}
+
+		/// <summary>
+		/// Hàm phụ trợ để chuyển đổi chuỗi tiếng Việt có dấu thành không dấu.
+		/// </summary>
+		private static string RemoveDiacritics(string text)
+		{
+			string formD = text.Normalize(NormalizationForm.FormD);
+			var sb = new StringBuilder();
+
+			for (int i = 0; i < formD.Length; i++)
+			{
+				UnicodeCategory uc = CharUnicodeInfo.GetUnicodeCategory(formD[i]);
+				if (uc != UnicodeCategory.NonSpacingMark)
+				{
+					sb.Append(formD[i]);
+				}
+			}
+
+			return sb.ToString().Normalize(NormalizationForm.FormC);
 		}
 	}
 }

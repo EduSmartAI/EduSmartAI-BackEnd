@@ -24,6 +24,8 @@ public static class ConstEnv
 
     public const string CloudApiSecret = "CLOUDINARY_API_SECRET";
 
+    public const string GroqAIVoiceToText = "GROQ_AI_VOICE_TO_TEXT_KEY";
+
     public const string AuthServiceUrl = "AUTH_SERVICE_URL";
 
     public const string TeacherServiceUrl = "TEACHER_SERVICE_URL";
@@ -81,5 +83,6 @@ public static class ConstEnv
     public const string Judge0ApiKey = "JUDGE0_API_KEY";
     
     public const string Judge0BaseUrl = "JUDGE0_BASE_URL";
+
     public const string OutboxEnvironment = "OUTBOX_ENVIRONMENT";
 }
