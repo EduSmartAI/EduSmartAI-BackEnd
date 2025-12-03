@@ -80,11 +80,21 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         
         var subjectCodeToMajorCodeMap = mappingResponse.Message.Response
             .GroupBy(x => x.SubjectCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.MajorCode).ToList(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.Select(x => x.MajorCode).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), StringComparer.OrdinalIgnoreCase);
         
         // Create dictionary to map MajorCode to LearningPathMajorId
         var majorCodeToLearningPathMajorIdMap = learningPathMajors
             .ToDictionary(m => m.MajorCode, m => m.LearningPathMajorId, StringComparer.OrdinalIgnoreCase);
+        
+        // Get existing subject codes to avoid duplicates
+        var existingSubjectCodes = await _learningPathSubjectCodeRepository
+            .Find(x => learningPathMajors.Select(m => m.LearningPathMajorId).Contains(x.LearningPathMajorId) && x.IsActive)
+            .Select(x => new { x.SubjectCode, x.LearningPathMajorId, x.LearningPathSubjectCodeId })
+            .ToListAsync(context.CancellationToken);
+        
+        var existingSubjectCodeSet = existingSubjectCodes
+            .Select(x => $"{x.SubjectCode}_{x.LearningPathMajorId}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         
         // Insert LearningPathSubjectCodes with CORRECT foreign key based on SubjectCode -> MajorCode mapping
         var learningPathSubjectCodes = new List<LearningPathSubjectCode>();
@@ -104,6 +114,31 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     continue;
                 }
                 
+                // Check if this combination already exists
+                var compositeKey = $"{subCode.SubjectCode}_{learningPathMajorId}";
+                if (existingSubjectCodeSet.Contains(compositeKey))
+                {
+                    // Update existing record instead of inserting
+                    var existing = existingSubjectCodes.FirstOrDefault(x => 
+                        string.Equals(x.SubjectCode, subCode.SubjectCode, StringComparison.OrdinalIgnoreCase) 
+                        && x.LearningPathMajorId == learningPathMajorId);
+                    
+                    if (existing != null)
+                    {
+                        var existingEntity = await _learningPathSubjectCodeRepository
+                            .FirstOrDefaultAsync(x => x.LearningPathSubjectCodeId == existing.LearningPathSubjectCodeId);
+                        
+                        if (existingEntity != null)
+                        {
+                            existingEntity.AnalysisMarkdown = subCode.AnalysisMarkdown;
+                            existingEntity.Status = subCode.Status;
+                            _learningPathSubjectCodeRepository.Update(existingEntity);
+                            learningPathSubjectCodes.Add(existingEntity);
+                        }
+                    }
+                    continue;
+                }
+                
                 var learningPathSubjectCode = new LearningPathSubjectCode
                 {
                     LearningPathSubjectCodeId = Guid.NewGuid(),
@@ -113,6 +148,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     Status = subCode.Status
                 };
                 learningPathSubjectCodes.Add(learningPathSubjectCode);
+                existingSubjectCodeSet.Add(compositeKey); // Add to set to prevent duplicate in same run
                 await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
             }
         }
