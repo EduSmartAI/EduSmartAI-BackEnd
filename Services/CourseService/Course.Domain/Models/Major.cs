@@ -27,6 +27,8 @@ public partial class Major
 
     public string UpdatedBy { get; set; }
 
+    public short RequiredCredits { get; set; }
+
     public virtual ICollection<Major> InverseParentMajor { get; set; } = new List<Major>();
 
     public virtual Major ParentMajor { get; set; }

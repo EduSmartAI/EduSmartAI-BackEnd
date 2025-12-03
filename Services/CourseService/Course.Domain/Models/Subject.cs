@@ -23,6 +23,8 @@ public partial class Subject
 
     public bool IsActive { get; set; }
 
+    public string SubjectDescription { get; set; }
+
     public virtual ICollection<CoreSubject> CoreSubjects { get; set; } = new List<CoreSubject>();
 
     public virtual ICollection<Course> Courses { get; set; } = new List<Course>();

@@ -4,6 +4,7 @@
 		Guid MajorId,
 		string MajorCode,
 		string MajorName,
-		string Description
+		string Description,
+		short CreditRequired
 	);
 }

@@ -51,7 +51,8 @@ public class SubjectService(
         {
             SubjectCode = subjectCode,
             SubjectName = subjectName,
-        };
+			SubjectDescription = dto.SubjectDescription?.Trim()
+		};
 
 		// 4. Nếu có môn tiên quyết thì load và gán
 		if (prereqIds.Count > 0)
@@ -105,7 +106,8 @@ public class SubjectService(
 		response.Response = new SubjectDto(
 			entity.SubjectId,
 			entity.SubjectCode,
-			entity.SubjectName
+			entity.SubjectName,
+			entity.SubjectDescription
 		);
 		response.Success = true;
 		response.SetMessage(MessageId.I00001, $"Lấy thông tin môn {entity.SubjectCode}");
@@ -148,7 +150,8 @@ public class SubjectService(
 			new SubjectDto(
 				x.SubjectId,
 				x.SubjectCode,
-				x.SubjectName
+				x.SubjectName,
+				x.SubjectDescription
 			)).ToList();
 
 		var dtoPaged = new PagedResult<SubjectDto>

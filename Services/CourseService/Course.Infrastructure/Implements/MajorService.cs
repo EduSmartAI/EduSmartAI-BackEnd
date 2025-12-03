@@ -62,6 +62,7 @@ public class MajorService(
 			MajorName = name,
 			Description = description,
 			ParentMajorId = parentMajor.MajorId,
+			RequiredCredits = dto.RequiredCredits,
 		};
 
 		await majorCommandRepository.AddAsync(entity, userEmail);
@@ -159,7 +160,8 @@ public class MajorService(
 				x.MajorId,
 				x.MajorCode,
 				x.MajorName,
-				x.Description
+				x.Description,
+				x.RequiredCredits
 			)).ToList();
 
 		var dtoPaged = new PagedResult<MajorDto>
@@ -198,7 +200,8 @@ public class MajorService(
 			entity.MajorId,
 			entity.MajorCode,
 			entity.MajorName,
-			entity.Description
+			entity.Description,
+			entity.RequiredCredits
 		);
 		response.Success = true;
 		response.SetMessage(MessageId.I00001, $"Lấy thông tin ngành {entity.MajorCode}");

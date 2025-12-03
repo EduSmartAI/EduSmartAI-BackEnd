@@ -2281,10 +2281,6 @@ namespace Course.Infrastructure.Implements
 			return next;
 		}
 
-		#endregion
-		
-		#region Helper Methods
-		
 		/// <summary>
 		/// Parse StudentTranscriptStatus from Description string
 		/// </summary>
@@ -2298,18 +2294,17 @@ namespace Course.Infrastructure.Implements
 					return status;
 				}
 			}
-			
+
 			// Fallback: try direct enum parse
 			if (Enum.TryParse<ConstantEnum.StudentTranscriptStatus>(statusDescription, true, out var result))
 			{
 				return result;
 			}
-			
+
 			// Default to NotStarted if cannot parse
 			return ConstantEnum.StudentTranscriptStatus.NotStarted;
 		}
-		
-		#endregion
 
+		#endregion
 	}
 }
