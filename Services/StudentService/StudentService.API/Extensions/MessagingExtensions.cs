@@ -62,7 +62,7 @@ public static class MessagingExtensions
             x.AddConsumer<GetLearningPathInfoConsumer>();
             x.AddConsumer<AiUpdateCourseStatusToSkippedConsumer>();
             x.AddConsumer<LearningFeedbackEventConsumer>();
-            
+            x.AddConsumer<GetStudentNameEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "student", includeNamespace: false));
 

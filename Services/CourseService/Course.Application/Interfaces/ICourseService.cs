@@ -9,6 +9,7 @@ using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetEnrolledUsers;
 using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 
@@ -40,5 +41,7 @@ namespace Course.Application.Interfaces
         Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(GetInfoInternalCourseEvents request, CancellationToken ct = default);
 
         Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentIdAsync(GetInProgressCourseByStudentIdQuery request, CancellationToken ct = default);
+
+        Task<GetEnrolledUsersResponse> GetEnrolledUsersAsync(GetEnrolledUsersQuery request, CancellationToken ct = default);
 	}
 }
