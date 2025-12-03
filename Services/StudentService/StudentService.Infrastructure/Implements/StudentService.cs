@@ -7,6 +7,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using ExcelDataReader;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -1120,7 +1121,33 @@ public class StudentService : IStudentService
         return response;
     }
 
-    private static string GetTechnologyTypeName(short technologyType)
+	/// <summary>
+	/// Get student names by IDs (for external service)
+	/// </summary>
+	/// <param name="studentIds"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	public async Task<List<StudentNameExternalServiceDto>> GetStudentNamesAsync(IList<Guid> studentIds, CancellationToken ct = default)
+	{
+		if (studentIds == null || !studentIds.Any())
+		{
+			return new List<StudentNameExternalServiceDto>();
+		}
+
+		var studentNames = await _studentRepository
+			.Find(s => studentIds.Contains(s.StudentId) && s.IsActive)
+			.Select(s => new StudentNameExternalServiceDto
+			{
+				StudentId = s.StudentId,
+				DisplayName = $"{s.FirstName} {s.LastName}",
+				AvatarUrl = s.AvatarUrl
+			})
+			.ToListAsync(cancellationToken: ct);
+
+		return studentNames;
+	}
+
+	private static string GetTechnologyTypeName(short technologyType)
     {
         return technologyType switch
         {

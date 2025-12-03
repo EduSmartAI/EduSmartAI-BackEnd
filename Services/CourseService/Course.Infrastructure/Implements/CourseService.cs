@@ -3,6 +3,7 @@ using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.DeleteCourse;
@@ -12,11 +13,13 @@ using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetEnrolledUsers;
 using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.DTOs.QuizDTO;
 using Course.Domain.Enum;
+using Course.Domain.Models;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using Mapster;
@@ -31,6 +34,7 @@ namespace Course.Infrastructure.Implements
 		IIdentityService _identityService,
 		IRequestClient<QuizCourseInsertEvent> _quizCourseClient,
 		IRequestClient<GetTeacherNamesEvent> _teacherNameClient,
+		IRequestClient<GetStudentNamesEvent> _studentNameClient,
 		IPublishEndpoint _publish,
 		ICommandRepository<ModuleQuiz> _moduleQuizRepository,
 		ICommandRepository<LessonQuiz> _lessonQuizRepository,
@@ -1481,6 +1485,85 @@ namespace Course.Infrastructure.Implements
 				return null;
 			}
 		}
+
+
+		public async Task<GetEnrolledUsersResponse> GetEnrolledUsersAsync(GetEnrolledUsersQuery request, CancellationToken ct = default)
+		{
+			var response = new GetEnrolledUsersResponse { Success = false };
+
+			var currentUser = _identityService.GetCurrentUser();
+
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E11001);
+				return response;
+			}
+
+			var pageIndex = request.Pagination.PageIndex ?? 1;
+			var pageSize = request.Pagination.PageSize ?? 10;
+
+			var baseQuery = _courseStudentEnrollmentRepository.Find(
+				predicate: e => e.IsActive && e.CourseId == request.CourseId,
+				isTracking: false,
+				cancellationToken: ct
+			);
+
+			var totalCount = await baseQuery.CountAsync(ct);
+
+			var enrollments = await baseQuery
+										.OrderBy(e => e.CreatedAt)
+										.Skip((pageIndex - 1) * pageSize)
+										.Take(pageSize)
+										.Select(e => new EnrolledUsersDto
+										{
+											UserId = e.UserId
+										})
+										.ToListAsync(ct);
+
+			var userIds = enrollments.Select(e => e.UserId).Distinct().ToList();
+
+			if (userIds.Count > 0)
+			{
+				// 3. Gửi event sang StudentService bằng MassTransit
+				var studentResponse = await _studentNameClient.GetResponse<GetStudentNamesEventResponse>(
+					new GetStudentNamesEvent(userIds)
+				);
+
+				if (studentResponse.Message.Success && studentResponse.Message.Response != null)
+				{
+					var studentInfos = studentResponse.Message.Response;
+
+					// 4. MERGE dữ liệu Student Info vào DTO
+					foreach (var item in enrollments)
+					{
+						var s = studentInfos.FirstOrDefault(x => x.StudentId == item.UserId);
+						if (s != null)
+						{
+							item.UserId = item.UserId;
+							item.DisplayName = s.DisplayName ?? string.Empty;
+							item.AvatarUrl = s.AvatarUrl ?? string.Empty;
+						}
+					}
+				}
+			}
+
+			var pagedResult = new PaginatedResult<EnrolledUsersDto>
+			(
+
+				pageIndex: pageIndex,
+				pageSize: pageSize,
+				totalCount: totalCount,
+				data: enrollments
+			);
+
+			response.Response = pagedResult;
+			response.Success = true;
+			response.SetMessage(MessageId.I00001, "Lấy danh sách học viên đã đăng ký khóa học");
+
+			return response;
+		}
+
+
 		#endregion
 
 

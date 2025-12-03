@@ -64,6 +64,12 @@ public class TeacherService(
 		return response;
 	}
 
+	/// <summary>
+	/// Get teacher names by list of ids (for external service)
+	/// </summary>
+	/// <param name="teacherIds"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
 	public async Task<List<TeacherNameExternalServiceDto>> GetTeacherNamesAsync(IList<Guid> teacherIds, CancellationToken ct = default)
 	{
 		if (teacherIds == null || teacherIds.Count == 0)

@@ -6,6 +6,7 @@ using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
 using Course.Application.Consumers;
 using Course.Application.Consumers.Dashboard;
@@ -77,6 +78,7 @@ namespace Course.API.Extensions
 				x.AddRequestClient<SuggestCourseRetakeEvent>();
 				x.AddRequestClient<CourseSelectsBySubjectCodeEvent>();
 				x.AddRequestClient<GetTeacherNamesEvent>();
+				x.AddRequestClient<GetStudentNamesEvent>();
             });
 
             return services;

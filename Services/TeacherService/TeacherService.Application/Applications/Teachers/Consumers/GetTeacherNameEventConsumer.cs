@@ -8,7 +8,6 @@ namespace TeacherService.Application.Applications.Teachers.Consumers
 	{
 		public async Task Consume(ConsumeContext<GetTeacherNamesEvent> context)
 		{
-			var evt = context.Message;
 			// Logic to get teacher name by evt.TeacherId
 			var ids = context.Message.TeacherIds.Distinct().ToList();
 
