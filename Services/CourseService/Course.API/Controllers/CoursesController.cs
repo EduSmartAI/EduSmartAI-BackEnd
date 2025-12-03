@@ -9,6 +9,7 @@ using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
 using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetEnrolledUsers;
 using Course.Application.Courses.Queries.GetInProgressCourse;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
@@ -327,6 +328,24 @@ namespace Course.API.Controllers
 					ModelState,
 					async () => await sender.Send(query),
 					new GetInProgressCourseByStudentIdResponse()
+				);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get enrolled users for a course",
+			Description = "Retrieve a paginated list of users enrolled in a specific course."
+		)]
+		public async Task<GetEnrolledUsersResponse> GetEnrolledUsers([FromQuery] GetEnrolledUsersQuery request)
+		{
+			return await ApiControllerHelper
+				.HandleRequest<GetEnrolledUsersQuery, GetEnrolledUsersResponse, PaginatedResult<EnrolledUsersDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetEnrolledUsersResponse()
 				);
 		}
 	}

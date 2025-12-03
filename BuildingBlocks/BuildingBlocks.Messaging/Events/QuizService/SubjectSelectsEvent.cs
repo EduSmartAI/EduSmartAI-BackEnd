@@ -1,4 +1,4 @@
-namespace BuildingBlocks.Messaging.Events.QuizService.SubjectSelectEvents;
+namespace BuildingBlocks.Messaging.Events.QuizService;
 
 public class SubjectSelectsEvent
 {

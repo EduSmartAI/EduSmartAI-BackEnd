@@ -1,3 +1,4 @@
+using BaseService.API.Sse;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
@@ -13,6 +14,7 @@ using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 using StudentService.Infrastructure.Implements;
+using StudentService.Infrastructure.Realtime;
 
 namespace StudentService.API.Extensions;
 
@@ -43,6 +45,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICommandRepository<VwUserVideoActionsAgg>, CommandRepository<VwUserVideoActionsAgg>>();
         services.AddScoped<ICommandRepository<StudentTranscript>, CommandRepository<StudentTranscript>>();
         services.AddScoped<ICommandRepository<AiEvaluationImprovement>, CommandRepository<AiEvaluationImprovement>>();
+        services.AddScoped<ICommandRepository<LearningPathSubjectCode>, CommandRepository<LearningPathSubjectCode>>();
 
         services.AddScoped<IQueryRepository<StudentCollection>, QueryRepository<StudentCollection>>();
         services.AddScoped<IQueryRepository<LearningGoalCollection>, QueryRepository<LearningGoalCollection>>();
@@ -54,6 +57,7 @@ public static class RepositoryExtensions
         services.AddScoped<IQueryRepository<UserBehaviourCollection>, QueryRepository<UserBehaviourCollection>>();
         services.AddScoped<IQueryRepository<LearningPathCourseCollection>, QueryRepository<LearningPathCourseCollection>>();
         services.AddScoped<IQueryRepository<CourseSuggestionCollection>, QueryRepository<CourseSuggestionCollection>>();
+        services.AddSingleton<IServerSentEventsService, ServerSentEventsService>();
 
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
@@ -65,6 +69,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICourseSuggestionService, CourseSuggestionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAiEvaluationService, AiEvaluationService>();
+        services.AddScoped<ILearningPathRealtimeNotifier, LearningPathRealtimeNotifier>();
 
         // MediatR configuration
         services.AddMediatR(cfg =>

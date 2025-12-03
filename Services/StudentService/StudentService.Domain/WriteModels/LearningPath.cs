@@ -23,6 +23,14 @@ public partial class LearningPath
 
     public short Status { get; set; }
 
+    public string? SummaryFeedback { get; set; }
+
+    public string? HabitAndInterestAnalysis { get; set; }
+
+    public string? Personality { get; set; }
+
+    public string? LearningAbility { get; set; }
+
     public virtual ICollection<LearningPathMajor> LearningPathMajors { get; set; } = new List<LearningPathMajor>();
 
     public virtual Student? Student { get; set; }

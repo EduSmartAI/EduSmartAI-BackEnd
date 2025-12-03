@@ -1,3 +1,4 @@
+using AiService.Application.Consumers;
 using AiService.Application.Consumers.AiQuizEvaluates;
 using AiService.Application.Consumers.AiSearch;
 using AiService.Application.Consumers.AiSummaryAndFeedback;
@@ -7,10 +8,12 @@ using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.AiFeedback;
+using BuildingBlocks.Messaging.Events.AIService.AiChatLearningPathEvents;
 using BuildingBlocks.Messaging.Events.AIService.GetLessonInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
+using BuildingBlocks.Messaging.Events.AIService.SubjectInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.UtilityService;
 using MassTransit;
@@ -36,6 +39,7 @@ public static class MessagingExtensions
             x.AddConsumer<QuizAiFeedBackOverviewEventConsumer>();
             x.AddConsumer<QuizAiFeedBackModuleEventConsumer>();
             x.AddConsumer<SearchAiRecommendImproveConsumer>();
+            x.AddConsumer<AiRecommendImprovementEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
 
@@ -65,6 +69,10 @@ public static class MessagingExtensions
             x.AddRequestClient<InsertAiFeedbackEvents>();
             x.AddRequestClient<GetModuleProgressEvents>();
             x.AddRequestClient<GetSystemConfigEvent>(TimeSpan.FromSeconds(200));
+            x.AddRequestClient<GetAllLearningPath>(TimeSpan.FromSeconds(200));
+            x.AddRequestClient<GetLearningPathInfo>(TimeSpan.FromSeconds(200));
+            x.AddRequestClient<AiUpdateCourseStatusToSkipped>(TimeSpan.FromSeconds(200));
+            x.AddRequestClient<SubjectInfoEvent>(TimeSpan.FromSeconds(120));
         });
 
         return services;

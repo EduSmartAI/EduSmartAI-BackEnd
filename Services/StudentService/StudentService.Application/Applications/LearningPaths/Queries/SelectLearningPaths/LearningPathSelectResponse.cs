@@ -4,7 +4,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
 {
     public record LearningPathSelectResponse : AbstractApiResponse<LearningPathSelectDto>
     {
-        public override LearningPathSelectDto Response { get; set; }
+        public override LearningPathSelectDto Response { get; set; } = new();
     }
 
     public record LearningPathSelectDto
@@ -12,6 +12,10 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public int Status { get; set; }
         public string PathName { get; set; } = string.Empty;
         public decimal CompletionPercent { get; set; }
+        public string? SummaryFeedback { get; set; }
+        public string? HabitAndInterestAnalysis { get; set; }
+        public string? Personality { get; set; }
+        public string? LearningAbility { get; set; }
         public BasicLearningPathDto BasicLearningPath { get; set; } = new();
         public List<InternalLearningPathDto> InternalLearningPath { get; set; } = [];
         public List<ExternalLearningPathDto> ExternalLearningPath { get; set; } = [];
@@ -93,6 +97,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     {
         public string SubjectCode { get; set; } = string.Empty;
         public short Status { get; set; }
+        public string? AnalysisMarkdown { get; set; }
         public List<CourseItemDto> Courses { get; set; } = [];
     }
     #endregion

@@ -12,11 +12,8 @@ using System.Text.Json;
 namespace AiService.Infrastructure.Implements
 {
 	public class GroqTranscriptionService(
-		//ITranscriptStore store,
-		ISubtitlePublisher subtitlePublisher,
-		ILogger<GroqTranscriptionService> log) : ITranscriptionService
+		ISubtitlePublisher subtitlePublisher) : ITranscriptionService
 	{
-		const int ChunkSeconds = 60;
 		const string GroqUrl = "https://api.groq.com/openai/v1/audio/transcriptions";
 		const string Model = "whisper-large-v3-turbo";
 
@@ -38,7 +35,7 @@ namespace AiService.Infrastructure.Implements
 			using var http = new HttpClient();
 
 			// Lấy API key từ .env
-			var apiKey = Environment.GetEnvironmentVariable("GROQ_AI_VOICE_TO_TEXT_KEY")?.Trim();
+			var apiKey = Environment.GetEnvironmentVariable(ConstEnv.GroqAIVoiceToText)?.Trim();
 			if (string.IsNullOrWhiteSpace(apiKey))
 			{
 				response.SetMessage(MessageId.E11006, "Groq API key không có. Kiểm tra GroqAI:ApiKey hoặc env.");
@@ -56,8 +53,9 @@ namespace AiService.Infrastructure.Implements
 			}
 
 			// 1) Thử nén 1 phát
-			var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt);
-			var attempt = await TryTranscribeUrlOnce(http, job, audioUrl, 0, ct);
+			//var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt)
+			var videoUrlMp4 = CloudinaryAudio.BuildMp4Url(cloud, versionedIdNoExt);
+			var attempt = await TryTranscribeUrlOnce(http, job, videoUrlMp4, 0, ct);
 			if (attempt.succeeded && attempt.result is not null)
 			{
 				await SaveAndPublish(job, attempt.result, ct);
@@ -69,59 +67,62 @@ namespace AiService.Infrastructure.Implements
 				return response;
 			}
 
+			#region Comment
 			// 2) Fallback: chunk 60s
-			var duration = job.DurationSec ?? 3600;
-			var totalText = new StringBuilder();
-			var allSegs = new List<Segment>();
-			var allWords = new List<Word>();
+			//var duration = job.DurationSec ?? 3600;
+			//var totalText = new StringBuilder();
+			//var allSegs = new List<Segment>();
+			//var allWords = new List<Word>();
 
-			int start = 0, safety = 0;
-			while (start < duration + 1 && safety < 10000)
-			{
-				safety++;
-				var chunkUrl = CloudinaryAudio.BuildAudioChunkUrl(cloud, versionedIdNoExt, start, ChunkSeconds);
-				var res = await CallGroqVerboseJson(http, job.Language, chunkUrl, ct);
+			//int start = 0, safety = 0;
+			//while (start < duration + 1 && safety < 10000)
+			//{
+			//	safety++;
+			//	var chunkUrl = CloudinaryAudio.BuildAudioChunkUrl(cloud, versionedIdNoExt, start, ChunkSeconds);
+			//	var res = await CallGroqVerboseJson(http, job.Language, chunkUrl, ct);
 
-				if (!res.success)
-				{
-					log.LogWarning("Chunk at {start}s failed: {err}", start, res.error);
-					if (res.retriableErrors >= 3) break;
-					start += ChunkSeconds;
-					continue;
-				}
+			//	if (!res.success)
+			//	{
+			//		log.LogWarning("Chunk at {start}s failed: {err}", start, res.error);
+			//		if (res.retriableErrors >= 3) break;
+			//		start += ChunkSeconds;
+			//		continue;
+			//	}
 
-				var offset = (double)start;
-				var text = res.parsed?.Text ?? "";
-				totalText.Append(' ').Append(text);
+			//	var offset = (double)start;
+			//	var text = res.parsed?.Text ?? "";
+			//	totalText.Append(' ').Append(text);
 
-				if (res.parsed?.Segments is not null)
-					allSegs.AddRange(res.parsed.Segments.Select(s => new Segment { Start = s.Start + offset, End = s.End + offset, Text = s.Text }));
-				if (res.parsed?.Words is not null)
-					allWords.AddRange(res.parsed.Words.Select(w => new Word { Start = w.Start + offset, End = w.End + offset, Text = w.Word }));
+			//	if (res.parsed?.Segments is not null)
+			//		allSegs.AddRange(res.parsed.Segments.Select(s => new Segment { Start = s.Start + offset, End = s.End + offset, Text = s.Text }));
+			//	if (res.parsed?.Words is not null)
+			//		allWords.AddRange(res.parsed.Words.Select(w => new Word { Start = w.Start + offset, End = w.End + offset, Text = w.Word }));
 
-				start += ChunkSeconds;
-			}
+			//	start += ChunkSeconds;
+			//}
 
-			var merged = new TranscriptResult
-			{
-				LessonId = job.LessonId,
-				Language = job.Language,
-				Text = totalText.ToString().Trim(),
-				Segments = allSegs,
-				Words = allWords
-			};
+			//var merged = new TranscriptResult
+			//{
+			//	LessonId = job.LessonId,
+			//	Language = job.Language,
+			//	Text = totalText.ToString().Trim(),
+			//	Segments = allSegs,
+			//	Words = allWords
+			//};
 
-			if (await SaveAndPublish(job, merged, ct))
-			{
-				response.Success = true;
-				response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
-				response.Response = merged;
-			}
-			else
-			{
-				response.SetMessage(MessageId.E10000, "Lưu kết quả thất bại.");
-			}
+			//if (await SaveAndPublish(job, merged, ct))
+			//{
+			//	response.Success = true;
+			//	response.SetMessage(MessageId.I00001, "Đã chuyển văn bản thành công.");
+			//	response.Response = merged;
+			//}
+			//else
+			//{
+			//	response.SetMessage(MessageId.E10000, "Lưu kết quả thất bại.");
+			//}
+			#endregion
 
+			response.SetMessage(MessageId.E00000, "Chuyển văn bản thất bại sau nhiều lần thử.");
 			return response;
 		}
 
@@ -208,20 +209,20 @@ namespace AiService.Infrastructure.Implements
 			return form;
 		}
 
-		async Task<(bool success, int retriableErrors, GroqVerboseJson? parsed, string? error)> CallGroqVerboseJson(
-		HttpClient http, string language, string url, CancellationToken ct)
-		{
-			var res = await http.PostAsync(GroqUrl, BuildForm(language, url), ct);
-			var body = await res.Content.ReadAsStringAsync(ct);
-			if (!res.IsSuccessStatusCode)
-			{
-				var retriable = body.Contains("media file too large", StringComparison.OrdinalIgnoreCase)
-								|| (int)res.StatusCode == 429 || (int)res.StatusCode >= 500;
-				return (false, retriable ? 1 : 3, null, body);
-			}
-			var parsed = JsonSerializer.Deserialize<GroqVerboseJson>(body);
-			return (true, 0, parsed, null);
-		}
+		//async Task<(bool success, int retriableErrors, GroqVerboseJson? parsed, string? error)> CallGroqVerboseJson(
+		//HttpClient http, string language, string url, CancellationToken ct)
+		//{
+		//	var res = await http.PostAsync(GroqUrl, BuildForm(language, url), ct);
+		//	var body = await res.Content.ReadAsStringAsync(ct);
+		//	if (!res.IsSuccessStatusCode)
+		//	{
+		//		var retriable = body.Contains("media file too large", StringComparison.OrdinalIgnoreCase)
+		//						|| (int)res.StatusCode == 429 || (int)res.StatusCode >= 500;
+		//		return (false, retriable ? 1 : 3, null, body);
+		//	}
+		//	var parsed = JsonSerializer.Deserialize<GroqVerboseJson>(body);
+		//	return (true, 0, parsed, null);
+		//}
 
 		async Task<bool> SaveAndPublish(TranscribeJob job, TranscriptResult result, CancellationToken ct)
 		{
@@ -238,7 +239,7 @@ namespace AiService.Infrastructure.Implements
 			result.VttUrl = vttUrl;
 			result.VttPublicId = vttPid;
 
-			//await store.Upsert(result);
+			//await store.Upsert(result)
 			return true;
 
 		}

@@ -1,4 +1,7 @@
-﻿namespace StudentService.Domain.WriteModels;
+﻿using System;
+using System.Collections.Generic;
+
+namespace StudentService.Domain.WriteModels;
 
 public partial class UserBehaviour
 {
@@ -13,7 +16,6 @@ public partial class UserBehaviour
     public string? TargetType { get; set; }
 
     public string? Metadata { get; set; }
-    public Guid? ParentTargetId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -24,6 +26,8 @@ public partial class UserBehaviour
     public string UpdatedBy { get; set; } = null!;
 
     public bool IsActive { get; set; }
+
+    public Guid? ParentTargetId { get; set; }
 
     public virtual Student Student { get; set; } = null!;
 }

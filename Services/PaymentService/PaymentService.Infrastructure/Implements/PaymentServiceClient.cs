@@ -5,6 +5,8 @@ using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.PaymentService;
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using PaymentService.Application.Applications.Payments;
 using PaymentService.Application.Interfaces;
@@ -19,6 +21,7 @@ public class PaymentServiceClient : IPaymentServiceClient
     private readonly ICommandRepository<Order> _orderRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IIdentityService _identityService;
+    private readonly IRequestClient<PaymentSucceededEvent> _requestClient;
     
     private readonly string _payOsCheckSumKey;
     private readonly string _payOsApiKey;
@@ -26,12 +29,13 @@ public class PaymentServiceClient : IPaymentServiceClient
     private readonly string _returnUrl;
     private readonly string _cancelUrl;
 
-    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService)
+    public PaymentServiceClient(ICommandRepository<SystemConfig> systemConfigRepository, ICommandRepository<PaymentTransaction> paymentTransactionRepository, ICommandRepository<Order> orderRepository, IUnitOfWork unitOfWork, IIdentityService identityService, IRequestClient<PaymentSucceededEvent> requestClient)
     {
         _paymentTransactionRepository = paymentTransactionRepository;
         _orderRepository = orderRepository;
         _unitOfWork = unitOfWork;
         _identityService = identityService;
+        _requestClient = requestClient;
         _payOsCheckSumKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsCheckSumKey).FirstOrDefault()!.Value;
         _payOsApiKey = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsApiKey).FirstOrDefault()!.Value;
         _payOsClientId = systemConfigRepository.Find(x => x.Id == ConstSystemConfig.PayOsClientId).FirstOrDefault()!.Value;
@@ -157,7 +161,7 @@ public class PaymentServiceClient : IPaymentServiceClient
         throw new NotImplementedException();
     }
     
-    public async Task<PaymentCallbackResponse> PaymentCallbackAsync(PaymentCallBackRequest request, IdentityEntity identityEntity)
+    public async Task<PaymentCallbackResponse> PaymentCallbackAsync(PaymentCallBackRequest request, IdentityEntity identityEntity, CancellationToken cancellationToken)
     {
         var response = new PaymentCallbackResponse { Success = false };
         
@@ -165,8 +169,10 @@ public class PaymentServiceClient : IPaymentServiceClient
         var order = await _orderRepository
             .Find(predicate:x => x.OrderId == request.OrderId, 
                 isTracking: true, 
-                includes: o => o.PaymentTransactions)
-            .FirstOrDefaultAsync();
+                cancellationToken,
+                 o => o.PaymentTransactions, 
+                oi => oi.OrderItems)
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
         if (order == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy đơn hàng");
@@ -258,6 +264,28 @@ public class PaymentServiceClient : IPaymentServiceClient
                 paymentTransaction.GatewayTransactionId = request.Id;
             }
             
+            // Publish event to CourseService to update status enrollment
+            var updateStatusEnrollmentEvent = new PaymentSucceededEvent
+            {
+                CourseIds = order.OrderItems.Select(oi => oi.CourseId).ToList(),
+                UserId = order.UserId,
+                Email = identityEntity.Email,
+            };
+
+            var eventDataResponse = await _requestClient.GetResponse<PaymentSucceededEventResponse>(updateStatusEnrollmentEvent, cancellationToken);
+            if (!eventDataResponse.Message.Success)
+            {
+                paymentTransaction.Status = (short) ConstantEnum.PaymentStatus.SystemError;
+                _orderRepository.Update(order);
+                _paymentTransactionRepository.Update(paymentTransaction);
+                await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
+            
+                // True
+                response.Success = true;
+                response.SetMessage(MessageId.E00000, "Thanh toán thành công nhưng không thể cập nhật trạng thái ghi danh khóa học, xin đợi xử lý tự động từ hệ thống \n Xin lỗi vì sự bất tiện này.");
+                return true;
+            }
+            
             _orderRepository.Update(order);
             _paymentTransactionRepository.Update(paymentTransaction);
             await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken: CancellationToken.None);
@@ -266,7 +294,7 @@ public class PaymentServiceClient : IPaymentServiceClient
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thanh toán");
             return true;
-        });
+        }, cancellationToken);
         
         return response;
     }

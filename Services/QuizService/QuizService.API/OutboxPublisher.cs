@@ -92,6 +92,12 @@ public class OutboxPublisher : BackgroundService
                             await publishEndpoint.Publish(e9!, stoppingToken);
                             logging.InfoLog($"Successfully published SuggestCourseForStudentEvent for StudentId: {e9!.SuggestCourses.First().StudentId}");
                             break;
+                        case nameof(AiRecommendImprovementEvent):
+                            logging.InfoLog("Processing AiRecommendImprovementEvent");
+                            var e10 = JsonSerializer.Deserialize<AiRecommendImprovementEvent>(e.Content);
+                            await publishEndpoint.Publish(e10!, stoppingToken);
+                            logging.InfoLog($"Successfully published AiRecommendImprovementEvent");
+                            break;
                         default:
                             logging.WarningLog($"Unknown event type: {e.Type}");
                             break;

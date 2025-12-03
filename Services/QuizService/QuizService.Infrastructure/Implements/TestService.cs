@@ -1,7 +1,7 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
-using BuildingBlocks.Messaging.Events.QuizService.SubjectSelectEvents;
+using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using QuizService.Application.Applications.Tests.Commands;
 using QuizService.Application.Applications.Tests.Queries;
@@ -81,7 +81,7 @@ public class TestService : ITestService
 
             // Create subject mapping dictionary
             var subjectMapping = messageResponse.Message.Response
-                .ToDictionary(s => s.SubjectId, s => s.SubjectName);
+                .ToDictionary(s => s.SubjectId, s => s.SubjectNameCode);
 
             foreach (var quiz in request.Quizzes)
             {

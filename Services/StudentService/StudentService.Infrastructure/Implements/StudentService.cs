@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
@@ -6,6 +7,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using ExcelDataReader;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -363,6 +365,10 @@ public class StudentService : IStudentService
 
         var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
 
+        var learningGoal = studentCollection!.LearningGoals!
+            .OrderByDescending(x => x.UpdatedAt)
+            .FirstOrDefault();
+        
         var studentInfo = new StudentInformationSelectsEventResponseEntity
         {
             SemesterId = studentCollection!.SemesterId ?? Guid.Empty, 
@@ -371,6 +377,9 @@ public class StudentService : IStudentService
                 TechnologyName = x.Technology.TechnologyName,
                 TechnologyType = x.Technology.TechnologyType,
             }).ToList(),
+            MajorId = studentCollection.MajorId,
+            LearningGoalName = learningGoal!.Goal!.GoalName,
+            LearningGoalType = learningGoal.Goal.LearningGoalType
         };
         
         // Set response
@@ -848,7 +857,7 @@ public class StudentService : IStudentService
                         // Validate Credit (column 7)
                         var creditStr = row[7].ToString()?.Trim();
                         var credit = 0;
-                        if (string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
+                        if (!string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
                                                                 status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
                         {
                             if (!int.TryParse(creditStr, out var creditOut))
@@ -869,13 +878,28 @@ public class StudentService : IStudentService
                             }
                             continue;
                         }
-                        if (string.IsNullOrEmpty(gradeStr) || (!double.TryParse(gradeStr, out var grade) && !int.TryParse(gradeStr, out var gradeInt)))
+                        double parsedGrade = 0;
+                        if (!string.IsNullOrEmpty(gradeStr))
                         {
-                            response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
-                            return false;
+                            if (double.TryParse(gradeStr, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var g))
+                            {
+                                parsedGrade = g;
+                            }
+                            else if (int.TryParse(gradeStr, out var gi))
+                            {
+                                parsedGrade = gi;
+                            }
+                            else
+                            {
+                                response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
+                                return false;}
                         }
 
-                        if (string.IsNullOrEmpty(semester) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        var statusNormalized = status?.Trim() ?? string.Empty;
+
+                        if (string.IsNullOrWhiteSpace(semester) &&
+                            !(string.Equals(statusNormalized, ConstantEnum.StudentTranscriptStatus.Studying.GetDescription(), StringComparison.OrdinalIgnoreCase)
+                              || string.Equals(statusNormalized, ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription(), StringComparison.OrdinalIgnoreCase)))
                         {
                             response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Học kỳ' (cột 3) không được để trống");
                             return false;
@@ -889,7 +913,7 @@ public class StudentService : IStudentService
                             Prerequisite = row[4].ToString()?.Trim(),
                             SubjectName = subjectName,
                             Credit = credit,
-                            Grade = grade,
+                            Grade = parsedGrade,
                             Status = status,
                             StudentId = currentUser.UserId
                         };
@@ -1097,7 +1121,33 @@ public class StudentService : IStudentService
         return response;
     }
 
-    private static string GetTechnologyTypeName(short technologyType)
+	/// <summary>
+	/// Get student names by IDs (for external service)
+	/// </summary>
+	/// <param name="studentIds"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
+	public async Task<List<StudentNameExternalServiceDto>> GetStudentNamesAsync(IList<Guid> studentIds, CancellationToken ct = default)
+	{
+		if (studentIds == null || !studentIds.Any())
+		{
+			return new List<StudentNameExternalServiceDto>();
+		}
+
+		var studentNames = await _studentRepository
+			.Find(s => studentIds.Contains(s.StudentId) && s.IsActive)
+			.Select(s => new StudentNameExternalServiceDto
+			{
+				StudentId = s.StudentId,
+				DisplayName = $"{s.FirstName} {s.LastName}",
+				AvatarUrl = s.AvatarUrl
+			})
+			.ToListAsync(cancellationToken: ct);
+
+		return studentNames;
+	}
+
+	private static string GetTechnologyTypeName(short technologyType)
     {
         return technologyType switch
         {

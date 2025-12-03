@@ -1,7 +1,11 @@
 using BaseService.Application.Common;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
+using MassTransit;
 using QuizService.Application.Applications.Surveys.Commands;
 using QuizService.Application.Applications.Surveys.Queries;
 using QuizService.Application.Interfaces;
@@ -17,18 +21,24 @@ public class QuizSurveyService : IQuizSurveyService
     private readonly IQueryRepository<QuizCollection> _queryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IRequestClient<StudentTranscriptSelectEvent> _studentTranscriptSelectEventRequestClient;
+    private readonly IRequestClient<SubjectCodeSelectEvent> _subjectCodeSelectEventRequestClient;
 
     public QuizSurveyService(ICommandRepository<Quiz> commandRepository,
         IQueryRepository<QuizCollection> queryRepository, 
         ICommandRepository<SurveyType> commandSurveyTypeRepository, 
         IIdentityService identityService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRequestClient<StudentTranscriptSelectEvent> studentTranscriptSelectEventRequestClient,
+        IRequestClient<SubjectCodeSelectEvent> subjectCodeSelectEventRequestClient)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
         _commandSurveyTypeRepository = commandSurveyTypeRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
+        _studentTranscriptSelectEventRequestClient = studentTranscriptSelectEventRequestClient;
+        _subjectCodeSelectEventRequestClient = subjectCodeSelectEventRequestClient;
     }
 
     /// <summary>
@@ -72,7 +82,7 @@ public class QuizSurveyService : IQuizSurveyService
                         {
                             AnswerText = a.AnswerText,
                             IsCorrect = a.IsCorrect,
-                            AnswerRules = a.AnswerRules.Select(r => new AnswerRule
+                            AnswerRules = a.AnswerRules!.Select(r => new AnswerRule
                             {
                                 NumericMin = r.NumericMin,
                                 NumericMax = r.NumericMax,
@@ -113,7 +123,38 @@ public class QuizSurveyService : IQuizSurveyService
     {
         var response = new SurveyDetailSelectResponse { Success = false };
         
-        string cacheKey = $"survey:{request.SurveyId}";
+        var currentUser = _identityService.GetCurrentUser()!;
+        
+        string cacheKey = CacheKey.StudentSurvey(request.SurveyId);
+        
+        // Publish event to StudentService to get student transcript
+        var studentTranscriptEvent = new StudentTranscriptSelectEvent
+        {
+            StudentId = currentUser.UserId
+        };
+        
+        var eventResponse = await _studentTranscriptSelectEventRequestClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent);
+        var studentTranscript = eventResponse.Message.Response;
+        if (!eventResponse.Message.Success)
+        {
+            response.SetMessage(MessageId.I00000, eventResponse.Message.Message);
+            return response;
+        }
+        if (!studentTranscript.Any() && request.SemesterNumber > 4)
+        {
+            response.SetMessage(MessageId.I00000, "Sinh viên từ học kỳ 5 trở lên phải có bảng điểm mới có thể tham gia khảo sát.");
+            return response;
+        }
+        
+        // Publish event to CourseService to get all subject codes
+        var subjectCodeEventResponse = await _subjectCodeSelectEventRequestClient.GetResponse<SubjectCodeSelectEventResponse>(new SubjectCodeSelectEvent());
+        if (!subjectCodeEventResponse.Message.Success)
+        {
+            response.SetMessage(MessageId.I00000, subjectCodeEventResponse.Message.Message);
+            return response;
+        }
+        
+        var subjectCodes = subjectCodeEventResponse.Message.Response;
         
         // Get surveys from cache or database
         var pagedResult = await _queryRepository.GetOrSetPagedAsync(
@@ -152,6 +193,63 @@ public class QuizSurveyService : IQuizSurveyService
             }).ToList()
         }).ToList();
         
+        // Analyze student transcript to determine other questions based on grade ranges
+        var otherQuestions = new List<OtherQuestion>();
+        
+        if (studentTranscript.Any())
+        {
+            // Create a set of valid subject codes for filtering
+            var validSubjectCodes = new HashSet<string>(subjectCodes.Select(sc => sc.SubjectCode.ToUpper()));
+            
+            // Filter transcripts to only include valid subjects that are in subjectCodes
+            var validTranscripts = studentTranscript
+                .Where(t => validSubjectCodes.Contains(t.SubjectCode.ToUpper()))
+                .ToList();
+            
+            // Check for grades in range 5.0 - 6.9 (ask 2 separate questions: course + evaluation)
+            bool hasGrade5To7 = validTranscripts.Any(t => t.Grade >= 5.0 && t.Grade < 7.0);
+            if (hasGrade5To7)
+            {
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE.GetDescription()
+                });
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION.GetDescription()
+                });
+            }
+            
+            // Check for grades in range 7.0 - 7.9 (ask 2 separate questions: course + evaluation)
+            bool hasGrade7To8 = validTranscripts.Any(t => t.Grade >= 7.0 && t.Grade < 8.0);
+            if (hasGrade7To8)
+            {
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE.GetDescription()
+                });
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION.GetDescription()
+                });
+            }
+            
+            // Check for grades in range 8.0 - 9.0 (only ask about course, no evaluation)
+            bool hasGrade8To9 = validTranscripts.Any(t => t.Grade >= 8.0 && t.Grade <= 9.0);
+            if (hasGrade8To9)
+            {
+                otherQuestions.Add(new OtherQuestion
+                {
+                    OtherQuestionCode = ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE,
+                    OtherQuestionText = ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE.GetDescription()
+                });
+            }
+        }
+        
         // Prepare paginated result
         var paginatedResult = new PagedResult<SurveyDetailSelectResponseEntity>
         {
@@ -163,6 +261,7 @@ public class QuizSurveyService : IQuizSurveyService
         // True
         response.Success = true;
         response.Response = paginatedResult;
+        response.OtherQuestions = otherQuestions.Any() ? otherQuestions : null;
         response.SetMessage(MessageId.I00001, "Lấy danh sách khảo sát");
         return response;
     }

@@ -14,6 +14,8 @@ public class StudentInformationSelectsEventResponseEntity
     
     public short LearningGoalType { get; set; }
     
+    public Guid? MajorId { get; set; }
+    
     public List<StudentTechnologySelectsEventResponseEntity> Technologies { get; set; }
 }
 

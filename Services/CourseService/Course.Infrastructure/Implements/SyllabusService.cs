@@ -130,15 +130,15 @@ namespace Course.Infrastructure.Implements
 				// Save new syllabus
 				await _syllabusCommandRepository.AddAsync(newSyllabus, email);
 
-				// Copy foundation S1–S4
-				var foundationSem = await _syllabusSemesterCommandRepository
-					.Find(x => x.SyllabusId == seFoundation.SyllabusId, false, ct, x => x.Semester)
-					.ToListAsync(ct);
+				//// Copy foundation S1–S4
+				//var foundationSem = await _syllabusSemesterCommandRepository
+				//	.Find(x => x.SyllabusId == seFoundation.SyllabusId, false, ct, x => x.Semester)
+				//	.ToListAsync(ct)
 
-				foreach (var s in foundationSem.Where(s => s.Semester.SemesterNumber <= 4))
-				{
-					await CloneSemesterAndSubjects(seFoundation.SyllabusId, newSyllabusId, s.SemesterId, ct);
-				}
+				//foreach (var s in foundationSem.Where(s => s.Semester.SemesterNumber <= 4))
+				//{/
+				//	await CloneSemesterAndSubjects(seFoundation.SyllabusId, newSyllabusId, s.SemesterId, ct)
+				//}/
 
 				// Copy specialized S5–S9 (only is_active subjects)
 				var childSemesters = await _syllabusSemesterCommandRepository
@@ -221,6 +221,12 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Create full syllabus
+		/// </summary>
+		/// <param name="dto"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<CreateFullSyllabusResponse> CreateFullSyllabusAsync(CreateFullSyllabusDto dto, CancellationToken ct)
 		{
 			var response = new CreateFullSyllabusResponse { Success = false };
@@ -334,69 +340,93 @@ namespace Course.Infrastructure.Implements
 		/// <param name="versionLabel"></param>
 		/// <param name="ct"></param>
 		/// <returns></returns>
-		public async Task<GetFullSyllabusResponse> GetFullSyllabusAsync(string versionLabel, CancellationToken ct)
+		public async Task<GetFullSyllabusResponse> GetFullSyllabusAsync(string versionLabel, string majorCode, CancellationToken ct)
 		{
 			var response = new GetFullSyllabusResponse { Success = false };
 
 			// Load syllabus
-			var syllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
-				x => x.VersionLabel == versionLabel, ct);
+			var childSyllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
+												x => x.VersionLabel == versionLabel &&
+													 x.Major.MajorCode == majorCode,
+												ct);
 
-			if (syllabus == null)
+			if (childSyllabus == null)
 			{
-				response.SetMessage(MessageId.E00000, $"Không tìm thấy syllabus {versionLabel}");
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy syllabus {versionLabel} cho ngành {majorCode}");
 				return response;
 			}
 
 			// Load semesters
-			var semesters = await _syllabusSemesterCommandRepository.Find(
-				x => x.SyllabusId == syllabus.SyllabusId, false, ct
-			).ToListAsync(ct);
+			var parentSyllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
+												x => x.VersionLabel == versionLabel &&
+													 x.Major.MajorCode == "SE",
+												ct);
 
-			var resultSemesters = new List<SemesterWithSubjectsDto>();
-
-			foreach (var ss in semesters.OrderBy(x => x.PositionIndex))
+			if (parentSyllabus == null)
 			{
-				var semesterMaster = await _semesterCommandRepository.FirstOrDefaultAsync(
-					x => x.SemesterId == ss.SemesterId, ct);
+				// fallback giống SQL: lấy SE active mới nhất
+				parentSyllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
+					x => x.Major.MajorCode == "SE" && x.IsActive,
+					ct);
+			}
 
-				var subjects = await _syllabusSubjectCommandRepository.Find(
-					x => x.SyllabusId == syllabus.SyllabusId && x.SemesterId == ss.SemesterId,
-					false, ct).ToListAsync(ct);
+			var semesterList = new List<SemesterWithSubjectsDto>();
 
-				var mappedSubjects = new List<SubjectDetailDto>();
+			var parentSemesters = await _syllabusSemesterCommandRepository.Find(
+													x => x.SyllabusId == parentSyllabus.SyllabusId,
+													false,
+													ct,
+													x => x.Semester
+												).ToListAsync(ct);
 
-				foreach (var sb in subjects.OrderBy(x => x.PositionIndex))
-				{
-					var sbMaster = await _subjectCommandRepository.FirstOrDefaultAsync(
-						x => x.SubjectId == sb.SubjectId, ct);
+			foreach (var s in parentSemesters.Where(s => s.Semester.SemesterNumber <= 4)
+									 .OrderBy(s => s.Semester.SemesterNumber))
+			{
+				var mapped = await MapSemesterWithSubjects(
+					syllabusId: parentSyllabus.SyllabusId,
+					semesterId: s.SemesterId,
+					semesterName: s.Semester.SemesterName,
+					positionIndex: s.Semester.SemesterNumber,
+					ct
+				);
 
-					mappedSubjects.Add(new SubjectDetailDto(
-						sbMaster.SubjectId,
-						sbMaster.SubjectCode,
-						sbMaster.SubjectName,
-						sb.Credit,
-						sb.IsMandatory,
-						sb.PositionIndex));
-				}
+				semesterList.Add(mapped);
+			}
 
-				resultSemesters.Add(new SemesterWithSubjectsDto(
-					ss.SemesterId,
-					semesterMaster.SemesterName,
-					ss.PositionIndex,
-					mappedSubjects));
+			var childSemesters = await _syllabusSemesterCommandRepository.Find(
+													x => x.SyllabusId == childSyllabus.SyllabusId,
+													false,
+													ct,
+													x => x.Semester
+												).ToListAsync(ct);
+
+
+			foreach (var s in childSemesters.Where(s => s.Semester.SemesterNumber >= 5)
+									.OrderBy(s => s.Semester.SemesterNumber))
+			{
+				var mapped = await MapSemesterWithSubjects(
+					syllabusId: childSyllabus.SyllabusId,
+					semesterId: s.SemesterId,
+					semesterName: s.Semester.SemesterName,
+					positionIndex: s.Semester.SemesterNumber,
+					ct
+				);
+
+				semesterList.Add(mapped);
 			}
 
 			response.Response = new SyllabusFullDto(
-				syllabus.SyllabusId,
-				syllabus.MajorId,
-				syllabus.VersionLabel,
-				syllabus.EffectiveFrom,
-				syllabus.EffectiveTo,
-				resultSemesters
+				childSyllabus.SyllabusId,
+				childSyllabus.MajorId,
+				majorCode,
+				childSyllabus.VersionLabel,
+				childSyllabus.EffectiveFrom,
+				childSyllabus.EffectiveTo,
+				semesterList
 			);
 
 			response.Success = true;
+			response.SetMessage(MessageId.I00000, "Lấy thông tin syllabus");
 			return response;
 		}
 
@@ -414,48 +444,127 @@ namespace Course.Infrastructure.Implements
 		/// <returns></returns>
 		private async Task CloneSemesterAndSubjects(Guid oldSyllabusId, Guid newSyllabusId, Guid semesterId, CancellationToken ct, bool onlyActive = false)
 		{
-			// Load Semester entity to get SemesterNumber
+			// ----- 1. Clone semester entry -----
 			var semester = await _semesterCommandRepository.FirstOrDefaultAsync(
 				x => x.SemesterId == semesterId, ct);
 
-			// Clone semester
-			var entitySemester = new SyllabusSemester
+			var newSem = new SyllabusSemester
 			{
 				SyllabusId = newSyllabusId,
 				SemesterId = semesterId,
 				PositionIndex = semester.SemesterNumber
 			};
-			await _syllabusSemesterCommandRepository.AddAsync(entitySemester);
 
-			// Load all syllabus-subject mapping
-			var subjects = await _syllabusSubjectCommandRepository
+			await _syllabusSemesterCommandRepository.AddAsync(newSem);
+
+
+			// ----- 2. Load subjects from old syllabus -----
+			var rawSubjects = await _syllabusSubjectCommandRepository
 				.Find(x => x.SyllabusId == oldSyllabusId && x.SemesterId == semesterId, false, ct)
 				.ToListAsync(ct);
 
-			foreach (var sb in subjects)
+
+			// ----- 3. Filter only active subjects if needed -----
+			var subjects = new List<SyllabusSubject>();
+
+			foreach (var sb in rawSubjects)
 			{
-				// Load subject để check active
 				var subjectEntity = await _subjectCommandRepository.FirstOrDefaultAsync(
 					x => x.SubjectId == sb.SubjectId, ct);
 
-				// Nếu onlyActive = true → chỉ clone Subject.IsActive = true
-				if (onlyActive && (subjectEntity == null || subjectEntity.IsActive == false))
+				if (onlyActive && (subjectEntity == null || !subjectEntity.IsActive))
 					continue;
 
-				var newItem = new SyllabusSubject
+				subjects.Add(sb);
+			}
+
+
+			// ----- 4. Sort subjects by original PositionIndex (FPT cách làm chuẩn) -----
+			subjects = subjects
+				.OrderBy(x => x.PositionIndex)
+				.ThenBy(x => x.SubjectId) // tránh tie-break
+				.ToList();
+
+
+			// ----- 5. Reset PositionIndex = 1,2,3,4… for this semester -----
+			int newIndex = 1;
+
+			foreach (var sb in subjects)
+			{
+				var newSb = new SyllabusSubject
 				{
 					SyllabusId = newSyllabusId,
-					SemesterId = sb.SemesterId,
+					SemesterId = semesterId,
 					SubjectId = sb.SubjectId,
 					Credit = sb.Credit,
 					IsMandatory = sb.IsMandatory,
-					PositionIndex = sb.PositionIndex
+					PositionIndex = newIndex++        // ← Reset index here
 				};
 
-				await _syllabusSubjectCommandRepository.AddAsync(newItem);
+				await _syllabusSubjectCommandRepository.AddAsync(newSb);
 			}
 		}
 
+
+		private async Task<SemesterWithSubjectsDto> MapSemesterWithSubjects(Guid syllabusId, Guid semesterId, string semesterName, int positionIndex, CancellationToken ct)
+		{
+			var subjects = await _syllabusSubjectCommandRepository.Find(
+				x => x.SyllabusId == syllabusId && x.SemesterId == semesterId,
+				false,
+				ct
+			).ToListAsync(ct);
+
+			var mappedSubjects = new List<SubjectDetailDto>();
+
+			// Sort subject theo PositionIndex
+			foreach (var sb in subjects.OrderBy(x => x.PositionIndex))
+			{
+				var sbMaster = await _subjectCommandRepository.FirstOrDefaultAsync(
+					x => x.SubjectId == sb.SubjectId,
+					ct);
+
+				// LOAD PREREQUISITES
+				var prereq = await LoadPrerequisites(sb.SubjectId, ct);
+
+				mappedSubjects.Add(new SubjectDetailDto(
+					sbMaster.SubjectId,
+					sbMaster.SubjectCode,
+					sbMaster.SubjectName,
+					sb.Credit,
+					sb.IsMandatory,
+					sb.PositionIndex,
+					prereq
+				));
+			}
+
+			return new SemesterWithSubjectsDto(
+				semesterId,
+				semesterName,
+				positionIndex,
+				mappedSubjects
+			);
+		}
+
+
+		private async Task<List<SubjectPrerequisiteDto>> LoadPrerequisites(Guid subjectId, CancellationToken ct)
+		{
+			// Lấy 1 subject, include luôn danh sách PrereqSubjects
+			var subject = await _subjectCommandRepository
+				.Find(s => s.SubjectId == subjectId, false, ct, s => s.PrereqSubjects)
+				.FirstOrDefaultAsync(ct);
+
+			if (subject is null || subject.PrereqSubjects is null || !subject.PrereqSubjects.Any())
+				return new List<SubjectPrerequisiteDto>();
+
+			return subject.PrereqSubjects
+				.Where(p => p.IsActive)                         // nếu bạn muốn lọc active
+				.Select(p => new SubjectPrerequisiteDto(
+					p.SubjectId,
+					p.SubjectCode,
+					p.SubjectName
+				))
+				.ToList();
+		}
 
 		#endregion
 	}

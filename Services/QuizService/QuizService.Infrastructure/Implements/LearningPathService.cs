@@ -22,6 +22,7 @@ public class LearningPathService : ILearningPathService
     private readonly IRequestClient<StudentTranscriptSelectEvent> _requestStudentTranscriptClient;
     private readonly IRequestClient<CoreSubjectSelectEvent> _requestCoreSubjectClient;
     private readonly IRequestClient<StudentInterestSurveyAnalysisEvent> _requestStudentInterestAnalysisClient;
+    private readonly IRequestClient<CourseMajorSemesterSelectEvent> _requestCourseMajorSemesterClient;
     private readonly ICommandRepository<OutboxMessage> _outboxRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
@@ -34,7 +35,8 @@ public class LearningPathService : ILearningPathService
         IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient,
         ICommandRepository<OutboxMessage> outboxRepository,
         IIdentityService identityService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRequestClient<CourseMajorSemesterSelectEvent> requestCourseMajorSemesterClient)
     {
         _studentQuizCollectionRepository = studentQuizCollectionRepository;
         _requestStudentInformationSelectsClient = requestStudentInformationSelectsClient;
@@ -44,11 +46,10 @@ public class LearningPathService : ILearningPathService
         _outboxRepository = outboxRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
+        _requestCourseMajorSemesterClient = requestCourseMajorSemesterClient;
     }
 
-    public async Task<InsertLearningPathWithPreviousSurveyAndTranscriptResponse> InsertLearningPathWithPreviousSurveyAndTranscriptAsync(
-        InsertLearningPathWithPreviousSurveyAndTranscriptCommand request, 
-        CancellationToken cancellationToken)
+    public async Task<InsertLearningPathWithPreviousSurveyAndTranscriptResponse> InsertLearningPathWithPreviousSurveyAndTranscriptAsync(InsertLearningPathWithPreviousSurveyAndTranscriptCommand request, CancellationToken cancellationToken)
     {
         var response = new InsertLearningPathWithPreviousSurveyAndTranscriptResponse { Success = false };
         
@@ -78,6 +79,20 @@ public class LearningPathService : ILearningPathService
         if (!informationResponse.Message.Success)
         {
             response.SetMessage(MessageId.E00000, "Không thể lấy thông tin sinh viên");
+            return response;
+        }
+        
+        var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(
+            new CourseMajorSemesterSelectEvent
+            {
+                MajorId = informationResponse.Message.Response.MajorId,
+                SemesterId = informationResponse.Message.Response.SemesterId,
+            }, cancellationToken);
+
+        if (!majorAndSemesterEventResponse.Message.Success)
+        {
+            response.MessageId = majorAndSemesterEventResponse.Message.MessageId;
+            response.Message = majorAndSemesterEventResponse.Message.Message;
             return response;
         }
 
@@ -131,7 +146,12 @@ public class LearningPathService : ILearningPathService
                 LearningPathId = learningPathId,
                 LimitTime = limitTime,
                 StudentLevel = studentLevelResult.Response.Level,
-                StudentPassedSubjects = studentLevelResult.Response.PassedSubjects
+                StudentPassedSubjects = studentLevelResult.Response.PassedSubjects,
+                StudentMajor = new StudentMajor
+                {
+                    MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
+                    MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
+                }
             };
 
             context.InformationResponse.LearningGoalName = request.LearningGoalName;
@@ -162,14 +182,14 @@ public class LearningPathService : ILearningPathService
     {
         var result = new LearningPathCreationResult { Success = false };
         
-        var studentMajorOrientationEvent = new StudentMajorOrientationEvent();
-
+        // Prepare data first before creating event
         var learningGoalType = context.InformationResponse.LearningGoalType;
+        string learningGoal;
         
-        if (learningGoalType == (short)ConstantEnum.LearningGoalType.None)
+        if (learningGoalType == (short) ConstantEnum.LearningGoalType.None)
         {
             var interestSurvey = context.StudentQuizCollections.FirstOrDefault(sq => 
-                sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+                sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
             if (interestSurvey == null)
             {
@@ -207,13 +227,14 @@ public class LearningPathService : ILearningPathService
                 return result;
             }
 
-            studentMajorOrientationEvent.LearningGoal = aiAnalysisResponse.Message.Response.LearningGoal;
+            learningGoal = aiAnalysisResponse.Message.Response.LearningGoal;
         }
         else
         {
-            studentMajorOrientationEvent.LearningGoal = context.InformationResponse.LearningGoalName;
+            learningGoal = context.InformationResponse.LearningGoalName;
         }
 
+        // Prepare all data before creating event
         var frameworks = context.InformationResponse.Technologies
             .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.Framework)
             .Select(x => x.TechnologyName)
@@ -223,19 +244,72 @@ public class LearningPathService : ILearningPathService
             .Where(x => x.TechnologyType == (short)ConstantEnum.TechnologyType.ProgrammingLanguage)
             .Select(x => x.TechnologyName)
             .ToList();
-
-        studentMajorOrientationEvent.Frameworks = frameworks;
-        studentMajorOrientationEvent.Languages = languages;
-        studentMajorOrientationEvent.IdentityEntity = new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
+        
+        var surveyInterest = context.StudentQuizCollections.FirstOrDefault(x => 
+            x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+        var surveyHabit = context.StudentQuizCollections.FirstOrDefault(x => 
+            x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+        
+        var studentMajorOrientationEvent = new StudentMajorOrientationEvent
         {
-            UserId = context.CurrentUser.UserId,
-            Email = context.CurrentUser.Email,
+            LearningGoal = learningGoal,
+            Languages = languages,
+            Frameworks = frameworks,
+            LimitTime = $"{context.LimitTime} Giờ",
+            IdentityEntity = new BuildingBlocks.Messaging.Events.QuizService.IdentityEntity
+            {
+                UserId = context.CurrentUser.UserId,
+                Email = context.CurrentUser.Email,
+            },
+            LearningPathId = context.LearningPathId,
+            SemesterId = context.InformationResponse.SemesterId,
+            StudentLevel = context.StudentLevel,
+            StudentMajor = context.StudentMajor,
+            StudentPassedSubjects = context.StudentPassedSubjects,
+            CourseImproves = context.CourseImprove?.Select(x =>
+                new CourseImprove
+                {
+                    SubjectCode = x.SubjectCode,
+                    SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
+                    Level = x.Level
+                }).ToList(),
+            SubjectMarks = context.SubjectMarks?.Select(sm => 
+                new StudentSubjectMark
+                {
+                    SubjectCode = sm.SubjectCode,
+                    SubjectName = sm.SubjectName,
+                    Mark = sm.Mark
+                }).ToList(),
+            AbilityMarks = context.AbilityMarks?.Select(am =>
+                new StudentAbilityMark
+                {
+                    Name = am.Name,
+                    Mark = am.Mark
+                }).ToList(),
+            QuizSurvey = (surveyInterest != null || surveyHabit != null) ? new StudentQuizSurvey
+            {
+                QuizInterests = surveyInterest?.StudentQuizAnswers
+                    .Select(qa => new StudentQuizInterest
+                    {
+                        Question = qa.Question!.QuestionText,
+                        Answer = qa.Answer!.AnswerText
+                    })
+                    .ToList() ?? new List<StudentQuizInterest>(),
+                QuizHabits = surveyHabit?.StudentQuizAnswers
+                    .Select(qa => new StudentQuizHabit
+                    {
+                        Question = qa.Question!.QuestionText,
+                        Answer = qa.Answer!.AnswerText
+                    })
+                    .ToList() ?? new List<StudentQuizHabit>()
+            } : null,
+            StudentTranscripts = context.StudentTranscripts?.Select(x => new StudentTranscrptEvent
+            {
+                SubjectCode = x.SubjectCode,
+                Status = x.Status,
+                Mark = x.Mark
+            }).ToList()
         };
-        studentMajorOrientationEvent.LimitTime = $"{context.LimitTime} Giờ";
-        studentMajorOrientationEvent.LearningPathId = context.LearningPathId;
-        studentMajorOrientationEvent.SemesterId = context.InformationResponse.SemesterId;
-        studentMajorOrientationEvent.StudentLevel = context.StudentLevel;
-        studentMajorOrientationEvent.StudentPassedSubjects = context.StudentPassedSubjects;
 
         var outboxMessage = new OutboxMessage
         {

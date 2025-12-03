@@ -29,12 +29,6 @@ public class StudentTranscriptSelectEventConsumer(ICommandRepository<StudentTran
                 SubjectName = x.SubjectName
             })
             .ToListAsync();
-        if (!studentTransciptSelects.Any())
-        {
-            response.SetMessage(MessageId.I00000, "Không tìm thấy bảng điểm sinh viên.");
-            await context.RespondAsync(response);
-            return;
-        }
         
         // True
         response.Success = true;

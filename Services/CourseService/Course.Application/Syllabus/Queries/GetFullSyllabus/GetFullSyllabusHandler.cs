@@ -4,6 +4,6 @@
 	: IQueryHandler<GetFullSyllabusQuery, GetFullSyllabusResponse>
 	{
 		public async Task<GetFullSyllabusResponse> Handle(GetFullSyllabusQuery request, CancellationToken ct)
-			=> await service.GetFullSyllabusAsync(request.VersionLabel, ct);
+			=> await service.GetFullSyllabusAsync(request.VersionLabel, request.MajorCode, ct);
 	}
 }

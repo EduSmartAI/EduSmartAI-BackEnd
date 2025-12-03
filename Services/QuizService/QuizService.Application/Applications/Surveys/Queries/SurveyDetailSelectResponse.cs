@@ -1,5 +1,6 @@
 using BaseService.Application.Common;
 using BaseService.Common.ApiEntities;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Pagination;
 
 namespace QuizService.Application.Applications.Surveys.Queries;
@@ -7,6 +8,8 @@ namespace QuizService.Application.Applications.Surveys.Queries;
 public record SurveyDetailSelectResponse : AbstractApiResponse<PagedResult<SurveyDetailSelectResponseEntity>>
 {
     public override PagedResult<SurveyDetailSelectResponseEntity> Response { get; set; }
+    
+    public List<OtherQuestion>? OtherQuestions { get; set; }
 }
 
 public record SurveyDetailSelectResponseEntity
@@ -41,4 +44,11 @@ public record AnswerSurveySelects
     public string AnswerText { get; set; } = null!;
     
     public bool IsCorrect { get; set; }
+}
+
+public class OtherQuestion
+{
+    public ConstantEnum.OtherQuestionCode OtherQuestionCode { get; set; }
+    
+    public string OtherQuestionText { get; set; } = null!;
 }

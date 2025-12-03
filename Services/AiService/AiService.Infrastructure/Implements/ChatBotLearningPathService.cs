@@ -4,7 +4,13 @@ using AiService.Application.Interfaces;
 using AiService.Domain;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.AiChatLearningPathEvents;
+using MassTransit;
 using OpenAI.Chat;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AiService.Infrastructure.Implements
 {
@@ -12,7 +18,10 @@ namespace AiService.Infrastructure.Implements
         ChatClient chatClient,
         IIdentityService identityService,
         IUnitOfWork unitOfWork,
-        IQueryRepository<AiChatLearningPathCollection> lpQuery
+        IQueryRepository<AiChatLearningPathCollection> lpQuery,
+        IRequestClient<GetAllLearningPath> getAllLearningPathClient,
+        IRequestClient<GetLearningPathInfo> getLearningPathInfoClient,
+        IRequestClient<AiUpdateCourseStatusToSkipped> updateCourseStatusToSkippedClient
     ) : IChatBotLearningPathService
     {
         private const string SystemMessage =
@@ -22,8 +31,70 @@ namespace AiService.Infrastructure.Implements
             "(2) design a clear step-by-step learning path grouped by phases, " +
             "(3) for each phase, specify key skills and short outcomes, " +
             "(4) when possible, map to concrete course names/codes mentioned by the user. " +
+            "You have three tools: `get_user_learning_paths` (list all saved paths), `get_user_learning_path_detail` (detail for a path by ID), and `skip_learning_path_subject` (mark a subject as skipped inside a learning path). " +
+            "Whenever you list learning paths, show each entry with its full name, exact GUID, created date, and status label derived from the provided status code (0: Đang tạo, 1: Đang chọn chuyên ngành, 2: Đang học, 3: Đã hoàn thành, 4: Đã đóng, 5: Tạm dừng). " +
+            "Always call the appropriate tool instead of guessing any learner data. " +
             "Always answer in concise Vietnamese Markdown with headings (###) and bullet lists. " +
             "Do not return JSON, only natural language answer for the learner.";
+
+        private static readonly JsonSerializerOptions ToolSerializerOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        };
+
+        private static readonly ChatTool GetLearningPathsTool = ChatTool.CreateFunctionTool(
+            functionName: "get_user_learning_paths",
+            functionDescription:
+                "Fetch the learner's saved learning paths. Call this when the user asks to list, count, or browse their learning paths.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{},
+              "additionalProperties":false
+            }
+            """));
+
+        private static readonly ChatTool GetLearningPathDetailTool = ChatTool.CreateFunctionTool(
+            functionName: "get_user_learning_path_detail",
+            functionDescription:
+                "Fetch detailed information of one learning path owned by the current learner. Call this when an ID or specific path is referenced.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{
+                "learning_path_id":{
+                  "type":"string",
+                  "description":"GUID of the learning path the learner wants to inspect"
+                }
+              },
+              "required":["learning_path_id"],
+              "additionalProperties":false
+            }
+            """));
+
+        private static readonly ChatTool SkipLearningPathSubjectTool = ChatTool.CreateFunctionTool(
+            functionName: "skip_learning_path_subject",
+            functionDescription:
+                "Mark a subject inside the learner's specified learning path as skipped. Use this when the learner explicitly asks to skip/ignore a subject.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{
+                "learning_path_id":{
+                  "type":"string",
+                  "description":"GUID of the learning path containing the subject"
+                },
+                "subject_code":{
+                  "type":"string",
+                  "description":"Subject code (case-insensitive) the learner wants to skip"
+                }
+              },
+              "required":["learning_path_id","subject_code"],
+              "additionalProperties":false
+            }
+            """));
+
 
         public async Task<ChatResponseDto> ChatAsync(
             AIChatBotLearningPathRequest req,
@@ -66,7 +137,7 @@ namespace AiService.Infrastructure.Implements
                 var messages = BuildChatMessagesFromSession(sessionDoc);
 
                 // 4) Gọi AI, lấy text markdown
-                var (replyRaw, finishReason) = await RunLearningPathAsync(messages, ct);
+                var (replyRaw, finishReason) = await RunLearningPathAsync(messages, userId, email, ct);
                 var reply = NormalizeMarkdown(replyRaw);
 
                 // 5) Nếu có trả lời thì thêm vào lịch sử như assistant
@@ -99,7 +170,7 @@ namespace AiService.Infrastructure.Implements
                 return new ChatResponseDto
                 {
                     Reply = reply,
-                    RawFinishReason = "Stop"
+                    RawFinishReason = finishReason
                 };
             }
             catch
@@ -200,20 +271,42 @@ namespace AiService.Infrastructure.Implements
 
         private async Task<(string Text, string RawFinishReason)> RunLearningPathAsync(
             List<ChatMessage> messages,
+            Guid userId,
+            string? email,
             CancellationToken ct)
         {
-            var res = await chatClient.CompleteChatAsync(
-                messages,
-                options: null,
-                cancellationToken: ct);
+            var options = new ChatCompletionOptions
+            {
+                Tools = { GetLearningPathsTool, GetLearningPathDetailTool, SkipLearningPathSubjectTool }
+            };
 
-            if (res.Value.Content.Count == 0)
-                return (string.Empty, res.Value.FinishReason.ToString());
+            while (true)
+            {
+                var res = await chatClient.CompleteChatAsync(messages, options, ct);
 
-            var text = res.Value.Content[0].Text.ToString();
-            var reason = res.Value.FinishReason.ToString();
+                if (res.Value.FinishReason == ChatFinishReason.ToolCalls)
+                {
+                    messages.Add(new AssistantChatMessage(res));
 
-            return (text, reason);
+                    foreach (var call in res.Value.ToolCalls)
+                    {
+                        var toolPayload = await HandleToolCallAsync(call, userId, email, ct);
+                        messages.Add(new ToolChatMessage(call.Id, toolPayload));
+                    }
+
+                    continue;
+                }
+
+                if (res.Value.Content.Count == 0)
+                {
+                    return (string.Empty, res.Value.FinishReason.ToString());
+                }
+
+                var text = res.Value.Content[0].Text.ToString();
+                var reason = res.Value.FinishReason.ToString();
+
+                return (text, reason);
+            }
         }
 
         private static string NormalizeMarkdown(string s)
@@ -278,6 +371,197 @@ namespace AiService.Infrastructure.Implements
                 UpdatedAt = sessionDoc.UpdatedAt,
                 CreatedBy = sessionDoc.CreatedBy,
                 UpdatedBy = sessionDoc.UpdatedBy
+            };
+        }
+
+        private async Task<string> HandleToolCallAsync(
+            ChatToolCall call,
+            Guid userId,
+            string? email,
+            CancellationToken ct)
+        {
+            try
+            {
+                var argsJson = call.FunctionArguments?.ToString();
+                using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(argsJson) ? "{}" : argsJson);
+                var root = doc.RootElement;
+
+                switch (call.FunctionName)
+                {
+                    case "get_user_learning_paths":
+                        {
+                            var response = await getAllLearningPathClient
+                                .GetResponse<GetAllLearningPathResponse>(new GetAllLearningPath(userId), ct);
+
+                            var payload = new
+                            {
+                                success = response.Message.Success,
+                                message = response.Message.Message,
+                                learningPaths = (response.Message.Response ?? new List<AiLearningPathSummaryDto>())
+                                    .Select(lp => new
+                                    {
+                                        id = lp.PathId,
+                                        name = lp.PathName,
+                                        statusCode = lp.Status,
+                                        status = MapLearningPathStatus(lp.Status),
+                                        createdAt = lp.CreatedAt
+                                    })
+                            };
+
+                            return JsonSerializer.Serialize(payload, ToolSerializerOptions);
+                        }
+
+                    case "get_user_learning_path_detail":
+                        {
+                            if (!root.TryGetProperty("learning_path_id", out var idProp) ||
+                                !Guid.TryParse(idProp.GetString(), out var learningPathId))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "learning_path_id is required and must be a valid GUID"
+                                }, ToolSerializerOptions);
+                            }
+
+                            var response = await getLearningPathInfoClient
+                                .GetResponse<GetLearningPathInfoResponse>(new GetLearningPathInfo(userId, learningPathId), ct);
+
+                            var detail = response.Message.Response;
+
+                            var payload = new
+                            {
+                                success = response.Message.Success,
+                                message = response.Message.Message,
+                                    learningPath = detail == null ? null : new
+                                    {
+                                        id = detail.PathId,
+                                        name = detail.PathName,
+                                        statusCode = detail.Status,
+                                        status = MapLearningPathStatus(detail.Status),
+                                        completionPercent = detail.CompletionPercent,
+                                    basicCourseGroups = detail.BasicCourseGroups?
+                                        .Select(group => new
+                                        {
+                                            subjectCode = group.SubjectCode,
+                                            status = group.Status,
+                                            courses = group.Courses?
+                                                .Select(course => new
+                                                {
+                                                    courseId = course.CourseId,
+                                                    title = course.Title,
+                                                    subjectCode = course.SubjectCode,
+                                                    status = course.Status,
+                                                    semesterPosition = course.SemesterPosition,
+                                                    provider = course.Provider
+                                                })
+                                        }),
+                                    internalMajors = detail.InternalMajors?
+                                        .Select(major => new
+                                        {
+                                            majorId = major.MajorId,
+                                            majorCode = major.MajorCode,
+                                            reason = major.Reason,
+                                            positionIndex = major.PositionIndex,
+                                            courseGroups = major.CourseGroups?
+                                                .Select(group => new
+                                                {
+                                                    subjectCode = group.SubjectCode,
+                                                    status = group.Status,
+                                                    courses = group.Courses?
+                                                        .Select(course => new
+                                                        {
+                                                            courseId = course.CourseId,
+                                                            title = course.Title,
+                                                            subjectCode = course.SubjectCode,
+                                                            status = course.Status,
+                                                            semesterPosition = course.SemesterPosition,
+                                                            provider = course.Provider
+                                                        })
+                                                })
+                                        })
+                                }
+                            };
+
+                            return JsonSerializer.Serialize(payload, ToolSerializerOptions);
+                        }
+
+                    case "skip_learning_path_subject":
+                        {
+                            if (!root.TryGetProperty("learning_path_id", out var lpProp) ||
+                                !Guid.TryParse(lpProp.GetString(), out var learningPathId))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "learning_path_id is required and must be a valid GUID"
+                                }, ToolSerializerOptions);
+                            }
+
+                            if (!root.TryGetProperty("subject_code", out var subjectProp) ||
+                                string.IsNullOrWhiteSpace(subjectProp.GetString()))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "subject_code is required"
+                                }, ToolSerializerOptions);
+                            }
+
+                            if (string.IsNullOrWhiteSpace(email))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "Không thể xác định email người dùng để cập nhật lộ trình."
+                                }, ToolSerializerOptions);
+                            }
+
+                            var subjectCode = subjectProp.GetString()!.Trim();
+                            var evt = new AiUpdateCourseStatusToSkipped(userId, email, learningPathId, subjectCode);
+
+                            var response = await updateCourseStatusToSkippedClient
+                                .GetResponse<AiUpdateCourseStatusToSkippedResponse>(evt, ct);
+
+                            var payload = new
+                            {
+                                success = response.Message.Success,
+                                message = response.Message.Message,
+                                detail = response.Message.Response
+                            };
+
+                            return JsonSerializer.Serialize(payload, ToolSerializerOptions);
+                        }
+
+                    default:
+                        return JsonSerializer.Serialize(new
+                        {
+                            success = false,
+                            message = $"Unknown tool: {call.FunctionName}"
+                        }, ToolSerializerOptions);
+                }
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    success = false,
+                    message = "tool_execution_failed",
+                    detail = ex.Message
+                }, ToolSerializerOptions);
+            }
+        }
+
+        private static string MapLearningPathStatus(short status)
+        {
+            return status switch
+            {
+                (short)ConstantEnum.LearningPathStatus.Generating => "Đang tạo",
+                (short)ConstantEnum.LearningPathStatus.Choosing => "Đang chọn chuyên ngành",
+                (short)ConstantEnum.LearningPathStatus.InProgress => "Đang học",
+                (short)ConstantEnum.LearningPathStatus.Completed => "Đã hoàn thành",
+                (short)ConstantEnum.LearningPathStatus.Closed => "Đã đóng",
+                (short)ConstantEnum.LearningPathStatus.Paused => "Tạm dừng",
+                _ => "Không xác định"
             };
         }
     }

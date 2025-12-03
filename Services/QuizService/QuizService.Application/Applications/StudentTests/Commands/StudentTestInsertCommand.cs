@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 using QuizService.Application.Applications.PracticeTest;
 
@@ -19,6 +20,10 @@ public class StudentTestInsertCommand : ICommand<StudentTestInsertResponse>
     public List<StudentAnswerRequest> Answers { get; set; }
     
     public List<PracticeTestStudentAnswerRequest>? PracticeTestAnswers { get; set; }
+    
+    public List<ConstantEnum.OtherQuestionCode>? OtherQuestionAnswerCodes { get; set; }
+
+    public StudentSurveys.Commands.LearningGoal LearningGoal { get; set; }
 }
 
 public record StudentAnswerRequest

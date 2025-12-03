@@ -1,11 +1,12 @@
-using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BaseService.Domain.Snapshort;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using QuizService.Application.Applications.Admin.Queries.StudentTests;
 using QuizService.Application.Applications.LearningPaths;
@@ -15,7 +16,6 @@ using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
-using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -30,6 +30,10 @@ public class StudentTestService : IStudentTestService
     private readonly IQueryRepository<StudentQuizCollection> _studentQuizCollectionRepository;
     private readonly IRequestClient<StudentInterestSurveyAnalysisEvent> _requestStudentInterestAnalysisClient;
     private readonly IRequestClient<StudentInformationSelectsEvent> _requestStudentInformationSelectsClient;
+    private readonly IRequestClient<StudentTranscriptSelectEvent> _requestStudentTranscriptClient;
+    private readonly IRequestClient<CourseMajorSemesterSelectEvent> _requestCourseMajorSemesterClient;
+    private readonly IRequestClient<SubjectCodeSelectEvent> _subjectCodeSelectEventRequestClient;
+    private readonly IRequestClient<InsertLearningPathEvent> _requestInsertLearningPathEventClient;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPracticeTestService _practiceTestService;
@@ -43,7 +47,7 @@ public class StudentTestService : IStudentTestService
     /// <param name="practiceTestService"></param>
     /// <param name="problemRepository"></param>
     /// <param name="learningPathService"></param>
-    public StudentTestService(StudentTestServiceDependencies deps, IPracticeTestService practiceTestService, ICommandRepository<Problem> problemRepository, ILearningPathService learningPathService)
+    public StudentTestService(StudentTestServiceDependencies deps, IPracticeTestService practiceTestService, ICommandRepository<Problem> problemRepository, ILearningPathService learningPathService, IRequestClient<SubjectCodeSelectEvent> subjectCodeSelectEventRequestClient, IRequestClient<InsertLearningPathEvent> requestInsertLearningPathEventClient)
     {
         _studentQuizCollectionRepository = deps.StudentQuizCollectionRepository;
         _studentTestRepository = deps.StudentTestRepository;
@@ -54,11 +58,15 @@ public class StudentTestService : IStudentTestService
         _outboxRepository = deps.OutboxRepository;
         _requestStudentInterestAnalysisClient = deps.RequestStudentInterestAnalysisClient;
         _requestStudentInformationSelectsClient = deps.RequestStudentInformationSelectsClient;
+        _requestStudentTranscriptClient = deps.RequestStudentTranscriptClient;
+        _requestCourseMajorSemesterClient = deps.RequestCourseMajorSemesterClient;
         _identityService = deps.IdentityService;
         _unitOfWork = deps.UnitOfWork;
         _practiceTestService = practiceTestService;
         _problemRepository = problemRepository;
         _learningPathService = learningPathService;
+        _subjectCodeSelectEventRequestClient = subjectCodeSelectEventRequestClient;
+        _requestInsertLearningPathEventClient = requestInsertLearningPathEventClient;
     }
 
     /// <summary>
@@ -256,6 +264,178 @@ public class StudentTestService : IStudentTestService
             
             var studentLevel = finalStudentLevel;
             
+            // Get student transcript for SubjectMarks if OtherQuestionAnswerCodes is provided
+            List<SubjectMarkContext>? subjectMarks = null;
+            
+            var studentTranscriptEvent = new StudentTranscriptSelectEvent
+            {
+                StudentId = currentUser.UserId
+            };
+
+            var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
+            var studentTranscripts = transcriptResponse.Message.Response;
+            List<CourseImproveContext> courseImporve = new();
+            if (request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any())
+            {
+                // Map transcript to SubjectMarks and add OtherQuestionAnswerCodes
+                subjectMarks = studentTranscripts.Select(st => new SubjectMarkContext
+                {
+                    SubjectCode = st.SubjectCode,
+                    SubjectName = st.SubjectName,
+                    Mark = st.Grade
+                }).ToList();
+                
+                var subjectCodeEventResponse = await _subjectCodeSelectEventRequestClient.GetResponse<SubjectCodeSelectEventResponse>(new SubjectCodeSelectEvent(), cancellationToken);
+                if (!subjectCodeEventResponse.Message.Success)
+                {
+                    response.SetMessage(MessageId.I00000, subjectCodeEventResponse.Message.Message);
+                    return false;
+                }
+    
+                var subjectCodes = subjectCodeEventResponse.Message.Response;
+                
+                HashSet<string> subjectCodesForEvaluation = new();
+                // Add OtherQuestionAnswerCodes to SubjectMarks
+                foreach (var questionCode in request.OtherQuestionAnswerCodes)
+                {
+                    switch (questionCode)
+                    {
+                        case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE:
+                            courseImporve.AddRange(
+                                studentTranscripts
+                                    .Where(t => t.Grade >= 5 && t.Grade < 7)
+                                    .Select(t => new CourseImproveContext
+                                    {
+                                        SubjectCode = t.SubjectCode,
+                                        Level = (short)ConstantEnum.CourseLevel.Beginner,
+                                        SubjectPrerequisiteCode = t.Prerequisite
+                                    })
+                                    .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                            );
+                            break;
+
+                        case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE:
+                            courseImporve.AddRange(
+                                studentTranscripts
+                                    .Where(t => t.Grade >= 7 && t.Grade < 8)
+                                    .Select(t => new CourseImproveContext
+                                    {
+                                        SubjectCode = t.SubjectCode,
+                                        Level = (short)ConstantEnum.CourseLevel.Intermidiate,
+                                        SubjectPrerequisiteCode = t.Prerequisite
+                                    })
+                                    .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                            );
+                            break;
+
+                        case ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE:
+                            courseImporve.AddRange(
+                                studentTranscripts
+                                    .Where(t => t.Grade >= 8 && t.Grade < 9)
+                                    .Select(t => new CourseImproveContext
+                                    {
+                                        SubjectCode = t.SubjectCode,
+                                        Level = (short)ConstantEnum.CourseLevel.Advanced,
+                                        SubjectPrerequisiteCode = t.Prerequisite
+                                    })
+                                    .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                            );
+                            break;
+
+                        case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION:
+                            var subjects5To7 = studentTranscripts
+                                .Where(t => t.Grade >= 5 && t.Grade < 7)
+                                .Select(t => t.SubjectCode)
+                                .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code));
+                            foreach (var subjectCode in subjects5To7)
+                            {
+                                subjectCodesForEvaluation.Add(subjectCode);
+                            }
+                            break;
+
+                        case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION:
+                            var subjects7To8 = studentTranscripts
+                                .Where(t => t.Grade >= 7 && t.Grade < 8)
+                                .Select(t => t.SubjectCode)
+                                .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code));
+                            foreach (var subjectCode in subjects7To8)
+                            {
+                                subjectCodesForEvaluation.Add(subjectCode);
+                            }
+                            break;
+                    }
+                }
+            }
+            
+            // Calculate AbilityMarks based on each Quiz (by SubjectCodeName from PlacementTestQuizSetting)
+            var abilityMarks = new List<AbilityMarkContext>();
+            
+            // Loop through each StudentQuizCollection to calculate ability marks for each quiz
+            foreach (var studentQuizCollection in studentTestCollection.StudentQuizzes)
+            {
+                // Get the quiz from testExist
+                var quiz = testExist.Quizzes.FirstOrDefault(q => q.QuizId == studentQuizCollection.QuizId);
+                
+                if (quiz?.PlacementTestQuizSetting == null)
+                    continue;
+                
+                // Get all question IDs for this quiz
+                var quizQuestionIds = quiz.Questions.Select(q => q.QuestionId).ToHashSet();
+                
+                // Get student answers for this quiz only
+                var quizAnswers = studentTestCollection.StudentAnswers
+                    .Where(sa => quizQuestionIds.Contains(sa.QuestionId))
+                    .ToList();
+                
+                if (!quizAnswers.Any())
+                    continue;
+                
+                // Calculate score for this quiz
+                var correctAnswers = quizAnswers.Count(sa => sa.Answer?.IsCorrect == true);
+                var totalQuestions = quizAnswers.Count;
+                var abilityScore = totalQuestions > 0 ? (double)correctAnswers / totalQuestions * 100 : 0;
+                
+                // Add ability mark with SubjectCodeName as the name
+                abilityMarks.Add(new AbilityMarkContext
+                {
+                    Name = quiz.PlacementTestQuizSetting.SubjectCodeName,
+                    Mark = abilityScore
+                });
+            }
+            
+            // If PracticeTestAnswers is provided, add practice test ability marks
+            if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
+            {
+                // Calculate practice test ability marks based on difficulty
+                var practiceTestByDifficulty = new Dictionary<string, int>();
+                
+                foreach (var practiceAnswer in request.PracticeTestAnswers)
+                {
+                    var problem = await _problemRepository.FirstOrDefaultAsync(p => p.ProblemId == practiceAnswer.ProblemId, cancellationToken: cancellationToken);
+                    if (problem != null)
+                    {
+                        // Count pass rate from previous submission results
+                        if (!practiceTestByDifficulty.ContainsKey(problem.Difficulty))
+                        {
+                            practiceTestByDifficulty[problem.Difficulty] = 0;
+                        }
+                        // Assuming the submission was successful if it reached here
+                        practiceTestByDifficulty[problem.Difficulty]++;
+                    }
+                }
+                
+                // Add practice test ability marks
+                foreach (var difficulty in practiceTestByDifficulty.Keys)
+                {
+                    var score = practiceTestByDifficulty[difficulty] > 0 ? 100.0 : 0.0;
+                    abilityMarks.Add(new AbilityMarkContext
+                    {
+                        Name = $"Bài test tự luận cấu trúc dữ liệu và giải thuật với độ khó: {difficulty}",
+                        Mark = score
+                    });
+                }
+            }
+            
             // Send message to StudentService to get student information
             var studentInformationSelectsEvent = new StudentInformationSelectsEvent
             {
@@ -277,7 +457,21 @@ public class StudentTestService : IStudentTestService
             }
             
             var learningPathId = Guid.NewGuid();
-            
+
+            var learningPathEvent = new InsertLearningPathEvent
+            {
+                LearningPathId = learningPathId,
+                StudentId = currentUser.UserId,
+                CurrentUserEmail = currentUser.Email,
+                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}"
+            };
+            var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
+            if (!learningPathResponse.Message.Success)
+            {
+                response.MessageId = learningPathResponse.Message.MessageId;
+                response.Message = learningPathResponse.Message.Message;
+                return false;
+            }            
             var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
             var selectedAnswerIds = surveyHabit.Quiz.Questions
@@ -297,15 +491,56 @@ public class StudentTestService : IStudentTestService
 
             int limitTime = GetStudentStudyTime(studentQuizAnswers);
             
+            // Get major information from CourseService
+            var majorAndSemesterEvent = new CourseMajorSemesterSelectEvent
+            {
+                SemesterId = informationResponse.Message.Response.SemesterId,
+                MajorId = informationResponse.Message.Response.MajorId
+            };
+            
+            var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(majorAndSemesterEvent, cancellationToken);
+            
+            if (!majorAndSemesterEventResponse.Message.Success)
+            {
+                response.MessageId = majorAndSemesterEventResponse.Message.MessageId;
+                response.Message = majorAndSemesterEventResponse.Message.Message;
+                return false;
+            }
+            
             var context = new LearningPathCreationContext
             {
                 StudentQuizCollections = studentSurveys,
                 CurrentUser = currentUser,
-                InformationResponse = informationResponse.Message.Response,
+                InformationResponse = new StudentInformationSelectsEventResponseEntity
+                {
+                    LearningGoalName = request.LearningGoal.LearningGoalName,
+                    LearningGoalType = (short) request.LearningGoal.LearningGoalType,
+                    Technologies = informationResponse.Message.Response.Technologies,
+                    SemesterId = informationResponse.Message.Response.SemesterId,
+                    MajorId = informationResponse.Message.Response.MajorId
+                },
                 LearningPathId = learningPathId,
                 LimitTime = limitTime,
-                StudentLevel = (short)studentLevel
+                StudentLevel = (short)studentLevel,
+                StudentMajor = new StudentMajor
+                {
+                    MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
+                    MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
+                },
+                SubjectMarks = subjectMarks,
+                AbilityMarks = abilityMarks,
+                CourseImprove = courseImporve
             };
+
+            if (studentTranscripts.Any())
+            {
+                context.StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
+                {
+                    SubjectCode = x.SubjectCode,
+                    Status = x.Status,
+                    Mark = x.Grade
+                }).ToList();
+            }
             
             var result = await _learningPathService.CreateLearningPathAsync(context, cancellationToken);
             if (!result.Success)
@@ -721,6 +956,8 @@ public class StudentTestServiceDependencies
         ICommandRepository<OutboxMessage> outboxRepository,
         IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient,
         IRequestClient<StudentInformationSelectsEvent> requestStudentInformationSelectsClient,
+        IRequestClient<StudentTranscriptSelectEvent> requestStudentTranscriptClient,
+        IRequestClient<CourseMajorSemesterSelectEvent> requestCourseMajorSemesterClient,
         IIdentityService identityService,
         IUnitOfWork unitOfWork)
     {
@@ -733,6 +970,8 @@ public class StudentTestServiceDependencies
         OutboxRepository = outboxRepository;
         RequestStudentInterestAnalysisClient = requestStudentInterestAnalysisClient;
         RequestStudentInformationSelectsClient = requestStudentInformationSelectsClient;
+        RequestStudentTranscriptClient = requestStudentTranscriptClient;
+        RequestCourseMajorSemesterClient = requestCourseMajorSemesterClient;
         IdentityService = identityService;
         UnitOfWork = unitOfWork;
     }
@@ -746,6 +985,8 @@ public class StudentTestServiceDependencies
     public ICommandRepository<OutboxMessage> OutboxRepository { get; }
     public IRequestClient<StudentInterestSurveyAnalysisEvent> RequestStudentInterestAnalysisClient { get; }
     public IRequestClient<StudentInformationSelectsEvent> RequestStudentInformationSelectsClient { get; }
+    public IRequestClient<StudentTranscriptSelectEvent> RequestStudentTranscriptClient { get; }
+    public IRequestClient<CourseMajorSemesterSelectEvent> RequestCourseMajorSemesterClient { get; }
     public IIdentityService IdentityService { get; }
     public IUnitOfWork UnitOfWork { get; }
 }

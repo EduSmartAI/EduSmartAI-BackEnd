@@ -3,6 +3,7 @@
 	public sealed record CreateMajorDto(
 		string MajorCode,
 		string MajorName,
-		string? Description
+		string? Description,
+		short RequiredCredits
 	);
 }

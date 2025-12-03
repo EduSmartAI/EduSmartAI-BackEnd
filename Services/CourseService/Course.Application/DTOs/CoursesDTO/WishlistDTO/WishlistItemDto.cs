@@ -3,6 +3,7 @@
 	public record WishlistItemDto(
 		Guid WishlistId,
 		Guid CourseId,
+		string TeacherName,
 		string CourseTitle,
 		string CourseDescription,
 		string CourseShortDescription,

@@ -4,7 +4,6 @@ using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
-using BaseService.Common.Utils.Const;
 
 namespace AiService.Application.Handler
 {

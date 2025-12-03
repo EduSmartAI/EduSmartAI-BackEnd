@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.PaymentService;
 using MassTransit;
 
@@ -31,6 +32,8 @@ public static class MessagingExtensions
             });
 
 			x.AddRequestClient<CheckIsCourseEnrolledEvent>();
+            x.AddRequestClient<QuizCourseInsertEvent>();
+
 		});
         
         return services;
