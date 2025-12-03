@@ -409,7 +409,6 @@ public class StudentSurveyService : IStudentSurveyService
                     LearningPathId = learningPathId,
                     LimitTime = limitTime,
                     StudentLevel = studentLevelResult.Response.Level,
-                    StudentPassedSubjects = studentLevelResult.Response.PassedSubjects,
                     CourseImprove = courseImporve,
                     SubjectMarks = studentTranscripts
                         .Where(x => 
@@ -429,7 +428,13 @@ public class StudentSurveyService : IStudentSurveyService
                     {
                         MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
                         MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
-                    }
+                    },
+                    StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
+                    {
+                        SubjectCode = x.SubjectCode,
+                        Status = x.Status,
+                        Mark = x.Grade
+                    }).ToList()
                 };
 
                 var learningPathInsertResult = await _learningPathService.CreateLearningPathAsync(learningPathCreateRequest, cancellationToken);

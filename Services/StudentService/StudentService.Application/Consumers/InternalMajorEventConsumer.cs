@@ -40,6 +40,7 @@ public class InternalMajorEventConsumer(
                 Level = ci.Level
             }).ToList(),
             StudentMajor = evt.StudentMajor,
+            StudentTranscripts = evt.StudentTranscriptSelectEvent
         };
 
         if (!request.Majors.Select(x => x.MajorCode).Contains(request.StudentMajor.MajorCode))
@@ -100,7 +101,8 @@ public class InternalMajorEventConsumer(
                     } : new QuizSurveyEvent(),
                     LearningPathMajorId = learningPathMajorInternalInsertResponse.StudentMajorId,
                     LearningPathId = evt.LearningPathId,
-                    Email = evt.StudentEmail ?? evt.CurrentUserEmail
+                    Email = evt.StudentEmail ?? evt.CurrentUserEmail,
+                    StudentCurriculums = learningPathMajorInternalInsertResponse.StudentCurriculums
                 };
                 
                 await publishEndpoint.Publish(aiEvent, context.CancellationToken);

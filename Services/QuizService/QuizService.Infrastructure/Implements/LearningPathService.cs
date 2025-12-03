@@ -186,7 +186,7 @@ public class LearningPathService : ILearningPathService
         var learningGoalType = context.InformationResponse.LearningGoalType;
         string learningGoal;
         
-        if (learningGoalType == (short)ConstantEnum.LearningGoalType.None)
+        if (learningGoalType == (short) ConstantEnum.LearningGoalType.None)
         {
             var interestSurvey = context.StudentQuizCollections.FirstOrDefault(sq => 
                 sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
@@ -302,7 +302,13 @@ public class LearningPathService : ILearningPathService
                         Answer = qa.Answer!.AnswerText
                     })
                     .ToList() ?? new List<StudentQuizHabit>()
-            } : null
+            } : null,
+            StudentTranscripts = context.StudentTranscripts?.Select(x => new StudentTranscrptEvent
+            {
+                SubjectCode = x.SubjectCode,
+                Status = x.Status,
+                Mark = x.Mark
+            }).ToList()
         };
 
         var outboxMessage = new OutboxMessage

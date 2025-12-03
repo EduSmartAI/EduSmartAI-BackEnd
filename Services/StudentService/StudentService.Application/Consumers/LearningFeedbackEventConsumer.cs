@@ -73,6 +73,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 LearningPathMajorId = learningPathMajor.LearningPathMajorId,
                 SubjectCode = subCode.SubjectCode,
                 AnalysisMarkdown = subCode.AnalysisMarkdown,
+                Status = subCode.Status
             };
             learningPathSubjectCodes.Add(learningPathSubjectCode);
             await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
@@ -108,6 +109,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         LearningPathSubjectCodeId = subCode.LearningPathSubjectCodeId,
                         SubjectCode = subCode.SubjectCode,
                         AnalysisMarkdown = subCode.AnalysisMarkdown,
+                        Status = subCode.Status,
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
                         CreatedBy = evt.Email,

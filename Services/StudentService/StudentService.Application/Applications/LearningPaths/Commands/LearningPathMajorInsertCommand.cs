@@ -15,6 +15,7 @@ public class LearningPathMajorInsertCommand : ICommand<LearningPathMajorInternal
     public required StudentMajor StudentMajor { get; set; }
     public List<string>? StudentPassedSubjects { get; set; }
     public required List<CourseImprove>? CourseImproves { get; set; }
+    public List<StudentTranscrptEvent>? StudentTranscripts { get; set; }
 }
 
 public class LearningPathMajorRequest

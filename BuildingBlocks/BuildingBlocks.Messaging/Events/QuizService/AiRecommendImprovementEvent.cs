@@ -13,6 +13,7 @@ public class AiRecommendImprovementEvent
     
     public required string Email { get; set; }
     public required Guid LearningPathId { get; set; }
+    public List<StudentCurriculumEvent> StudentCurriculums { get; set; }
 }
 
 /// <summary>

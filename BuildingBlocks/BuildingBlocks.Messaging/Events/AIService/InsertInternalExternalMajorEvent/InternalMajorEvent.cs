@@ -13,12 +13,12 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorE
         StudentMajor StudentMajor,
         List<string>? StudentPassedSubjects,
         List<CourseImprove>? CourseImproves,
+        List<StudentTranscrptEvent>? StudentTranscriptSelectEvent,
         string? CareerGoal = null,
         List<SubjectMarkForAI>? SubjectMarks = null,
         List<AbilityMarkForAI>? AbilityMarks = null,
         QuizSurveyForAI? QuizSurvey = null,
-        string? StudentEmail = null
-    );
+        string? StudentEmail = null);
         
     public sealed record InternalMajorItem(
         string MajorCode,

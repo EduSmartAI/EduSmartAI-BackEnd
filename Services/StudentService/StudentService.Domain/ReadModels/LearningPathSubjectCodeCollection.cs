@@ -10,6 +10,7 @@ public class LearningPathSubjectCodeCollection
     public Guid LearningPathSubjectCodeId { get; set; }
     public string SubjectCode { get; set; } = string.Empty;
     public string? AnalysisMarkdown { get; set; }
+    public string? Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
@@ -30,6 +31,7 @@ public class LearningPathSubjectCodeCollection
             LearningPathSubjectCodeId = model.LearningPathSubjectCodeId,
             SubjectCode = model.SubjectCode,
             AnalysisMarkdown = model.AnalysisMarkdown,
+            Status = model.Status,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
             CreatedBy = model.CreatedBy,

@@ -365,7 +365,7 @@ public class StudentService : IStudentService
         var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
 
         var learningGoal = studentCollection!.LearningGoals!
-            .OrderByDescending(x => x.CreatedAt)
+            .OrderByDescending(x => x.UpdatedAt)
             .FirstOrDefault();
         
         var studentInfo = new StudentInformationSelectsEventResponseEntity

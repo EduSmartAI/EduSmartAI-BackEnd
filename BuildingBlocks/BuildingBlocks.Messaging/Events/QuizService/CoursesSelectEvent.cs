@@ -1,8 +1,10 @@
 using BaseService.Common.ApiEntities;
+using BaseService.Common.Utils.Const;
 
 namespace BuildingBlocks.Messaging.Events.QuizService;
 
-public class CoursesSelectEvent{
+public class CoursesSelectEvent
+{
     public List<string> MajorCodes { get; set; } = null!;
 
     public Guid SemesterId { get; set; }
@@ -12,11 +14,22 @@ public class CoursesSelectEvent{
     public List<string>? StudentPassedSubjects { get; set; }
     
     public required List<CourseImprove>? CourseImproves { get; set; }
+    
+    public List<StudentTranscrptEvent>? StudentTranscriptSelectEvent { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>
 {
     public override List<CoursesSelectEventResponseEntity> Response { get; set; }
+    
+    public List<StudentCurriculumEvent> StudentCurriculums { get; set; }
+}
+
+public class StudentCurriculumEvent
+{
+    public string SubjectCode { get; set; } = null!;
+    
+    public ConstantEnum.StudentTranscriptStatus Status { get; set; }
 }
 
 public class CoursesSelectEventResponseEntity

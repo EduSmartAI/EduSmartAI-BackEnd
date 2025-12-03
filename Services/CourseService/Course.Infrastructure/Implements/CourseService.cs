@@ -1,4 +1,5 @@
-﻿using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
+﻿using BaseService.Common.Utils;
+using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
@@ -44,7 +45,8 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<VMajorSemesterSubjectCourses> _viewCourseRepo,
 		IQuizEventFactory _quizEventFactory,
 		ICommandRepository<CourseWishlist> _courseWishlistRepository,
-		ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository) : ICourseService
+		ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository,
+		ICommandRepository<SyllabusSubject> _syllabusSubjectRepository) : ICourseService
 	{
 		#region Service for Lecture & Guest
 
@@ -1274,10 +1276,70 @@ namespace Course.Infrastructure.Implements
 					}).Distinct().ToList()
 				})
 				.ToList();
+			
+			// 7. Build StudentCurriculums: StudentTranscriptSelectEvent + Not Started subjects
+			var studentCurriculums = new List<StudentCurriculumEvent>();
+			
+			// 7.1. Check if StudentTranscriptSelectEvent exists
+			if (request.StudentTranscriptSelectEvent != null && request.StudentTranscriptSelectEvent.Any())
+			{
+				// 7.1.1. Add existing transcript subjects
+				studentCurriculums.AddRange(request.StudentTranscriptSelectEvent.Select(st => 
+					new StudentCurriculumEvent
+					{
+						SubjectCode = st.SubjectCode,
+						Status = ParseStudentTranscriptStatus(st.Status)
+					}
+				));
+				
+				// 7.1.2. Add Not Started subjects (subjects not in transcript)
+				// Query directly from SyllabusSubject to get all subjects in major's syllabus
+				var existingSubjectCodes = studentCurriculums.Select(x => x.SubjectCode).ToHashSet();
+				
+				var notStartedSubjects = await _syllabusSubjectRepository
+					.Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+					           ss.Semester.SemesterNumber > semester.SemesterNumber &&
+					           !existingSubjectCodes.Contains(ss.Subject.SubjectCode),
+						includes: ss => ss.Subject
+					)
+					.Select(ss => ss.Subject.SubjectCode)
+					.Distinct()
+					.ToListAsync(cancellationToken: ct);
+				
+				studentCurriculums.AddRange(notStartedSubjects.Select(subjectCode => 
+					new StudentCurriculumEvent
+					{
+						SubjectCode = subjectCode,
+						Status = ConstantEnum.StudentTranscriptStatus.NotStarted
+					}
+				));
+			}
+			else
+			{
+				// 7.2. If no transcript, get ALL subjects from major's syllabus
+				// Query directly from SyllabusSubject (not Course) to get all subjects in future semesters
+				var allSubjectsInMajor = await _syllabusSubjectRepository
+					.Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+					           ss.Semester.SemesterNumber > semester.SemesterNumber,
+						includes: ss => ss.Subject
+					)
+					.Select(ss => ss.Subject.SubjectCode)
+					.Distinct()
+					.ToListAsync(cancellationToken: ct);
+				
+				studentCurriculums.AddRange(allSubjectsInMajor.Select(subjectCode => 
+					new StudentCurriculumEvent
+					{
+						SubjectCode = subjectCode,
+						Status = ConstantEnum.StudentTranscriptStatus.NotStarted
+					}
+				));
+			}
 
-			// 7. Build response
+			// 8. Build response
 			response.Success = true;
 			response.Response = groupedCourses;
+			response.StudentCurriculums = studentCurriculums;
 			response.SetMessage(MessageId.I00001);
 			return response;
 		}
@@ -2219,6 +2281,34 @@ namespace Course.Infrastructure.Implements
 			return next;
 		}
 
+		#endregion
+		
+		#region Helper Methods
+		
+		/// <summary>
+		/// Parse StudentTranscriptStatus from Description string
+		/// </summary>
+		private static ConstantEnum.StudentTranscriptStatus ParseStudentTranscriptStatus(string statusDescription)
+		{
+			// Try to match by Description
+			foreach (ConstantEnum.StudentTranscriptStatus status in Enum.GetValues(typeof(ConstantEnum.StudentTranscriptStatus)))
+			{
+				if (status.GetDescription().Equals(statusDescription, StringComparison.OrdinalIgnoreCase))
+				{
+					return status;
+				}
+			}
+			
+			// Fallback: try direct enum parse
+			if (Enum.TryParse<ConstantEnum.StudentTranscriptStatus>(statusDescription, true, out var result))
+			{
+				return result;
+			}
+			
+			// Default to NotStarted if cannot parse
+			return ConstantEnum.StudentTranscriptStatus.NotStarted;
+		}
+		
 		#endregion
 
 	}

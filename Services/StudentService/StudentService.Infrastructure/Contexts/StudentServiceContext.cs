@@ -387,6 +387,9 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.SubjectCode)
                 .HasMaxLength(20)
                 .HasColumnName("subject_code");
+            entity.Property(e => e.Status)
+                .HasMaxLength(60)
+                .HasColumnName("status");
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("now()")
                 .HasColumnName("updated_at");

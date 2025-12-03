@@ -19,6 +19,7 @@ public class LearningPathCreationContext
     public List<SubjectMarkContext>? SubjectMarks { get; set; }
     public List<AbilityMarkContext>? AbilityMarks { get; set; } 
     
+    public List<StudentTranscriptContext>? StudentTranscripts { get; set; }
 }
 
 public class SubjectMarkContext
@@ -41,4 +42,13 @@ public class CourseImproveContext
     public string? SubjectPrerequisiteCode { get; set; }
 
     public int Level { get; set; }
+}
+
+public class StudentTranscriptContext
+{
+    public required string SubjectCode { get; set; }
+    
+    public required double Mark { get; set; }
+    
+    public required string Status { get; set; }
 }

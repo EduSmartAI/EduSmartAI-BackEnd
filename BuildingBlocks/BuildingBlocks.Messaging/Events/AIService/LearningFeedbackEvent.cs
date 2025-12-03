@@ -23,5 +23,7 @@ public class LearningPathSubjectCodeEvent
 {
     public string SubjectCode { get; set; } = null!;
 
-    public string AnalysisMarkdown { get; set; } = null!;
+    public string? AnalysisMarkdown { get; set; }
+    
+    public string Status { get; set; } = null!;
 }

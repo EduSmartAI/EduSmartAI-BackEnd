@@ -1,4 +1,3 @@
-using System.Text.Json;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils;
@@ -17,7 +16,6 @@ using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
-using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -269,16 +267,16 @@ public class StudentTestService : IStudentTestService
             // Get student transcript for SubjectMarks if OtherQuestionAnswerCodes is provided
             List<SubjectMarkContext>? subjectMarks = null;
             
-            if (request.OtherQuestionAnswerCodes?.Any() == true)
+            var studentTranscriptEvent = new StudentTranscriptSelectEvent
             {
-                var studentTranscriptEvent = new StudentTranscriptSelectEvent
-                {
-                    StudentId = currentUser.UserId
-                };
+                StudentId = currentUser.UserId
+            };
 
-                var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
-                var studentTranscripts = transcriptResponse.Message?.Response;
-
+            var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
+            var studentTranscripts = transcriptResponse.Message.Response;
+            List<CourseImproveContext> courseImporve = new();
+            if (request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any())
+            {
                 // Map transcript to SubjectMarks and add OtherQuestionAnswerCodes
                 subjectMarks = studentTranscripts.Select(st => new SubjectMarkContext
                 {
@@ -296,7 +294,6 @@ public class StudentTestService : IStudentTestService
     
                 var subjectCodes = subjectCodeEventResponse.Message.Response;
                 
-                List<CourseImproveContext> courseImporve = new();
                 HashSet<string> subjectCodesForEvaluation = new();
                 // Add OtherQuestionAnswerCodes to SubjectMarks
                 foreach (var questionCode in request.OtherQuestionAnswerCodes)
@@ -433,7 +430,7 @@ public class StudentTestService : IStudentTestService
                     var score = practiceTestByDifficulty[difficulty] > 0 ? 100.0 : 0.0;
                     abilityMarks.Add(new AbilityMarkContext
                     {
-                        Name = $"PracticeTest_{difficulty}",
+                        Name = $"Bài test tự lâunj cấu trúc dữ liệu và giải thuật với độ khó: {difficulty}",
                         Mark = score
                     });
                 }
@@ -524,8 +521,19 @@ public class StudentTestService : IStudentTestService
                     MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
                 },
                 SubjectMarks = subjectMarks,
-                AbilityMarks = abilityMarks
+                AbilityMarks = abilityMarks,
+                CourseImprove = courseImporve
             };
+
+            if (studentTranscripts.Any())
+            {
+                context.StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
+                {
+                    SubjectCode = x.SubjectCode,
+                    Status = x.Status,
+                    Mark = x.Grade
+                }).ToList();
+            }
             
             var result = await _learningPathService.CreateLearningPathAsync(context, cancellationToken);
             if (!result.Success)

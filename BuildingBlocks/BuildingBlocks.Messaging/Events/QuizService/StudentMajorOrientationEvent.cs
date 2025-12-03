@@ -26,6 +26,8 @@ public class StudentMajorOrientationEvent
     public List<StudentSubjectMark>? SubjectMarks { get; set; }
     public List<StudentAbilityMark>? AbilityMarks { get; set; }
     public StudentQuizSurvey? QuizSurvey { get; set; }
+    
+    public List<StudentTranscrptEvent>? StudentTranscripts { get; set; }
 }
 
 public class StudentMajor
@@ -40,9 +42,9 @@ public class StudentMajor
 /// </summary>
 public class StudentSubjectMark
 {
-    public string SubjectCode { get; set; } = null!;
-    public string SubjectName { get; set; } = null!;
-    public double? Mark { get; set; }
+    public required string SubjectCode { get; set; } = null!;
+    public required string SubjectName { get; set; } = null!;
+    public required double? Mark { get; set; }
 }
 
 /// <summary>
@@ -80,4 +82,13 @@ public class IdentityEntity
     public Guid UserId { get; set; }
     
     public string Email { get; set; } = null!;
+}
+
+public class StudentTranscrptEvent
+{
+    public required string SubjectCode { get; set; }
+    
+    public required double Mark { get; set; }
+    
+    public required string Status { get; set; }
 }

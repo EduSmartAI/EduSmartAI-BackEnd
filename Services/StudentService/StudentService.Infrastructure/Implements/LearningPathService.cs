@@ -290,6 +290,7 @@ public class LearningPathService : ILearningPathService
                     SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
                     Level = x.Level
                 }).ToList(),
+                StudentTranscriptSelectEvent = request.StudentTranscripts
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -396,6 +397,7 @@ public class LearningPathService : ILearningPathService
                 .Take(request.Majors.Count)
                 .Select(m => m.LearningPathMajorId)
                 .ToList();
+            response.StudentCurriculums = courseSelectEvent.Message.StudentCurriculums;
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm chuyên ngành vào lộ trình học tập");
             return true;
