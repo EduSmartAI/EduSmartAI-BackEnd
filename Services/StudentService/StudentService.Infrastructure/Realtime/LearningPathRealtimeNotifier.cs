@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
@@ -10,11 +11,11 @@ namespace StudentService.Infrastructure.Realtime;
 public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
 {
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Channel<LearningPathSelectResponse>>> _subscriptions = new();
-    private readonly ILearningPathService _learningPathService;
+    private readonly IServiceProvider _serviceProvider;
 
-    public LearningPathRealtimeNotifier(ILearningPathService learningPathService)
+    public LearningPathRealtimeNotifier(IServiceProvider serviceProvider)
     {
-        _learningPathService = learningPathService;
+        _serviceProvider = serviceProvider;
     }
 
     public IAsyncEnumerable<LearningPathSelectResponse> SubscribeAsync(Guid pathId, CancellationToken cancellationToken = default)
@@ -106,7 +107,11 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
             return;
         }
 
-        var snapshot = await _learningPathService.GetLearningPathById(
+        // Resolve ILearningPathService từ service provider để tránh circular dependency
+        using var scope = _serviceProvider.CreateScope();
+        var learningPathService = scope.ServiceProvider.GetRequiredService<ILearningPathService>();
+        
+        var snapshot = await learningPathService.GetLearningPathById(
             new LearningPathSelectsQuery { LearningPathId = pathId },
             studentId.Value,
             cancellationToken);
