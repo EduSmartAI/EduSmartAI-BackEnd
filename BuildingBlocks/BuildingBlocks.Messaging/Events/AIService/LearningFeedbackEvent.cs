@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging.Events.QuizService;
+
 namespace BuildingBlocks.Messaging.Events.AIService;
 
 public class LearningFeedbackEvent
@@ -17,6 +19,7 @@ public class LearningFeedbackEvent
     public required Guid LearningPathId { get; set; }
     
     public List<LearningPathSubjectCodeEvent> LearningPathSubjectCodes { get; set; } = null!;
+    public List<MajorInfoEvent> Majors { get; set; }
 }
 
 public class LearningPathSubjectCodeEvent

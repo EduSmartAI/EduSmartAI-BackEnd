@@ -70,7 +70,8 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             }).ToList(),
             LearningPathMajorId = evt.LearningPathMajorId,
             Email = evt.Email,
-            LearningPathId = evt.LearningPathId
+            LearningPathId = evt.LearningPathId,
+            Majors = evt.Majors
         };
         
         learningFeedbackEvent.LearningPathSubjectCodes.AddRange(generateLearningFeedbackResult.Response.WithoutMarkAnalysis.Select(x => new LearningPathSubjectCodeEvent

@@ -1,5 +1,6 @@
 using BaseService.Application.Interfaces.Repositories;
 using BuildingBlocks.Messaging.Events.AIService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Domain.ReadModels;
@@ -14,6 +15,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
     private readonly ICommandRepository<LearningPathSubjectCode> _learningPathSubjectCodeRepository;
     private readonly ICommandRepository<LearningPathCourse> _learningPathCourseRepository;
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
+    private readonly IRequestClient<MajorSubjectCodeEvent> _majorSubjectCodeRequestClient;
     private readonly IUnitOfWork _unitOfWork;
 
     public LearningFeedbackEventConsumer(
@@ -22,7 +24,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseRepository,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IRequestClient<MajorSubjectCodeEvent> majorSubjectCodeRequestClient)
     {
         _learningPathRepository = learningPathRepository;
         _learningPathMajorRepository = learningPathMajorRepository;
@@ -30,6 +33,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         _learningPathCourseRepository = learningPathCourseRepository;
         _learningPathQueryRepository = learningPathQueryRepository;
         _unitOfWork = unitOfWork;
+        _majorSubjectCodeRequestClient = majorSubjectCodeRequestClient;
     }
 
     public async Task Consume(ConsumeContext<LearningFeedbackEvent> context)
@@ -52,12 +56,12 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         // TODO Phase 2: Update to handle MajorFeedbacks hierarchy when event structure is updated
         
         // 2. Get first major as fallback (since we don't have major info in current event)
-        var learningPathMajor = await _learningPathMajorRepository
-            .Find(x => x.LearningPathMajorId == evt.LearningPathMajorId && x.IsActive)
+        var learningPathMajors = await _learningPathMajorRepository
+            .Find(x => evt.Majors.Select(id => id.LearningPathMajorId).Contains(x.LearningPathMajorId) && x.IsActive)
             .Include(x => x.LearningPathSubjectCodes)
-            .FirstOrDefaultAsync(context.CancellationToken);
+            .ToListAsync(context.CancellationToken);
         
-        if (learningPathMajor == null)
+        if (learningPathMajors == null || !learningPathMajors.Any())
         {
             await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
             return;
@@ -65,6 +69,9 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         
         // Insert LearningPathSubjectCodes with CORRECT foreign key
         var learningPathSubjectCodes = new List<LearningPathSubjectCode>();
+
+        // Publish event to CourseService to get SubjectCode mapping to MajorCode
+
         foreach (var subCode in evt.LearningPathSubjectCodes)
         {
             var learningPathSubjectCode = new LearningPathSubjectCode

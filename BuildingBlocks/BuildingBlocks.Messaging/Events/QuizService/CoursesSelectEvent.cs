@@ -35,6 +35,8 @@ public class StudentCurriculumEvent
 public class CoursesSelectEventResponseEntity
 {
     public string MajorCode { get; set; }
+
+    public string MajorName { get; set; }
     
     public List<CoursesSelectEventCourseResponseEntity> Courses { get; set; }
 }

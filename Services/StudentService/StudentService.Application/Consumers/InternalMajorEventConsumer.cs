@@ -60,20 +60,17 @@ public class InternalMajorEventConsumer(
             try
             {
                 // Map inserted LearningPathMajorIds to MajorCodes
-                var majorInfos = evt.Majors
-                    .Zip(learningPathMajorInternalInsertResponse.InsertedMajorIds, 
-                        (major, majorId) => new MajorInfoEvent
-                        {
-                            MajorCode = major.MajorCode,
-                            MajorName = major.MajorCode,
-                            LearningPathMajorId = majorId
-                        })
-                    .ToList();
-                
+                var majorInfos = learningPathMajorInternalInsertResponse.Majors.Select(x => new MajorInfoEvent
+                {
+                    LearningPathMajorId = x.MajorId,
+                    MajorCode = x.MajorCode,
+                    MajorName = x.MajorName
+                }).ToList();
+
                 // Publish AiRecommendImprovementEvent with ALL majors (with their IDs)
                 var aiEvent = new AiRecommendImprovementEvent
                 {
-                    CareerGoal = evt.CareerGoal ?? string.Empty,
+                    CareerGoal = evt.CareerGoal!,
                     Majors = majorInfos,
                     SubjectMarks = evt.SubjectMarks?.Select(sm => new SubjectMarkEvent
                     {

@@ -2,7 +2,7 @@ using BaseService.Common.ApiEntities;
 
 namespace BaseService.Application.Interfaces.Commons;
 
-public record DecryptTextResponse : AbstractApiResponse<DecryptTextResponseEntity>
+public record DecryptTextEmailAndIdResponse : AbstractApiResponse<DecryptTextResponseEntity>
 {
     public override DecryptTextResponseEntity Response { get; set; }
 }

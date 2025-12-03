@@ -393,10 +393,17 @@ public class LearningPathService : ILearningPathService
 
             await _unitOfWork.SessionSaveChangesAsync();
 
-            response.InsertedMajorIds = learningPathMajors
-                .Take(request.Majors.Count)
-                .Select(m => m.LearningPathMajorId)
-                .ToList();
+            var majorNameLookup = (courseSelectEvent?.Message?.Response)
+                .Where(r => !string.IsNullOrWhiteSpace(r.MajorCode))
+                .ToDictionary(r => r.MajorCode, r => r.MajorName);
+
+
+            response.Majors = learningPathMajors.Select(x => new MajorInternalInsertResponse
+            {
+                MajorId = x.LearningPathMajorId,
+                MajorCode = x.MajorCode,
+                MajorName = majorNameLookup.TryGetValue(x.MajorCode, out var mName) ? mName : x.MajorCode
+            }).ToList();
             response.StudentCurriculums = courseSelectEvent.Message.StudentCurriculums;
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Thêm chuyên ngành vào lộ trình học tập");

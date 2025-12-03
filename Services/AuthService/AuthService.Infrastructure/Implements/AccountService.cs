@@ -351,7 +351,7 @@ public class AccountService : IAccountService
     {
         var response = new AccountVerifyResponse { Success = false };
 
-        var emailDecrypted = _commonLogic.DecryptText(requestKey);
+        var emailDecrypted = _commonLogic.DecryptTextEmailAndId(requestKey);
         if (!emailDecrypted.Success)
         {
             response.SetMessage(MessageId.E00000, "Liên kết xác nhận không hợp lệ hoặc đã hết hạn.");

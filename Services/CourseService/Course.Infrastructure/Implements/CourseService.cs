@@ -1146,211 +1146,229 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
-		/// <summary>
-		/// Get course selects response QuizService
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		/// <summary>
-		/// Get course selects response QuizService
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
-			CoursesSelectEvent request, CancellationToken ct = default)
-		{
-			var response = new CoursesSelectEventResponse { Success = false };
+        /// <summary>
+        /// Get course selects response QuizService
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        /// <summary>
+        /// Get course selects response QuizService
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
+    CoursesSelectEvent request, CancellationToken ct = default)
+        {
+            var response = new CoursesSelectEventResponse { Success = false };
 
-			// 1. Validate semester exists
-			var semester = await _semesterRepository
-				.Find(s => s.SemesterId == request.SemesterId)
-				.Select(s => new { s.SemesterId, s.SemesterNumber })
-				.FirstOrDefaultAsync(cancellationToken: ct);
-			if (semester == null)
-			{
-				response.SetMessage(MessageId.E00000, "Semester not found");
-				return response;
-			}
+            // 1. Validate semester exists
+            var semester = await _semesterRepository
+                .Find(s => s.SemesterId == request.SemesterId)
+                .Select(s => new { s.SemesterId, s.SemesterNumber })
+                .FirstOrDefaultAsync(cancellationToken: ct);
+            if (semester == null)
+            {
+                response.SetMessage(MessageId.E00000, "Semester not found");
+                return response;
+            }
 
-			// 2. Determine which major codes to query
-			var majorCodesToQuery = request.MajorCodes.ToList();
+            // 2. Determine which major codes to query
+            var majorCodesToQuery = request.MajorCodes.ToList();
 
-			// If semester < 4 and "SE" not in majorCodes, add "SE"
-			if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
-			{
-				majorCodesToQuery.Add("SE");
-			}
+            // If semester < 4 and "SE" not in majorCodes, add "SE"
+            if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
+            {
+                majorCodesToQuery.Add("SE");
+            }
 
-			// Get courses for future semesters (SemesterNumber > current semester)
-			var coursesData = await _courseRepository
-				.Find(c => c.Subject.SyllabusSubjects.Any(
-					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-					                 ss.Semester.SemesterNumber > semester.SemesterNumber) &&
-				           c.Level == request.StudentLevel &&
-				           c.IsActive,
-					includes: c => c.Subject
-				)
-			.Select(c => new
-			{
-				c.CourseId,
-				SubjectCode = c.Subject.SubjectCode,
-				c.Level,
-				MajorCodes = c.Subject.SyllabusSubjects
-					.Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-					             ss.Semester.SemesterNumber > semester.SemesterNumber)
-					.Select(ss => ss.Syllabus.Major.MajorCode)
-					.Distinct()
-					.ToList()
-			})
-			.ToListAsync(cancellationToken: ct);
+            // Get courses for future semesters (SemesterNumber > current semester)
+            var coursesData = await _courseRepository
+                .Find(c => c.Subject.SyllabusSubjects.Any(
+                               ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+                                     ss.Semester.SemesterNumber > semester.SemesterNumber) &&
+                           c.Level == request.StudentLevel &&
+                           c.IsActive,
+                    includes: c => c.Subject
+                )
+                .Select(c => new
+                {
+                    c.CourseId,
+                    SubjectCode = c.Subject.SubjectCode,
+                    c.Level,
+                    MajorCodes = c.Subject.SyllabusSubjects
+                        .Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+                                     ss.Semester.SemesterNumber > semester.SemesterNumber)
+                        .Select(ss => ss.Syllabus.Major.MajorCode)
+                        .Distinct()
+                        .ToList()
+                })
+                .ToListAsync(cancellationToken: ct);
 
-		// 3. Extract CourseImprove subject codes for later use
-		var courseImproveSubjectCodes = request.CourseImproves != null && request.CourseImproves.Any()
-			? request.CourseImproves.Select(ci => ci.SubjectCode).Distinct().ToList()
-			: new List<string>();
-		
-		// 4. Add courses from CourseImproves (if provided)
-		if (request.CourseImproves != null && request.CourseImproves.Any())
-		{
-			var courseImproveLevels = request.CourseImproves
-				.Select(ci => ci.Level)
-				.Distinct()
-				.ToList();
-			
-			// Get all courses matching the subject codes from CourseImproves
-			var courseImprovesData = await _courseRepository
-				.Find(c =>
-					courseImproveSubjectCodes.Contains(c.Subject.SubjectCode) &&
-					c.IsActive &&
-					(courseImproveLevels.Count == 0 || (c.Level.HasValue && courseImproveLevels.Contains(c.Level.Value))),
-					includes: c => c.Subject)
-				.Select(c => new
-				{
-					c.CourseId,
-					SubjectCode = c.Subject.SubjectCode,
-					c.Level,
-					MajorCodes = c.Subject.SyllabusSubjects
-						.Select(ss => ss.Syllabus.Major.MajorCode)
-						.Distinct()
-						.ToList()
-				})
-				.ToListAsync(cancellationToken: ct);
-			
-			// Filter to only include courses with matching SubjectCode and Level from CourseImproves
-			var filteredCourseImproves = courseImprovesData
-				.Where(c => c.Level.HasValue && request.CourseImproves.Any(ci => 
-					ci.SubjectCode == c.SubjectCode && ci.Level == c.Level.Value))
-				.ToList();
-			
-			// Merge with existing coursesData (keep both future semester courses and improvement courses)
-			coursesData = coursesData
-				.Concat(filteredCourseImproves)
-				.GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
-				.Select(g => g.First())
-				.ToList();
-		}
-		
-		// 5. Filter out passed subjects EXCEPT those in CourseImproves (student wants to retake them)
-		if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
-		{
-			coursesData = coursesData
-				.Where(c => 
-					!request.StudentPassedSubjects.Contains(c.SubjectCode) ||
-					courseImproveSubjectCodes.Contains(c.SubjectCode))
-				.ToList();
-		}
+            // 3. Extract CourseImprove subject codes for later use
+            var courseImproveSubjectCodes = request.CourseImproves != null && request.CourseImproves.Any()
+                ? request.CourseImproves.Select(ci => ci.SubjectCode).Distinct().ToList()
+                : new List<string>();
 
-			// 6. Flatten và group by major
-			var groupedCourses = coursesData
-				.SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
-				.GroupBy(x => x.MajorCode)
-				.Select(g => new CoursesSelectEventResponseEntity
-				{
-					MajorCode = g.Key,
-					Courses = g.Select(x => new CoursesSelectEventCourseResponseEntity
-					{
-						CourseId = x.CourseId,
-						SubjectCode = x.SubjectCode
-					}).Distinct().ToList()
-				})
-				.ToList();
-			
-			// 7. Build StudentCurriculums: StudentTranscriptSelectEvent + Not Started subjects
-			var studentCurriculums = new List<StudentCurriculumEvent>();
-			
-			// 7.1. Check if StudentTranscriptSelectEvent exists
-			if (request.StudentTranscriptSelectEvent != null && request.StudentTranscriptSelectEvent.Any())
-			{
-				// 7.1.1. Add existing transcript subjects
-				studentCurriculums.AddRange(request.StudentTranscriptSelectEvent.Select(st => 
-					new StudentCurriculumEvent
-					{
-						SubjectCode = st.SubjectCode,
-						Status = ParseStudentTranscriptStatus(st.Status)
-					}
-				));
-				
-				// 7.1.2. Add Not Started subjects (subjects not in transcript)
-				// Query directly from SyllabusSubject to get all subjects in major's syllabus
-				var existingSubjectCodes = studentCurriculums.Select(x => x.SubjectCode).ToHashSet();
-				
-				var notStartedSubjects = await _syllabusSubjectRepository
-					.Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-					           ss.Semester.SemesterNumber > semester.SemesterNumber &&
-					           !existingSubjectCodes.Contains(ss.Subject.SubjectCode),
-						includes: ss => ss.Subject
-					)
-					.Select(ss => ss.Subject.SubjectCode)
-					.Distinct()
-					.ToListAsync(cancellationToken: ct);
-				
-				studentCurriculums.AddRange(notStartedSubjects.Select(subjectCode => 
-					new StudentCurriculumEvent
-					{
-						SubjectCode = subjectCode,
-						Status = ConstantEnum.StudentTranscriptStatus.NotStarted
-					}
-				));
-			}
-			else
-			{
-				// 7.2. If no transcript, get ALL subjects from major's syllabus
-				// Query directly from SyllabusSubject (not Course) to get all subjects in future semesters
-				var allSubjectsInMajor = await _syllabusSubjectRepository
-					.Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-					           ss.Semester.SemesterNumber > semester.SemesterNumber,
-						includes: ss => ss.Subject
-					)
-					.Select(ss => ss.Subject.SubjectCode)
-					.Distinct()
-					.ToListAsync(cancellationToken: ct);
-				
-				studentCurriculums.AddRange(allSubjectsInMajor.Select(subjectCode => 
-					new StudentCurriculumEvent
-					{
-						SubjectCode = subjectCode,
-						Status = ConstantEnum.StudentTranscriptStatus.NotStarted
-					}
-				));
-			}
+            // 4. Add courses from CourseImproves (if provided)
+            if (request.CourseImproves != null && request.CourseImproves.Any())
+            {
+                var courseImproveLevels = request.CourseImproves
+                    .Select(ci => ci.Level)
+                    .Distinct()
+                    .ToList();
 
-			// 8. Build response
-			response.Success = true;
-			response.Response = groupedCourses;
-			response.StudentCurriculums = studentCurriculums;
-			response.SetMessage(MessageId.I00001);
-			return response;
-		}
+                // Get all courses matching the subject codes from CourseImproves
+                var courseImprovesData = await _courseRepository
+                    .Find(c =>
+                        courseImproveSubjectCodes.Contains(c.Subject.SubjectCode) &&
+                        c.IsActive &&
+                        (courseImproveLevels.Count == 0 || (c.Level.HasValue && courseImproveLevels.Contains(c.Level.Value))),
+                        includes: c => c.Subject)
+                    .Select(c => new
+                    {
+                        c.CourseId,
+                        SubjectCode = c.Subject.SubjectCode,
+                        c.Level,
+                        MajorCodes = c.Subject.SyllabusSubjects
+                            .Select(ss => ss.Syllabus.Major.MajorCode)
+                            .Distinct()
+                            .ToList()
+                    })
+                    .ToListAsync(cancellationToken: ct);
 
-		/// <summary>
-		/// Get all view course by list of CourseIds
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
-		public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(
+                // Filter to only include courses with matching SubjectCode and Level from CourseImproves
+                var filteredCourseImproves = courseImprovesData
+                    .Where(c => c.Level.HasValue && request.CourseImproves.Any(ci =>
+                        ci.SubjectCode == c.SubjectCode && ci.Level == c.Level.Value))
+                    .ToList();
+
+                // Merge with existing coursesData (keep both future semester courses and improvement courses)
+                coursesData = coursesData
+                    .Concat(filteredCourseImproves)
+                    .GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
+                    .Select(g => g.First())
+                    .ToList();
+            }
+
+            // 5. Filter out passed subjects EXCEPT those in CourseImproves (student wants to retake them)
+            if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
+            {
+                coursesData = coursesData
+                    .Where(c =>
+                        !request.StudentPassedSubjects.Contains(c.SubjectCode) ||
+                        courseImproveSubjectCodes.Contains(c.SubjectCode))
+                    .ToList();
+            }
+
+            var majorNameLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (majorCodesToQuery.Count > 0)
+            {
+                var majorNames = await _syllabusSubjectRepository
+                    .Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode),
+                          isTracking: false, cancellationToken: ct)
+                    .Select(ss => new { Code = ss.Syllabus.Major.MajorCode, Name = ss.Syllabus.Major.MajorName })
+                    .Distinct()
+                    .ToListAsync(cancellationToken: ct);
+
+                majorNameLookup = majorNames
+                    .Where(m => !string.IsNullOrWhiteSpace(m.Code))
+                    .GroupBy(m => m.Code, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.Name).FirstOrDefault() ?? g.Key, StringComparer.OrdinalIgnoreCase);
+            }
+            // -----------------------------------------------------------------
+
+            // 6. Flatten và group by major
+            var groupedCourses = coursesData
+                .SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode }))
+                .GroupBy(x => x.MajorCode)
+                .Select(g => new CoursesSelectEventResponseEntity
+                {
+                    MajorCode = g.Key,
+                    MajorName = majorNameLookup.TryGetValue(g.Key, out var mName) ? mName : g.Key,
+                    Courses = g.Select(x => new CoursesSelectEventCourseResponseEntity
+                    {
+                        CourseId = x.CourseId,
+                        SubjectCode = x.SubjectCode
+                    }).Distinct().ToList()
+                })
+                .ToList();
+
+            // 7. Build StudentCurriculums: StudentTranscriptSelectEvent + Not Started subjects
+            var studentCurriculums = new List<StudentCurriculumEvent>();
+
+            // 7.1. Check if StudentTranscriptSelectEvent exists
+            if (request.StudentTranscriptSelectEvent != null && request.StudentTranscriptSelectEvent.Any())
+            {
+                // 7.1.1. Add existing transcript subjects
+                studentCurriculums.AddRange(request.StudentTranscriptSelectEvent.Select(st =>
+                    new StudentCurriculumEvent
+                    {
+                        SubjectCode = st.SubjectCode,
+                        Status = ParseStudentTranscriptStatus(st.Status)
+                    }
+                ));
+
+                // 7.1.2. Add Not Started subjects (subjects not in transcript)
+                // Query directly from SyllabusSubject to get all subjects in major's syllabus
+                var existingSubjectCodes = studentCurriculums.Select(x => x.SubjectCode).ToHashSet();
+
+                var notStartedSubjects = await _syllabusSubjectRepository
+                    .Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+                               ss.Semester.SemesterNumber > semester.SemesterNumber &&
+                               !existingSubjectCodes.Contains(ss.Subject.SubjectCode),
+                        includes: ss => ss.Subject
+                    )
+                    .Select(ss => ss.Subject.SubjectCode)
+                    .Distinct()
+                    .ToListAsync(cancellationToken: ct);
+
+                studentCurriculums.AddRange(notStartedSubjects.Select(subjectCode =>
+                    new StudentCurriculumEvent
+                    {
+                        SubjectCode = subjectCode,
+                        Status = ConstantEnum.StudentTranscriptStatus.NotStarted
+                    }
+                ));
+            }
+            else
+            {
+                // 7.2. If no transcript, get ALL subjects from major's syllabus
+                // Query directly from SyllabusSubject (not Course) to get all subjects in future semesters
+                var allSubjectsInMajor = await _syllabusSubjectRepository
+                    .Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
+                               ss.Semester.SemesterNumber > semester.SemesterNumber,
+                        includes: ss => ss.Subject
+                    )
+                    .Select(ss => ss.Subject.SubjectCode)
+                    .Distinct()
+                    .ToListAsync(cancellationToken: ct);
+
+                studentCurriculums.AddRange(allSubjectsInMajor.Select(subjectCode =>
+                    new StudentCurriculumEvent
+                    {
+                        SubjectCode = subjectCode,
+                        Status = ConstantEnum.StudentTranscriptStatus.NotStarted
+                    }
+                ));
+            }
+
+            // 8. Build response
+            response.Success = true;
+            response.Response = groupedCourses;
+            response.StudentCurriculums = studentCurriculums;
+            response.SetMessage(MessageId.I00001);
+            return response;
+        }
+
+        /// <summary>
+        /// Get all view course by list of CourseIds
+        /// </summary>
+        /// <param name="request"></param>
+        /// <param name="ct"></param>
+        /// <returns></returns>
+        public async Task<GetInfoInternalCourseResponse> GetAllViewCourseByListId(
 			GetInfoInternalCourseEvents request,
 			CancellationToken ct = default)
 		{
