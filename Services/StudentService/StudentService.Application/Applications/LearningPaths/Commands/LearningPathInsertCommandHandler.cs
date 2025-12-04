@@ -43,6 +43,7 @@ public class LearningPathInsertCommandHandler(
                 var snapshot = await learningPathService.GetLearningPathById(
                     new LearningPathSelectsQuery { LearningPathId = request.PathId },
                     studentId,
+                    true,
                     cancellationToken);
 
                 if (snapshot.Success)

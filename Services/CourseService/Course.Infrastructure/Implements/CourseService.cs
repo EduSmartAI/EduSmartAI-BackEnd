@@ -1475,7 +1475,98 @@ namespace Course.Infrastructure.Implements
 					}
 				}
 
-				// 5) Giữ đúng thứ tự như input CourseIds (Guid? -> Guid)
+				// 5) Bổ sung thông tin tag & giảng viên cho từng course
+				if (mapped.Count > 0)
+				{
+					var mappedCourseIds = mapped
+						.Where(dto => dto.CourseId.HasValue)
+						.Select(dto => dto.CourseId!.Value)
+						.Distinct()
+						.ToList();
+
+					if (mappedCourseIds.Count > 0)
+					{
+						var courseMetaData = await _courseRepository
+							.Find(c => mappedCourseIds.Contains(c.CourseId), isTracking: false, cancellationToken: ct)
+							.Select(c => new
+							{
+								c.CourseId,
+								c.TeacherId,
+								Tags = c.CourseTags
+									.Where(ct => ct.IsActive && ct.Tag != null)
+									.Select(ct => ct.Tag.TagName)
+									.ToList()
+							})
+							.ToListAsync(ct);
+
+						if (courseMetaData.Count > 0)
+						{
+							var teacherIds = courseMetaData
+								.Select(m => m.TeacherId)
+								.Where(id => id != Guid.Empty)
+								.Distinct()
+								.ToList();
+
+							var teacherNameMap = new Dictionary<Guid, string>();
+							if (teacherIds.Count > 0)
+							{
+								try
+								{
+									var teacherResponse = await _teacherNameClient.GetResponse<GetTeacherNamesEventResponse>(
+										new GetTeacherNamesEvent(teacherIds),
+										ct);
+
+									if (teacherResponse.Message.Success && teacherResponse.Message.Response is not null)
+									{
+										teacherNameMap = teacherResponse.Message.Response
+											.Where(t => t is not null && t.TeacherId != Guid.Empty)
+											.GroupBy(t => t.TeacherId)
+											.ToDictionary(
+												g => g.Key,
+												g => g.First().DisplayName ?? string.Empty);
+									}
+								}
+								catch
+								{
+									teacherNameMap = new Dictionary<Guid, string>();
+								}
+							}
+
+							var metaDictionary = courseMetaData.ToDictionary(
+								m => m.CourseId,
+								m => new CourseTeacherMetadata(
+									m.TeacherId != Guid.Empty ? m.TeacherId : null,
+									m.Tags
+										.Where(t => !string.IsNullOrWhiteSpace(t))
+										.Distinct(StringComparer.OrdinalIgnoreCase)
+										.ToList()
+								));
+
+							foreach (var dto in mapped)
+							{
+								if (!dto.CourseId.HasValue ||
+								    !metaDictionary.TryGetValue(dto.CourseId.Value, out var meta))
+								{
+									continue;
+								}
+
+								dto.TeacherId = meta.TeacherId;
+								if (meta.TeacherId.HasValue &&
+								    teacherNameMap.TryGetValue(meta.TeacherId.Value, out var displayName))
+								{
+									dto.TeacherName = displayName;
+								}
+
+								if (meta.TagNames.Count > 0)
+								{
+									dto.TagNames = meta.TagNames;
+								}
+							}
+						}
+					}
+				}
+
+				// 6) Giữ đúng thứ tự như input CourseIds (Guid? -> Guid)
 				var order = request.CourseIds
 					.Select((id, idx) => new { id, idx })
 					.ToDictionary(x => x.id, x => x.idx);
@@ -2405,5 +2496,6 @@ namespace Course.Infrastructure.Implements
 		}
 
 		#endregion
+		private sealed record CourseTeacherMetadata(Guid? TeacherId, List<string> TagNames);
 	}
 }
