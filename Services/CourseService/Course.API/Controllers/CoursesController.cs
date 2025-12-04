@@ -1,9 +1,11 @@
 ﻿using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
 using Course.Application.Courses.Commands.DeleteCourse;
 using Course.Application.Courses.Commands.UpdateCourse;
 using Course.Application.Courses.Commands.UpdateCourseModules;
+using Course.Application.Courses.Queries.GetCourseBasicInfo;
 using Course.Application.Courses.Queries.GetCourseById;
 using Course.Application.Courses.Queries.GetCourseBySlug;
 using Course.Application.Courses.Queries.GetCourses;
@@ -347,6 +349,29 @@ namespace Course.API.Controllers
 					async () => await sender.Send(request),
 					new GetEnrolledUsersResponse()
 				);
+		}
+
+		/// <summary>
+		/// Lấy thông tin cơ bản của nhiều khóa học (test API)
+		/// </summary>
+		[HttpGet("basic-info")]
+		public async Task<GetCourseBasicInfoResponse> GetBasicInfo([FromQuery] GetCourseBasicInfoRequest dto)
+		{
+			var request = new GetCourseBasicInfoCommand(dto.CourseIds);
+
+			return await ApiControllerHelper.HandleRequest<GetCourseBasicInfoCommand, GetCourseBasicInfoResponse, List<CourseBasicInfoDto>>
+				(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetCourseBasicInfoResponse()
+			);
+		}
+
+		public sealed class GetCourseBasicInfoRequest
+		{
+			public List<Guid> CourseIds { get; set; } = new();
 		}
 	}
 }

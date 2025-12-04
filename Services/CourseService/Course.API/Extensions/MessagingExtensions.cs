@@ -56,6 +56,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<CheckIsCourseEnrolledEventConsumer>();
                 x.AddConsumer<PaymentSucceededEventConsumer>();
                 x.AddConsumer<SubjectCodeSelectEventConsumer>();
+                x.AddConsumer<GetCourseBasicInfoEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 
