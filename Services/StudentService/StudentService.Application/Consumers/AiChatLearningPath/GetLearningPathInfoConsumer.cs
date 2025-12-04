@@ -18,7 +18,10 @@ public class GetLearningPathInfoConsumer(ILearningPathService learningPathServic
             LearningPathId = request.LearningPathId
         };
 
-        var serviceResponse = await learningPathService.GetLearningPathById(query, request.UserId, context.CancellationToken);
+        var serviceResponse = await learningPathService.GetLearningPathById(
+            query,
+            request.UserId,
+            cancellationToken: context.CancellationToken);
 
         var mappedDetail = serviceResponse.Response is null
             ? new AiLearningPathDetailDto()

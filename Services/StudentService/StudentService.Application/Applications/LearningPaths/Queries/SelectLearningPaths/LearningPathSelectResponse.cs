@@ -90,6 +90,9 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public decimal DealPrice { get; set; }
         public bool isEnrolled { get; set; }
         public bool isWishList { get; set; }
+        public Guid? TeacherId { get; set; }
+        public string? TeacherName { get; set; }
+        public List<string> TagNames { get; set; } = [];
     }
 
     // NEW: nhóm theo môn

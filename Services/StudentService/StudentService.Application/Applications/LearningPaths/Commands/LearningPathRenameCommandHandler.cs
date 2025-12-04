@@ -38,6 +38,7 @@ public class LearningPathRenameCommandHandler(
                 var snapshot = await learningPathService.GetLearningPathById(
                     new LearningPathSelectsQuery { LearningPathId = request.LearningPathId },
                     studentId,
+                    true,
                     cancellationToken);
 
                 if (snapshot.Success)

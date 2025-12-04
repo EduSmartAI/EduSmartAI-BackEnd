@@ -1,4 +1,5 @@
-﻿using BaseService.Common.ApiEntities;
+﻿using System.Collections.Generic;
+using BaseService.Common.ApiEntities;
 
 namespace BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse
 {
@@ -25,9 +26,12 @@ namespace BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse
         public int? LearnerCount { get; init; }
         public bool? IsActive { get; init; }
         public decimal? DurationHours { get; init; }
-        public string Description { get; set; }
-        public string ShortDescription { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string ShortDescription { get; set; } = string.Empty;
         public bool isEnrolled { get; set; }
         public bool isWishList { get; set; }
+        public Guid? TeacherId { get; set; }
+        public string? TeacherName { get; set; }
+        public List<string> TagNames { get; set; } = new();
     }
 }

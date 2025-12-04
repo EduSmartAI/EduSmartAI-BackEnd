@@ -92,7 +92,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short) ConstantEnum.LearningPathStatus.Generating,
+                Status = (short)ConstantEnum.LearningPathStatus.Generating,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -316,14 +316,14 @@ public class LearningPathService : ILearningPathService
                     MajorCode = x.MajorCode,
                     Reason = x.Reason,
                     Type = x.MajorCode == "SE"
-                        ? (short) ConstantEnum.LearningPathMajor.Basic
+                        ? (short)ConstantEnum.LearningPathMajor.Basic
                         : request.MajorType,
                     LearningPathCourses = matchedCourses?.Courses
                         .Select(course => new LearningPathCourse
                         {
                             LearningPathCourseId = Guid.NewGuid(),
                             InternalCourseId = course.CourseId,
-                            Status = (short) ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+                            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
                             SubjectCode = course.SubjectCode,
                         }).ToList() ?? new List<LearningPathCourse>()
                 };
@@ -340,7 +340,7 @@ public class LearningPathService : ILearningPathService
                     PathId = request.LearningPathId,
                     MajorCode = "SE",
                     Reason = "Chuyên ngành cơ bản cho các sinh viên dưới kỳ 4 theo học Software Engineering",
-                    Type = (short) ConstantEnum.LearningPathMajor.Basic,
+                    Type = (short)ConstantEnum.LearningPathMajor.Basic,
                     LearningPathCourses = seCourses!.Courses
                         .Select(course => new LearningPathCourse
                         {
@@ -370,7 +370,7 @@ public class LearningPathService : ILearningPathService
             {
                 await _learningPathCourseCommandRepository.AddRangeAsync(allCourses);
             }
-            
+
             await _unitOfWork.SaveChangesAsync(learningPath.CreatedBy, cancellationToken);
 
             // Ensure LearningPathCourses are properly set BEFORE storing to read-model
@@ -447,7 +447,7 @@ public class LearningPathService : ILearningPathService
                     PathId = request.PathId,
                     MajorCode = majorItem.MajorCode.Trim(),
                     Reason = majorItem.Reason,
-                    Type = (short) ConstantEnum.LearningPathMajor.External,
+                    Type = (short)ConstantEnum.LearningPathMajor.External,
                 };
 
                 allMajors.Add(major);
@@ -658,6 +658,18 @@ public class LearningPathService : ILearningPathService
         return result;
     }
 
+    private static IEnumerable<LearningPathMajorCollection> DistinctMajorsByCode(
+        IEnumerable<LearningPathMajorCollection> majors)
+    {
+        return majors
+            .Where(m => m != null)
+            .GroupBy(
+                m => string.IsNullOrWhiteSpace(m!.MajorCode) ? m.LearningPathMajorId.ToString() : m.MajorCode,
+                StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.OrderBy(m => m!.PositionIndex ?? int.MaxValue).First()!)
+            .ToList();
+    }
+
     private List<CourseGroupDto> BuildCourseGroupsFromSubjectCodes(
         IEnumerable<LearningPathSubjectCodeCollection> subjectCodes,
         IDictionary<Guid, InternalCourseInfoDto> infoLookup)
@@ -706,6 +718,31 @@ public class LearningPathService : ILearningPathService
         }
 
         return result;
+    }
+
+    private List<CourseGroupDto> BuildCourseGroupsForMajor(
+        LearningPathMajorCollection major,
+        IDictionary<Guid, InternalCourseInfoDto> infoLookup)
+    {
+        if (major == null)
+        {
+            return new List<CourseGroupDto>();
+        }
+
+        var subjectCodes = ExtractSubjectCodesWithCourses(new[] { major });
+        if (subjectCodes.Any())
+        {
+            var groups = BuildCourseGroupsFromSubjectCodes(subjectCodes, infoLookup);
+            if (groups.Any())
+            {
+                return groups;
+            }
+        }
+
+        var fallbackItems = BuildCourseItemsFromCourses(
+            major.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>(),
+            infoLookup);
+        return BuildCourseGroupsFromItems(fallbackItems);
     }
 
     private List<CourseGroupDto> BuildCourseGroupsFromItems(List<CourseItemDto> items)
@@ -770,6 +807,7 @@ public class LearningPathService : ILearningPathService
         var snapshot = await GetLearningPathById(
             new LearningPathSelectsQuery { LearningPathId = pathId },
             studentId.Value,
+            bypassCache: true,
             cancellationToken);
 
         if (snapshot.Success)
@@ -823,7 +861,11 @@ public class LearningPathService : ILearningPathService
     /// <param name="query"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, Guid userId, CancellationToken cancellationToken = default)
+    public async Task<LearningPathSelectResponse> GetLearningPathById(
+        LearningPathSelectsQuery query,
+        Guid userId,
+        bool bypassCache = false,
+        CancellationToken cancellationToken = default)
     {
         var res = new LearningPathSelectResponse { Success = false };
         if (query.LearningPathId == Guid.Empty)
@@ -832,13 +874,24 @@ public class LearningPathService : ILearningPathService
             return res;
         }
         var cacheKey = CacheKey.LearningPathSelect(userId, query.LearningPathId);
-        var readModel = await _learningPathQueryRepository.GetOrSetAsync(
-            cacheKey,
-            async () => await _learningPathQueryRepository.FirstOrDefaultAsync(
+        LearningPathCollection? readModel;
+        if (bypassCache)
+        {
+            readModel = await _learningPathQueryRepository.FirstOrDefaultAsync(
                 x => x.PathId == query.LearningPathId && x.StudentId == userId && x.IsActive
-            ),
-            expiry: TimeSpan.FromMinutes(1)
-        );
+            );
+            await _unitOfWork.CacheRemoveAsync(cacheKey);
+        }
+        else
+        {
+            readModel = await _learningPathQueryRepository.GetOrSetAsync(
+                cacheKey,
+                async () => await _learningPathQueryRepository.FirstOrDefaultAsync(
+                    x => x.PathId == query.LearningPathId && x.StudentId == userId && x.IsActive
+                ),
+                expiry: TimeSpan.FromMinutes(1)
+            );
+        }
 
         if (readModel == null)
         {
@@ -849,11 +902,13 @@ public class LearningPathService : ILearningPathService
         // Map readmodel to dto
         var dto = _mapper.Map<LearningPathSelectDto>(readModel);
 
-        var basicMajors = readModel.LearningPathMajors
-            .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic)
+        var basicMajors = DistinctMajorsByCode(
+                readModel.LearningPathMajors
+                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic))
             .ToList();
-        var internalMajorsRead = readModel.LearningPathMajors
-            .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
+        var internalMajorsRead = DistinctMajorsByCode(
+                readModel.LearningPathMajors
+                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal))
             .ToList();
 
         var basicSubjectCodes = ExtractSubjectCodesWithCourses(basicMajors);
@@ -878,33 +933,17 @@ public class LearningPathService : ILearningPathService
         var dictInternal = await fetchInternalTask;
 
         // ===== 4) Basic: build groups from subject-code collection =====
-        var basicGroups = BuildCourseGroupsFromSubjectCodes(basicSubjectCodes, dictBasic);
-        if (!basicGroups.Any())
-        {
-            var fallbackBasicItems = BuildCourseItemsFromCourses(basicCourses, dictBasic);
-            basicGroups = BuildCourseGroupsFromItems(fallbackBasicItems);
-        }
-
         dto.BasicLearningPath ??= new BasicLearningPathDto();
-        dto.BasicLearningPath.CourseGroups = basicGroups;
+        dto.BasicLearningPath.CourseGroups = basicMajors
+            .SelectMany(m => BuildCourseGroupsForMajor(m, dictBasic))
+            .ToList();
 
         // ===== 5) Internal: mỗi major sử dụng subject code collection =====
         dto.InternalLearningPath = internalMajorsRead
             .Select(m =>
             {
                 var majorDto = _mapper.Map<InternalLearningPathDto>(m);
-                var subjectCodes = (m.LearningPathSubjectCodes ?? Enumerable.Empty<LearningPathSubjectCodeCollection>())
-                    .Where(sc => sc.IsActive)
-                    .ToList();
-
-                var courseGroups = BuildCourseGroupsFromSubjectCodes(subjectCodes, dictInternal);
-                if (!courseGroups.Any())
-                {
-                    var fallbackItems = BuildCourseItemsFromCourses(m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>(), dictInternal);
-                    courseGroups = BuildCourseGroupsFromItems(fallbackItems);
-                }
-
-                majorDto.MajorCourseGroups = courseGroups;
+                majorDto.MajorCourseGroups = BuildCourseGroupsForMajor(m, dictInternal);
                 return majorDto;
             })
             .ToList();
@@ -1097,8 +1136,8 @@ public class LearningPathService : ILearningPathService
 
                 // Lấy các subject codes trùng lặp trong các majors bị deactive
                 var duplicateSubjectCodesInDeactiveMajors = await _learningPathSubjectCodeCommandRepository
-                    .Find(sc => deactiveMajorIds.Contains(sc.LearningPathMajorId) 
-                        && sc.IsActive 
+                    .Find(sc => deactiveMajorIds.Contains(sc.LearningPathMajorId)
+                        && sc.IsActive
                         && activeSubjectCodes.Contains(sc.SubjectCode),
                         isTracking: true, cancellationToken: cancellationToken)
                     .ToListAsync(cancellationToken);
@@ -1201,9 +1240,9 @@ public class LearningPathService : ILearningPathService
             lpWrite.LearningPathMajors = majorsWrite;
 
             // 3) Lấy document read-model hiện có (giữ nguyên identity doc)
-        var lpRead = await _learningPathQueryRepository.FirstOrDefaultAsync(
-                x => x.PathId == request.LearningPathId
-            );
+            var lpRead = await _learningPathQueryRepository.FirstOrDefaultAsync(
+                    x => x.PathId == request.LearningPathId
+                );
 
             // Chuẩn bị danh sách major read-model đã sort
             var majorsRead = majorsWrite
@@ -1211,7 +1250,7 @@ public class LearningPathService : ILearningPathService
                 .Select(LearningPathMajorCollection.FromWriteModel)
                 .ToList();
 
-        LearningPathCollection? currentReadModel = null;
+            LearningPathCollection? currentReadModel = null;
 
             if (lpRead != null)
             {
@@ -1231,7 +1270,7 @@ public class LearningPathService : ILearningPathService
                 lpRead.LearningPathMajors = majorsRead;
 
                 _unitOfWork.Store(lpRead); // upsert đúng document hiện tại
-            currentReadModel = lpRead;
+                currentReadModel = lpRead;
             }
             else
             {
@@ -1241,7 +1280,7 @@ public class LearningPathService : ILearningPathService
                 lpReadNew.LearningPathMajors = majorsRead;
 
                 _unitOfWork.Store(lpReadNew);
-            currentReadModel = lpReadNew;
+                currentReadModel = lpReadNew;
             }
 
             // (Tuỳ nhu cầu) Nếu không cần query majors rời rạc thì có thể bỏ store từng major để tránh duplicate.
