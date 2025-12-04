@@ -1,6 +1,7 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
@@ -37,6 +38,7 @@ public class LearningPathService : ILearningPathService
     private readonly IIdentityService _identityService;
     private readonly IRequestClient<GetInfoInternalCourseEvents> _requestClient;
     private readonly IRequestClient<CourseSelectsBySubjectCodeEvent> _requestClientCourseSelectsBySubjectCodeEvent;
+    private readonly IRequestClient<GetSubjectSemesterEvent> _subjectSemesterClient;
     private readonly IMapper _mapper;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
 
@@ -64,6 +66,7 @@ public class LearningPathService : ILearningPathService
         IRequestClient<GetInfoInternalCourseEvents> requestClient,
         IMapper mapper,
         IRequestClient<CourseSelectsBySubjectCodeEvent> requestClientCourseSelectsBySubjectCodeEvent,
+        IRequestClient<GetSubjectSemesterEvent> subjectSemesterClient,
         ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
     {
         _unitOfWork = unitOfWork;
@@ -77,6 +80,7 @@ public class LearningPathService : ILearningPathService
         _requestClient = requestClient;
         _mapper = mapper;
         _requestClientCourseSelectsBySubjectCodeEvent = requestClientCourseSelectsBySubjectCodeEvent;
+        _subjectSemesterClient = subjectSemesterClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
     }
 
@@ -745,6 +749,130 @@ public class LearningPathService : ILearningPathService
         return BuildCourseGroupsFromItems(fallbackItems);
     }
 
+    private async Task PopulateSemesterPositionsAsync(
+        IEnumerable<(string? MajorCode, List<CourseGroupDto> Groups)> majorGroups,
+        CancellationToken cancellationToken)
+    {
+        var groupList = majorGroups
+            .Where(entry => entry.Groups is { Count: > 0 })
+            .ToList();
+
+        if (groupList.Count == 0)
+        {
+            return;
+        }
+
+        var tasks = groupList.Select(async entry =>
+        {
+            var normalizedMajor = NormalizeMajorCode(entry.MajorCode);
+            var subjects = entry.Groups
+                .Select(g => g?.SubjectCode)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .ToList();
+
+            if (subjects.Count == 0)
+            {
+                ApplySemesterPositions(new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase), entry.Groups);
+                return;
+            }
+
+            Dictionary<string, int?> mapping;
+            if (string.IsNullOrWhiteSpace(normalizedMajor))
+            {
+                mapping = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                mapping = await FetchSubjectSemesterMapAsync(normalizedMajor!, subjects, cancellationToken);
+            }
+
+            ApplySemesterPositions(mapping, entry.Groups);
+        });
+
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task<Dictionary<string, int?>> FetchSubjectSemesterMapAsync(
+        string majorCode,
+        IEnumerable<string> subjectCodes,
+        CancellationToken cancellationToken)
+    {
+        var normalizedSubjects = subjectCodes
+            .Select(NormalizeSubjectCode)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (normalizedSubjects.Count == 0)
+        {
+            return new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var request = new GetSubjectSemesterEvent
+        {
+            SubjectAndMajor = new SubjectListInfo
+            {
+                MajorCode = majorCode,
+                SubjectCodes = normalizedSubjects
+            }
+        };
+
+        try
+        {
+            var response = await _subjectSemesterClient
+                .GetResponse<GetSubjectSemesterEventResponse>(request, cancellationToken);
+
+            var message = response.Message;
+            if (!message.Success || message.Response is not { Count: > 0 })
+            {
+                return new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            return message.Response
+                .Where(item => !string.IsNullOrWhiteSpace(item.SubjectCode))
+                .ToDictionary(
+                    item => NormalizeSubjectCode(item.SubjectCode),
+                    item => item.SemesterIndex.HasValue && item.SemesterIndex.Value > 0
+                        ? (int?)item.SemesterIndex.Value
+                        : (item.SubjectIndex.HasValue && item.SubjectIndex.Value > 0 ? item.SubjectIndex : null),
+                    StringComparer.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private static void ApplySemesterPositions(
+        IDictionary<string, int?> positions,
+        List<CourseGroupDto> groups)
+    {
+        foreach (var group in groups ?? Enumerable.Empty<CourseGroupDto>())
+        {
+            var normalizedSubject = NormalizeSubjectCode(group.SubjectCode);
+            var fallback = group.Courses?
+                .Where(c => c != null && c.SemesterPosition > 0)
+                .Select(c => c.SemesterPosition)
+                .DefaultIfEmpty(0)
+                .Min() ?? 0;
+
+            if (positions.TryGetValue(normalizedSubject, out var semester) && semester.HasValue && semester.Value > 0)
+            {
+                group.SemesterPosition = semester.Value;
+            }
+            else if (fallback > 0)
+            {
+                group.SemesterPosition = fallback;
+            }
+        }
+    }
+
+    private static string? NormalizeMajorCode(string? code) =>
+        string.IsNullOrWhiteSpace(code) ? null : code.Trim().ToUpperInvariant();
+
+    private static string NormalizeSubjectCode(string? code) =>
+        string.IsNullOrWhiteSpace(code) ? string.Empty : code.Trim().ToUpperInvariant();
+
     private List<CourseGroupDto> BuildCourseGroupsFromItems(List<CourseItemDto> items)
     {
         if (items == null || items.Count == 0)
@@ -934,18 +1062,37 @@ public class LearningPathService : ILearningPathService
 
         // ===== 4) Basic: build groups from subject-code collection =====
         dto.BasicLearningPath ??= new BasicLearningPathDto();
-        dto.BasicLearningPath.CourseGroups = basicMajors
-            .SelectMany(m => BuildCourseGroupsForMajor(m, dictBasic))
+        var basicGroups = basicMajors
+            .Select(m => (m.MajorCode, Groups: BuildCourseGroupsForMajor(m, dictBasic)))
+            .ToList();
+        await PopulateSemesterPositionsAsync(
+            basicGroups.Select(entry => ((string?)entry.MajorCode, entry.Groups)),
+            cancellationToken);
+        dto.BasicLearningPath.CourseGroups = basicGroups
+            .SelectMany(entry => entry.Groups)
             .ToList();
 
         // ===== 5) Internal: mỗi major sử dụng subject code collection =====
-        dto.InternalLearningPath = internalMajorsRead
+        var internalGroups = internalMajorsRead
             .Select(m =>
             {
                 var majorDto = _mapper.Map<InternalLearningPathDto>(m);
-                majorDto.MajorCourseGroups = BuildCourseGroupsForMajor(m, dictInternal);
-                return majorDto;
+                var groups = BuildCourseGroupsForMajor(m, dictInternal);
+                return (Dto: majorDto, m.MajorCode, Groups: groups);
             })
+            .ToList();
+
+        await PopulateSemesterPositionsAsync(
+            internalGroups.Select(entry => ((string?)entry.MajorCode, entry.Groups)),
+            cancellationToken);
+
+        foreach (var entry in internalGroups)
+        {
+            entry.Dto.MajorCourseGroups = entry.Groups;
+        }
+
+        dto.InternalLearningPath = internalGroups
+            .Select(entry => entry.Dto)
             .ToList();
         dto.CompletionPercent = CalculateCompletionPercentFromGroups(dto);
 
