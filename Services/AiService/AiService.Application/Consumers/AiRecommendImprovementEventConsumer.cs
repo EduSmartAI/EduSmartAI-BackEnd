@@ -17,6 +17,7 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             CareerGoal = evt.CareerGoal,
             Majors = evt.Majors.Select(m => new MajorInfo
             {
+                MajorId = m.LearningPathMajorId,
                 MajorCode = m.MajorCode,
                 MajorName = m.MajorName
             }).ToList(),
@@ -45,7 +46,6 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 SubjectCode = x.SubjectCode,
                 SubjectName = x.SubjectName
             }).ToList(),
-            StudentCurriculums = evt.StudentCurriculums
         };
         
         var generateLearningFeedbackResult = await aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, context.CancellationToken);
@@ -70,7 +70,8 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             }).ToList(),
             LearningPathMajorId = evt.LearningPathMajorId,
             Email = evt.Email,
-            LearningPathId = evt.LearningPathId
+            LearningPathId = evt.LearningPathId,
+            Majors = evt.Majors
         };
         
         learningFeedbackEvent.LearningPathSubjectCodes.AddRange(generateLearningFeedbackResult.Response.WithoutMarkAnalysis.Select(x => new LearningPathSubjectCodeEvent
@@ -81,13 +82,13 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
         }));
         
         // Add remaining subjects from request.StudentCurriculums that are not in SubjectAnalyses or WithoutMarkAnalysis
-        if (request.StudentCurriculums != null && request.StudentCurriculums.Any())
+        if (evt.StudentCurriculums != null && evt.StudentCurriculums.Any())
         {
             var existingSubjectCodes = learningFeedbackEvent.LearningPathSubjectCodes
                 .Select(x => x.SubjectCode)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             
-            var missingSubjects = request.StudentCurriculums
+            var missingSubjects = evt.StudentCurriculums
                 .Where(c => !existingSubjectCodes.Contains(c.SubjectCode))
                 .Select(c => new LearningPathSubjectCodeEvent
                 {
@@ -119,9 +120,9 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             // Find existing subject entry (case-insensitive)
             var subjectEntry = learningFeedbackEvent.LearningPathSubjectCodes.FirstOrDefault(s => string.Equals(s.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase));
 
-            // Find corresponding ability analysis by name (case-insensitive)
+            // Find corresponding ability analysis by name - using Contains instead of Equals (case-insensitive)
             var abilityEntry = abilityAnalyses
-                .FirstOrDefault(a => string.Equals(a.Name, abilityName, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(a => a.Name != null && a.Name.Contains(abilityName, StringComparison.OrdinalIgnoreCase));
 
             if (abilityEntry == null || string.IsNullOrWhiteSpace(abilityEntry.AnalysisMarkdown))
                 continue;

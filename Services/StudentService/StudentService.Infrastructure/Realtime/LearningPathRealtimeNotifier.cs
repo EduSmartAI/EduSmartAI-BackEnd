@@ -1,14 +1,24 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using BaseService.Application.Interfaces.Repositories;
+using Microsoft.Extensions.DependencyInjection;
+using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
+using StudentService.Domain.ReadModels;
 
 namespace StudentService.Infrastructure.Realtime;
 
 public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
 {
     private readonly ConcurrentDictionary<Guid, ConcurrentDictionary<Guid, Channel<LearningPathSelectResponse>>> _subscriptions = new();
+    private readonly IServiceProvider _serviceProvider;
+
+    public LearningPathRealtimeNotifier(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+    }
 
     public IAsyncEnumerable<LearningPathSelectResponse> SubscribeAsync(Guid pathId, CancellationToken cancellationToken = default)
     {
@@ -59,7 +69,7 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
     {
         try
         {
-            await foreach (var payload in channel.Reader.ReadAllAsync(cancellationToken))
+            await foreach (var payload in channel.Reader.ReadAllAsync())
             {
                 yield return payload;
             }
@@ -89,6 +99,41 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
         if (subscribers.IsEmpty)
         {
             _subscriptions.TryRemove(pathId, out _);
+        }
+    }
+    
+    public async Task PublishLearningPathSnapshotAsync(Guid pathId, Guid? studentId, CancellationToken cancellationToken)
+    {
+        if (pathId == Guid.Empty)
+        {
+            return;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var learningPathService = scope.ServiceProvider.GetRequiredService<ILearningPathService>();
+        var learningPathQueryRepository = scope.ServiceProvider.GetService<IQueryRepository<LearningPathCollection>>();
+
+        var effectiveStudentId = studentId;
+        if ((effectiveStudentId == null || effectiveStudentId == Guid.Empty) && learningPathQueryRepository != null)
+        {
+            var readModel = await learningPathQueryRepository.FirstOrDefaultAsync(x => x.PathId == pathId && x.IsActive);
+            effectiveStudentId = readModel?.StudentId;
+        }
+
+        if (!effectiveStudentId.HasValue || effectiveStudentId == Guid.Empty)
+        {
+            return;
+        }
+        
+        var snapshot = await learningPathService.GetLearningPathById(
+            new LearningPathSelectsQuery { LearningPathId = pathId },
+            effectiveStudentId.Value,
+            true,
+            cancellationToken);
+
+        if (snapshot.Success)
+        {
+            await PublishAsync(pathId, snapshot, cancellationToken);
         }
     }
 }

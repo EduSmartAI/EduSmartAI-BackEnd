@@ -1,4 +1,4 @@
-﻿﻿using BuildingBlocks.Messaging.Events.QuizService;
+﻿using BuildingBlocks.Messaging.Events.QuizService;
  using MediatR;
 
 namespace AiService.Application.Features.AiRecommend
@@ -11,14 +11,14 @@ namespace AiService.Application.Features.AiRecommend
         
         public List<MajorInfo> Majors { get; set; } = new();
         
-        public required QuizSurvey QuizSurvey { get; set; }
-        public List<StudentCurriculumEvent> StudentCurriculums { get; set; }
+        public required QuizSurvey QuizSurvey { get; set; } 
     }
     
     public class MajorInfo
     {
         public string MajorCode { get; set; } = string.Empty;
         public string MajorName { get; set; } = string.Empty;
+        public Guid MajorId { get; set; }
     }
     public class SubjectMark
     {

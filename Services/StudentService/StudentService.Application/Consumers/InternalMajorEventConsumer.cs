@@ -54,20 +54,17 @@ public class InternalMajorEventConsumer(
 
         // Insert internal majors using the learning path service
         var learningPathMajorInternalInsertResponse = await learningPathService.InsertLearningPathMajorAsync(request);
-        
-        if (learningPathMajorInternalInsertResponse.Success && (evt.SubjectMarks != null || evt.QuizSurvey != null) && learningPathMajorInternalInsertResponse.InsertedMajorIds != null)
+        if (learningPathMajorInternalInsertResponse.Success && (evt.SubjectMarks != null || evt.QuizSurvey != null) && learningPathMajorInternalInsertResponse.Majors.Any())
         {
             try
             {
                 // Map inserted LearningPathMajorIds to MajorCodes
-                var majorInfos = evt.Majors
-                    .Zip(learningPathMajorInternalInsertResponse.InsertedMajorIds, 
-                        (major, majorId) => new MajorInfoEvent
-                        {
-                            MajorCode = major.MajorCode,
-                            MajorName = major.MajorCode,
-                            LearningPathMajorId = majorId
-                        })
+                var majorInfos = learningPathMajorInternalInsertResponse.Majors.Select(x => new MajorInfoEvent
+                    {
+                        LearningPathMajorId = x.LearningPathMajorId,
+                        MajorCode = x.MajorCode,
+                        MajorName = x.MajorName
+                    })
                     .ToList();
                 
                 // Publish AiRecommendImprovementEvent with ALL majors (with their IDs)

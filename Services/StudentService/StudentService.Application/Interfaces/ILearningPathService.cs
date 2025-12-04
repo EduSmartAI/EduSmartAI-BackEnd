@@ -27,7 +27,11 @@ public interface ILearningPathService
 
     Task<bool> UpdateLearningPathStatusAsync(Guid learningPathId, CancellationToken contextCancellationToken);
 
-    Task<LearningPathSelectResponse> GetLearningPathById(LearningPathSelectsQuery query, Guid userId, CancellationToken cancellationToken = default);
+    Task<LearningPathSelectResponse> GetLearningPathById(
+        LearningPathSelectsQuery query,
+        Guid userId,
+        bool bypassCache = false,
+        CancellationToken cancellationToken = default);
 
     Task<UpdateStatusLearningPathResponse> UpdateStatusLearningPathByIdAndSortPosition(UpdateStatusLearningPathCommand request, CancellationToken cancellationToken);
 

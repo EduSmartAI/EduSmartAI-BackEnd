@@ -58,7 +58,6 @@ public static class RepositoryExtensions
         services.AddScoped<IQueryRepository<LearningPathCourseCollection>, QueryRepository<LearningPathCourseCollection>>();
         services.AddScoped<IQueryRepository<CourseSuggestionCollection>, QueryRepository<CourseSuggestionCollection>>();
         services.AddSingleton<IServerSentEventsService, ServerSentEventsService>();
-        services.AddSingleton<ILearningPathRealtimeNotifier, LearningPathRealtimeNotifier>();
 
         // Services
         services.AddScoped<IStudentService, Infrastructure.Implements.StudentService>();
@@ -70,6 +69,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICourseSuggestionService, CourseSuggestionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAiEvaluationService, AiEvaluationService>();
+        services.AddSingleton<ILearningPathRealtimeNotifier, LearningPathRealtimeNotifier>();
 
         // MediatR configuration
         services.AddMediatR(cfg =>
