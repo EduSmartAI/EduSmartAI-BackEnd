@@ -2,6 +2,7 @@
 using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
@@ -1666,6 +1667,60 @@ namespace Course.Infrastructure.Implements
 			response.Response = pagedResult;
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Lấy danh sách học viên đã đăng ký khóa học");
+
+			return response;
+		}
+
+		public async Task<GetCourseBasicInfoResponse> GetBasicCoursesInforAsync(List<Guid> ids, CancellationToken ct)
+		{
+			var response = new GetCourseBasicInfoResponse { Success = false };
+
+			if (ids is null || ids.Count == 0)
+			{
+				response.SetMessage(MessageId.E00000, "Danh sách ID rỗng");
+				return response;
+			}
+
+			var courses = await _courseRepository
+				.Find(c => ids.Contains(c.CourseId) && c.IsActive,
+					  isTracking: false,
+					  ct,
+					  c => c.Subject)     // Include Subject
+				.ToListAsync(ct);
+
+
+			var result = courses.Select(c => new CourseBasicInfoDto
+			{
+				CourseId = c.CourseId,
+				Title = c.Title,
+				ShortDescription = c.ShortDescription ?? "",
+				CourseImageUrl = c.CourseImageUrl ?? "",
+				Level = c.Level ?? 0,
+				Price = c.Price,
+				DealPrice = c.DealPrice,
+				TeacherId = c.TeacherId,
+				SubjectCode = c.Subject?.SubjectCode ?? ""
+			}).ToList();
+
+			var teacherIds = result.Select(x => x.TeacherId).Distinct().ToList();
+
+			var teacherResponse = await _teacherNameClient.GetResponse<GetTeacherNamesEventResponse>(new GetTeacherNamesEvent(teacherIds), ct);
+
+			if (teacherResponse.Message.Success && teacherResponse.Message.Response != null)
+			{
+				var dict = teacherResponse.Message.Response
+					.ToDictionary(t => t.TeacherId, t => t.DisplayName ?? "");
+
+				foreach (var item in result)
+				{
+					if (dict.TryGetValue(item.TeacherId, out var name))
+						item.TeacherName = name;
+				}
+			}
+
+			response.Success = true;
+			response.Response = result;
+			response.SetMessage(MessageId.I00001, "Lấy thông tin khóa học");
 
 			return response;
 		}

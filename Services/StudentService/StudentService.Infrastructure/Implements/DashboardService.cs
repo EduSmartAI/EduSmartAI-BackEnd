@@ -1,6 +1,7 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.CourseService;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.LessonDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
@@ -9,6 +10,7 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Dashboards.Queries;
 using StudentService.Application.Applications.Dashboards.Queries.GetOverviewCourseDashboard;
+using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.WriteModels;
 using static BaseService.Common.Utils.Const.ConstantEnum;
@@ -24,7 +26,9 @@ namespace StudentService.Infrastructure.Implements
         ICommandRepository<VwUserPlayvideoStreak> _streakRepo,
         ICommandRepository<VwUserPlayvideoTimeSlot> _playVideoRepo,
         ICommandRepository<VwUserVideoActionsAgg> _videoActionRepo,
-        IUnitOfWork _unitOfWork
+        ICommandRepository<CourseSuggestion> _courseSuggestionCommandRepository,
+		IRequestClient<GetCourseBasicInfoEvent> _courseBasicInfoClient,
+		IUnitOfWork _unitOfWork
     ) : IDashboardService
     {
         /// <summary>
@@ -377,8 +381,47 @@ namespace StudentService.Infrastructure.Implements
             var currentUser = _identityService.GetCurrentUser();
             var userId = currentUser!.UserId;
 
-            // publish event
-            var @event = new GetOverviewCourseEvents(request.CourseId, userId, (int)OverviewTypeRequest.StudentOverview);
+            var courseSuggestion = await _courseSuggestionCommandRepository
+                .Find(s => s.StudentId == userId && s.OriginalCourseId == request.CourseId, isTracking: false)
+                .ToListAsync(ct);
+
+			var suggestedCourseIds = courseSuggestion
+	            .Select(x => x.SuggestedCourseId)
+	            .Distinct()
+	            .ToList();
+
+			List<SuggestedCourseDetailsDto> suggestedCourses = new();
+
+			if (suggestedCourseIds.Any())
+			{
+				var suggestedEvent = new GetCourseBasicInfoEvent(suggestedCourseIds);
+				var suggestedEventResponse = await _courseBasicInfoClient
+					.GetResponse<GetCourseBasicInfoResponse>(suggestedEvent, ct);
+
+				if (suggestedEventResponse.Message.Success && suggestedEventResponse.Message.Response is not null)
+				{
+					suggestedCourses = suggestedEventResponse.Message.Response
+						.Select(c => new SuggestedCourseDetailsDto
+						{
+							CourseId = c.CourseId,
+							Title = c.Title,
+							ShortDescription = c.ShortDescription,
+							CourseImageUrl = c.CourseImageUrl,
+							Level = c.Level,
+							Price = c.Price,
+							DealPrice = c.DealPrice,
+                            TeacherId = c.TeacherId,
+                            TeacherName = c.TeacherName,
+                            SubjectCode = c.SubjectCode
+						})
+						.ToList();
+				}
+			}
+
+
+
+			// publish event
+			var @event = new GetOverviewCourseEvents(request.CourseId, userId, (int)OverviewTypeRequest.StudentOverview);
             var @eventStats = new GetOverviewCourseEvents(request.CourseId, userId, (int)OverviewTypeRequest.Stats);
             var responseEvent = await _courseOverviewClient.GetResponse<GetOverviewCourseResponse>(@event, ct);
             var responseEventStats = await _courseOverviewClient.GetResponse<GetCoursePaceStatsResponse>(@eventStats, ct);
@@ -563,7 +606,7 @@ namespace StudentService.Infrastructure.Implements
 
                 Performance = new PerformanceSection
                 {
-                    avgMinutesPerLesson = (avgMinutesPerLesson ?? 0),
+                    AvgMinutesPerLesson = (avgMinutesPerLesson ?? 0),
                     Rank = rank,
                     FasterCount = fasterCount,
                     SlowerCount = slowerCount,
@@ -580,8 +623,10 @@ namespace StudentService.Infrastructure.Implements
                     AverageRewatchPerLesson = averageRewatchPerLesson,
                     AveragePausePerLesson = averagePausePerLesson,
                     Streaks = streakItems
-                }
-            };
+                },
+
+				SuggestedCourses = suggestedCourses
+			};
 
             return response;
         }
