@@ -100,6 +100,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     {
         public string SubjectCode { get; set; } = string.Empty;
         public short Status { get; set; }
+        public int SemesterPosition { get; set; }
         public string? AnalysisMarkdown { get; set; }
         public List<CourseItemDto> Courses { get; set; } = [];
     }
