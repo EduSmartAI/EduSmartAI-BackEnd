@@ -1,10 +1,14 @@
 using AuthService.Application.Accounts.Commands.ForgotPassword;
 using AuthService.Application.Accounts.Commands.Inserts;
+using AuthService.Application.Accounts.Commands.UpdatePassword;
 using AuthService.Application.Accounts.Commands.Verifies;
 using BaseService.API.BaseControllers;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
+using OpenIddict.Validation.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
 using NLog;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace AuthService.API.Controllers.Accounts;
 
@@ -93,6 +97,25 @@ public class AccountController : ControllerBase
             ModelState,
             async () => await _mediator.Send(request),
             new ResetPasswordResponse()
+        );
+    }
+    
+    /// <summary>
+    /// Update password for authenticated user
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Cập nhật mật khẩu")]  
+    [HttpPost("update-password")]
+    public async Task<UpdatePasswordResponse> UpdatePassword([FromBody] UpdatePasswordCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<UpdatePasswordCommand, UpdatePasswordResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            new UpdatePasswordResponse()
         );
     }
 }
