@@ -6,18 +6,19 @@ namespace StudentService.Application.Applications.LearningPaths.Commands;
 public record LearningPathMajorInternalInsertResponse : AbstractApiResponse<Guid>
 {
     public override Guid Response { get; set; }
-    public List<MajorInternalInsertResponse>? Majors { get; set; }
+    
     public Guid StudentMajorId { get; set; }
     
-    public List<StudentCurriculumEvent> StudentCurriculums { get; set; }
+    public List<MajorInternalInsertResponse> Majors { get; set; } = null!;
 
+    public List<StudentCurriculumEvent> StudentCurriculums { get; set; } = null!;
 }
 
 public class MajorInternalInsertResponse
 {
-    public Guid MajorId { get; set; }
-
-    public string MajorCode { get; set; }
-
-    public string MajorName { get; set; }
+    public required Guid LearningPathMajorId { get; set; }
+    
+    public required string MajorCode { get; set; }
+    
+    public required string MajorName { get; set; }
 }

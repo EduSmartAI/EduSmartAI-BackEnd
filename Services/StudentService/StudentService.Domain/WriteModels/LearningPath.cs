@@ -30,6 +30,8 @@ public partial class LearningPath
     public string? Personality { get; set; }
 
     public string? LearningAbility { get; set; }
+    
+    public string? AbilityFeedback { get; set; }
 
     public virtual ICollection<LearningPathMajor> LearningPathMajors { get; set; } = new List<LearningPathMajor>();
 

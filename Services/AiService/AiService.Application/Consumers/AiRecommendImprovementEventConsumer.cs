@@ -17,6 +17,7 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             CareerGoal = evt.CareerGoal,
             Majors = evt.Majors.Select(m => new MajorInfo
             {
+                MajorId = m.LearningPathMajorId,
                 MajorCode = m.MajorCode,
                 MajorName = m.MajorName
             }).ToList(),
@@ -45,7 +46,6 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 SubjectCode = x.SubjectCode,
                 SubjectName = x.SubjectName
             }).ToList(),
-            StudentCurriculums = evt.StudentCurriculums
         };
         
         var generateLearningFeedbackResult = await aiSummaryService.GenerateLearningFeedbackMarkdownAsync(request, context.CancellationToken);
@@ -71,7 +71,12 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             LearningPathMajorId = evt.LearningPathMajorId,
             Email = evt.Email,
             LearningPathId = evt.LearningPathId,
-            Majors = evt.Majors
+            Majors = evt.Majors,
+            AbilityAnalyses = generateLearningFeedbackResult.Response.AbilityAnalyses.Select(x => new AbilityAnalysisEvent
+            {
+                Name = x.Name,
+                AnalysisMarkdown = x.AnalysisMarkdown
+            }).ToList()
         };
         
         learningFeedbackEvent.LearningPathSubjectCodes.AddRange(generateLearningFeedbackResult.Response.WithoutMarkAnalysis.Select(x => new LearningPathSubjectCodeEvent
@@ -82,13 +87,13 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
         }));
         
         // Add remaining subjects from request.StudentCurriculums that are not in SubjectAnalyses or WithoutMarkAnalysis
-        if (request.StudentCurriculums != null && request.StudentCurriculums.Any())
+        if (evt.StudentCurriculums != null && evt.StudentCurriculums.Any())
         {
             var existingSubjectCodes = learningFeedbackEvent.LearningPathSubjectCodes
                 .Select(x => x.SubjectCode)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             
-            var missingSubjects = request.StudentCurriculums
+            var missingSubjects = evt.StudentCurriculums
                 .Where(c => !existingSubjectCodes.Contains(c.SubjectCode))
                 .Select(c => new LearningPathSubjectCodeEvent
                 {
@@ -101,49 +106,49 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             learningFeedbackEvent.LearningPathSubjectCodes.AddRange(missingSubjects);
         }
 
-        // Add mapping from subject code => ability name
-        var subjectToAbilityMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "PRO192", "Lập trình hướng đối tượng" },
-            { "CSD201", "Cấu trúc dữ liệu và giải thuật" },
-            { "DBI202", "Cơ sở dữ liệu" },
-            { "WED201c", "Lập trình web HTML/CSS cơ bản" }
-        };
-
-        var abilityAnalyses = generateLearningFeedbackResult.Response.AbilityAnalyses;
-
-        foreach (var kv in subjectToAbilityMap)
-        {
-            var subjectCode = kv.Key;
-            var abilityName = kv.Value;
-
-            // Find existing subject entry (case-insensitive)
-            var subjectEntry = learningFeedbackEvent.LearningPathSubjectCodes.FirstOrDefault(s => string.Equals(s.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase));
-
-            // Find corresponding ability analysis by name (case-insensitive)
-            var abilityEntry = abilityAnalyses
-                .FirstOrDefault(a => string.Equals(a.Name, abilityName, StringComparison.OrdinalIgnoreCase));
-
-            if (abilityEntry == null || string.IsNullOrWhiteSpace(abilityEntry.AnalysisMarkdown))
-                continue;
-
-            if (subjectEntry != null)
-            {
-                subjectEntry.AnalysisMarkdown = string.IsNullOrWhiteSpace(subjectEntry.AnalysisMarkdown)
-                    ? abilityEntry.AnalysisMarkdown
-                    : subjectEntry.AnalysisMarkdown + Environment.NewLine + abilityEntry.AnalysisMarkdown;
-            }
-            else
-            {
-                // Create new subject entry if missing
-                learningFeedbackEvent.LearningPathSubjectCodes.Add(new LearningPathSubjectCodeEvent
-                {
-                    SubjectCode = subjectCode,
-                    AnalysisMarkdown = abilityEntry.AnalysisMarkdown,
-                    Status = curriculumStatusMap.TryGetValue(subjectCode, out var status) ? status : "Not Started"
-                });
-            }
-        }
+        // // Add mapping from subject code => ability name
+        // var subjectToAbilityMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        // {
+        //     { "PRO192", "Lập trình hướng đối tượng" },
+        //     { "CSD201", "Cấu trúc dữ liệu và giải thuật" },
+        //     { "DBI202", "Cơ sở dữ liệu" },
+        //     { "WED201c", "Lập trình web HTML/CSS cơ bản" }
+        // };
+        //
+        // var abilityAnalyses = generateLearningFeedbackResult.Response.AbilityAnalyses;
+        //
+        // foreach (var kv in subjectToAbilityMap)
+        // {
+        //     var subjectCode = kv.Key;
+        //     var abilityName = kv.Value;
+        //
+        //     // Find existing subject entry (case-insensitive)
+        //     var subjectEntry = learningFeedbackEvent.LearningPathSubjectCodes.FirstOrDefault(s => string.Equals(s.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase));
+        //
+        //     // Find corresponding ability analysis by name - using Contains instead of Equals (case-insensitive)
+        //     var abilityEntry = abilityAnalyses
+        //         .FirstOrDefault(a => a.Name != null && a.Name.Contains(abilityName, StringComparison.OrdinalIgnoreCase));
+        //
+        //     if (abilityEntry == null || string.IsNullOrWhiteSpace(abilityEntry.AnalysisMarkdown))
+        //         continue;
+        //
+        //     if (subjectEntry != null)
+        //     {
+        //         subjectEntry.AnalysisMarkdown = string.IsNullOrWhiteSpace(subjectEntry.AnalysisMarkdown)
+        //             ? abilityEntry.AnalysisMarkdown
+        //             : subjectEntry.AnalysisMarkdown + Environment.NewLine + abilityEntry.AnalysisMarkdown;
+        //     }
+        //     else
+        //     {
+        //         // Create new subject entry if missing
+        //         learningFeedbackEvent.LearningPathSubjectCodes.Add(new LearningPathSubjectCodeEvent
+        //         {
+        //             SubjectCode = subjectCode,
+        //             AnalysisMarkdown = abilityEntry.AnalysisMarkdown,
+        //             Status = curriculumStatusMap.TryGetValue(subjectCode, out var status) ? status : "Not Started"
+        //         });
+        //     }
+        // }
         
         await context.Publish(learningFeedbackEvent, context.CancellationToken);
     }

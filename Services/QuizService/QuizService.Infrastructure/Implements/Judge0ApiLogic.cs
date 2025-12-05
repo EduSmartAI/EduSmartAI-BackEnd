@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using QuizService.Application.Judge0Logics;
@@ -13,14 +14,116 @@ public class Judge0ApiLogic : IJudge0ApiLogic
 {
     private readonly HttpClient _httpClient;
     private readonly string _baseUrl;
+    private readonly ICommandRepository<Judge0Key> _judge0KeyRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public Judge0ApiLogic()
+    public Judge0ApiLogic(ICommandRepository<Judge0Key> judge0KeyRepository, IUnitOfWork unitOfWork)
     {
         EnvLoader.Load();
         _httpClient = new HttpClient();
         _baseUrl = Environment.GetEnvironmentVariable(ConstEnv.Judge0BaseUrl)!.TrimEnd('/');
-        _httpClient.DefaultRequestHeaders.Add("X-RapidAPI-Key", Environment.GetEnvironmentVariable(ConstEnv.Judge0ApiKey)!);
+        _judge0KeyRepository = judge0KeyRepository;
+        _unitOfWork = unitOfWork;
         _httpClient.DefaultRequestHeaders.Add("X-RapidAPI-Host", "judge0-ce.p.rapidapi.com");
+    }
+    
+    /// <summary>
+    /// Get active Judge0 API key from database
+    /// </summary>
+    private async Task<Judge0Key> GetActiveKeyAsync()
+    {
+        var key = await _judge0KeyRepository.FirstOrDefaultAsync(x => x.IsActive);
+        if (key == null)
+        {
+            throw new Exception("Không tìm thấy Judge0 API key khả dụng");
+        }
+        return key;
+    }
+    
+    /// <summary>
+    /// Mark current key as inactive and get next available key
+    /// </summary>
+    private async Task<Judge0Key?> SwitchToNextKeyAsync(Judge0Key currentKey)
+    {
+        currentKey.IsActive = false;
+        _judge0KeyRepository.Update(currentKey);
+        await _unitOfWork.SaveChangesAsync("System", CancellationToken.None, true);
+        
+        var nextKey = await _judge0KeyRepository.FirstOrDefaultAsync(x => x.IsActive);
+        return nextKey;
+    }
+    
+    /// <summary>
+    /// Execute HTTP request with automatic key rotation on error
+    /// </summary>
+    private async Task<HttpResponseMessage> ExecuteWithRetryAsync(
+        Func<HttpClient, Task<HttpResponseMessage>> httpAction,
+        int maxRetries = 5)
+    {
+        int retryCount = 0;
+        Judge0Key? currentKey = null;
+        
+        while (retryCount < maxRetries)
+        {
+            try
+            {
+                // Get or refresh API key
+                currentKey = await GetActiveKeyAsync();
+                
+                // Update API key header
+                _httpClient.DefaultRequestHeaders.Remove("X-RapidAPI-Key");
+                _httpClient.DefaultRequestHeaders.Add("X-RapidAPI-Key", currentKey.Judge0Key1);
+                
+                // Execute request
+                var response = await httpAction(_httpClient);
+                
+                // Check if response indicates rate limit or key error
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    
+                    // Check for rate limit or authentication errors
+                    if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                        response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                        response.StatusCode == System.Net.HttpStatusCode.Forbidden ||
+                        errorContent.Contains("Rate limit exceeded", StringComparison.OrdinalIgnoreCase) ||
+                        errorContent.Contains("Invalid API key", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Switch to next key
+                        var nextKey = await SwitchToNextKeyAsync(currentKey);
+                        if (nextKey == null)
+                        {
+                            throw new Exception("Không còn Judge0 API key khả dụng");
+                        }
+                        
+                        retryCount++;
+                        continue; // Retry with new key
+                    }
+                    
+                    // Other errors, throw immediately
+                    response.EnsureSuccessStatusCode();
+                }
+                
+                return response; // Success
+            }
+            catch (HttpRequestException ex) when (retryCount < maxRetries - 1)
+            {
+                // Network errors, retry with new key
+                if (currentKey != null)
+                {
+                    var nextKey = await SwitchToNextKeyAsync(currentKey);
+                    if (nextKey == null)
+                    {
+                        throw new Exception("Không còn Judge0 API key khả dụng", ex);
+                    }
+                }
+                
+                retryCount++;
+                await Task.Delay(1000); // Wait before retry
+            }
+        }
+        
+        throw new Exception($"Judge0 API request failed after {maxRetries} retries");
     }
     
     /// <summary>
@@ -50,9 +153,9 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=false", content);
         
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=false", content));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<SubmissionResponse>(responseBody, new JsonSerializerOptions 
@@ -88,9 +191,9 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=true", content);
         
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.PostAsync($"{_baseUrl}/submissions?base64_encoded=true&wait=true", content));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<SubmissionResultEncoded>(responseBody, new JsonSerializerOptions 
@@ -106,9 +209,8 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     /// </summary>
     public async Task<SubmissionResult> GetSubmissionAsync(string token)
     {
-        var response = await _httpClient.GetAsync($"{_baseUrl}/submissions/{token}?base64_encoded=true");
-        
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.GetAsync($"{_baseUrl}/submissions/{token}?base64_encoded=true"));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         var result = JsonSerializer.Deserialize<SubmissionResultEncoded>(responseBody, new JsonSerializerOptions 
@@ -149,9 +251,9 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         });
         
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _httpClient.PostAsync($"{_baseUrl}/submissions/batch?base64_encoded=true", content);
         
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.PostAsync($"{_baseUrl}/submissions/batch?base64_encoded=true", content));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         var jsonDeserialize = JsonSerializer.Deserialize<List<SubmissionResponse>>(responseBody, new JsonSerializerOptions 
@@ -169,9 +271,8 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     /// </summary>
     public async Task<List<SubmissionResult>> GetBatchSubmissionAsync(string tokens)
     {
-        var response = await _httpClient.GetAsync($"{_baseUrl}/submissions/batch?tokens={tokens}&base64_encoded=true");
-        
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.GetAsync($"{_baseUrl}/submissions/batch?tokens={tokens}&base64_encoded=true"));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         var batchResult = JsonSerializer.Deserialize<BatchSubmissionResultEncoded>(responseBody, new JsonSerializerOptions 
@@ -188,8 +289,8 @@ public class Judge0ApiLogic : IJudge0ApiLogic
     public async Task<List<CodeLanguage>> GetLanguagesAsync()
     {
         // STEP 1: Get list of all languages (only id and name)
-        var response = await _httpClient.GetAsync($"{_baseUrl}/languages");
-        response.EnsureSuccessStatusCode();
+        var response = await ExecuteWithRetryAsync(async (client) =>
+            await client.GetAsync($"{_baseUrl}/languages"));
         
         var responseBody = await response.Content.ReadAsStringAsync();
         var languages = JsonSerializer.Deserialize<List<LanguageBasicInfo>>(responseBody, new JsonSerializerOptions 
@@ -204,8 +305,8 @@ public class Judge0ApiLogic : IJudge0ApiLogic
         {
             try
             {
-                var detailResponse = await _httpClient.GetAsync($"{_baseUrl}/languages/{lang.Id}");
-                detailResponse.EnsureSuccessStatusCode();
+                var detailResponse = await ExecuteWithRetryAsync(async (client) =>
+                    await client.GetAsync($"{_baseUrl}/languages/{lang.Id}"));
                 
                 var detailBody = await detailResponse.Content.ReadAsStringAsync();
                 var judge0Lang = JsonSerializer.Deserialize<Judge0LanguageDetail>(detailBody, new JsonSerializerOptions 

@@ -1,5 +1,6 @@
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using StudentService.Application.Applications.Students.Commands.Inserts;
 using StudentService.Application.Applications.Students.Commands.Updates;
 using StudentService.Application.Applications.Students.Queries;
@@ -23,4 +24,6 @@ public interface IStudentService
     Task<StudentTranscriptSelectResponse> SelectStudentTranscriptAsync(StudentTranscriptSelectQuery request, CancellationToken cancellationToken);
     
     Task<StudentTechnologyGoalSelectResponse> SelectStudentTechnologyGoalAsync(StudentTechnologyGoalSelectQuery request, CancellationToken cancellationToken);
+
+    Task<List<StudentNameExternalServiceDto>> GetStudentNamesAsync(IList<Guid> studentIds, CancellationToken ct = default);
 }

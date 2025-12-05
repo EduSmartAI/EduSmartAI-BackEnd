@@ -3,6 +3,7 @@ using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 
@@ -15,7 +16,9 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
     private readonly ICommandRepository<LearningPathSubjectCode> _learningPathSubjectCodeRepository;
     private readonly ICommandRepository<LearningPathCourse> _learningPathCourseRepository;
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
-    private readonly IRequestClient<MajorSubjectCodeEvent> _majorSubjectCodeRequestClient;
+    private readonly IRequestClient<MappingSubjectCodeWithMajorCodeEvent> _requestClient;
+    private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
+
     private readonly IUnitOfWork _unitOfWork;
 
     public LearningFeedbackEventConsumer(
@@ -24,8 +27,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseRepository,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
-        IUnitOfWork unitOfWork,
-        IRequestClient<MajorSubjectCodeEvent> majorSubjectCodeRequestClient)
+        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
     {
         _learningPathRepository = learningPathRepository;
         _learningPathMajorRepository = learningPathMajorRepository;
@@ -33,7 +35,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         _learningPathCourseRepository = learningPathCourseRepository;
         _learningPathQueryRepository = learningPathQueryRepository;
         _unitOfWork = unitOfWork;
-        _majorSubjectCodeRequestClient = majorSubjectCodeRequestClient;
+        _requestClient = requestClient;
+        _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
     }
 
     public async Task Consume(ConsumeContext<LearningFeedbackEvent> context)
@@ -51,44 +54,110 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         learningPath.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
         learningPath.Personality = evt.Personality;
         learningPath.LearningAbility = evt.LearningAbility;
+        learningPath.AbilityFeedback = evt.AbilityAnalyses != null && evt.AbilityAnalyses.Any()
+            ? string.Join($"{Environment.NewLine}{new string('*', 15)}{Environment.NewLine}",
+                evt.AbilityAnalyses.Select(a => $"{a.Name}: {a.AnalysisMarkdown}"))
+            : null;
         _learningPathRepository.Update(learningPath);
         
         // TODO Phase 2: Update to handle MajorFeedbacks hierarchy when event structure is updated
         
         // 2. Get first major as fallback (since we don't have major info in current event)
         var learningPathMajors = await _learningPathMajorRepository
-            .Find(x => evt.Majors.Select(id => id.LearningPathMajorId).Contains(x.LearningPathMajorId) && x.IsActive)
+            .Find(x => evt.Majors.Select(mi => mi.LearningPathMajorId).Contains(x.LearningPathMajorId) && x.IsActive)
             .Include(x => x.LearningPathSubjectCodes)
             .ToListAsync(context.CancellationToken);
         
-        if (learningPathMajors == null || !learningPathMajors.Any())
+        if (!learningPathMajors.Any())
         {
             await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
             return;
         }
         
-        // Insert LearningPathSubjectCodes with CORRECT foreign key
+        // Publish event to CourseService to map SubjectCode with MajorCode
+        var mappingSubjectCodeWithMajorCodeEvent = new MappingSubjectCodeWithMajorCodeEvent
+        {
+            SubjectCodes = evt.LearningPathSubjectCodes.Select(x => x.SubjectCode).ToList(),
+        };
+        
+        var mappingResponse = await _requestClient.GetResponse<MappingSubjectCodeWithMajorCodeEventResponse>(mappingSubjectCodeWithMajorCodeEvent);
+        
+        var subjectCodeToMajorCodeMap = mappingResponse.Message.Response
+            .GroupBy(x => x.SubjectCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.MajorCode).Distinct(StringComparer.OrdinalIgnoreCase).ToList(), StringComparer.OrdinalIgnoreCase);
+        
+        // Create dictionary to map MajorCode to LearningPathMajorId
+        var majorCodeToLearningPathMajorIdMap = learningPathMajors
+            .ToDictionary(m => m.MajorCode, m => m.LearningPathMajorId, StringComparer.OrdinalIgnoreCase);
+        
+        // Get existing subject codes to avoid duplicates
+        var existingSubjectCodes = await _learningPathSubjectCodeRepository
+            .Find(x => learningPathMajors.Select(m => m.LearningPathMajorId).Contains(x.LearningPathMajorId) && x.IsActive)
+            .Select(x => new { x.SubjectCode, x.LearningPathMajorId, x.LearningPathSubjectCodeId })
+            .ToListAsync(context.CancellationToken);
+        
+        var existingSubjectCodeSet = existingSubjectCodes
+            .Select(x => $"{x.SubjectCode}_{x.LearningPathMajorId}")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        
+        // Insert LearningPathSubjectCodes with CORRECT foreign key based on SubjectCode -> MajorCode mapping
         var learningPathSubjectCodes = new List<LearningPathSubjectCode>();
-
-        // Publish event to CourseService to get SubjectCode mapping to MajorCode
-
         foreach (var subCode in evt.LearningPathSubjectCodes)
         {
-            var learningPathSubjectCode = new LearningPathSubjectCode
+            // Find which major(s) this subject belongs to
+            if (!subjectCodeToMajorCodeMap.TryGetValue(subCode.SubjectCode, out var majorCodes) || !majorCodes.Any())
             {
-                LearningPathSubjectCodeId = Guid.NewGuid(),
-                LearningPathMajorId = learningPathMajor.LearningPathMajorId,
-                SubjectCode = subCode.SubjectCode,
-                AnalysisMarkdown = subCode.AnalysisMarkdown,
-                Status = subCode.Status
-            };
-            learningPathSubjectCodes.Add(learningPathSubjectCode);
-            await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
+                continue;
+            }
+            
+            // For each major that this subject belongs to, create a subject code entry
+            foreach (var majorCode in majorCodes)
+            {
+                if (!majorCodeToLearningPathMajorIdMap.TryGetValue(majorCode, out var learningPathMajorId))
+                {
+                    continue;
+                }
+                
+                // Check if this combination already exists
+                var compositeKey = $"{subCode.SubjectCode}_{learningPathMajorId}";
+                if (existingSubjectCodeSet.Contains(compositeKey))
+                {
+                    // Update existing record instead of inserting
+                    var existing = existingSubjectCodes.FirstOrDefault(x => 
+                        string.Equals(x.SubjectCode, subCode.SubjectCode, StringComparison.OrdinalIgnoreCase) 
+                        && x.LearningPathMajorId == learningPathMajorId);
+                    
+                    if (existing != null)
+                    {
+                        var existingEntity = await _learningPathSubjectCodeRepository
+                            .FirstOrDefaultAsync(x => x.LearningPathSubjectCodeId == existing.LearningPathSubjectCodeId);
+                        
+                        if (existingEntity != null)
+                        {
+                            existingEntity.AnalysisMarkdown = subCode.AnalysisMarkdown;
+                            existingEntity.Status = subCode.Status;
+                            _learningPathSubjectCodeRepository.Update(existingEntity);
+                            learningPathSubjectCodes.Add(existingEntity);
+                        }
+                    }
+                    continue;
+                }
+                
+                var learningPathSubjectCode = new LearningPathSubjectCode
+                {
+                    LearningPathSubjectCodeId = Guid.NewGuid(),
+                    LearningPathMajorId = learningPathMajorId,
+                    SubjectCode = subCode.SubjectCode,
+                    AnalysisMarkdown = subCode.AnalysisMarkdown,
+                    Status = subCode.Status
+                };
+                learningPathSubjectCodes.Add(learningPathSubjectCode);
+                existingSubjectCodeSet.Add(compositeKey); // Add to set to prevent duplicate in same run
+                await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
+            }
         }
-        
         await _unitOfWork.SaveChangesAsync(evt.Email, context.CancellationToken);
-        
-        await LinkCoursesWithSubjectsAsync(evt.LearningPathMajorId, evt.Email, context.CancellationToken);
+        await LinkCoursesWithSubjectsAsync(evt.LearningPathId, evt.Email, context.CancellationToken);
         
         var learningPathCollection = await _learningPathQueryRepository.FirstOrDefaultAsync(x => x.PathId == evt.LearningPathId && x.IsActive);
         if (learningPathCollection != null)
@@ -97,13 +166,16 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             learningPathCollection.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
             learningPathCollection.Personality = evt.Personality;
             learningPathCollection.LearningAbility = evt.LearningAbility;
+            learningPathCollection.AbilityFeedback = learningPath.AbilityFeedback;
 
             foreach (var subCode in learningPathSubjectCodes)
             {
                 var learningPathMajorCollection = learningPathCollection.LearningPathMajors
-                    .FirstOrDefault(x => x.LearningPathMajorId == learningPathMajor.LearningPathMajorId);
+                    .FirstOrDefault(x => x.LearningPathMajorId == subCode.LearningPathMajorId);
                 
-                var existingSubjectCode = learningPathMajorCollection?.LearningPathSubjectCodes
+                if (learningPathMajorCollection == null) continue;
+                
+                var existingSubjectCode = learningPathMajorCollection.LearningPathSubjectCodes
                     .FirstOrDefault(x => x.SubjectCode == subCode.SubjectCode);
                 if (existingSubjectCode != null)
                 {
@@ -121,15 +193,18 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         UpdatedAt = DateTime.Now,
                         CreatedBy = evt.Email,
                         UpdatedBy = evt.Email,
-                        LearningPathMajorId = learningPathMajorCollection.LearningPathMajorId,
+                        LearningPathMajorId = subCode.LearningPathMajorId,
                         IsActive = true,
                     });
                 }
 
             }
+
+            _unitOfWork.Store(learningPathCollection);
+            await _unitOfWork.SessionSaveChangesAsync();
         }
-        _unitOfWork.Store(learningPathCollection);
-        await _unitOfWork.SessionSaveChangesAsync();
+
+        await _learningPathRealtimeNotifier.PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, context.CancellationToken);
     }
     
     /// <summary>

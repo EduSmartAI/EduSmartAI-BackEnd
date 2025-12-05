@@ -236,6 +236,8 @@ public partial class StudentServiceContext : AppDbContext
             entity.Property(e => e.PathName)
                 .HasMaxLength(200)
                 .HasColumnName("path_name");
+            entity.Property(e => e.AbilityFeedback)
+                .HasColumnName("ability_feedback");
             entity.Property(e => e.Personality).HasColumnName("personality");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.StudentId).HasColumnName("student_id");

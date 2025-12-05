@@ -16,5 +16,7 @@ public interface ILearningPathRealtimeNotifier
     /// Publish a learning path snapshot to all subscribers of the given path.
     /// </summary>
     Task PublishAsync(Guid pathId, LearningPathSelectResponse payload, CancellationToken cancellationToken = default);
+
+    Task PublishLearningPathSnapshotAsync(Guid pathId, Guid? studentId, CancellationToken cancellationToken);
 }
 

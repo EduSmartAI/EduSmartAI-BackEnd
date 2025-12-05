@@ -18,6 +18,8 @@ public partial class QuizServiceContext : AppDbContext
     public virtual DbSet<CodeLanguage> CodeLanguages { get; set; }
 
     public virtual DbSet<CourseQuizSetting> CourseQuizSettings { get; set; }
+
+    public virtual DbSet<Judge0Key> Judge0Keys { get; set; }
     
     public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
@@ -51,10 +53,11 @@ public partial class QuizServiceContext : AppDbContext
 
     public virtual DbSet<SurveyType> SurveyTypes { get; set; }
 
+    public virtual DbSet<Systemconfig> Systemconfigs { get; set; }
+
     public virtual DbSet<Test> Tests { get; set; }
 
     public virtual DbSet<TestCase> TestCases { get; set; }
-    
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Answer>(entity =>
@@ -183,7 +186,27 @@ public partial class QuizServiceContext : AppDbContext
                 .HasForeignKey<CourseQuizSetting>(d => d.QuizId)
                 .HasConstraintName("course_quiz_settings_quiz_id_fkey");
         });
-        
+
+        modelBuilder.Entity<Judge0Key>(entity =>
+        {
+            entity.HasKey(e => e.Judge0Key1).HasName("judge0_keys_pkey");
+
+            entity.ToTable("judge0_keys");
+
+            entity.Property(e => e.Judge0Key1)
+                .HasColumnType("character varying")
+                .HasColumnName("judge0_key");
+            entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive).HasColumnName("is_active");
+            entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(100)
+                .HasColumnName("updated_by");
+        });
+
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("outbox_messages_pkey");
@@ -711,6 +734,33 @@ public partial class QuizServiceContext : AppDbContext
             entity.Property(e => e.SurveyTypeName)
                 .HasMaxLength(50)
                 .HasColumnName("survey_type_name");
+        });
+
+        modelBuilder.Entity<Systemconfig>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("systemconfig_pkey");
+
+            entity.ToTable("systemconfig");
+
+            entity.Property(e => e.Id)
+                .HasMaxLength(50)
+                .HasColumnName("id");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("timezone('utc'::text, now())")
+                .HasColumnName("created_at");
+            entity.Property(e => e.CreatedBy)
+                .HasMaxLength(50)
+                .HasColumnName("created_by");
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true)
+                .HasColumnName("is_active");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("timezone('utc'::text, now())")
+                .HasColumnName("updated_at");
+            entity.Property(e => e.UpdatedBy)
+                .HasMaxLength(50)
+                .HasColumnName("updated_by");
+            entity.Property(e => e.Value).HasColumnName("value");
         });
 
         modelBuilder.Entity<Test>(entity =>

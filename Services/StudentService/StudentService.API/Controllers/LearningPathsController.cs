@@ -45,6 +45,7 @@ namespace StudentService.API.Controllers
         private readonly IHttpContextAccessor _httpContextAccessor = httpContextAccessor;
         private readonly IServerSentEventsService _sseService = sseService;
         private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        private static readonly TimeSpan SseConnectionLifetime = TimeSpan.FromMinutes(10);
 
         /// <summary>
         /// Get LearningPath
@@ -66,6 +67,8 @@ namespace StudentService.API.Controllers
                 {
                     return BadRequest("LearningPathId is required for SSE streaming.");
                 }
+
+                using var sseTimeoutCts = CreateSseCancellationTokenSource(cancellationToken);
 
                 await _sseService.StreamAsync(Response, async (client, ct) =>
                 {
@@ -95,7 +98,7 @@ namespace StudentService.API.Controllers
                     }
 
                     await client.SendEventAsync("completed", new { success = true }, ct);
-                }, cancellationToken);
+                }, sseTimeoutCts.Token);
 
                 return new EmptyResult();
             }
@@ -154,6 +157,8 @@ namespace StudentService.API.Controllers
                 return BadRequest("LearningPathId is required");
             }
 
+            using var sseTimeoutCts = CreateSseCancellationTokenSource(cancellationToken);
+
             await _sseService.StreamAsync(Response, async (client, ct) =>
             {
                 await client.SendCommentAsync("processing learning path", ct);
@@ -182,7 +187,7 @@ namespace StudentService.API.Controllers
                 }
 
                 await client.SendEventAsync("completed", new { success = true }, ct);
-            }, cancellationToken);
+            }, sseTimeoutCts.Token);
 
             return new EmptyResult();
         }
@@ -355,6 +360,14 @@ namespace StudentService.API.Controllers
             return accept.Any(mediaType =>
                 mediaType.MediaType.HasValue &&
                 mediaType.MediaType.Value.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
+        {
+            var httpAbortToken = HttpContext?.RequestAborted ?? CancellationToken.None;
+            var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, httpAbortToken);
+            linkedSource.CancelAfter(SseConnectionLifetime);
+            return linkedSource;
         }
     }
 }

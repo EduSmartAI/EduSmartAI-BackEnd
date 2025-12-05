@@ -6,7 +6,9 @@ using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseSelectEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
+using Course.Application.Comments;
 using Course.Application.Consumers;
 using Course.Application.Consumers.Dashboard;
 using Course.Application.Consumers.GetInfoCourse;
@@ -48,6 +50,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<GetOverviewCourseConsumer>();
                 x.AddConsumer<GetUserCourseProgressEventConsumer>();
                 x.AddConsumer<GetSubjectInfoConsumer>();
+                x.AddConsumer<GetSubjectSemesterConsumer>();
                 x.AddConsumer<TranscriptUpsertConsumer>();
                 x.AddConsumer<CourseSelectsBySubjectCodeEventConsumer>();
                 x.AddConsumer<CoreSubjectSelectEventConsumer>();
@@ -55,6 +58,8 @@ namespace Course.API.Extensions
                 x.AddConsumer<CheckIsCourseEnrolledEventConsumer>();
                 x.AddConsumer<PaymentSucceededEventConsumer>();
                 x.AddConsumer<SubjectCodeSelectEventConsumer>();
+                x.AddConsumer<MappingSubjectCodeWithMajorCodeEventConsumer>();
+                x.AddConsumer<GetCourseBasicInfoEventConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 
@@ -77,6 +82,7 @@ namespace Course.API.Extensions
 				x.AddRequestClient<SuggestCourseRetakeEvent>();
 				x.AddRequestClient<CourseSelectsBySubjectCodeEvent>();
 				x.AddRequestClient<GetTeacherNamesEvent>();
+				x.AddRequestClient<GetStudentNamesEvent>();
             });
 
             return services;

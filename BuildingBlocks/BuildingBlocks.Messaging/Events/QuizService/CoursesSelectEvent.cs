@@ -34,18 +34,19 @@ public class StudentCurriculumEvent
 
 public class CoursesSelectEventResponseEntity
 {
-    public string MajorCode { get; set; }
-
-    public string MajorName { get; set; }
+    public required string MajorCode { get; set; }
     
-    public List<CoursesSelectEventCourseResponseEntity> Courses { get; set; }
+    public required string MajorName { get; set; }
+    public required List<CoursesSelectEventCourseResponseEntity> Courses { get; set; }
 }
 
 public class CoursesSelectEventCourseResponseEntity
 {
-    public Guid CourseId { get; set; }
+    public required Guid CourseId { get; set; }
     
-    public string SubjectCode { get; set; }
+    public required string SubjectCode { get; set; }
+    
+    public required short? Level { get; set; }
 }
 
 public class CourseImprove

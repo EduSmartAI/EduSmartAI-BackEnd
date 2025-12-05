@@ -572,7 +572,6 @@ public class PracticeTestService
                 TestResults = testResults
             };
             response.SetMessage(MessageId.I00001, "Nộp bài kiểm tra thực hành");
-            
             return response;
         }
         catch (Exception e)
