@@ -23,7 +23,7 @@ public class StudentTranscriptSelectEventResponseEntity
 
     public int Credit { get; set; }
 
-    public double Grade { get; set; }
+    public double? Grade { get; set; }
 
     public string Status { get; set; } = null!;
 }

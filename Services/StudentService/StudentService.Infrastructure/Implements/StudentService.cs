@@ -878,7 +878,7 @@ public class StudentService : IStudentService
                             }
                             continue;
                         }
-                        double parsedGrade = 0;
+                        double? parsedGrade = null;
                         if (!string.IsNullOrEmpty(gradeStr))
                         {
                             if (double.TryParse(gradeStr, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var g))
@@ -892,7 +892,9 @@ public class StudentService : IStudentService
                             else
                             {
                                 response.SetMessage(MessageId.E00000, $"Dòng {i + 1}: Cột 'Điểm' (cột 9) phải là số thực");
-                                return false;}
+                                return false;
+                                
+                            }
                         }
 
                         var statusNormalized = status?.Trim() ?? string.Empty;

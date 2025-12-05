@@ -19,7 +19,8 @@ public class LearningPathCollection
     public string? HabitAndInterestAnalysis { get; set; }
     public string? Personality { get; set; }
     public string? LearningAbility { get; set; }
-
+    
+    public string? AbilityFeedback { get; set; }
     public List<LearningPathMajorCollection> LearningPathMajors { get; set; } = new();
 
     public static LearningPathCollection FromWriteModel(LearningPath model)
@@ -45,6 +46,7 @@ public class LearningPathCollection
             HabitAndInterestAnalysis = model.HabitAndInterestAnalysis,
             Personality = model.Personality,
             LearningAbility = model.LearningAbility,
+            AbilityFeedback = model.AbilityFeedback,
             LearningPathMajors = majors
         };
     }

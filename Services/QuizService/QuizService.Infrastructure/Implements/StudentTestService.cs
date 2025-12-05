@@ -221,11 +221,13 @@ public class StudentTestService : IStudentTestService
             
             int finalStudentLevel = quizLevel;
             
+            // Declare practiceTestResults outside to use it later for ability marks calculation
+            var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
+            
             // If PracticeTestAnswers is provided, calculate combined level (60% quiz + 40% practice test)
             if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
             {
                 // Submit each practice test answer and collect results
-                var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
                 
                 foreach (var practiceAnswer in request.PracticeTestAnswers)
                 {
@@ -406,31 +408,38 @@ public class StudentTestService : IStudentTestService
             // If PracticeTestAnswers is provided, add practice test ability marks
             if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
             {
-                // Calculate practice test ability marks based on difficulty
-                var practiceTestByDifficulty = new Dictionary<string, int>();
+                // Calculate practice test ability marks based on actual submission results
+                // Store problem info with score: (Title, Difficulty, Score)
+                var practiceTestScoresWithInfo = new List<(string Title, string Difficulty, double Score)>();
                 
                 foreach (var practiceAnswer in request.PracticeTestAnswers)
                 {
                     var problem = await _problemRepository.FirstOrDefaultAsync(p => p.ProblemId == practiceAnswer.ProblemId, cancellationToken: cancellationToken);
                     if (problem != null)
                     {
-                        // Count pass rate from previous submission results
-                        if (!practiceTestByDifficulty.ContainsKey(problem.Difficulty))
+                        double score = 0.0;
+                        
+                        // Find the corresponding submission result
+                        if (practiceTestResults.TryGetValue(problem.Difficulty, out var submitResult))
                         {
-                            practiceTestByDifficulty[problem.Difficulty] = 0;
+                            // Calculator score (total passed testcase / total testcase) * 100
+                            score = submitResult.Response.TotalTests > 0
+                                ? (double)submitResult.Response.PassedTests / submitResult.Response.TotalTests * 100
+                                : 0.0;
                         }
-                        // Assuming the submission was successful if it reached here
-                        practiceTestByDifficulty[problem.Difficulty]++;
+                        // No submission result found, score remains 0
+                        
+                        // Store problem info with score
+                        practiceTestScoresWithInfo.Add((problem.Title, problem.Difficulty, score));
                     }
                 }
                 
-                // Add practice test ability marks
-                foreach (var difficulty in practiceTestByDifficulty.Keys)
+                // Add practice test ability marks với tên problem và điểm thực tế
+                foreach (var (title, difficulty, score) in practiceTestScoresWithInfo)
                 {
-                    var score = practiceTestByDifficulty[difficulty] > 0 ? 100.0 : 0.0;
                     abilityMarks.Add(new AbilityMarkContext
                     {
-                        Name = $"Bài test tự luận cấu trúc dữ liệu và giải thuật với độ khó: {difficulty}",
+                        Name = $"Bài test tự luận cấu trúc dữ liệu và giải thuật ({title}) với độ khó: {difficulty}",
                         Mark = score
                     });
                 }
@@ -775,12 +784,16 @@ public class StudentTestService : IStudentTestService
             int level = question.DifficultyLevel.Value;
             var performance = difficultyPerformance[level];
 
+            // Increment total questions for this difficulty level although student may not have answered
+            performance.total++;
+
             // Get ALL student answers for this question
             var studentAnswersForQuestion = studentAnswers
                 .Where(sa => sa.QuestionId == question.QuestionId)
                 .Select(sa => sa.AnswerId)
                 .ToList();
             
+            // Nếu sinh viên có trả lời, kiểm tra đúng/sai
             if (studentAnswersForQuestion.Any())
             {
                 // Get all correct answer IDs
@@ -790,14 +803,15 @@ public class StudentTestService : IStudentTestService
                     .ToHashSet();
 
                 // Check if student selected exactly the correct answers
-                bool isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count && studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                bool isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count 
+                    && studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
                 
                 if (isCorrect)
                 {
                     performance.correct++;
                 }
-                performance.total++;
             }
+            // Nếu sinh viên không trả lời -> tính là sai (không cộng correct)
 
             difficultyPerformance[level] = performance;
         }

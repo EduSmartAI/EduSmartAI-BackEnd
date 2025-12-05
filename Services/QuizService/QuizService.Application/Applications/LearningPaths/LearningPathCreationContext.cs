@@ -48,7 +48,7 @@ public class StudentTranscriptContext
 {
     public required string SubjectCode { get; set; }
     
-    public required double Mark { get; set; }
+    public required double? Mark { get; set; }
     
     public required string Status { get; set; }
 }

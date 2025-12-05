@@ -54,6 +54,10 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         learningPath.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
         learningPath.Personality = evt.Personality;
         learningPath.LearningAbility = evt.LearningAbility;
+        learningPath.AbilityFeedback = evt.AbilityAnalyses != null && evt.AbilityAnalyses.Any()
+            ? string.Join($"{Environment.NewLine}{new string('*', 15)}{Environment.NewLine}",
+                evt.AbilityAnalyses.Select(a => $"{a.Name}: {a.AnalysisMarkdown}"))
+            : null;
         _learningPathRepository.Update(learningPath);
         
         // TODO Phase 2: Update to handle MajorFeedbacks hierarchy when event structure is updated
