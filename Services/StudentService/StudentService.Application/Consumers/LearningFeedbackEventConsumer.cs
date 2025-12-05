@@ -166,6 +166,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             learningPathCollection.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
             learningPathCollection.Personality = evt.Personality;
             learningPathCollection.LearningAbility = evt.LearningAbility;
+            learningPathCollection.AbilityFeedback = learningPath.AbilityFeedback;
 
             foreach (var subCode in learningPathSubjectCodes)
             {
