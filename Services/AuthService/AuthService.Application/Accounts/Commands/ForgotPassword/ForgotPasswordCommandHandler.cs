@@ -3,10 +3,12 @@ using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.AuthService;
+using MassTransit;
 
 namespace AuthService.Application.Accounts.Commands.ForgotPassword
 {
-    public class ForgotPasswordCommandHandler(ICommandRepository<Account> accountRepository, ICommonLogic commonLogic, IUnitOfWork unitOfWork) : ICommandHandler<ForgotPasswordCommand, ForgotPasswordResponse>
+    public class ForgotPasswordCommandHandler(ICommandRepository<Account> accountRepository, ICommonLogic commonLogic, IUnitOfWork unitOfWork, IPublishEndpoint publishEndpoint) : ICommandHandler<ForgotPasswordCommand, ForgotPasswordResponse>
     {
         public async Task<ForgotPasswordResponse> Handle(ForgotPasswordCommand request, CancellationToken cancellationToken)
         {
@@ -23,11 +25,17 @@ namespace AuthService.Application.Accounts.Commands.ForgotPassword
 
             string key = $"{DateTime.Now}-{account.Email}";
 
-            // Endrypt key send to email
+            // Encrypt key send to email
             var encryptedKey = commonLogic.EncryptText(key);
 
-            // Publish event to UtilityService to send mail
+            var @event = new ForgotPasswordEvent
+            {
+                Email = account.Email,
+                Key = encryptedKey.Response.EncryptedKey
+            };
             
+            // Publish event to UtilityService to send mail
+            await publishEndpoint.Publish(@event, cancellationToken);
 
             // Save change
             account.Key = encryptedKey.Response.EncryptedKey;

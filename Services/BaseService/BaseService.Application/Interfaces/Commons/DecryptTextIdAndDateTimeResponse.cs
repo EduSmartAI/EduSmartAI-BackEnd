@@ -9,7 +9,7 @@ namespace BaseService.Application.Interfaces.Commons
  
     public class DecryptTextIdAndDateTimeResponseEntity
     {
-        public Guid Id { get; set; }
+        public string Email { get; set; }
         public DateTime DateTimeValue { get; set; }
     }
 }

@@ -6,6 +6,7 @@ using BaseService.Infrastructure.Logics;
 using BaseService.Infrastructure.Repositories;
 using UtilityService.Application.Feature.UploadVideo;
 using UtilityService.Application.Interfaces;
+using UtilityService.Domain.Models;
 using UtilityService.Infrastructure.Implements;
 
 namespace UtilityService.API.Extensions;
@@ -22,6 +23,8 @@ public static class RepositoryExtensions
         services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
         services.AddScoped<ICloudinaryService, CloudinaryService>();
         services.AddScoped<ITavilyConfigService, TavilyConfigService>();
+        services.AddScoped<ICommandRepository<Emailtemplate>, CommandRepository<Emailtemplate>>();
+        services.AddScoped<ICommandRepository<Systemconfig>, CommandRepository<Systemconfig>>();
         services.AddScoped(typeof(ICommandRepository<>), typeof(CommandRepository<>));
 
         services.AddMediatR(cfg =>

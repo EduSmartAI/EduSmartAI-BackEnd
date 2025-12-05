@@ -202,7 +202,7 @@ public class CommonLogic : ICommonLogic
     /// </summary>
     /// <param name="beforeDecrypt"></param>
     /// <returns></returns>
-    public DecryptTextIdAndDateTimeResponse DecryptTextIdAndDateTime(string beforeDecrypt)
+    public DecryptTextIdAndDateTimeResponse DecryptTextDateTimeAndEmail(string beforeDecrypt)
     {
         var response = new DecryptTextIdAndDateTimeResponse { Success = false };
 
@@ -232,7 +232,7 @@ public class CommonLogic : ICommonLogic
         var decrypted = sr.ReadToEnd();
 
         var parts = decrypted.Split('-', 2);
-        if (parts.Length != 2 || !Guid.TryParse(parts[1], out var id))
+        if (parts.Length != 2)
         {
             response.SetMessage(MessageId.E99999);
             return response;
@@ -242,7 +242,7 @@ public class CommonLogic : ICommonLogic
         response.Response = new DecryptTextIdAndDateTimeResponseEntity
         {
             DateTimeValue = DateTime.Parse(parts[0]),
-            Id = Guid.Parse(parts[1])
+            Email = parts[1].ToString()
         };
 
         // True

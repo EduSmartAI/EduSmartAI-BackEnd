@@ -2,6 +2,7 @@ using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
 using MassTransit;
 using UtilityService.Application.Consumers;
+using UtilityService.Application.Consumers.ForgotPasswords;
 using UtilityService.Application.Consumers.UploadVideo;
 using UtilityService.Application.Consumers.VerifyAccounts;
 
@@ -23,6 +24,7 @@ public static class MessagingExtensions
             x.AddConsumer<UploadVideoRequestedConsumer>();
             x.AddConsumer<AvatarUploadEventConsumer>();
             x.AddConsumer<GetSystemConfigEventConsumer>();
+            x.AddConsumer<ForgotPasswordEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "utility", includeNamespace: false));
 

@@ -1,3 +1,4 @@
+using AuthService.Application.Accounts.Commands.ForgotPassword;
 using AuthService.Application.Accounts.Commands.Inserts;
 using AuthService.Application.Accounts.Commands.Verifies;
 using BaseService.API.BaseControllers;
@@ -58,6 +59,40 @@ public class AccountController : ControllerBase
             ModelState,
             async () => await _mediator.Send(request),
             new AccountVerifyResponse()
+        );
+    }
+    
+    /// <summary>
+    /// Incoming Post
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("forgot-password")]
+    public async Task<ForgotPasswordResponse> ForgotPassword([FromBody] ForgotPasswordCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<ForgotPasswordCommand, ForgotPasswordResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            new ForgotPasswordResponse()
+        );
+    } 
+    
+    /// <summary>
+    /// Incoming Post
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("reset-password")]
+    public async Task<ResetPasswordResponse> ResetPassword([FromBody] ResetPasswordCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<ResetPasswordCommand, ResetPasswordResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            new ResetPasswordResponse()
         );
     }
 }
