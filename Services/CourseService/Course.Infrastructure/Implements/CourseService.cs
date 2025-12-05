@@ -2,6 +2,7 @@
 using BuildingBlocks.Messaging.Events.CourseService.AITranscriptEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseInsertEvents;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetStudentInformation;
 using BuildingBlocks.Messaging.Events.TeacherService.GetTeacherInformation;
@@ -1475,7 +1476,98 @@ namespace Course.Infrastructure.Implements
 					}
 				}
 
-				// 5) Giữ đúng thứ tự như input CourseIds (Guid? -> Guid)
+				// 5) Bổ sung thông tin tag & giảng viên cho từng course
+				if (mapped.Count > 0)
+				{
+					var mappedCourseIds = mapped
+						.Where(dto => dto.CourseId.HasValue)
+						.Select(dto => dto.CourseId!.Value)
+						.Distinct()
+						.ToList();
+
+					if (mappedCourseIds.Count > 0)
+					{
+						var courseMetaData = await _courseRepository
+							.Find(c => mappedCourseIds.Contains(c.CourseId), isTracking: false, cancellationToken: ct)
+							.Select(c => new
+							{
+								c.CourseId,
+								c.TeacherId,
+								Tags = c.CourseTags
+									.Where(ct => ct.IsActive && ct.Tag != null)
+									.Select(ct => ct.Tag.TagName)
+									.ToList()
+							})
+							.ToListAsync(ct);
+
+						if (courseMetaData.Count > 0)
+						{
+							var teacherIds = courseMetaData
+								.Select(m => m.TeacherId)
+								.Where(id => id != Guid.Empty)
+								.Distinct()
+								.ToList();
+
+							var teacherNameMap = new Dictionary<Guid, string>();
+							if (teacherIds.Count > 0)
+							{
+								try
+								{
+									var teacherResponse = await _teacherNameClient.GetResponse<GetTeacherNamesEventResponse>(
+										new GetTeacherNamesEvent(teacherIds),
+										ct);
+
+									if (teacherResponse.Message.Success && teacherResponse.Message.Response is not null)
+									{
+										teacherNameMap = teacherResponse.Message.Response
+											.Where(t => t is not null && t.TeacherId != Guid.Empty)
+											.GroupBy(t => t.TeacherId)
+											.ToDictionary(
+												g => g.Key,
+												g => g.First().DisplayName ?? string.Empty);
+									}
+								}
+								catch
+								{
+									teacherNameMap = new Dictionary<Guid, string>();
+								}
+							}
+
+							var metaDictionary = courseMetaData.ToDictionary(
+								m => m.CourseId,
+								m => new CourseTeacherMetadata(
+									m.TeacherId != Guid.Empty ? m.TeacherId : null,
+									m.Tags
+										.Where(t => !string.IsNullOrWhiteSpace(t))
+										.Distinct(StringComparer.OrdinalIgnoreCase)
+										.ToList()
+								));
+
+							foreach (var dto in mapped)
+							{
+								if (!dto.CourseId.HasValue ||
+								    !metaDictionary.TryGetValue(dto.CourseId.Value, out var meta))
+								{
+									continue;
+								}
+
+								dto.TeacherId = meta.TeacherId;
+								if (meta.TeacherId.HasValue &&
+								    teacherNameMap.TryGetValue(meta.TeacherId.Value, out var displayName))
+								{
+									dto.TeacherName = displayName;
+								}
+
+								if (meta.TagNames.Count > 0)
+								{
+									dto.TagNames = meta.TagNames;
+								}
+							}
+						}
+					}
+				}
+
+				// 6) Giữ đúng thứ tự như input CourseIds (Guid? -> Guid)
 				var order = request.CourseIds
 					.Select((id, idx) => new { id, idx })
 					.ToDictionary(x => x.id, x => x.idx);
@@ -1575,6 +1667,60 @@ namespace Course.Infrastructure.Implements
 			response.Response = pagedResult;
 			response.Success = true;
 			response.SetMessage(MessageId.I00001, "Lấy danh sách học viên đã đăng ký khóa học");
+
+			return response;
+		}
+
+		public async Task<GetCourseBasicInfoResponse> GetBasicCoursesInforAsync(List<Guid> ids, CancellationToken ct)
+		{
+			var response = new GetCourseBasicInfoResponse { Success = false };
+
+			if (ids is null || ids.Count == 0)
+			{
+				response.SetMessage(MessageId.E00000, "Danh sách ID rỗng");
+				return response;
+			}
+
+			var courses = await _courseRepository
+				.Find(c => ids.Contains(c.CourseId) && c.IsActive,
+					  isTracking: false,
+					  ct,
+					  c => c.Subject)     // Include Subject
+				.ToListAsync(ct);
+
+
+			var result = courses.Select(c => new CourseBasicInfoDto
+			{
+				CourseId = c.CourseId,
+				Title = c.Title,
+				ShortDescription = c.ShortDescription ?? "",
+				CourseImageUrl = c.CourseImageUrl ?? "",
+				Level = c.Level ?? 0,
+				Price = c.Price,
+				DealPrice = c.DealPrice,
+				TeacherId = c.TeacherId,
+				SubjectCode = c.Subject?.SubjectCode ?? ""
+			}).ToList();
+
+			var teacherIds = result.Select(x => x.TeacherId).Distinct().ToList();
+
+			var teacherResponse = await _teacherNameClient.GetResponse<GetTeacherNamesEventResponse>(new GetTeacherNamesEvent(teacherIds), ct);
+
+			if (teacherResponse.Message.Success && teacherResponse.Message.Response != null)
+			{
+				var dict = teacherResponse.Message.Response
+					.ToDictionary(t => t.TeacherId, t => t.DisplayName ?? "");
+
+				foreach (var item in result)
+				{
+					if (dict.TryGetValue(item.TeacherId, out var name))
+						item.TeacherName = name;
+				}
+			}
+
+			response.Success = true;
+			response.Response = result;
+			response.SetMessage(MessageId.I00001, "Lấy thông tin khóa học");
 
 			return response;
 		}
@@ -2405,5 +2551,6 @@ namespace Course.Infrastructure.Implements
 		}
 
 		#endregion
+		private sealed record CourseTeacherMetadata(Guid? TeacherId, List<string> TagNames);
 	}
 }

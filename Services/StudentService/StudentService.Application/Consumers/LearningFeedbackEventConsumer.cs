@@ -198,10 +198,12 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 }
 
             }
+
+            _unitOfWork.Store(learningPathCollection);
+            await _unitOfWork.SessionSaveChangesAsync();
         }
-        _unitOfWork.Store(learningPathCollection);
+
         await _learningPathRealtimeNotifier.PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, context.CancellationToken);
-        await _unitOfWork.SessionSaveChangesAsync();
     }
     
     /// <summary>

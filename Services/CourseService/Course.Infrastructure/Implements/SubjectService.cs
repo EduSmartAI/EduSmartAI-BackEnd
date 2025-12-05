@@ -164,7 +164,7 @@ public class SubjectService(
 
 		response.Response = dtoPaged;
 		response.Success = true;
-		response.SetMessage(MessageId.I00001, "OK");
+		response.SetMessage(MessageId.I00001, "Lấy subject");
 
 		return response;
 	}

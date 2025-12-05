@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
+using BaseService.Application.Interfaces.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using StudentService.Application.Applications.LearningPaths.Queries;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
+using StudentService.Domain.ReadModels;
 
 namespace StudentService.Infrastructure.Realtime;
 
@@ -67,7 +69,7 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
     {
         try
         {
-            await foreach (var payload in channel.Reader.ReadAllAsync(cancellationToken))
+            await foreach (var payload in channel.Reader.ReadAllAsync())
             {
                 yield return payload;
             }
@@ -102,18 +104,31 @@ public class LearningPathRealtimeNotifier : ILearningPathRealtimeNotifier
     
     public async Task PublishLearningPathSnapshotAsync(Guid pathId, Guid? studentId, CancellationToken cancellationToken)
     {
-        if (pathId == Guid.Empty || !studentId.HasValue || studentId == Guid.Empty)
+        if (pathId == Guid.Empty)
         {
             return;
         }
 
-        // Resolve ILearningPathService từ service provider để tránh circular dependency
         using var scope = _serviceProvider.CreateScope();
         var learningPathService = scope.ServiceProvider.GetRequiredService<ILearningPathService>();
+        var learningPathQueryRepository = scope.ServiceProvider.GetService<IQueryRepository<LearningPathCollection>>();
+
+        var effectiveStudentId = studentId;
+        if ((effectiveStudentId == null || effectiveStudentId == Guid.Empty) && learningPathQueryRepository != null)
+        {
+            var readModel = await learningPathQueryRepository.FirstOrDefaultAsync(x => x.PathId == pathId && x.IsActive);
+            effectiveStudentId = readModel?.StudentId;
+        }
+
+        if (!effectiveStudentId.HasValue || effectiveStudentId == Guid.Empty)
+        {
+            return;
+        }
         
         var snapshot = await learningPathService.GetLearningPathById(
             new LearningPathSelectsQuery { LearningPathId = pathId },
-            studentId.Value,
+            effectiveStudentId.Value,
+            true,
             cancellationToken);
 
         if (snapshot.Success)

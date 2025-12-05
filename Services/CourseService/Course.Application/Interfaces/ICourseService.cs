@@ -1,4 +1,5 @@
 ﻿using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Pagination;
 using Course.Application.Courses.Commands.CreateCourse;
@@ -43,5 +44,7 @@ namespace Course.Application.Interfaces
         Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentIdAsync(GetInProgressCourseByStudentIdQuery request, CancellationToken ct = default);
 
         Task<GetEnrolledUsersResponse> GetEnrolledUsersAsync(GetEnrolledUsersQuery request, CancellationToken ct = default);
+
+        Task<GetCourseBasicInfoResponse> GetBasicCoursesInforAsync(List<Guid> ids, CancellationToken ct);
 	}
 }

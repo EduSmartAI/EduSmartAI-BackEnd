@@ -20,7 +20,8 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
         public string AiEvaluationMarkdown { get; set; } = string.Empty;
         public PerformanceSection Performance { get; set; } = new();
         public LearningBehaviorSection LearningBehavior { get; set; } = new();
-    }
+		public List<SuggestedCourseDetailsDto> SuggestedCourses { get; set; } = new();
+	}
     public sealed class ProgressSection
     {
         public double CompletedPercent { get; set; }        // 68%
@@ -33,7 +34,7 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
     }
     public sealed class PerformanceSection
     {
-        public double avgMinutesPerLesson { get; set; }
+        public double AvgMinutesPerLesson { get; set; }
         public int Rank { get; set; }
         public int FasterCount { get; set; }
         public int SlowerCount { get; set; }
@@ -67,4 +68,19 @@ namespace StudentService.Application.Applications.Dashboards.Queries.GetOverview
         public double AverageMinutesPerLesson { get; set; }
         public int LearnerCount { get; set; }
     }
+
+	public sealed class SuggestedCourseDetailsDto
+	{
+		public Guid CourseId { get; set; }
+		public string Title { get; set; } = string.Empty;
+		public string ShortDescription { get; set; } = string.Empty;
+		public string CourseImageUrl { get; set; } = string.Empty;
+		public int Level { get; set; }
+		public decimal Price { get; set; }
+		public decimal? DealPrice { get; set; }
+		public Guid TeacherId { get; set; }
+		public string? TeacherName { get; set; }
+		public string SubjectCode { get; set; } = string.Empty;
+	}
+
 }

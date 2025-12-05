@@ -1,5 +1,6 @@
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
@@ -99,9 +100,11 @@ public static class MessagingExtensions
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
             x.AddRequestClient<GetOverviewCourseEvents>();
+            x.AddRequestClient<GetSubjectSemesterEvent>();
             x.AddRequestClient<StudentTranscriptSelectEvent>();
             x.AddRequestClient<SearchAiRecommendImproveEvents>(TimeSpan.FromSeconds(600)); // 10 minutes timeout for AI search
-        });
+            x.AddRequestClient<GetCourseBasicInfoEvent>();
+		});
 
         return services;
     }

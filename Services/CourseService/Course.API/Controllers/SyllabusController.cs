@@ -228,7 +228,6 @@ namespace Course.API.Controllers
 		}
 
 		[HttpGet("[action]")]
-		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(Summary = "Get list of subjects")]
 		public async Task<GetSubjectsResponse> GetSubjects(
 			[FromQuery] int? page,
