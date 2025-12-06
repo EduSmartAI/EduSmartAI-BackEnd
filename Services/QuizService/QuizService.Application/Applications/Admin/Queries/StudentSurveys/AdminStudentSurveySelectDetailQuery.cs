@@ -3,8 +3,9 @@ using BuildingBlocks.CQRS;
 
 namespace QuizService.Application.Applications.Admin.Queries.StudentSurveys;
 
-public record AdminStudentSurveySelectDetailQuery : IQuery<AdminStudentSurveySelectDetailResponse>
+public class AdminStudentSurveySelectDetailQuery : IQuery<AdminStudentSurveySelectDetailResponse>
 {
-    [Required(ErrorMessage = "StudentSurveyId is required")]
-    public Guid StudentSurveyId { get; set; }
+    [Required(ErrorMessage = "StudentQuizId is required.")]
+    public Guid StudentQuizId { get; set; }
 }
+

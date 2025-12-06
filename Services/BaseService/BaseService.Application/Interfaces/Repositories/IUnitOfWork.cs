@@ -31,7 +31,7 @@ public interface IUnitOfWork : IDisposable
     /// </summary>
     /// <param name="entity"></param>
     /// <typeparam name="TCollection"></typeparam>
-    void Store<TCollection>(TCollection entity) where TCollection : class;
+    void Store<TCollection>(TCollection entity) where TCollection : class?;
     
     void Store<TCollection>(IEnumerable<TCollection> entities) where TCollection : class;
     
@@ -40,7 +40,7 @@ public interface IUnitOfWork : IDisposable
     /// </summary>
     /// <param name="entity"></param>
     /// <typeparam name="TCollection"></typeparam>
-    void Delete<TCollection>(TCollection entity) where TCollection : class;
+    void Delete<TCollection>(TCollection entity) where TCollection : class?;
     
     /// <summary>
     /// Save all changes asynchronously without a user context

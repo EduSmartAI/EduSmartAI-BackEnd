@@ -31,7 +31,8 @@ public class AdminPracticeTestSelectQueryHandler : IQueryHandler<AdminPracticeTe
                 cancellationToken: cancellationToken,
                 x => x.ProblemExamples,
                 x => x.TestCases,
-                x => x.ProblemTemplates)
+                x => x.ProblemTemplates,
+                x => x.ProblemSolutions)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (problem == null)
@@ -89,9 +90,23 @@ public class AdminPracticeTestSelectQueryHandler : IQueryHandler<AdminPracticeTe
                     TemplateSuffix = t.TemplateSuffix,
                     UserStubCode = t.UserStubCode,
                 })
-                .ToList()
+                .ToList(),
+            Solutions = problem
+                .ProblemSolutions
+                .Where(x => x.IsActive)
+                .Select(s => new AdminPracticeSolution
+                {
+                    SolutionId = s.SolutionId,
+                    SolutionCode = s.SolutionCode,
+                    Language = new AdminPracticeSolution.LanguageInfo
+                    {
+                        LanguageId = s.Language.LanguageId,
+                        LanguageName = s.Language.Name
+                    }
+                }).ToList()
         };
 
+        // True
         response.Success = true;
         response.Response = responseEntity;
         response.SetMessage(MessageId.I00001, "Lấy thông tin bài kiểm tra thực hành");

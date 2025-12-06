@@ -18,6 +18,8 @@ using QuizService.Application.Applications.StudentSurveys.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using SurveyAnswerDetailResponse = QuizService.Application.Applications.StudentSurveys.Queries.SurveyAnswerDetailResponse;
+using AdminQueries = QuizService.Application.Applications.Admin.Queries.StudentSurveys;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -809,18 +811,70 @@ public class StudentSurveyService : IStudentSurveyService
     {
         var response = new AdminStudentSurveySelectDetailResponse { Success = false };
         
-        var cacheKey = CacheKey.StudentSurvey(request.StudentSurveyId);
-        var result = await GetStudentSurveyDetailAsync(request.StudentSurveyId, cacheKey);
+        // Get student survey from database
+        var studentSurvey = await _studentQuizQueryRepository.FirstOrDefaultAsync(x => 
+            x.StudentQuizId == request.StudentQuizId && 
+            x.QuizType == (short)ConstantEnum.TestType.Survey &&
+            x.IsActive);
         
-        if (result == null)
+        if (studentSurvey == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy khảo sát của sinh viên");
             return response;
         }
 
+        // Get survey info
+        var survey = await _quizQueryRepository.FirstOrDefaultAsync(x => x.QuizId == studentSurvey.QuizId);
+        if (survey == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin khảo sát");
+            return response;
+        }
+
+        // Build question results
+        var questionResults = new List<SurveyQuestionResultResponseEntity>();
+
+        foreach (var question in survey.Questions.Where(q => q.IsActive).OrderBy(q => q.CreatedAt))
+        {
+            var studentAnswers = studentSurvey.StudentQuizAnswers
+                .Where(sa => sa.QuestionId == question.QuestionId)
+                .Select(sa => sa.AnswerId)
+                .ToHashSet();
+
+            var answers = question.Answers
+                .Where(a => a.IsActive)
+                .Select(a => new AdminSurveyAnswerDetailResponse
+                {
+                    AnswerId = a.AnswerId,
+                    AnswerText = a.AnswerText,
+                    SelectedByStudent = studentAnswers.Contains(a.AnswerId)
+                })
+                .ToList();
+
+            questionResults.Add(new AdminQueries.SurveyQuestionResultResponseEntity
+            {
+                QuestionId = question.QuestionId,
+                QuestionText = question.QuestionText,
+                QuestionType = question.QuestionType,
+                Answers = answers
+            });
+        }
+
         response.Success = true;
-        response.Response = result;
-        response.SetMessage(MessageId.I00001, "Lấy thông tin chi tiết khảo sát của sinh viên");
+        response.Response = new AdminStudentSurveySelectDetailResponseEntity
+        {
+            StudentQuizId = studentSurvey.StudentQuizId,
+            StudentId = studentSurvey.StudentId,
+            StudentName = studentSurvey.Student!.FullName,
+            StudentEmail = studentSurvey.Student!.Email,
+            SurveyId = studentSurvey.QuizId,
+            SurveyTitle = survey.SurveyQuizSetting?.Title ?? "N/A",
+            SurveyDescription = survey.SurveyQuizSetting?.Description,
+            SurveyCode = survey.SurveyQuizSetting?.SurveyCode ?? "N/A",
+            CreatedAt = studentSurvey.CreatedAt,
+            QuestionResults = questionResults
+        };
+        response.SetMessage(MessageId.I00001, "Lấy thông tin chi tiết khảo sát của sinh viên thành công");
         return response;
     }
 

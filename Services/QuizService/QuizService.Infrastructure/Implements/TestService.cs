@@ -3,6 +3,7 @@ using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 using QuizService.Application.Applications.Tests.Commands;
 using QuizService.Application.Applications.Tests.Queries;
 using QuizService.Application.Interfaces;
@@ -14,6 +15,8 @@ namespace QuizService.Infrastructure.Implements;
 public class TestService : ITestService
 {
     private readonly ICommandRepository<Test> _commandRepository;
+    private readonly ICommandRepository<Quiz> _commandQuizRepository;
+    private readonly ICommandRepository<Question> _commandQuestionRepository;
     private readonly IQueryRepository<TestCollection> _queryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
@@ -27,16 +30,22 @@ public class TestService : ITestService
     /// <param name="identityService"></param>
     /// <param name="unitOfWork"></param>
     /// <param name="requestSubjectSelectClient"></param>
+    /// <param name="commandQuizRepository"></param>
+    /// <param name="commandQuestionRepository"></param>
     public TestService(ICommandRepository<Test> commandRepository,
         IQueryRepository<TestCollection> queryRepository,
         IIdentityService identityService, IUnitOfWork unitOfWork,
-        IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient)
+        IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient,
+        ICommandRepository<Quiz> commandQuizRepository,
+        ICommandRepository<Question> commandQuestionRepository)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
         _identityService = identityService;
         _unitOfWork = unitOfWork;
         _requestSubjectSelectClient = requestSubjectSelectClient;
+        _commandQuizRepository = commandQuizRepository;
+        _commandQuestionRepository = commandQuestionRepository;
     }
 
     /// <summary>
@@ -145,6 +154,365 @@ public class TestService : ITestService
             response.SetMessage(MessageId.I00001, "Thêm bài kiểm tra");
             return true;
         }, cancellationToken);
+        return response;
+    }
+
+    /// <summary>
+    /// Insert quizzes into existing test
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<TestQuizInsertResponse> InsertTestQuizAsync(TestQuizInsertCommand request, CancellationToken cancellationToken)
+    {
+        var response = new TestQuizInsertResponse { Success = false };
+        var currentEmail = _identityService.GetCurrentUser()!.Email;
+
+        // Get existing test
+        var existingTest = await _commandRepository.FirstOrDefaultAsync(
+            t => t.TestId == request.TestId && t.IsActive,
+            cancellationToken: cancellationToken);
+        if (existingTest == null)
+        {
+            response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
+            return response;
+        }
+
+        // Get subject names from CourseService
+        var subjectIds = request.Quizzes.Select(q => q.SubjectCode).Distinct().ToList();
+        var subjectSelectEvent = new SubjectSelectsEvent
+        {
+            SubjectIds = subjectIds,
+        };
+
+        var messageResponse = await _requestSubjectSelectClient.GetResponse<SubjectSelectsEventResponse>(
+            subjectSelectEvent, cancellationToken);
+        if (!messageResponse.Message.Success)
+        {
+            response.MessageId = messageResponse.Message.MessageId;
+            response.Message = messageResponse.Message.Message;
+            return response;
+        }
+
+        // Create subject mapping dictionary
+        var subjectMapping = messageResponse.Message.Response
+            .ToDictionary(s => s.SubjectId, s => s.SubjectNameCode);
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        { 
+            // Add new quizzes to existing test
+            var newQuizzes = new List<Quiz>();
+            foreach (var quizDto in request.Quizzes)
+            {
+                var newQuiz = new Quiz
+                {
+                    TestId = existingTest.TestId,
+                    QuizType = (short) ConstantEnum.TestType.Quiz,
+                    PlacementTestQuizSetting = new PlacementTestQuizSetting
+                    {
+                        SubjectCode = quizDto.SubjectCode,
+                        Title = quizDto.Title,
+                        Description = quizDto.Description,
+                    },
+                    Questions = quizDto.Questions.Select(q => new Question
+                    {
+                        QuestionText = q.QuestionText,
+                        QuestionType = (short) q.QuestionType,
+                        DifficultyLevel = q.DifficultyLevel,
+                        Answers = q.Answers.Select(a => new Answer
+                        {
+                            AnswerText = a.AnswerText,
+                            IsCorrect = a.IsCorrect,
+                        }).ToList()
+                    }).ToList()
+                };
+                
+                existingTest.Quizzes.Add(newQuiz);
+                newQuizzes.Add(newQuiz);
+            }
+
+            // Save to write database
+            _commandRepository.Update(existingTest);
+            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken);
+
+            // Update TestCollection to include new quizzes
+            var testCollection = await _queryRepository.FirstOrDefaultAsync(
+                t => t.TestId == request.TestId && t.IsActive);
+            
+            if (testCollection != null)
+            {
+                foreach (var quiz in newQuizzes)
+                {
+                    var quizCollection = QuizCollection.FromWriteModel(quiz,
+                        subjectMapping.ContainsKey(quiz.PlacementTestQuizSetting!.SubjectCode)
+                            ? subjectMapping[quiz.PlacementTestQuizSetting!.SubjectCode]
+                            : string.Empty);
+                    testCollection.Quizzes.Add(quizCollection);
+
+                    // Store questions and answers
+                    foreach (var question in quiz.Questions)
+                    {
+                        _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
+                        foreach (var answer in question.Answers)
+                        {
+                            _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
+                        }
+                    }
+                }
+                _unitOfWork.Store(testCollection);
+            }
+
+            await _unitOfWork.SessionSaveChangesAsync();
+            
+            // Clear cache
+            await _unitOfWork.CacheRemoveAsync("test:id");
+            await _unitOfWork.CacheRemoveAsync("quiz:list");
+
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm quiz vào bài test");
+            return true;
+        }, cancellationToken);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Delete quiz from test
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<TestQuizDeleteResponse> DeleteTestQuizAsync(TestQuizDeleteCommand request, CancellationToken cancellationToken)
+    {
+        var response = new TestQuizDeleteResponse { Success = false };
+        var currentEmail = _identityService.GetCurrentUser()!.Email;
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Get existing test with quizzes
+            var existingTest = await _commandRepository.FirstOrDefaultAsync(
+                t => t.TestId == request.TestId && t.IsActive,
+                cancellationToken: cancellationToken,
+                includes: t => t.Quizzes);
+
+            if (existingTest == null)
+            {
+                response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
+                return false;
+            }
+
+            // Find quiz to delete
+            var quizToDelete = existingTest.Quizzes.FirstOrDefault(q => q.QuizId == request.QuizId && q.IsActive);
+            if (quizToDelete == null)
+            {
+                response.SetMessage(MessageId.E00000, "Quiz không tồn tại trong bài test này");
+                return false;
+            }
+            
+            // Save to write database
+            _commandQuizRepository.Update(quizToDelete);
+            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken, needLogicalDelete: true);
+            
+            var testCollection = await _queryRepository.FirstOrDefaultAsync(
+                t => t.TestId == request.TestId && t.IsActive);
+            
+            var quizCollection = testCollection?.Quizzes
+                .FirstOrDefault(q => q.QuizId == request.QuizId);
+            
+            testCollection!.Quizzes.Remove(quizCollection!);
+
+            // Store new TestCollection in RavenDB (will only include active quizzes)
+            _unitOfWork.Store(testCollection);
+            await _unitOfWork.SessionSaveChangesAsync();
+            
+            // Clear cache
+            await _unitOfWork.CacheRemoveAsync("test:id");
+            await _unitOfWork.CacheRemoveAsync("quiz:list");
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Xóa bài quiz");
+            return true;
+        }, cancellationToken);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Insert questions into quiz
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<TestQuizQuestionsInsertResponse> InsertTestQuizQuestionsAsync(TestQuizQuestionsInsertCommand request, CancellationToken cancellationToken)
+    {
+        var response = new TestQuizQuestionsInsertResponse { Success = false };
+        var currentEmail = _identityService.GetCurrentUser()!.Email;
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Get existing test with quizzes
+            var existingTest = await _commandRepository.FirstOrDefaultAsync(
+                t => t.TestId == request.TestId && t.IsActive,
+                cancellationToken: cancellationToken,
+                includes: t => t.Quizzes);
+
+            if (existingTest == null)
+            {
+                response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
+                return false;
+            }
+
+            // Find quiz to add questions
+            var targetQuiz = existingTest.Quizzes.FirstOrDefault(q => q.QuizId == request.QuizId && q.IsActive);
+            if (targetQuiz == null)
+            {
+                response.SetMessage(MessageId.E00000, "Quiz không tồn tại trong bài test này");
+                return false;
+            }
+
+            // Add new questions
+            var newQuestions = new List<Question>();
+            foreach (var questionDto in request.Questions)
+            {
+                var newQuestion = new Question
+                {
+                    QuestionId = Guid.NewGuid(),
+                    QuestionText = questionDto.QuestionText,
+                    QuestionType = (short)questionDto.QuestionType,
+                    DifficultyLevel = questionDto.DifficultyLevel,
+                    Answers = questionDto.Answers.Select(a => new Answer
+                    {
+                        AnswerId = Guid.NewGuid(),
+                        AnswerText = a.AnswerText,
+                        IsCorrect = a.IsCorrect,
+                    }).ToList()
+                };
+                
+                targetQuiz.Questions.Add(newQuestion);
+                newQuestions.Add(newQuestion);
+            }
+
+            // Save to write database
+            _commandRepository.Update(existingTest);
+            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken);
+
+            // Update read database - store new questions and answers
+            foreach (var question in newQuestions)
+            {
+                _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
+                foreach (var answer in question.Answers)
+                {
+                    _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
+                }
+            }
+
+            // Reload and update QuizCollection to include new questions
+            var updatedQuiz = existingTest.Quizzes.FirstOrDefault(q => q.QuizId == request.QuizId);
+            if (updatedQuiz != null && updatedQuiz.PlacementTestQuizSetting != null)
+            {
+                var subjectSelectEvent = new SubjectSelectsEvent 
+                { 
+                    SubjectIds = new List<Guid> { updatedQuiz.PlacementTestQuizSetting.SubjectCode } 
+                };
+                
+                var messageResponse = await _requestSubjectSelectClient.GetResponse<SubjectSelectsEventResponse>(
+                    subjectSelectEvent, cancellationToken);
+                
+                var subjectName = messageResponse.Message.Response.FirstOrDefault()?.SubjectNameCode ?? string.Empty;
+                _unitOfWork.Store(QuizCollection.FromWriteModel(updatedQuiz, subjectName));
+            }
+
+            await _unitOfWork.SessionSaveChangesAsync();
+            
+            // Clear cache
+            await _unitOfWork.CacheRemoveAsync("test:id");
+            await _unitOfWork.CacheRemoveAsync("quiz:list");
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Thêm câu hỏi");
+            return true;
+        }, cancellationToken);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Delete multiple questions from quiz
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<TestQuizQuestionsDeleteResponse> DeleteTestQuizQuestionsAsync(TestQuizQuestionsDeleteCommand request, CancellationToken cancellationToken)
+    {
+        var response = new TestQuizQuestionsDeleteResponse { Success = false };
+        var currentEmail = _identityService.GetCurrentUser()!.Email;
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            // Get existing test with quizzes
+            var existingTest = await _commandRepository.Find(
+                t => t.TestId == request.TestId && t.IsActive,
+                cancellationToken: cancellationToken)
+                .Include(t => t.Quizzes)
+                .ThenInclude(t => t.Questions)
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+
+            if (existingTest == null)
+            {
+                response.SetMessage(MessageId.E00000, CommonMessages.TestNotFound);
+                return false;
+            }
+
+            // Find quiz
+            var targetQuiz = existingTest.Quizzes.FirstOrDefault(q => q.QuizId == request.QuizId && q.IsActive);
+            if (targetQuiz == null)
+            {
+                response.SetMessage(MessageId.E00000, "Quiz không tồn tại trong bài test này");
+                return false;
+            }
+
+            // Find questions to delete
+            var questionsToDelete = await _commandQuestionRepository
+                .Find(q => request.QuestionIds.Contains(q.QuestionId) && q.IsActive)
+                .ToListAsync(cancellationToken: cancellationToken);
+
+            if (!questionsToDelete.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Không tìm thấy câu hỏi nào để xóa");
+                return false;
+            }
+
+            // Soft delete questions
+            foreach (var question in questionsToDelete)
+            {
+                _commandQuestionRepository.Update(question!);
+            }
+            await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken, needLogicalDelete: true);
+            
+            var testCollection = await _queryRepository.FirstOrDefaultAsync(
+                t => t.TestId == request.TestId && t.IsActive);
+            var quizCollection = testCollection?.Quizzes
+                .FirstOrDefault(q => q.QuizId == request.QuizId);
+            var questionsCollectionToDelete = quizCollection?.Questions
+                .Where(q => request.QuestionIds.Contains(q.QuestionId))
+                .ToList();
+            
+            foreach (var questionCollection in questionsCollectionToDelete!)
+            {
+                quizCollection!.Questions.Remove(questionCollection);
+            }
+            _unitOfWork.Store(testCollection);
+            await _unitOfWork.SessionSaveChangesAsync();
+            
+            // Clear cache
+            await _unitOfWork.CacheRemoveAsync("test:id");
+            await _unitOfWork.CacheRemoveAsync("quiz:list");
+
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Xóa câu hỏi");
+            return true;
+        }, cancellationToken);
+
         return response;
     }
 

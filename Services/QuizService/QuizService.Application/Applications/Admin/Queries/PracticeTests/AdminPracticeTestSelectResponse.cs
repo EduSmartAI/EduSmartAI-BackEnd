@@ -23,7 +23,25 @@ public class AdminPracticeTestSelectResponseEntity
     
     public List<AdminPracticeTestTemplate> Templates { get; set; } = new();
     
+    public List<AdminPracticeSolution> Solutions { get; set; } = new();
+    
     public DateTime CreatedAt { get; set; }
+}
+
+public class AdminPracticeSolution
+{
+    public Guid SolutionId { get; set; }
+
+    public LanguageInfo Language { get; set; } = null!;
+
+    public string SolutionCode { get; set; } = null!;
+    
+    public class LanguageInfo
+    {
+        public int LanguageId { get; set; }
+        
+        public string LanguageName { get; set; } = null!;
+    }
 }
 
 public class AdminPracticeTestTestCase
