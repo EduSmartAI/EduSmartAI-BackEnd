@@ -270,6 +270,10 @@ namespace Course.API.Controllers
 
 		[HttpPut]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Cập nhật môn học cho chương trình đào tạo",
+			Description = "Cập nhật môn học cho chương trình đào tạo. Cần xác thực Bearer."
+		)]
 		public async Task<UpdateSyllabusSubjectsResponse> UpdateSyllabusSubjects([FromBody] UpdateSyllabusSubjectsCommand request)
 		{
 			return await ApiControllerHelper.HandleRequest<UpdateSyllabusSubjectsCommand, UpdateSyllabusSubjectsResponse, bool>(

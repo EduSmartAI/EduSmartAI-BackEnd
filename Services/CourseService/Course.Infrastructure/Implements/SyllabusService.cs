@@ -433,6 +433,12 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Update syllabus subjects (add, remove, update)
+		/// </summary>
+		/// <param name="cmd"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<UpdateSyllabusSubjectsResponse> UpdateSyllabusSubjectsAsync(UpdateSyllabusSubjectsCommand cmd, CancellationToken ct)
 		{
 			var response = new UpdateSyllabusSubjectsResponse { Success = false };
@@ -496,6 +502,7 @@ namespace Course.Infrastructure.Implements
 							// ADD
 							var newEntity = new SyllabusSubject
 							{
+								SyllabusId = cmd.SyllabusId,
 								SemesterId = sem.SemesterId,
 								SubjectId = reqSb.SubjectId,
 								Credit = reqSb.Credit,
