@@ -32,6 +32,12 @@ public class AdminStudentSurveysSelectQueryHandler : IQueryHandler<AdminStudentS
         {
             query = query.Where(sq => sq.QuizId == request.SurveyId.Value).ToList();
         }
+        
+        // Filter by SurveyCode if provided
+        if (!string.IsNullOrEmpty(request.SurveyCode))
+        {
+            query = query.Where(sq => sq.Quiz.SurveyQuizSetting != null && sq.Quiz.SurveyQuizSetting.SurveyCode == request.SurveyCode).ToList();
+        }
 
         // Get total count
         var totalCount = query.Count();

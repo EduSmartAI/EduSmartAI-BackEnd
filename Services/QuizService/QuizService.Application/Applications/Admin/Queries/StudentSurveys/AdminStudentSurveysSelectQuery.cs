@@ -8,6 +8,8 @@ public class AdminStudentSurveysSelectQuery : IQuery<AdminStudentSurveysSelectRe
     
     public Guid? SurveyId { get; set; }
     
+    public string? SurveyCode { get; set; }
+    
     public int PageNumber { get; set; } = 1;
     
     public int PageSize { get; set; } = 10;

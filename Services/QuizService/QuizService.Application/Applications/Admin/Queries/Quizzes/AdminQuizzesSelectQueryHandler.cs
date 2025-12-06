@@ -24,7 +24,7 @@ public class AdminQuizzesSelectQueryHandler : IQueryHandler<AdminQuizzesSelectQu
         var response = new AdminQuizzesSelectResponse { Success = false };
 
         // Build query
-        var query = await _quizQueryRepository.ToListAsync(q => true);
+        var query = await _quizQueryRepository.ToListAsync(q => q.IsActive);
 
         // Filter by QuizType if provided
         if (request.QuizType.HasValue)
@@ -68,22 +68,97 @@ public class AdminQuizzesSelectQueryHandler : IQueryHandler<AdminQuizzesSelectQu
         var studentCountDict = studentCounts
             .GroupBy(sq => sq.QuizId)
             .ToDictionary(g => g.Key, g => g.Count());
+        
         // Map to response
-        var quizItems = quizzes.Select(q => new AdminQuizItem
+        var quizItems = quizzes.Select(q =>
         {
-            QuizId = q.QuizId,
-            QuizType = q.QuizType,
-            QuizTypeName = nameof(ConstantEnum.TestType.Quiz),
-            Title = q.QuizType == (short) ConstantEnum.TestType.Quiz ? q.PlacementTestQuizSetting?.Title! : q.SurveyQuizSetting?.Title!,
-            Description = q.QuizType == (short)ConstantEnum.TestType.Quiz ? q.PlacementTestQuizSetting?.Description : q.SurveyQuizSetting?.Description,
-            SubjectCode = q.PlacementTestQuizSetting?.SubjectCode,
-            SubjectCodeName = q.PlacementTestQuizSetting?.SubjectCodeName,
-            SurveyCode = q.SurveyQuizSetting?.SurveyCode,
-            TotalQuestions = q.Questions?.Count ?? 0,
-            TotalStudentsTaken = studentCountDict.GetValueOrDefault(q.QuizId, 0),
-            IsActive = q.IsActive,
-            CreatedAt = q.CreatedAt
+            var quizTypeName = q.QuizType switch
+            {
+                (short)ConstantEnum.TestType.Exam => nameof(ConstantEnum.TestType.Exam),
+                (short)ConstantEnum.TestType.Quiz => nameof(ConstantEnum.TestType.Quiz),
+                (short)ConstantEnum.TestType.Survey => nameof(ConstantEnum.TestType.Survey),
+                _ => "Unknown"
+            };
+
+            // Map settings và basic info dựa trên QuizType
+            var (title, description, subjectCode, subjectCodeName, surveyCode, placementSetting, courseSetting, surveySetting) = q.QuizType switch
+            {
+                // Quiz = PlacementTestQuizSetting
+                (short)ConstantEnum.TestType.Quiz => (
+                    q.PlacementTestQuizSetting?.Title,
+                    q.PlacementTestQuizSetting?.Description,
+                    q.PlacementTestQuizSetting?.SubjectCode,
+                    q.PlacementTestQuizSetting?.SubjectCodeName,
+                    (string?)null,
+                    q.PlacementTestQuizSetting != null ? new PlacementTestQuizSettingDto
+                    {
+                        SubjectCode = q.PlacementTestQuizSetting.SubjectCode,
+                        SubjectCodeName = q.PlacementTestQuizSetting.SubjectCodeName,
+                        Title = q.PlacementTestQuizSetting.Title,
+                        Description = q.PlacementTestQuizSetting.Description
+                    } : null,
+                    (CourseQuizSettingDto?)null,
+                    (SurveyQuizSettingDto?)null
+                ),
+                // Exam = CourseQuizSetting
+                (short)ConstantEnum.TestType.Exam => (
+                    (string?)null,
+                    (string?)null,
+                    (Guid?)null,
+                    (string?)null,
+                    (string?)null,
+                    (PlacementTestQuizSettingDto?)null,
+                    q.CourseQuizSetting != null ? new CourseQuizSettingDto
+                    {
+                        QuizId = q.CourseQuizSetting.QuizId,
+                        DurationMinutes = q.CourseQuizSetting.DurationMinutes,
+                        PassingScorePercentage = q.CourseQuizSetting.PassingScorePercentage,
+                        ShuffleQuestions = q.CourseQuizSetting.ShuffleQuestions,
+                        ShowResultsImmediately = q.CourseQuizSetting.ShowResultsImmediately,
+                        AllowRetake = q.CourseQuizSetting.AllowRetake
+                    } : null,
+                    (SurveyQuizSettingDto?)null
+                ),
+                // Survey = SurveyQuizSetting
+                (short)ConstantEnum.TestType.Survey => (
+                    q.SurveyQuizSetting?.Title,
+                    q.SurveyQuizSetting?.Description,
+                    (Guid?)null,
+                    (string?)null,
+                    q.SurveyQuizSetting?.SurveyCode,
+                    (PlacementTestQuizSettingDto?)null,
+                    (CourseQuizSettingDto?)null,
+                    q.SurveyQuizSetting != null ? new SurveyQuizSettingDto
+                    {
+                        SurveyTypeId = q.SurveyQuizSetting.SurveyTypeId,
+                        SurveyCode = q.SurveyQuizSetting.SurveyCode,
+                        SurveyTypeName = q.SurveyQuizSetting.SurveyTypeName,
+                        Title = q.SurveyQuizSetting.Title,
+                        Description = q.SurveyQuizSetting.Description
+                    } : null
+                ),
+                _ => (null, null, null, null, null, null, null, null)
+            };
+
+            return new AdminQuizItem
+            {
+                QuizId = q.QuizId,
+                QuizType = q.QuizType,
+                QuizTypeName = quizTypeName,
+                Title = title,
+                Description = description,
+                SubjectCode = subjectCode,
+                SubjectCodeName = subjectCodeName,
+                SurveyCode = surveyCode,
+                TotalQuestions = q.Questions?.Count ?? 0,
+                TotalStudentsTaken = studentCountDict.GetValueOrDefault(q.QuizId, 0),
+                CreatedAt = q.CreatedAt,
+                PlacementTestQuizSetting = placementSetting,
+                CourseQuizSetting = courseSetting,
+                SurveyQuizSetting = surveySetting
+            };
         }).ToList();
+
 
         response.Success = true;
         response.Response = new AdminQuizzesSelectResponseEntity
