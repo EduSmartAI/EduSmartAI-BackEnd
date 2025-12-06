@@ -16,6 +16,7 @@ using Course.Application.Syllabus.Commands.CloneCascadeSyllabus;
 using Course.Application.Syllabus.Commands.CloneFoundationSyllabus;
 using Course.Application.Syllabus.Commands.CreateFullSyllabus;
 using Course.Application.Syllabus.Commands.CreateSyllabus;
+using Course.Application.Syllabus.Commands.UpdateSyllabusSubjects;
 using Course.Application.Syllabus.Queries.GetFullSyllabus;
 
 namespace Course.API.Controllers
@@ -264,6 +265,19 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new GetSubjectDetailResponse()
+			);
+		}
+
+		[HttpPut]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		public async Task<UpdateSyllabusSubjectsResponse> UpdateSyllabusSubjects([FromBody] UpdateSyllabusSubjectsCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<UpdateSyllabusSubjectsCommand, UpdateSyllabusSubjectsResponse, bool>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new UpdateSyllabusSubjectsResponse()
 			);
 		}
 	}
