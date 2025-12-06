@@ -395,8 +395,7 @@ namespace StudentService.Infrastructure.Implements
 			if (suggestedCourseIds.Any())
 			{
 				var suggestedEvent = new GetCourseBasicInfoEvent(suggestedCourseIds);
-				var suggestedEventResponse = await _courseBasicInfoClient
-					.GetResponse<GetCourseBasicInfoResponse>(suggestedEvent, ct);
+				var suggestedEventResponse = await _courseBasicInfoClient.GetResponse<GetCourseBasicInfoResponse>(suggestedEvent, ct);
 
 				if (suggestedEventResponse.Message.Success && suggestedEventResponse.Message.Response is not null)
 				{

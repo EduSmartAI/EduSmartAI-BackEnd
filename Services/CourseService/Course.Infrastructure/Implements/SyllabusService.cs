@@ -1,9 +1,11 @@
-﻿using Course.Application.DTOs.SyllabusDTO;
+﻿using BaseService.Infrastructure.Contexts;
+using Course.Application.DTOs.SyllabusDTO;
 using Course.Application.Subjects.Commands.AddSubjectToSyllabus;
 using Course.Application.Syllabus.Commands.CloneCascadeSyllabus;
 using Course.Application.Syllabus.Commands.CloneFoundationSyllabus;
 using Course.Application.Syllabus.Commands.CreateFullSyllabus;
 using Course.Application.Syllabus.Commands.CreateSyllabus;
+using Course.Application.Syllabus.Commands.UpdateSyllabusSubjects;
 using Course.Application.Syllabus.Queries.GetFullSyllabus;
 
 namespace Course.Infrastructure.Implements
@@ -11,6 +13,7 @@ namespace Course.Infrastructure.Implements
 	public class SyllabusService(
 		IIdentityService _identityService,
 		IUnitOfWork unitOfWork,
+		AppDbContext _context,
 		ICommandRepository<Syllabus> _syllabusCommandRepository,
 		ICommandRepository<SyllabusSemester> _syllabusSemesterCommandRepository,
 		ICommandRepository<SyllabusSubject> _syllabusSubjectCommandRepository,
@@ -74,7 +77,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Clone cascade syllabus
+		/// Clone cascade syllabus (from foundation to specialized)
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <param name="ct"></param>
@@ -162,7 +165,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Clone foundation syllabus
+		/// Clone foundation syllabus (from SE foundation)
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <param name="ct"></param>
@@ -222,7 +225,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Create full syllabus
+		/// Create full syllabus (bao gồm cả semesters và subjects)
 		/// </summary>
 		/// <param name="dto"></param>
 		/// <param name="ct"></param>
@@ -297,7 +300,7 @@ namespace Course.Infrastructure.Implements
 		}
 
 		/// <summary>
-		/// Create syllabus (tên khóa)
+		/// Create syllabus (tên khóa) - chỉ tạo bản ghi syllabus, chưa có semesters và subjects
 		/// </summary>
 		/// <param name="cmd"></param>
 		/// <param name="ct"></param>
@@ -427,6 +430,103 @@ namespace Course.Infrastructure.Implements
 
 			response.Success = true;
 			response.SetMessage(MessageId.I00000, "Lấy thông tin syllabus");
+			return response;
+		}
+
+		public async Task<UpdateSyllabusSubjectsResponse> UpdateSyllabusSubjectsAsync(UpdateSyllabusSubjectsCommand cmd, CancellationToken ct)
+		{
+			var response = new UpdateSyllabusSubjectsResponse { Success = false };
+			var userEmail = _identityService.GetCurrentUser()!.Email;
+
+			var syllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
+				x => x.SyllabusId == cmd.SyllabusId, ct);
+
+			if (syllabus == null)
+			{
+				response.SetMessage(MessageId.E00000, "Không tìm thấy syllabus.");
+				return response;
+			}
+
+			// 1. Load all existing syllabus_subjects
+			var existing = await _syllabusSubjectCommandRepository.Find(
+				x => x.SyllabusId == cmd.SyllabusId, false, ct
+			).ToListAsync(ct);
+
+			// Convert to dictionary for fast lookup
+			var existingDict = existing
+				.GroupBy(x => x.SemesterId)
+				.ToDictionary(g => g.Key, g => g.ToList());
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				foreach (var sem in cmd.Semesters)
+				{
+					var existingSubjects = existingDict.ContainsKey(sem.SemesterId)
+						? existingDict[sem.SemesterId]
+						: new List<SyllabusSubject>();
+
+					var requestSubjects = sem.Subjects
+						.Select(s => s.SubjectId)
+						.ToHashSet();
+
+					// ❌ 2. DELETE subjects not in request
+					var toRemove = existingSubjects
+						.Where(e => !requestSubjects.Contains(e.SubjectId))
+						.ToList();
+
+					foreach (var del in toRemove)
+					{
+						_syllabusSubjectCommandRepository.Update(del); // EF attaches entity
+
+						// Now mark as deleted
+						_context.Remove(del);
+
+					}
+
+					// 3. ADD + UPDATE subjects
+					int newIndex = 1; // reset position index per semester
+
+					foreach (var reqSb in sem.Subjects)
+					{
+						var existed = existingSubjects
+							.FirstOrDefault(e => e.SubjectId == reqSb.SubjectId);
+
+						if (existed == null)
+						{
+							// ADD
+							var newEntity = new SyllabusSubject
+							{
+								SemesterId = sem.SemesterId,
+								SubjectId = reqSb.SubjectId,
+								Credit = reqSb.Credit,
+								IsMandatory = reqSb.IsMandatory,
+								PositionIndex = newIndex
+							};
+
+							await _syllabusSubjectCommandRepository.AddAsync(newEntity);
+						}
+						else
+						{
+							// UPDATE
+							existed.Credit = reqSb.Credit;
+							existed.IsMandatory = reqSb.IsMandatory;
+							existed.PositionIndex = newIndex;
+
+							_syllabusSubjectCommandRepository.Update(existed);
+						}
+
+						newIndex++;
+					}
+				}
+
+				await unitOfWork.SaveChangesAsync(ct);
+				return true;
+			}, ct);
+
+			response.Success = true;
+			response.Response = true;
+			response.SetMessage(MessageId.I00001, "Cập nhật danh sách môn học cho syllabus");
+
 			return response;
 		}
 
