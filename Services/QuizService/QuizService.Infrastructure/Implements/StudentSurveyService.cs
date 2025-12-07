@@ -6,6 +6,7 @@ using BaseService.Common.Utils.Const;
 using BaseService.Domain.Snapshort;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AiService.StudentInterestSurveyAnalysisEvents;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
@@ -37,6 +38,7 @@ public class StudentSurveyService : IStudentSurveyService
     private readonly ILearningPathService _learningPathService;
     private readonly IRequestClient<SubjectCodeSelectEvent> _subjectCodeSelectEventRequestClient;
     private readonly IRequestClient<InsertLearningPathEvent> _requestInsertLearningPathEventClient;
+    private readonly IRequestClient<CoreSubjectSelectEvent> _requestCoreSubjectClient;
     
     public StudentSurveyService(ICommandRepository<StudentQuiz> studentQuizCommandRepository,
         IQueryRepository<StudentQuizCollection> studentQuizQueryRepository,
@@ -49,7 +51,8 @@ public class StudentSurveyService : IStudentSurveyService
         IRequestClient<StudentInterestSurveyAnalysisEvent> requestStudentInterestAnalysisClient1,
         ILearningPathService learningPathService,
         IRequestClient<SubjectCodeSelectEvent> subjectCodeSelectEventRequestClient,
-        IRequestClient<InsertLearningPathEvent> requestInsertLearningPathEventClient)
+        IRequestClient<InsertLearningPathEvent> requestInsertLearningPathEventClient,
+        IRequestClient<CoreSubjectSelectEvent> requestCoreSubjectClient)
     {
         _studentQuizCommandRepository = studentQuizCommandRepository;
         _studentQuizQueryRepository = studentQuizQueryRepository;
@@ -63,6 +66,7 @@ public class StudentSurveyService : IStudentSurveyService
         _learningPathService = learningPathService;
         _subjectCodeSelectEventRequestClient = subjectCodeSelectEventRequestClient;
         _requestInsertLearningPathEventClient = requestInsertLearningPathEventClient;
+        _requestCoreSubjectClient = requestCoreSubjectClient;
     }
 
     /// <summary>
@@ -256,7 +260,7 @@ public class StudentSurveyService : IStudentSurveyService
                         return false;
                     }
     
-                    var subjectCodes = subjectCodeEventResponse.Message.Response;
+                    var allSubjectCodes = subjectCodeEventResponse.Message.Response;
                     
                     // Process each other question answer code
                     foreach (var questionCode in request.OtherQuestionAnswerCodes)
@@ -273,7 +277,7 @@ public class StudentSurveyService : IStudentSurveyService
                                             Level = (short)ConstantEnum.CourseLevel.Beginner,
                                             SubjectPrerequisiteCode = t.Prerequisite
                                         })
-                                        .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                        .Where(code => allSubjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
                                 );
                                 break;
 
@@ -287,7 +291,7 @@ public class StudentSurveyService : IStudentSurveyService
                                             Level = (short)ConstantEnum.CourseLevel.Intermidiate,
                                             SubjectPrerequisiteCode = t.Prerequisite
                                         })
-                                        .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                        .Where(code => allSubjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
                                 );
                                 break;
 
@@ -301,7 +305,7 @@ public class StudentSurveyService : IStudentSurveyService
                                             Level = (short)ConstantEnum.CourseLevel.Advanced,
                                             SubjectPrerequisiteCode = t.Prerequisite
                                         })
-                                        .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
+                                        .Where(code => allSubjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
                                 );
                                 break;
 
@@ -309,7 +313,7 @@ public class StudentSurveyService : IStudentSurveyService
                                 var subjects5To7 = studentTranscripts
                                     .Where(t => t.Grade >= 5 && t.Grade < 7)
                                     .Select(t => t.SubjectCode)
-                                    .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code));
+                                    .Where(code => allSubjectCodes.Any(sc => sc.SubjectCode == code));
                                 foreach (var subjectCode in subjects5To7)
                                 {
                                     subjectCodesForEvaluation.Add(subjectCode);
@@ -320,7 +324,7 @@ public class StudentSurveyService : IStudentSurveyService
                                 var subjects7To8 = studentTranscripts
                                     .Where(t => t.Grade >= 7 && t.Grade < 8)
                                     .Select(t => t.SubjectCode)
-                                    .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code));
+                                    .Where(code => allSubjectCodes.Any(sc => sc.SubjectCode == code));
                                 foreach (var subjectCode in subjects7To8)
                                 {
                                     subjectCodesForEvaluation.Add(subjectCode);
@@ -342,6 +346,41 @@ public class StudentSurveyService : IStudentSurveyService
                     return false;
                 }
                 
+                // Get core transcripts for building level reason
+                var passedStatus = ConstantEnum.StudentTranscriptStatus.Passed.GetDescription();
+                var notPassedStatus = ConstantEnum.StudentTranscriptStatus.NotPassed.GetDescription();
+
+                var relevantTranscripts = studentTranscripts
+                    .Where(t => t.Status == passedStatus || t.Status == notPassedStatus)
+                    .ToList();
+
+                var subjectCodes = relevantTranscripts.Select(t => t.SubjectCode).Distinct().ToList();
+
+                var coreSubjectsResponse = await _requestCoreSubjectClient.GetResponse<CoreSubjectSelectEventResponse>(
+                    new CoreSubjectSelectEvent
+                    {
+                        SubjectCodes = subjectCodes
+                    }, cancellationToken);
+
+                var coreSubjectCodes = coreSubjectsResponse.Message.Response
+                    .Select(cs => cs.SubjectCode)
+                    .Distinct()
+                    .ToList();
+
+                var coreTranscripts = relevantTranscripts
+                    .Where(t => coreSubjectCodes.Contains(t.SubjectCode))
+                    .ToList();
+
+                var averageGrade = coreTranscripts.Any() 
+                    ? coreTranscripts.Sum(t => t.Grade ?? 0) / coreTranscripts.Count 
+                    : 0;
+
+                // Build level reason
+                var levelReason = BuildLevelReasonForSurvey(
+                    studentLevelResult.Response.Level,
+                    coreTranscripts,
+                    averageGrade);
+                
                 #endregion
                 
                 #region 3.4.3. Create Learning Path Entry
@@ -353,7 +392,10 @@ public class StudentSurveyService : IStudentSurveyService
                     LearningPathId = learningPathId,
                     StudentId = currentUser.UserId,
                     CurrentUserEmail = currentUser.Email,
-                    PathName = $"Lộ trình {learningGoalName}"
+                    PathName = $"Lộ trình {learningGoalName}",
+                    Level = studentLevelResult.Response.Level,
+                    LevelReason = levelReason,
+                    IsSkipTest = true,
                 };
                 var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
                 if (!learningPathResponse.Message.Success)
@@ -1024,4 +1066,125 @@ public class StudentSurveyService : IStudentSurveyService
         return totalHours;
     }
 
+    /// <summary>
+    /// Build detailed level reason in Vietnamese for students who skip the test (survey-only path)
+    /// </summary>
+    /// <param name="level">Student level (1-3) calculated from transcript</param>
+    /// <param name="coreTranscripts">Core subject transcripts used in calculation</param>
+    /// <param name="averageGrade">Average grade from core subjects</param>
+    /// <returns>Detailed reason string in Vietnamese</returns>
+    private string BuildLevelReasonForSurvey(
+        short level,
+        List<StudentTranscriptSelectEventResponseEntity> coreTranscripts,
+        double averageGrade)
+    {
+        var reason = new System.Text.StringBuilder();
+        
+        // Header
+        reason.AppendLine(" **Đánh giá trình độ từ bảng điểm học tập**");
+        reason.AppendLine();
+        reason.AppendLine("Vì bạn đã chọn bỏ qua bài kiểm tra đầu vào, hệ thống sẽ đánh giá trình độ của bạn dựa trên kết quả học tập từ bảng điểm.");
+        reason.AppendLine();
+        
+        // Part 1: Core subjects performance
+        reason.AppendLine(" **Kết quả các môn học cốt lõi:**");
+        reason.AppendLine();
+        
+        // Group transcripts by grade range for better visualization
+        var excellent = coreTranscripts.Where(t => t.Grade >= 8.5).ToList();
+        var good = coreTranscripts.Where(t => t.Grade >= 7 && t.Grade < 8.5).ToList();
+        var average = coreTranscripts.Where(t => t.Grade >= 5.5 && t.Grade < 7).ToList();
+        var needImprovement = coreTranscripts.Where(t => t.Grade < 5.5).ToList();
+        
+        if (excellent.Any())
+        {
+            reason.AppendLine($"**Xuất sắc (≥ 8.5 điểm):** {excellent.Count} môn");
+            foreach (var subject in excellent.Take(5))
+            {
+                reason.AppendLine($"  • {subject.SubjectName} ({subject.SubjectCode}): {subject.Grade:F1}/10");
+            }
+            if (excellent.Count > 5)
+                reason.AppendLine($"  ... và {excellent.Count - 5} môn khác");
+            reason.AppendLine();
+        }
+        
+        if (good.Any())
+        {
+            reason.AppendLine($"**Khá tốt (7.0 - 8.4 điểm):** {good.Count} môn");
+            foreach (var subject in good.Take(5))
+            {
+                reason.AppendLine($"  • {subject.SubjectName} ({subject.SubjectCode}): {subject.Grade:F1}/10");
+            }
+            if (good.Count > 5)
+                reason.AppendLine($"  ... và {good.Count - 5} môn khác");
+            reason.AppendLine();
+        }
+        
+        if (average.Any())
+        {
+            reason.AppendLine($"**Trung bình (5.5 - 6.9 điểm):** {average.Count} môn");
+            foreach (var subject in average.Take(5))
+            {
+                reason.AppendLine($"  • {subject.SubjectName} ({subject.SubjectCode}): {subject.Grade:F1}/10");
+            }
+            if (average.Count > 5)
+                reason.AppendLine($"  ... và {average.Count - 5} môn khác");
+            reason.AppendLine();
+        }
+        
+        if (needImprovement.Any())
+        {
+            reason.AppendLine($"**Cần cải thiện (< 5.5 điểm):** {needImprovement.Count} môn");
+            foreach (var subject in needImprovement.Take(5))
+            {
+                reason.AppendLine($"  • {subject.SubjectName} ({subject.SubjectCode}): {subject.Grade:F1}/10");
+            }
+            if (needImprovement.Count > 5)
+                reason.AppendLine($"  ... và {needImprovement.Count - 5} môn khác");
+            reason.AppendLine();
+        }
+        
+        // Part 2: Summary statistics
+        reason.AppendLine(" **Thống kê tổng quan:**");
+        reason.AppendLine();
+        reason.AppendLine($"- Tổng số môn cốt lõi đã học: **{coreTranscripts.Count} môn**");
+        reason.AppendLine($"- Điểm trung bình: **{averageGrade:F2}/10**");
+        
+        var passedCount = coreTranscripts.Count(t => t.Status == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription());
+        var notPassedCount = coreTranscripts.Count - passedCount;
+        
+        reason.AppendLine($"- Số môn đạt: **{passedCount} môn**");
+        if (notPassedCount > 0)
+        {
+            reason.AppendLine($"- Số môn chưa đạt: **{notPassedCount} môn**");
+        }
+        reason.AppendLine();
+        
+        // Part 3: Level determination explanation
+        reason.AppendLine(" **Xác định trình độ:**");
+        reason.AppendLine();
+        
+        string levelCriteria = averageGrade switch
+        {
+            >= 7.5 => "Điểm trung bình ≥ 7.5 → **Trình độ 3 (Nâng cao)**",
+            >= 5.5 => "Điểm trung bình từ 5.5 đến 7.4 → **Trình độ 2 (Trung bình)**",
+            _ => "Điểm trung bình < 5.5 → **Trình độ 1 (Cơ bản)**"
+        };
+        
+        reason.AppendLine($"Dựa vào điểm trung bình {averageGrade:F2}/10 của các môn cốt lõi:");
+        reason.AppendLine($"→ {levelCriteria}");
+        reason.AppendLine();
+        
+        // Part 5: Important note
+        reason.AppendLine("---");
+        reason.AppendLine();
+        reason.AppendLine(" **Lưu ý quan trọng:**");
+        reason.AppendLine();
+        reason.AppendLine("- Đánh giá này dựa hoàn toàn trên **kết quả học tập** từ bảng điểm của bạn.");
+        reason.AppendLine("- Nếu bạn muốn có đánh giá chính xác hơn về năng lực thực tế, hãy tham gia **bài kiểm tra đầu vào** để hệ thống có thể đánh giá toàn diện hơn.");
+        reason.AppendLine("- Lộ trình học tập sẽ được điều chỉnh linh hoạt dựa trên tiến độ học tập của bạn.");
+        reason.AppendLine();
+        
+        return reason.ToString();
+    }
 }

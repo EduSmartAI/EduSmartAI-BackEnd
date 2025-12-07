@@ -12,4 +12,10 @@ public class LearningPathInsertCommand : ICommand<LearningGoalInsertResponse>
     public string StudentEmail { get; set; }
     
     public string PathName { get; set; }
+    
+    public short Level { get; set; }
+    
+    public string LevelReason { get; set; }
+    
+    public bool IsSkipTest { get; set; }
 }

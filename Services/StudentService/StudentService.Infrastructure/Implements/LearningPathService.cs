@@ -96,7 +96,10 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short)ConstantEnum.LearningPathStatus.Generating,
+                Status = (short) ConstantEnum.LearningPathStatus.Generating,
+                Level = request.Level,
+                LevelReason = request.LevelReason,
+                IsSkipTest = request.IsSkipTest,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);

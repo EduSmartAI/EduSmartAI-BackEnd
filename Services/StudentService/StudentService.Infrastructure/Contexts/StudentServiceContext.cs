@@ -237,7 +237,13 @@ public partial class StudentServiceContext : AppDbContext
                 .HasMaxLength(200)
                 .HasColumnName("path_name");
             entity.Property(e => e.AbilityFeedback)
-                .HasColumnName("ability_feedback");
+                .HasColumnName("ability_feedback"); 
+            entity.Property(e => e.Level)
+                .HasColumnName("level");
+            entity.Property(e => e.LevelReason)
+                .HasColumnName("level_reason");
+            entity.Property(e => e.IsSkipTest)
+                .HasColumnName("is_skip_test");
             entity.Property(e => e.Personality).HasColumnName("personality");
             entity.Property(e => e.Status).HasColumnName("status");
             entity.Property(e => e.StudentId).HasColumnName("student_id");

@@ -9,6 +9,12 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent
         public Guid StudentId { get; init; }
         public string CurrentUserEmail { get; init; } = null!;
         
+        public short Level { get; init; }
+        
+        public string LevelReason { get; init; } = null!;
+        
+        public bool IsSkipTest { get; init; }
+        
         public List<InsertLearningPathMajor> Majors { get; init; } = null!;
     }
 
