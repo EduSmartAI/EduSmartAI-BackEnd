@@ -7,6 +7,7 @@ using AiService.Application.Consumers.StudentInterestSurveyAnalysis;
 using AiService.Application.Consumers.StudentMajorRecommends;
 using BaseService.Common.Settings;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.AIService.AiFeedback;
 using BuildingBlocks.Messaging.Events.AIService.AiChatLearningPathEvents;
 using BuildingBlocks.Messaging.Events.AIService.GetLessonInfoEvent;
@@ -73,6 +74,7 @@ public static class MessagingExtensions
             x.AddRequestClient<GetLearningPathInfo>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<AiUpdateCourseStatusToSkipped>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<SubjectInfoEvent>(TimeSpan.FromSeconds(120));
+            x.AddRequestClient<GetSubjectDetailEvent>(TimeSpan.FromSeconds(120));
         });
 
         return services;

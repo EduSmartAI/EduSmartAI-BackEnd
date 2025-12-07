@@ -1030,13 +1030,13 @@ public class LearningPathService : ILearningPathService
         // Map readmodel to dto
         var dto = _mapper.Map<LearningPathSelectDto>(readModel);
 
-        var basicMajors = DistinctMajorsByCode(
+        var basicMajors =
                 readModel.LearningPathMajors
-                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic))
+                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Basic)
             .ToList();
-        var internalMajorsRead = DistinctMajorsByCode(
+        var internalMajorsRead =
                 readModel.LearningPathMajors
-                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal))
+                    .Where(m => m.IsActive && m.Type == (short)ConstantEnum.LearningPathMajor.Internal)
             .ToList();
 
         var basicSubjectCodes = ExtractSubjectCodesWithCourses(basicMajors);
@@ -1250,6 +1250,7 @@ public class LearningPathService : ILearningPathService
 
             var activeMajorIds = new List<Guid>();
             var deactiveMajorIds = new List<Guid>();
+            var canonicalActiveSubjectCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var m in allInternalMajors)
             {
@@ -1270,29 +1271,64 @@ public class LearningPathService : ILearningPathService
                 }
             }
 
-            // 5) Xóa các subject codes trùng lặp trong các majors bị deactive
-            if (activeMajorIds.Any() && deactiveMajorIds.Any())
+            // 5) Loại bỏ subject codes trùng giữa các majors đang active dựa trên PositionIndex
+            if (activeMajorIds.Any())
             {
-                // Lấy tất cả subject codes từ các majors được active
                 var activeSubjectCodes = await _learningPathSubjectCodeCommandRepository
                     .Find(sc => activeMajorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
-                        isTracking: false, cancellationToken: cancellationToken)
-                    .Select(sc => sc.SubjectCode)
-                    .Distinct()
-                    .ToListAsync(cancellationToken);
-
-                // Lấy các subject codes trùng lặp trong các majors bị deactive
-                var duplicateSubjectCodesInDeactiveMajors = await _learningPathSubjectCodeCommandRepository
-                    .Find(sc => deactiveMajorIds.Contains(sc.LearningPathMajorId)
-                        && sc.IsActive
-                        && activeSubjectCodes.Contains(sc.SubjectCode),
                         isTracking: true, cancellationToken: cancellationToken)
                     .ToListAsync(cancellationToken);
 
-                // Soft delete các subject codes trùng
-                foreach (var subjectCode in duplicateSubjectCodesInDeactiveMajors)
+                var subjectCodesByMajor = activeSubjectCodes
+                    .GroupBy(sc => sc.LearningPathMajorId)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                var orderedActiveMajors = allInternalMajors
+                    .Where(m => m != null && activeSet.Contains(m.LearningPathMajorId))
+                    .Select(m => m!)
+                    .OrderBy(m => m.PositionIndex ?? int.MaxValue)
+                    .ToList();
+
+                foreach (var major in orderedActiveMajors)
                 {
-                    if (subjectCode != null)
+                    if (!subjectCodesByMajor.TryGetValue(major.LearningPathMajorId, out var subjectCodesOfMajor))
+                    {
+                        continue;
+                    }
+
+                    var codesKeptForMajor = new List<string>();
+                    foreach (var subjectCode in subjectCodesOfMajor)
+                    {
+                        var normalizedCode = NormalizeSubjectCode(subjectCode!.SubjectCode);
+                        if (canonicalActiveSubjectCodes.Contains(normalizedCode))
+                        {
+                            _learningPathSubjectCodeCommandRepository.Update(subjectCode, currentUserEmail, needLogicalDelete: true);
+                        }
+                        else
+                        {
+                            codesKeptForMajor.Add(normalizedCode);
+                        }
+                    }
+
+                    foreach (var code in codesKeptForMajor)
+                    {
+                        canonicalActiveSubjectCodes.Add(code);
+                    }
+                }
+            }
+
+            // 6) Xóa các subject codes trùng lặp trong các majors bị deactive
+            if (deactiveMajorIds.Any() && canonicalActiveSubjectCodes.Any())
+            {
+                var deactiveSubjectCodes = await _learningPathSubjectCodeCommandRepository
+                    .Find(sc => deactiveMajorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
+                        isTracking: true, cancellationToken: cancellationToken)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var subjectCode in deactiveSubjectCodes)
+                {
+                    var normalizedCode = NormalizeSubjectCode(subjectCode!.SubjectCode);
+                    if (canonicalActiveSubjectCodes.Contains(normalizedCode))
                     {
                         _learningPathSubjectCodeCommandRepository.Update(subjectCode, currentUserEmail, needLogicalDelete: true);
                     }
@@ -1311,15 +1347,18 @@ public class LearningPathService : ILearningPathService
             // Rebuild danh sách majors list from write-model
             var freshMajors = await _learningPathMajorCommandRepository
                 .Find(m => m.PathId == request.LearningPathId, isTracking: false, cancellationToken: cancellationToken,
-                       m => m.LearningPathCourses)
+                       m => m.LearningPathCourses,
+                       m => m.LearningPathSubjectCodes)
                 .ToListAsync(cancellationToken);
+            var freshMajorWriteModels = freshMajors
+                .OfType<LearningPathMajor>()
+                .ToList();
 
             // Update lpRead: status + embed list
             if (lpRead != null)
             {
                 lpRead.Status = (short)ConstantEnum.LearningPathStatus.InProgress;
-                lpRead.LearningPathMajors = freshMajors
-                   .OfType<LearningPathMajor>()
+                lpRead.LearningPathMajors = freshMajorWriteModels
                    .OrderBy(m => m.PositionIndex ?? int.MaxValue)
                    .Select(m => LearningPathMajorCollection.FromWriteModel(m))
                    .ToList();
@@ -1327,9 +1366,9 @@ public class LearningPathService : ILearningPathService
                 _unitOfWork.Store(lpRead);
             }
 
-            foreach (var m in freshMajors)
+            foreach (var m in freshMajorWriteModels)
             {
-                _unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(m!));
+                _unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(m));
             }
 
             await _unitOfWork.SessionSaveChangesAsync();
