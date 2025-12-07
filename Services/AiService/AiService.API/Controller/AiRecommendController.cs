@@ -2,6 +2,7 @@ using AiService.Application.Features.AiEvaluate;
 using AiService.Application.Features.AiExternalCourse;
 using AiService.Application.Features.AiRecommend;
 using AiService.Application.Features.AiSearch;
+using AiService.Application.Features.AiSubjectCourse;
 using BaseService.API.BaseControllers;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
@@ -20,7 +21,7 @@ public class AiRecommendController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IIdentityService _identityService;
-    private readonly IdentityEntity _identityEntity;
+    private readonly IdentityEntity _identityEntity = default!;
     private readonly Logger _logger = LogManager.GetCurrentClassLogger();
     private readonly IHttpContextAccessor _httpContextAccessor;
     /// <summary>
@@ -101,5 +102,20 @@ public class AiRecommendController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new AiRecommendImprovementResponse());
+    }
+
+    [HttpPost("subject-course-match")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<AiSubjectCourseResponse> MatchSubjectCourses(AiSubjectCourseRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<AiSubjectCourseRequest, AiSubjectCourseResponse, SubjectCourseMatchResult>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AiSubjectCourseResponse());
     }
 }

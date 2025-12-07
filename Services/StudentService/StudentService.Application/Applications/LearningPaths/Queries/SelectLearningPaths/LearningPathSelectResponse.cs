@@ -16,6 +16,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public string? HabitAndInterestAnalysis { get; set; }
         public string? Personality { get; set; }
         public string? LearningAbility { get; set; }
+        public List<PraticalAbilityFeedback> praticalAbilityFeedbacks { get; set; } = [];
         public BasicLearningPathDto BasicLearningPath { get; set; } = new();
         public List<InternalLearningPathDto> InternalLearningPath { get; set; } = [];
         public List<ExternalLearningPathDto> ExternalLearningPath { get; set; } = [];
@@ -103,6 +104,12 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public int SemesterPosition { get; set; }
         public string? AnalysisMarkdown { get; set; }
         public List<CourseItemDto> Courses { get; set; } = [];
+    }
+    #endregion
+    #region Ability
+    public class PraticalAbilityFeedback
+    {
+        public string AnalysisMarkDown { get; set; } = string.Empty;
     }
     #endregion
 }

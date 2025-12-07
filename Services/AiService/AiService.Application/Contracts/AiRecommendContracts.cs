@@ -91,5 +91,45 @@ namespace AiService.Application.Contracts
             [JsonPropertyName("rating")] public string Rating { get; set; } = "—";
             [JsonPropertyName("est_duration_weeks")] public int? EstDurationWeeks { get; set; }
         }
+
+        public sealed class SubjectCourseMatchRequest
+        {
+            public string SubjectCode { get; set; } = string.Empty;
+            public string SubjectTitle { get; set; } = string.Empty;
+            public string SubjectDescription { get; set; } = string.Empty;
+            public int K { get; set; } = 10;
+            public bool ShowSources { get; set; }
+        }
+
+        public sealed class SubjectCourseMatchResult
+        {
+            public string SubjectCode { get; set; } = string.Empty;
+            public string SubjectTitle { get; set; } = string.Empty;
+            public List<SubjectCourseMatchItem> Courses { get; set; } = new();
+            public bool ShowSources { get; set; }
+            public List<SubjectCourseSource>? Sources { get; set; }
+        }
+
+        public sealed class SubjectCourseMatchItem
+        {
+            public string CourseId { get; set; } = string.Empty;
+            public string Title { get; set; } = string.Empty;
+            public string Provider { get; set; } = string.Empty;
+            public string Link { get; set; } = string.Empty;
+            public string Level { get; set; } = string.Empty;
+            public string Rating { get; set; } = string.Empty;
+            public int? EstimatedWeeks { get; set; }
+            public double Score { get; set; }
+            public string Snippet { get; set; } = string.Empty;
+        }
+
+        public sealed class SubjectCourseSource
+        {
+            public string Title { get; set; } = string.Empty;
+            public string Provider { get; set; } = string.Empty;
+            public string Link { get; set; } = string.Empty;
+            public string ContentPreview { get; set; } = string.Empty;
+            public double Score { get; set; }
+        }
     }
 }

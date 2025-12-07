@@ -1,6 +1,7 @@
 ﻿using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Mapster;
+using System.Text.RegularExpressions;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Domain.ReadModels;
@@ -91,6 +92,7 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.HabitAndInterestAnalysis, s => s.HabitAndInterestAnalysis)
                 .Map(d => d.Personality, s => s.Personality)
                 .Map(d => d.LearningAbility, s => s.LearningAbility)
+                .Map(d => d.praticalAbilityFeedbacks, s => MapPracticalAbilityFeedbacks(s.AbilityFeedback))
                 .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto { CourseGroups = new List<CourseGroupDto>() })
                 .Map(d => d.InternalLearningPath,
                     s => (s.LearningPathMajors ?? new List<LearningPathMajorCollection>())
@@ -109,6 +111,24 @@ namespace StudentService.Application.Common.Mappings
                   .Map(d => d.PathName, s => s.PathName)
                   .Map(d => d.CreatedAt, s => s.CreatedAt)
                   .Map(d => d.Status, s => s.Status);
+        }
+
+        private static List<PraticalAbilityFeedback> MapPracticalAbilityFeedbacks(string? abilityFeedback)
+        {
+            if (string.IsNullOrWhiteSpace(abilityFeedback))
+            {
+                return new List<PraticalAbilityFeedback>();
+            }
+
+            return Regex
+                .Split(abilityFeedback.Replace("\r\n", "\n"), @"\r?\n?\*{5,}\r?\n?")
+                .Select(segment => segment.Trim())
+                .Where(segment => !string.IsNullOrWhiteSpace(segment))
+                .Select(segment => new PraticalAbilityFeedback
+                {
+                    AnalysisMarkDown = segment
+                })
+                .ToList();
         }
     }
 }
