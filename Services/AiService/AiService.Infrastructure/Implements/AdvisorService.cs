@@ -412,6 +412,76 @@ namespace AiService.Infrastructure.Implements
                 Roadmap = roadmap,
             };
         }
+
+        public async Task<SubjectCourseMatchResult> MatchSubjectCoursesAsync(SubjectCourseMatchRequest req, CancellationToken ct)
+        {
+            var topK = req.K <= 0 ? 10 : Math.Min(req.K, 50);
+
+            var builder = new StringBuilder();
+            if (!string.IsNullOrWhiteSpace(req.SubjectTitle))
+            {
+                builder.AppendLine(req.SubjectTitle);
+            }
+            if (!string.IsNullOrWhiteSpace(req.SubjectCode))
+            {
+                builder.AppendLine($"Code: {req.SubjectCode}");
+            }
+            if (!string.IsNullOrWhiteSpace(req.SubjectDescription))
+            {
+                builder.AppendLine(req.SubjectDescription);
+            }
+
+            var embed = await _embed.GenerateEmbeddingAsync(builder.ToString(), cancellationToken: ct);
+            var docs = await _search.SearchCoursesTopKAsync(
+                embed.Value.ToFloats().ToArray(),
+                string.IsNullOrWhiteSpace(req.SubjectTitle) ? req.SubjectCode : req.SubjectTitle,
+                topK,
+                ct);
+
+            var courses = docs.Select(d => new SubjectCourseMatchItem
+            {
+                CourseId = GetMetadataString(d.Metadata, "course_id"),
+                Title = GetMetadataString(d.Metadata, "title"),
+                Provider = GetMetadataString(d.Metadata, "organization"),
+                Link = GetUrl(d.Metadata, d.Content),
+                Level = GetMetadataString(d.Metadata, "level"),
+                Rating = GetMetadataString(d.Metadata, "rating"),
+                EstimatedWeeks = EstimateWeeksFromDoc(d),
+                Score = d.Score,
+                Snippet = BuildSnippet(d.Content)
+            }).ToList();
+
+            var result = new SubjectCourseMatchResult
+            {
+                SubjectCode = req.SubjectCode,
+                SubjectTitle = req.SubjectTitle,
+                Courses = courses,
+                ShowSources = req.ShowSources,
+                Sources = req.ShowSources
+                    ? docs.Select(d => new SubjectCourseSource
+                    {
+                        Title = GetMetadataString(d.Metadata, "title"),
+                        Provider = GetMetadataString(d.Metadata, "organization"),
+                        Link = GetUrl(d.Metadata, d.Content),
+                        ContentPreview = BuildSnippet(d.Content),
+                        Score = d.Score
+                    }).ToList()
+                    : null
+            };
+
+            return result;
+        }
+
+        private static string BuildSnippet(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return string.Empty;
+            }
+
+            var trimmed = content.Trim();
+            return trimmed.Length <= 320 ? trimmed : trimmed[..320] + "...";
+        }
         private static T? TryDeserialize<T>(string? json)
         {
             if (string.IsNullOrWhiteSpace(json)) return default;
@@ -569,6 +639,24 @@ namespace AiService.Infrastructure.Implements
                 if (m.Success) return m.Value.TrimEnd(')', '.', ',');
             }
             return "";
+        }
+
+        private static string GetMetadataString(JsonElement md, string propertyName)
+        {
+            if (md.ValueKind != JsonValueKind.Object ||
+                !md.TryGetProperty(propertyName, out var prop))
+            {
+                return string.Empty;
+            }
+
+            return prop.ValueKind switch
+            {
+                JsonValueKind.String => prop.GetString() ?? string.Empty,
+                JsonValueKind.Number => prop.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => string.Empty
+            };
         }
         private static string NormalizeNoTables(string text)
         {
