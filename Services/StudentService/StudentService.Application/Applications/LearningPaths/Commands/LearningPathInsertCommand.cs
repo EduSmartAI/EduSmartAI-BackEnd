@@ -5,17 +5,20 @@ namespace StudentService.Application.Applications.LearningPaths.Commands;
 
 public class LearningPathInsertCommand : ICommand<LearningGoalInsertResponse>
 {
-    public Guid PathId { get; set; }
+    public required Guid PathId { get; set; }
 
-    public Guid StudentId { get; set; }
+    public required Guid StudentId { get; set; }
 
-    public string StudentEmail { get; set; }
+    public required string StudentEmail { get; set; }
     
-    public string PathName { get; set; }
+    public required string PathName { get; set; }
     
-    public short Level { get; set; }
+    public required short Level { get; set; }
     
-    public string LevelReason { get; set; }
+    public required string LevelReason { get; set; }
     
-    public bool IsSkipTest { get; set; }
+    public required bool IsSkipTest { get; set; }
+    
+    public required int LimitTime { get; set; }
+    public required string? EvaluationAndImprove { get; set; }
 }

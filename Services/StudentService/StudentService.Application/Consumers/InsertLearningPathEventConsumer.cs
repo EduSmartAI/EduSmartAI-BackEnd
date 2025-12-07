@@ -20,6 +20,8 @@ namespace StudentService.Application.Consumers
                 Level = evt.Level,
                 LevelReason = evt.LevelReason,
                 IsSkipTest = evt.IsSkipTest,
+                LimitTime = evt.LimitTime,
+                EvaluationAndImprove = evt.EvaluationAndImprove,
             };
     
             var response = await service.InsertLearningPathAsync(request, context.CancellationToken);

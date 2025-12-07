@@ -21,6 +21,9 @@ using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
 using SurveyAnswerDetailResponse = QuizService.Application.Applications.StudentSurveys.Queries.SurveyAnswerDetailResponse;
 using AdminQueries = QuizService.Application.Applications.Admin.Queries.StudentSurveys;
+using CourseImproveContext = QuizService.Application.Applications.LearningPaths.CourseImproveContext;
+using StudentTranscriptContext = QuizService.Application.Applications.LearningPaths.StudentTranscriptContext;
+using SubjectMarkContext = QuizService.Application.Applications.LearningPaths.SubjectMarkContext;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -382,33 +385,6 @@ public class StudentSurveyService : IStudentSurveyService
                     averageGrade);
                 
                 #endregion
-                
-                #region 3.4.3. Create Learning Path Entry
-                
-                var learningPathId = Guid.NewGuid();
-
-                var learningPathEvent = new InsertLearningPathEvent
-                {
-                    LearningPathId = learningPathId,
-                    StudentId = currentUser.UserId,
-                    CurrentUserEmail = currentUser.Email,
-                    PathName = $"Lộ trình {learningGoalName}",
-                    Level = studentLevelResult.Response.Level,
-                    LevelReason = levelReason,
-                    IsSkipTest = true,
-                };
-                var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
-                if (!learningPathResponse.Message.Success)
-                {
-                    response.MessageId = learningPathResponse.Message.MessageId;
-                    response.Message = learningPathResponse.Message.Message;
-                    return false;
-                }
-                
-                #endregion
-                
-                #region 3.4.4. Prepare Learning Path Context Data
-                
                 // Get survey data
                 var surveyHabit = studentQuizCollections.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
                 var surveyInterest = studentQuizCollections.FirstOrDefault(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
@@ -428,10 +404,42 @@ public class StudentSurveyService : IStudentSurveyService
                         Answer = a,
                     })
                     .ToList();
-                
                 int limitTime = GetStudentStudyTime(studentQuizAnswers);
+                #endregion
+                
+                #region 3.4.3. Create Learning Path Entry
+                
+                var learningPathId = Guid.NewGuid();
+
+                var evaluationAndImprove = request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any()
+                    ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
+                    : null;
+
+                var learningPathEvent = new InsertLearningPathEvent
+                {
+                    LearningPathId = learningPathId,
+                    StudentId = currentUser.UserId,
+                    CurrentUserEmail = currentUser.Email,
+                    PathName = $"Lộ trình {learningGoalName}",
+                    Level = studentLevelResult.Response.Level,
+                    LevelReason = levelReason,
+                    IsSkipTest = true,
+                    LimitTime = limitTime,
+                    EvaluationAndImprove = evaluationAndImprove
+                };
+                
+                var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
+                if (!learningPathResponse.Message.Success)
+                {
+                    response.MessageId = learningPathResponse.Message.MessageId;
+                    response.Message = learningPathResponse.Message.Message;
+                    return false;
+                }
                 
                 #endregion
+                
+                #region 3.4.4. Prepare Learning Path Context Data
+
                 
                 #region 3.4.5. Create Learning Path with Courses
                 

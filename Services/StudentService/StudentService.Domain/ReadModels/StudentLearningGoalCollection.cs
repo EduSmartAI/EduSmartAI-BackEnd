@@ -7,7 +7,7 @@ namespace StudentService.Domain.ReadModels;
 /// </summary>
 public class StudentLearningGoalCollection
 {
-    public string Id => $"{StudentId}_{GoalId}";
+    public Guid  StudentLearningGoalId { get; set; }
 
     public Guid StudentId { get; set; }
 
@@ -38,6 +38,7 @@ public class StudentLearningGoalCollection
     {
         var studentGoalCollection = new StudentLearningGoalCollection
         {
+            StudentLearningGoalId = model.StudentLearningGoalId,
             StudentId = model.StudentId,
             GoalId = model.GoalId,
             CreatedAt = model.CreatedAt,

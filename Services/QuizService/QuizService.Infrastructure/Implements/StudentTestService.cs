@@ -16,6 +16,9 @@ using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using CourseImproveContext = QuizService.Application.Applications.LearningPaths.CourseImproveContext;
+using StudentTranscriptContext = QuizService.Application.Applications.LearningPaths.StudentTranscriptContext;
+using SubjectMarkContext = QuizService.Application.Applications.LearningPaths.SubjectMarkContext;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -542,25 +545,6 @@ public class StudentTestService : IStudentTestService
                 return false;
             }
             
-            var learningPathId = Guid.NewGuid();
-
-            var learningPathEvent = new InsertLearningPathEvent
-            {
-                LearningPathId = learningPathId,
-                StudentId = currentUser.UserId,
-                CurrentUserEmail = currentUser.Email,
-                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}",
-                Level = (short) studentLevel,
-                LevelReason = levelReason,
-                IsSkipTest = false,
-            };
-            var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
-            if (!learningPathResponse.Message.Success)
-            {
-                response.MessageId = learningPathResponse.Message.MessageId;
-                response.Message = learningPathResponse.Message.Message;
-                return false;
-            }            
             var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
             var selectedAnswerIds = surveyHabit.Quiz.Questions
@@ -579,6 +563,32 @@ public class StudentTestService : IStudentTestService
                 .ToList();
 
             int limitTime = GetStudentStudyTime(studentQuizAnswers);
+            
+            var learningPathId = Guid.NewGuid();
+
+            var evaluationAndImprove = request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any()
+                ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
+                : null;
+            
+            var learningPathEvent = new InsertLearningPathEvent
+            {
+                LearningPathId = learningPathId,
+                StudentId = currentUser.UserId,
+                CurrentUserEmail = currentUser.Email,
+                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}",
+                Level = (short) studentLevel,
+                LevelReason = levelReason,
+                IsSkipTest = false,
+                LimitTime = limitTime,
+                EvaluationAndImprove = evaluationAndImprove
+            };
+            var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
+            if (!learningPathResponse.Message.Success)
+            {
+                response.MessageId = learningPathResponse.Message.MessageId;
+                response.Message = learningPathResponse.Message.Message;
+                return false;
+            }            
             
             var context = new LearningPathCreationContext
             {

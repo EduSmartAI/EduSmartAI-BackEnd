@@ -30,14 +30,18 @@ public partial class LearningPath
     public string? Personality { get; set; }
 
     public string? LearningAbility { get; set; }
-    
+
     public string? AbilityFeedback { get; set; }
-    
+
     public short Level { get; set; }
-    
+
     public string LevelReason { get; set; } = null!;
-    
+
     public bool IsSkipTest { get; set; }
+    
+    public int LimitTime { get; set; }
+    
+    public string? EvaluationAndImprove { get; set; }
 
     public virtual ICollection<LearningPathMajor> LearningPathMajors { get; set; } = new List<LearningPathMajor>();
 

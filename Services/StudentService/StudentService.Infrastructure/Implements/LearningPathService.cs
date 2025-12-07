@@ -100,6 +100,8 @@ public class LearningPathService : ILearningPathService
                 Level = request.Level,
                 LevelReason = request.LevelReason,
                 IsSkipTest = request.IsSkipTest,
+                LimitTime = request.LimitTime,
+                EvaluationAndImprove = request.EvaluationAndImprove,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);

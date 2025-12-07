@@ -10,8 +10,6 @@ public partial class LearningPathSubjectCode
     public string SubjectCode { get; set; } = null!;
 
     public string? AnalysisMarkdown { get; set; }
-    
-    public string? Status { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
@@ -25,7 +23,9 @@ public partial class LearningPathSubjectCode
 
     public Guid LearningPathMajorId { get; set; }
 
+    public string? Status { get; set; }
+
     public virtual ICollection<LearningPathCourse> LearningPathCourses { get; set; } = new List<LearningPathCourse>();
 
-    public virtual LearningPathMajor LearningPathMajor { get; set; } = null!; 
+    public virtual LearningPathMajor LearningPathMajor { get; set; } = null!;
 }

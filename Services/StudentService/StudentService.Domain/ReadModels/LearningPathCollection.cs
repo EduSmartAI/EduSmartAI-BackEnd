@@ -23,6 +23,8 @@ public class LearningPathCollection
     public short Level { get; set; }
     public string LevelReason { get; set; } = null!;
     public bool IsSkipTest { get; set; }
+    public int LimitTime { get; set; }
+    public string? EvaluationAndImprove { get; set; }
     public List<LearningPathMajorCollection> LearningPathMajors { get; set; } = new();
 
     public static LearningPathCollection FromWriteModel(LearningPath model)
@@ -52,7 +54,9 @@ public class LearningPathCollection
             LearningPathMajors = majors,
             Level = model.Level,
             LevelReason = model.LevelReason,
-            IsSkipTest = model.IsSkipTest
+            IsSkipTest = model.IsSkipTest,
+            LimitTime = model.LimitTime,
+            EvaluationAndImprove = model.EvaluationAndImprove
         };
     }
 }
