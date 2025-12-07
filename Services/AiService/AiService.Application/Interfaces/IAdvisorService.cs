@@ -8,5 +8,7 @@ namespace AiService.Application.Interfaces
         Task<EvaluateResult> EvaluateAsync(AiEvaluateRequest req, CancellationToken ct);
         
         Task<AskResponse> AskAsync(string question, int k, bool showSources, CancellationToken ct);
+
+        Task<SubjectCourseMatchResult> MatchSubjectCoursesAsync(SubjectCourseMatchRequest request, CancellationToken ct);
     }
 }
