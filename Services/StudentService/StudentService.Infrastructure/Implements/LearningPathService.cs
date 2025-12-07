@@ -302,7 +302,8 @@ public class LearningPathService : ILearningPathService
                     SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
                     Level = x.Level
                 }).ToList(),
-                StudentTranscriptSelectEvent = request.StudentTranscripts
+                StudentTranscriptSelectEvent = request.StudentTranscripts,
+                StudentId = learningPath.StudentId ?? Guid.Empty
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -404,7 +405,7 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
+            // await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
 
             // Create dictionary to map MajorCode to MajorName from courseSelectEvent
             var majorNameDictionary = courseSelectEvent.Message.Response
