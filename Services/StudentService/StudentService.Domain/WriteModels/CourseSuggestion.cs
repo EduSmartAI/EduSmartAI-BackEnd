@@ -14,9 +14,7 @@ public partial class CourseSuggestion
     public Guid SuggestedCourseId { get; set; }
 
     public string Reason { get; set; } = null!;
-
-    public bool? IsAccepted { get; set; }
-
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

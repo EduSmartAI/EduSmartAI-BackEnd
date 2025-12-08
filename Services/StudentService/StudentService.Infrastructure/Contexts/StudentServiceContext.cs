@@ -143,8 +143,6 @@ namespace StudentService.Infrastructure.Contexts
 
                 entity.ToTable("course_suggestions");
 
-                entity.HasIndex(e => new { e.StudentId, e.IsAccepted }, "idx_course_suggestion_accepted");
-
                 entity.HasIndex(e => e.CreatedAt, "idx_course_suggestion_created").IsDescending();
 
                 entity.HasIndex(e => new { e.StudentId, e.IsActive }, "idx_course_suggestion_student");
@@ -160,7 +158,6 @@ namespace StudentService.Infrastructure.Contexts
                 entity.Property(e => e.CreatedBy)
                     .HasMaxLength(100)
                     .HasColumnName("created_by");
-                entity.Property(e => e.IsAccepted).HasColumnName("is_accepted");
                 entity.Property(e => e.IsActive)
                     .HasDefaultValue(true)
                     .HasColumnName("is_active");

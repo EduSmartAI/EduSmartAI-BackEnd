@@ -10,7 +10,6 @@ using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using StudentService.Application.Applications.Dashboards.Queries;
 using StudentService.Application.Applications.Dashboards.Queries.GetOverviewCourseDashboard;
-using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
 using StudentService.Domain.WriteModels;
 using static BaseService.Common.Utils.Const.ConstantEnum;

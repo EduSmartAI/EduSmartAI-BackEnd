@@ -416,6 +416,114 @@ public class StudentService : IStudentService
             return response;
         }
         
+        // Validate FirstName
+        if (!string.IsNullOrWhiteSpace(request.FirstName) && request.FirstName.Trim().Length == 0)
+        {
+            response.SetMessage(MessageId.E00000, "Họ không được để trống hoặc chỉ chứa khoảng trắng");
+            return response;
+        }
+        
+        // Validate LastName
+        if (!string.IsNullOrWhiteSpace(request.LastName) && request.LastName.Trim().Length == 0)
+        {
+            response.SetMessage(MessageId.E00000, "Tên không được để trống hoặc chỉ chứa khoảng trắng");
+            return response;
+        }
+        
+        // Validate DateOfBirth
+        if (request.DateOfBirth.HasValue)
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var minAge = today.AddYears(-100);
+            var maxAge = today.AddYears(-15);
+            
+            if (request.DateOfBirth.Value > maxAge)
+            {
+                response.SetMessage(MessageId.E00000, "Sinh viên phải từ 15 tuổi trở lên");
+                return response;
+            }
+            
+            if (request.DateOfBirth.Value < minAge)
+            {
+                response.SetMessage(MessageId.E00000, "Ngày sinh không hợp lệ");
+                return response;
+            }
+        }
+        
+        // Validate PhoneNumber
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+        {
+            var phoneNumber = request.PhoneNumber.Trim();
+            if (phoneNumber.Length < 10)
+            {
+                response.SetMessage(MessageId.E00000, "Số điện thoại phải có ít nhất 10 chữ số");
+                return response;
+            }
+            
+            if (!System.Text.RegularExpressions.Regex.IsMatch(phoneNumber, @"^[0-9+\-\s()]+$"))
+            {
+                response.SetMessage(MessageId.E00000, "Số điện thoại không hợp lệ");
+                return response;
+            }
+        }
+        
+        // Validate MajorId and SemesterId
+        if (request.MajorId.HasValue)
+        {
+            if (request.MajorId.Value == Guid.Empty)
+            {
+                response.SetMessage(MessageId.E00000, "Mã chuyên ngành không hợp lệ");
+                return response;
+            }
+        }
+        
+        if (request.SemesterId.HasValue)
+        {
+            if (request.SemesterId.Value == Guid.Empty)
+            {
+                response.SetMessage(MessageId.E00000, "Mã kỳ học không hợp lệ");
+                return response;
+            }
+        }
+        
+        // Validate Technologies
+        if (request.Technologies != null && request.Technologies.Any())
+        {
+            // Check for duplicates
+            var duplicateTechs = request.Technologies.GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateTechs.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Danh sách công nghệ không được chứa giá trị trùng lặp");
+                return response;
+            }
+            
+            // Check for empty GUIDs
+            if (request.Technologies.Any(t => t == Guid.Empty))
+            {
+                response.SetMessage(MessageId.E00000, "Danh sách công nghệ chứa giá trị không hợp lệ");
+                return response;
+            }
+        }
+        
+        // Validate LearningGoals
+        if (request.LearningGoals != null && request.LearningGoals.Any())
+        {
+            // Check for duplicates
+            var duplicateGoals = request.LearningGoals.GroupBy(x => x).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+            if (duplicateGoals.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Danh sách mục tiêu học tập không được chứa giá trị trùng lặp");
+                return response;
+            }
+            
+            // Check for empty GUIDs
+            if (request.LearningGoals.Any(g => g == Guid.Empty))
+            {
+                response.SetMessage(MessageId.E00000, "Danh sách mục tiêu học tập chứa giá trị không hợp lệ");
+                return response;
+            }
+        }
+        
         // Check technologies exist
         var technologiesExist = await _technologyQueryRepository.ToListAsync(t => request.Technologies != null && request.Technologies.Contains(t.TechnologyId));
         var missingTechIds = request.Technologies?.Except(technologiesExist.Select(x => x.TechnologyId)).ToList();
@@ -535,16 +643,8 @@ public class StudentService : IStudentService
 
                 foreach (var goalId in request.LearningGoals)
                 {
-                    var existingGoal = existingGoals.FirstOrDefault(g => g.GoalId == goalId);
-                    if (existingGoal != null)
-                    {
-                        // If already exists but inactive, activate it
-                        if (!existingGoal.IsActive)
-                        {
-                            _studentLearningGoalRepository.Update(existingGoal);
-                        }
-                    }
-                    else
+                    var existingGoal = existingGoals.FirstOrDefault(g => g.GoalId == goalId && g.IsActive);
+                    if (existingGoal == null)
                     {
                         var newLearningGoal = new StudentLearningGoal
                         {

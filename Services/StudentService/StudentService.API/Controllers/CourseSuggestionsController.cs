@@ -31,28 +31,28 @@ public class CourseSuggestionsController : ControllerBase
         _httpContextAccessor = httpContextAccessor;
     }
 
-    /// <summary>
-    /// Accept a course suggestion
-    /// </summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    [HttpPut("[action]")]
-    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-    [SwaggerOperation(
-        Summary = "Chấp nhận đề xuất khóa học",
-        Description = "API cho phép sinh viên chấp nhận đề xuất khóa học từ hệ thống. Sau khi chấp nhận, IsAccepted sẽ được đặt thành true."
-    )]
-    public async Task<AcceptCourseSuggestionResponse> UpdateAcceptCourseSuggestionStatus([FromBody] AcceptCourseSuggestionCommand request)
-    {
-        return await ApiControllerHelper.HandleRequest<AcceptCourseSuggestionCommand, AcceptCourseSuggestionResponse, string>(
-            request,
-            _logger,
-            ModelState,
-            async () => await _mediator.Send(request),
-            _identityService,
-            _identityEntity,
-            _httpContextAccessor,
-            new AcceptCourseSuggestionResponse());
-    }
+    // /// <summary>
+    // /// Accept a course suggestion
+    // /// </summary>
+    // /// <param name="request"></param>
+    // /// <returns></returns>
+    // [HttpPut("[action]")]
+    // [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    // [SwaggerOperation(
+    //     Summary = "Chấp nhận đề xuất khóa học",
+    //     Description = "API cho phép sinh viên chấp nhận đề xuất khóa học từ hệ thống. Sau khi chấp nhận, IsAccepted sẽ được đặt thành true."
+    // )]
+    // public async Task<AcceptCourseSuggestionResponse> UpdateAcceptCourseSuggestionStatus([FromBody] AcceptCourseSuggestionCommand request)
+    // {
+    //     return await ApiControllerHelper.HandleRequest<AcceptCourseSuggestionCommand, AcceptCourseSuggestionResponse, string>(
+    //         request,
+    //         _logger,
+    //         ModelState,
+    //         async () => await _mediator.Send(request),
+    //         _identityService,
+    //         _identityEntity,
+    //         _httpContextAccessor,
+    //         new AcceptCourseSuggestionResponse());
+    // }
 }
 

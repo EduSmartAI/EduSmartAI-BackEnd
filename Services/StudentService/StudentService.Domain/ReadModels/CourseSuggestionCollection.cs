@@ -13,9 +13,7 @@ public class CourseSuggestionCollection
     public Guid SuggestedCourseId { get; set; }
 
     public string Reason { get; set; } = null!;
-
-    public bool? IsAccepted { get; set; }
-
+    
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }
@@ -35,7 +33,6 @@ public class CourseSuggestionCollection
             OriginalCourseId = writeModel.OriginalCourseId,
             SuggestedCourseId = writeModel.SuggestedCourseId,
             Reason = writeModel.Reason,
-            IsAccepted = writeModel.IsAccepted,
             CreatedAt = writeModel.CreatedAt,
             UpdatedAt = writeModel.UpdatedAt,
             CreatedBy = writeModel.CreatedBy,
