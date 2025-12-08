@@ -1044,7 +1044,7 @@ public class StudentTestService : IStudentTestService
         var reason = new System.Text.StringBuilder();
         
         // Part 1: Quiz performance explanation
-        reason.AppendLine("📊 **Kết quả bài kiểm tra lý thuyết:**");
+        reason.AppendLine(" **Kết quả bài kiểm tra lý thuyết:**");
         reason.AppendLine();
         
         for (int level = 1; level <= 3; level++)

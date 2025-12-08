@@ -56,18 +56,32 @@ public class LearningPathService : ILearningPathService
         var currentUser = _identityService.GetCurrentUser()!;
         
         var studentId = currentUser.UserId;
-        
-        var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
-            CacheKey.StudentSurvey(studentId),
-            async () => await _studentQuizCollectionRepository.ToListAsync(
-                sq => sq.StudentId == studentId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
-            TimeSpan.FromMinutes(10));
-        if (!studentSurveys.Any())
+
+        var studentSurveySelects = await _studentQuizCollectionRepository.ToListAsync(sq =>
+            sq.StudentId == studentId && sq.QuizType == (short)ConstantEnum.TestType.Survey && sq.IsActive);
+        if (!studentSurveySelects.Any())
         {
-            response.SetMessage(MessageId.E00000, "Sinh viên chưa hoàn thành bài khảo sát nào");
+            response.SetMessage(MessageId.I00000, "Sinh viên chưa hoàn thành bài khảo sát nào");
             return response;
         }
-
+        
+        // Lấy bài survey HABIT có CreatedAt trễ nhất
+        var latestSurveyHabit = studentSurveySelects
+            .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT))
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+        
+        // Lấy bài survey INTEREST có CreatedAt trễ nhất
+        var latestSurveyInterest = studentSurveySelects
+            .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST))
+            .OrderByDescending(x => x.CreatedAt)
+            .FirstOrDefault();
+        
+        // Tạo danh sách studentSurveys chỉ chứa 2 bài survey mới nhất
+        var studentSurveys = new List<StudentQuizCollection>();
+        if (latestSurveyHabit != null) studentSurveys.Add(latestSurveyHabit);
+        if (latestSurveyInterest != null) studentSurveys.Add(latestSurveyInterest);
+        
         var studentInformationSelectsEvent = new StudentInformationSelectsEvent
         {
             StudentId = studentId
@@ -108,20 +122,18 @@ public class LearningPathService : ILearningPathService
         {
             var learningPathId = Guid.NewGuid();
             
-            var surveyHabit = studentSurveys.FirstOrDefault(x => 
-                x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
-            if (surveyHabit == null)
+            if (latestSurveyHabit == null)
             {
                 response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát thói quen học tập");
                 return false;
             }
 
-            var selectedAnswerIds = surveyHabit.Quiz.Questions
+            var selectedAnswerIds = latestSurveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
                 .Select(a => a.AnswerId)
                 .ToList();
 
-            var studentQuizAnswers = surveyHabit.Quiz.Questions
+            var studentQuizAnswers = latestSurveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
                 .Where(a => selectedAnswerIds.Contains(a.AnswerId))
                 .Select(a => new StudentQuizAnswerCollection

@@ -27,7 +27,6 @@ public class StudentService : IStudentService
     private readonly ICommandRepository<Student> _studentRepository;
     private readonly ICommandRepository<StudentTechnology> _studentTechnologyRepository;
     private readonly IQueryRepository<TechnologyCollection> _technologyQueryRepository;
-    private readonly IQueryRepository<StudentTechnologyCollection> _studentTechnologyQueryRepository;
     private readonly ICommandRepository<StudentLearningGoal> _studentLearningGoalRepository;
     private readonly ICommandRepository<StudentTranscript> _studentTranscriptRepository;
     private readonly IQueryRepository<StudentCollection> _studentQueryRepository;
@@ -50,7 +49,6 @@ public class StudentService : IStudentService
     /// <param name="learningGoalQueryRepository"></param>
     /// <param name="outboxService"></param>
     /// <param name="technologyQueryRepository"></param>
-    /// <param name="studentTechnologyQueryRepository"></param>
     /// <param name="identityService"></param>
     /// <param name="requestClientMajorAndSemesterSelect"></param>
     /// <param name="requestClientAvatarUpload"></param>
@@ -64,7 +62,6 @@ public class StudentService : IStudentService
         IQueryRepository<LearningGoalCollection> learningGoalQueryRepository, 
         ICommandRepository<OutboxMessage> outboxService, 
         IQueryRepository<TechnologyCollection> technologyQueryRepository,
-        IQueryRepository<StudentTechnologyCollection> studentTechnologyQueryRepository, 
         IIdentityService identityService,
         IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect, 
         IRequestClient<AvatarUploadEvent> requestClientAvatarUpload,
@@ -79,7 +76,6 @@ public class StudentService : IStudentService
         _learningGoalQueryRepository = learningGoalQueryRepository;
         _outboxService = outboxService;
         _technologyQueryRepository = technologyQueryRepository;
-        _studentTechnologyQueryRepository = studentTechnologyQueryRepository;
         _identityService = identityService;
         _requestClientMajorAndSemesterSelect = requestClientMajorAndSemesterSelect;
         _requestClientAvatarUpload = requestClientAvatarUpload;
@@ -371,10 +367,9 @@ public class StudentService : IStudentService
     {
         var response = new StudentInformationSelectsEventResponse { Success = false };
         
-        var studentTechnologiesCollections = await _studentTechnologyQueryRepository.ToListAsync(x => x.StudentId == request.StudentId);
-
-        var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
-
+        var studentCollection = await _studentQueryRepository
+            .FirstOrDefaultAsync(x => x.StudentId == request.StudentId && x.IsActive);
+        
         var learningGoal = studentCollection!.LearningGoals!
             .OrderByDescending(x => x.UpdatedAt)
             .FirstOrDefault();
@@ -382,7 +377,7 @@ public class StudentService : IStudentService
         var studentInfo = new StudentInformationSelectsEventResponseEntity
         {
             SemesterId = studentCollection!.SemesterId ?? Guid.Empty, 
-            Technologies = studentTechnologiesCollections.Select(x => new StudentTechnologySelectsEventResponseEntity
+            Technologies = studentCollection.Technologies!.Select(x => new StudentTechnologySelectsEventResponseEntity
             {
                 TechnologyName = x.Technology.TechnologyName,
                 TechnologyType = x.Technology.TechnologyType,

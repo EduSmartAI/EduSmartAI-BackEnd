@@ -127,10 +127,7 @@ public class StudentSurveyService : IStudentSurveyService
 
         // 1.5. Validate learning goal requirement
         if (!await ValidateLearningGoalAsync(request, surveyExist, response)) return response;
-
-        // 1.6. Validate if the student has already taken the survey -> if yes, deactivate old entries
-        await ValidateStudentSurveyStatusAsync(request, currentUser!.UserId, currentUser.Email, cancellationToken);
-
+        
         // 1.7. Validate questions and answers
         if (!ValidateQuestionsAndAnswers(request, surveyExist, response)) return response;
 
@@ -633,25 +630,6 @@ public class StudentSurveyService : IStudentSurveyService
     {
         // // Check student has already taken the survey
         var surveyIdsRequest = request.StudentSurveys.Select(s => s.SurveyId).ToList();
-        var studentQuizExists = await _studentQuizCommandRepository
-            .Find(x => surveyIdsRequest.Contains(x.QuizId)
-                                      && x.StudentId == studentId
-                                      && x.IsActive)
-            .ToListAsync(cancellationToken: cancellationToken);
-        if (studentQuizExists.Any())
-        {
-            _studentQuizCommandRepository.UpdateRange(studentQuizExists);
-            await _unitOfWork.SaveChangesAsync(email, cancellationToken, true);
-        }
-
-        // Delete old StudentQuizCollection for the deactivated StudentQuiz
-        foreach (var studentQuiz in studentQuizExists)
-        {
-            var studentQuizCollection = await _studentQuizQueryRepository.FirstOrDefaultAsync(x => x.QuizId == studentQuiz.QuizId && x.IsActive);
-            
-            _unitOfWork.Delete(studentQuizCollection!); 
-        }
-        await _unitOfWork.SessionSaveChangesAsync();
     }
 
     private bool ValidateQuestionsAndAnswers(StudentSurveyInsertCommand request, List<QuizCollection> surveyExist, StudentSurveyInsertResponse response)

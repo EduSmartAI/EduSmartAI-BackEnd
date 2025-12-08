@@ -284,6 +284,15 @@ public class LearningPathService : ILearningPathService
             {
                 throw new Exception($"Lộ trình học tập không tồn tại");
             }
+            List<Guid> existingCourseIds = new List<Guid>();
+            var learningPathCourseExists = await _learningPathQueryRepository.ToListAsync(x => x.StudentId == learningPath.StudentId && x.IsActive);
+            foreach (var pathCollection in learningPathCourseExists)
+            {
+                foreach (var major in pathCollection.LearningPathMajors)
+                {
+                    existingCourseIds.AddRange(major.LearningPathCourses.Select(x => x.LearningPathCourseId).ToList());
+                }
+            }
 
             // Send message to CourseService to get courses response
             var coursesSelectEventRequest = new CoursesSelectEvent
@@ -300,7 +309,8 @@ public class LearningPathService : ILearningPathService
                     Level = x.Level
                 }).ToList(),
                 StudentTranscriptSelectEvent = request.StudentTranscripts,
-                StudentId = learningPath.StudentId ?? Guid.Empty
+                StudentId = learningPath.StudentId ?? Guid.Empty,
+                LearningPathCourseExists = existingCourseIds
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -402,7 +412,7 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
+            // await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
 
             // Create dictionary to map MajorCode to MajorName from courseSelectEvent
             var majorNameDictionary = courseSelectEvent.Message.Response

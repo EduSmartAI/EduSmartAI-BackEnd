@@ -1157,11 +1157,6 @@ namespace Course.Infrastructure.Implements
 		/// <param name="ct"></param>
 		/// <returns></returns>
 		/// <summary>
-		/// Get course selects response QuizService
-		/// </summary>
-		/// <param name="request"></param>
-		/// <param name="ct"></param>
-		/// <returns></returns>
 		public async Task<CoursesSelectEventResponse> GetCourseSelectsAsync(
 			CoursesSelectEvent request, CancellationToken ct = default)
 		{
@@ -1178,10 +1173,6 @@ namespace Course.Infrastructure.Implements
 				return response;
 			}
 			
-			var courseEnrollment = await _courseStudentEnrollmentRepository
-				.Find(ce => ce.UserId == request.StudentId && ce.IsActive)
-				.FirstOrDefaultAsync(cancellationToken: ct);
-
 			// 2. Determine which major codes to query
 			var majorCodesToQuery = request.MajorCodes.ToList();
 

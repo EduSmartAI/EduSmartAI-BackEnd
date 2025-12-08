@@ -17,7 +17,9 @@ public class CoursesSelectEvent
     
     public List<StudentTranscrptEvent>? StudentTranscriptSelectEvent { get; set; }
     
-    public Guid StudentId { get; set; }
+    public required Guid StudentId { get; set; }
+    
+    public required List<Guid> LearningPathCourseExists { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>
