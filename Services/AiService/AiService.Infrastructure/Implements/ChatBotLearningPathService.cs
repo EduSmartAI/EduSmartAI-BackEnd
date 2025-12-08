@@ -149,6 +149,17 @@ namespace AiService.Infrastructure.Implements
                         Content = reply,
                         RawFinishReason = finishReason
                     });
+
+                    // 5a) Nếu đây là phản hồi đầu tiên và name vẫn là mặc định, thì AI sẽ đặt tên
+                    var isFirstReply = sessionDoc.Messages.Count(m => m.Role == "assistant") == 1;
+                    if (isFirstReply && (string.IsNullOrWhiteSpace(sessionDoc.Name) || sessionDoc.Name == "Lộ trình học mới"))
+                    {
+                        var generatedName = await GenerateChatNameAsync(sessionDoc.Messages, ct);
+                        if (!string.IsNullOrWhiteSpace(generatedName))
+                        {
+                            sessionDoc.Name = generatedName;
+                        }
+                    }
                 }
 
                 // Audit + lưu lịch sử (kể cả khi AI không trả lời gì thì vẫn lưu message của user)
@@ -280,6 +291,8 @@ namespace AiService.Infrastructure.Implements
                 Tools = { GetLearningPathsTool, GetLearningPathDetailTool, SkipLearningPathSubjectTool }
             };
 
+            string? lastToolCalled = null;
+
             while (true)
             {
                 var res = await chatClient.CompleteChatAsync(messages, options, ct);
@@ -290,6 +303,7 @@ namespace AiService.Infrastructure.Implements
 
                     foreach (var call in res.Value.ToolCalls)
                     {
+                        lastToolCalled = call.FunctionName;
                         var toolPayload = await HandleToolCallAsync(call, userId, email, ct);
                         messages.Add(new ToolChatMessage(call.Id, toolPayload));
                     }
@@ -299,14 +313,30 @@ namespace AiService.Infrastructure.Implements
 
                 if (res.Value.Content.Count == 0)
                 {
-                    return (string.Empty, res.Value.FinishReason.ToString());
+                    var emptyReason = lastToolCalled != null 
+                        ? GetRawFinishReasonFromTool(lastToolCalled)
+                        : res.Value.FinishReason.ToString();
+                    return (string.Empty, emptyReason);
                 }
 
                 var text = res.Value.Content[0].Text.ToString();
-                var reason = res.Value.FinishReason.ToString();
+                var finalReason = lastToolCalled != null 
+                    ? GetRawFinishReasonFromTool(lastToolCalled)
+                    : res.Value.FinishReason.ToString();
 
-                return (text, reason);
+                return (text, finalReason);
             }
+        }
+
+        private static string GetRawFinishReasonFromTool(string toolName)
+        {
+            return toolName switch
+            {
+                "get_user_learning_paths" => ConstantEnum.ChatBotRawReason.GetAllLearningPath.ToString(),
+                "get_user_learning_path_detail" => ConstantEnum.ChatBotRawReason.GetDetailTrainingPath.ToString(),
+                "skip_learning_path_subject" => ConstantEnum.ChatBotRawReason.SkipSubjectLearningPath.ToString(),
+                _ => toolName
+            };
         }
 
         private static string NormalizeMarkdown(string s)
@@ -321,6 +351,70 @@ namespace AiService.Infrastructure.Implements
             }
 
             return s.Trim();
+        }
+
+        private async Task<string?> GenerateChatNameAsync(
+            ICollection<ChatHistoryLearningPathItem> messages,
+            CancellationToken ct)
+        {
+            try
+            {
+                // Lấy message đầu tiên của user và reply đầu tiên của assistant
+                var userMessage = messages.FirstOrDefault(m => m.Role == "user")?.Content;
+                var assistantMessage = messages.FirstOrDefault(m => m.Role == "assistant")?.Content;
+
+                if (string.IsNullOrWhiteSpace(userMessage)) return null;
+
+                var conversationContext = userMessage;
+                if (!string.IsNullOrWhiteSpace(assistantMessage))
+                {
+                    // Giới hạn độ dài để không quá dài
+                    var shortReply = assistantMessage.Length > 200 
+                        ? assistantMessage.Substring(0, 200) + "..." 
+                        : assistantMessage;
+                    conversationContext = $"Câu hỏi: {userMessage}\n\nPhản hồi: {shortReply}";
+                }
+
+                var systemPrompt = "Bạn là trợ lý tạo tên ngắn gọn cho đoạn hội thoại về lộ trình học tập. " +
+                                  "Tạo một tên ngắn gọn, rõ ràng (tối đa 50 ký tự) phản ánh nội dung chính của cuộc trò chuyện. " +
+                                  "Chỉ trả về tên, không có dấu ngoặc kép hay ký tự đặc biệt.";
+
+                var userPrompt = $"Hãy tạo tên ngắn gọn cho đoạn hội thoại sau:\n\n{conversationContext}";
+
+                var completion = await chatClient.CompleteChatAsync(
+                    new ChatMessage[]
+                    {
+                        new SystemChatMessage(systemPrompt),
+                        new UserChatMessage(userPrompt)
+                    },
+                    new ChatCompletionOptions
+                    {
+                        Temperature = 0.7f
+                    },
+                    ct);
+
+                var generatedName = completion.Value.Content.Count > 0
+                    ? completion.Value.Content[0].Text.ToString().Trim()
+                    : null;
+
+                // Làm sạch tên: loại bỏ dấu ngoặc kép, ký tự đặc biệt không cần thiết
+                if (!string.IsNullOrWhiteSpace(generatedName))
+                {
+                    generatedName = generatedName.Trim('"', '\'', '`', '.', ',', ';', ':');
+                    // Giới hạn độ dài
+                    if (generatedName.Length > 60)
+                    {
+                        generatedName = generatedName.Substring(0, 57) + "...";
+                    }
+                }
+
+                return generatedName;
+            }
+            catch
+            {
+                // Nếu lỗi thì trả về null, sẽ giữ tên mặc định
+                return null;
+            }
         }
 
         public async Task<List<ChatSummaryDto>> GetAllChatsAsync(Guid userId, CancellationToken ct = default)
