@@ -11,7 +11,6 @@ namespace Course.Application.Courses.Consumers
 			var result = await _courseService.GetBasicCoursesInforAsync(courseIds, context.CancellationToken);
 
 			await context.RespondAsync(result);
-
 		}
 	}
 }

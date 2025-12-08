@@ -26,7 +26,7 @@ public class GetSubjectDetailConsumer(
         try
         {
             var subject = await subjectRepository.FirstOrDefaultAsync(
-                x => x.IsActive && x.SubjectCode.ToUpperInvariant() == subjectCode,
+                x => x.IsActive && x.SubjectCode.ToUpper() == subjectCode,
                 cancellationToken: context.CancellationToken);
 
             if (subject == null)

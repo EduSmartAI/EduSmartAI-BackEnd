@@ -104,6 +104,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     // NEW: nhóm theo môn
     public record CourseGroupDto
     {
+        public Guid SubjectId { get; set; }
         public string SubjectCode { get; set; } = string.Empty;
         public short Status { get; set; }
         public int SemesterPosition { get; set; }

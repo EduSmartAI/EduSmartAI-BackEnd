@@ -46,5 +46,7 @@ namespace Course.Application.Interfaces
         Task<GetEnrolledUsersResponse> GetEnrolledUsersAsync(GetEnrolledUsersQuery request, CancellationToken ct = default);
 
         Task<GetCourseBasicInfoResponse> GetBasicCoursesInforAsync(List<Guid> ids, CancellationToken ct);
+
+        Task<GetSuggestedCoursesEventResponse> GetSuggestedCoursesAsync(GetSuggestedCoursesStudentServiceDto request, CancellationToken ct = default);
 	}
 }
