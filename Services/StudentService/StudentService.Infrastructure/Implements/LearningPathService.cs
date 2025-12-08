@@ -96,7 +96,7 @@ public class LearningPathService : ILearningPathService
                 PathId = request.PathId,
                 PathName = request.PathName,
                 StudentId = request.StudentId,
-                Status = (short) ConstantEnum.LearningPathStatus.Generating,
+                Status = (short)ConstantEnum.LearningPathStatus.Generating,
                 Level = request.Level,
                 LevelReason = request.LevelReason,
                 IsSkipTest = request.IsSkipTest,
@@ -405,7 +405,7 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            // await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
+            await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
 
             // Create dictionary to map MajorCode to MajorName from courseSelectEvent
             var majorNameDictionary = courseSelectEvent.Message.Response
