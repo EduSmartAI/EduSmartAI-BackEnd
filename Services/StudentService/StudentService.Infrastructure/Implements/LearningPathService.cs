@@ -417,7 +417,7 @@ public class LearningPathService : ILearningPathService
             _unitOfWork.Store(learningPath);
 
             await _unitOfWork.SessionSaveChangesAsync();
-            // await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
+            await PublishLearningPathSnapshotAsync(learningPath.PathId, learningPath.StudentId, cancellationToken);
 
             // Create dictionary to map MajorCode to MajorName from courseSelectEvent
             var majorNameDictionary = courseSelectEvent.Message.Response
