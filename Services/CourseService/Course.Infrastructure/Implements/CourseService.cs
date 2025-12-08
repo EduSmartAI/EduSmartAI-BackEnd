@@ -23,6 +23,7 @@ using Course.Domain.Enum;
 using Course.Infrastructure.Caching;
 using Course.Infrastructure.Extensions;
 using Mapster;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace Course.Infrastructure.Implements
 {
@@ -50,7 +51,8 @@ namespace Course.Infrastructure.Implements
 		IQuizEventFactory _quizEventFactory,
 		ICommandRepository<CourseWishlist> _courseWishlistRepository,
 		ICommandRepository<CourseStudentEnrollment> _courseStudentEnrollmentCommandRepository,
-		ICommandRepository<SyllabusSubject> _syllabusSubjectRepository) : ICourseService
+		ICommandRepository<SyllabusSubject> _syllabusSubjectRepository,
+		ICommandRepository<Subject> _subjectCommandRepository) : ICourseService
 	{
 		#region Service for Lecture & Guest
 
@@ -1593,7 +1595,12 @@ namespace Course.Infrastructure.Implements
 			}
 		}
 
-
+		/// <summary>
+		/// Get enrolled users by course id
+		/// </summary>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetEnrolledUsersResponse> GetEnrolledUsersAsync(GetEnrolledUsersQuery request, CancellationToken ct = default)
 		{
 			var response = new GetEnrolledUsersResponse { Success = false };
@@ -1670,6 +1677,12 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Get basic course info by list of course ids
+		/// </summary>
+		/// <param name="ids"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<GetCourseBasicInfoResponse> GetBasicCoursesInforAsync(List<Guid> ids, CancellationToken ct)
 		{
 			var response = new GetCourseBasicInfoResponse { Success = false };
@@ -1720,6 +1733,95 @@ namespace Course.Infrastructure.Implements
 			response.Success = true;
 			response.Response = result;
 			response.SetMessage(MessageId.I00001, "Lấy thông tin khóa học");
+
+			return response;
+		}
+
+		public async Task<GetSuggestedCoursesEventResponse> GetSuggestedCoursesAsync(GetSuggestedCoursesStudentServiceDto request, CancellationToken ct = default)
+		{
+			var response = new GetSuggestedCoursesEventResponse { Success = false };
+
+			if (!Enum.IsDefined(typeof(SuggestedCourseType), request.Type))
+			{
+				response.SetMessage(MessageId.E00000, "Invalid SuggestedCourseType");
+				return response;
+			}
+
+			// 1. Lấy subjectId theo subject code
+			var subject = await _subjectCommandRepository.FirstOrDefaultAsync(s => s.SubjectCode == request.SubjectCode && s.IsActive, ct);
+
+			if (subject == null)
+			{
+				response.SetMessage(MessageId.E00000, "Subject not found");
+				return response;
+			}
+
+			// 2. Lấy courses theo subject
+			var allCourses = await _courseRepository.Find(c => c.IsActive 
+															&& c.SubjectId == subject.SubjectId, isTracking: false, cancellationToken: ct)
+													.ToListAsync(ct);
+
+			// 3. Lấy course user đã enrolled
+			var enrolledIds = await _courseStudentEnrollmentRepository
+				.Find(x => x.UserId == request.UserId && x.IsActive, false, ct)
+				.Select(x => x.CourseId)
+				.ToListAsync(ct);
+
+			// 4. Danh sách course cần loại bỏ
+			var excluded = request.ExistingCourseIds
+				.Concat(enrolledIds)
+				.Distinct()
+				.ToHashSet();
+
+			// 5. Lọc course theo loại SuggestedCourseType
+			IEnumerable<CourseEntity> filtered = allCourses;
+
+			filtered = request.Type switch
+			{
+				SuggestedCourseType.Harder => filtered.Where(c => c.Level > request.CurrentLevel),
+				SuggestedCourseType.Easier => filtered.Where(c => c.Level < request.CurrentLevel),
+				_ => filtered
+			};
+
+			filtered = filtered.Where(c => !excluded.Contains(c.CourseId));
+
+			// 6. Lấy tối đa số lượng course (4)
+			filtered = filtered.OrderBy(c => c.Level).Take(4).ToList();
+
+			// 7. Lấy TeacherName qua event khác
+			var teacherIds = filtered.Select(c => c.TeacherId).Distinct().ToList();
+
+			var teacherNameDict = new Dictionary<Guid, string?>();
+
+			if (teacherIds.Any())
+			{
+				var teacherReq = new GetTeacherNamesEvent(teacherIds);
+				var teacherResp = await _teacherNameClient.GetResponse<GetTeacherNamesEventResponse>(teacherReq, ct);
+
+				if (teacherResp.Message.Success)
+				{
+					teacherNameDict = teacherResp.Message.Response.ToDictionary(t => t.TeacherId, t => t.DisplayName);
+				}
+			}
+
+			// 8. Map sang DTO và trả về
+			var result = filtered.Select(c => new CourseBasicInfoDto
+			{
+				CourseId = c.CourseId,
+				Title = c.Title,
+				ShortDescription = c.ShortDescription ?? "",
+				CourseImageUrl = c.CourseImageUrl ?? "",
+				Level = c.Level ?? 0,
+				Price = c.Price,
+				DealPrice = c.DealPrice,
+				TeacherId = c.TeacherId,
+				TeacherName = teacherNameDict.ContainsKey(c.TeacherId) ? teacherNameDict[c.TeacherId] : null,
+				SubjectCode = request.SubjectCode
+			}).ToList();
+
+			response.Success = true;
+			response.Response = result;
+			response.SetMessage(MessageId.I00001, "Lấy danh sách khóa học gợi ý");
 
 			return response;
 		}

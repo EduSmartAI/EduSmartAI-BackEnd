@@ -410,4 +410,10 @@ public static class ConstantEnum
         [Description("Điểm của bạn có môn từ 7 đến dưới 8, bạn có muốn chúng tôi đánh giá để cải thiện về các môn đó không?")]
         GRADE_7_TO_8_EVALUATION = 5
     }
+
+    public enum SuggestedCourseType : short
+    {
+		Easier = 1,
+		Harder = 2
+	}
 }

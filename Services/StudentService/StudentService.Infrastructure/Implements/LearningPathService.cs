@@ -16,6 +16,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearn
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertBatchLearningPathsMajor;
@@ -2030,17 +2031,43 @@ public class LearningPathService : ILearningPathService
         return response;
     }
 
+	public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default)
+	{
+		var response = new GetSuggestedCoursesForLearningPathResponse { Success = false };
 
-    #region Private Helpers Methods
+		var user = _identityService.GetCurrentUser();
+		if (user == null)
+		{
+			response.SetMessage(MessageId.E00000, "User chưa đăng nhập");
+			return response;
+		}
 
-    /// <summary>
-    /// Sync LearningPath Read Model từ Write Model theo Id
-    /// </summary>
-    /// <param name="learningPathId"></param>
-    /// <param name="studentId"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid? studentId, CancellationToken cancellationToken)
+		// 1. Lấy learning path
+		var lp = await _learningPathCommandRepository.FirstOrDefaultAsync(
+		                    x => x.PathId == request.PathId &&
+		                    	 x.StudentId == user.UserId &&
+		                    	 x.IsActive,
+		                    ct);
+
+        if (lp == null)
+        {
+            response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
+            return response;
+		}
+
+		return response;
+	}
+
+	#region Private Helpers Methods
+
+	/// <summary>
+	/// Sync LearningPath Read Model từ Write Model theo Id
+	/// </summary>
+	/// <param name="learningPathId"></param>
+	/// <param name="studentId"></param>
+	/// <param name="cancellationToken"></param>
+	/// <returns></returns>
+	private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid? studentId, CancellationToken cancellationToken)
     {
         // 1) Lấy write-model gốc
         var lpWrite = await _learningPathCommandRepository
@@ -2185,7 +2212,7 @@ public class LearningPathService : ILearningPathService
         }
     }
 
-
-    #endregion
+	
+	#endregion
 
 }
