@@ -2,6 +2,7 @@
 using BaseService.API.Sse;
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Pagination;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -16,10 +17,12 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearn
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Interfaces;
 using Swashbuckle.AspNetCore.Annotations;
+using static BaseService.Common.Utils.Const.ConstantEnum;
 
 namespace StudentService.API.Controllers;
 
@@ -383,7 +386,29 @@ public class LearningPathsController(
             new RegenerateLearningPathCommandResponse());
     }
 
-    private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
+	[HttpGet("suggested-courses/{pathId:guid}/subjects/{subjectCode}/recommend")]
+	[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+	[SwaggerOperation(
+		Summary = "Lấy các khóa học được đề xuất cho một lộ trình học tập dựa trên độ khó",
+		Description = "API này cho phép lấy các khóa học được đề xuất dựa trên độ khó (dễ hơn hoặc khó hơn) cho một lộ trình học tập cụ thể."
+	)]
+	public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathProcess(Guid pathId, string subjectCode, [FromQuery] SuggestedCourseType type)
+	{
+		var request = new GetSuggestedCoursesForLearningPathQuery(pathId, subjectCode, type);
+
+		return await ApiControllerHelper.HandleRequest<GetSuggestedCoursesForLearningPathQuery, GetSuggestedCoursesForLearningPathResponse, List<CourseBasicInfoDto>>(
+			request,
+			_logger,
+			ModelState,
+			async () => await _mediator.Send(request),
+			_identityService,
+			_identityEntity,
+			_httpContextAccessor,
+			new GetSuggestedCoursesForLearningPathResponse());
+	}
+
+
+	private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
     {
         var httpAbortToken = HttpContext?.RequestAborted ?? CancellationToken.None;
         var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, httpAbortToken);

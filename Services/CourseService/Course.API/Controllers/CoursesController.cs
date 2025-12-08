@@ -13,6 +13,7 @@ using Course.Application.Courses.Queries.GetCoursesByLecture;
 using Course.Application.Courses.Queries.GetCourseTags;
 using Course.Application.Courses.Queries.GetEnrolledUsers;
 using Course.Application.Courses.Queries.GetInProgressCourse;
+using Course.Application.Courses.Queries.LocalTest.GetSuggestedCoursesStudentService;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CourseTagsDTO;
 using Course.Application.Interfaces;
@@ -355,6 +356,7 @@ namespace Course.API.Controllers
 		/// Lấy thông tin cơ bản của nhiều khóa học (test API)
 		/// </summary>
 		[HttpGet("basic-info")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		public async Task<GetCourseBasicInfoResponse> GetBasicInfo([FromQuery] GetCourseBasicInfoRequest dto)
 		{
 			var request = new GetCourseBasicInfoCommand(dto.CourseIds);
@@ -366,6 +368,19 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new GetCourseBasicInfoResponse()
+			);
+		}
+
+		[HttpGet("suggested-courses")]
+		public async Task<GetSuggestedCoursesEventResponse> GetSuggestedCoursesForStudent([FromQuery] GetSuggestedCoursesStudentServiceDto getSuggestedCoursesStudentServiceDto)
+		{
+			var request = new GetSuggestedCoursesStudentServiceQuery(getSuggestedCoursesStudentServiceDto);
+			return await ApiControllerHelper.HandleRequest<GetSuggestedCoursesStudentServiceQuery, GetSuggestedCoursesEventResponse, List<CourseBasicInfoDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSuggestedCoursesEventResponse()
 			);
 		}
 

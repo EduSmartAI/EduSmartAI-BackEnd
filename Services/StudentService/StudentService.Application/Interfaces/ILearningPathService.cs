@@ -5,6 +5,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearn
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Application.Applications.LearningPathsMajor.Commands.InsertBatchLearningPathsMajor;
@@ -48,4 +49,6 @@ public interface ILearningPathService
     Task UpdateCourseStatusForUserAsync(Guid userId, Guid courseId, short status, CancellationToken cancellationToken = default);
 
     Task<UpdateLearningPathStatusResponse> UpdateLearningPathStatusAsync(Guid learningPathId, LearningPathStatus newStatus, CancellationToken ct = default);
+
+	Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default);
 }
