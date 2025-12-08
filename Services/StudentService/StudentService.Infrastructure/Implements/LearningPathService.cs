@@ -697,6 +697,7 @@ public class LearningPathService : ILearningPathService
             var ordered = courseItems.OrderBy(x => x.SemesterPosition).ToList();
             groups.Add(new CourseGroupDto
             {
+                SubjectId = subject.LearningPathSubjectCodeId,
                 SubjectCode = string.IsNullOrWhiteSpace(subject.SubjectCode) ? "UNKNOWN" : subject.SubjectCode,
                 AnalysisMarkdown = subject.AnalysisMarkdown,
                 Status = AggregateGroupStatus(ordered),
@@ -887,6 +888,7 @@ public class LearningPathService : ILearningPathService
                 var courses = g.OrderBy(x => x.SemesterPosition).ToList();
                 return new CourseGroupDto
                 {
+                    SubjectId = Guid.Empty,
                     SubjectCode = g.Key,
                     AnalysisMarkdown = null,
                     Status = AggregateGroupStatus(courses),
