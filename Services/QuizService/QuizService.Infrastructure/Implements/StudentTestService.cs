@@ -16,6 +16,9 @@ using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using CourseImproveContext = QuizService.Application.Applications.LearningPaths.CourseImproveContext;
+using StudentTranscriptContext = QuizService.Application.Applications.LearningPaths.StudentTranscriptContext;
+using SubjectMarkContext = QuizService.Application.Applications.LearningPaths.SubjectMarkContext;
 
 namespace QuizService.Infrastructure.Implements;
 
@@ -216,10 +219,19 @@ public class StudentTestService : IStudentTestService
             _unitOfWork.Store(studentTestCollection);
             await _unitOfWork.SessionSaveChangesAsync();
             
-            // Calculate level from Quiz (60% weight)
-            var quizLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList());
+            // Get student transcript first (needed for level calculation and SubjectMarks)
+            var studentTranscriptEvent = new StudentTranscriptSelectEvent
+            {
+                StudentId = currentUser.UserId
+            };
+
+            var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
+            var studentTranscripts = transcriptResponse.Message.Response;
             
-            int finalStudentLevel = quizLevel;
+            // Calculate level from Quiz (60% weight if has practice test, or base for transcript calculation)
+            var quizLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList(), out var difficultyPerformance);
+            
+            int baseLevel = quizLevel; // Level from quiz alone
             
             // Declare practiceTestResults outside to use it later for ability marks calculation
             var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
@@ -258,24 +270,101 @@ public class StudentTestService : IStudentTestService
                 var practiceTestLevel = DeterminePracticeTestLevel(practiceTestResults);
                 
                 // Combine levels: 60% quiz + 40% practice test
-                finalStudentLevel = (int)Math.Round(quizLevel * 0.6 + practiceTestLevel * 0.4);
+                baseLevel = (int)Math.Round(quizLevel * 0.6 + practiceTestLevel * 0.4);
                 
                 // Ensure level is between 1 and 3
-                finalStudentLevel = Math.Max(1, Math.Min(3, finalStudentLevel));
+                baseLevel = Math.Max(1, Math.Min(3, baseLevel));
+            }
+            
+            // Check if transcript has relevant subjects matching quiz subjects
+            // If yes, incorporate transcript score (20%) into final level calculation
+            int finalStudentLevel = baseLevel;
+            var transcriptSubjectsUsed = new List<(string SubjectCode, string SubjectName, double Grade)>();
+            
+            if (studentTranscripts.Any())
+            {
+                // Get all subject codes from quizzes
+                var quizSubjectNames = testExist.Quizzes
+                    .Where(q => q.PlacementTestQuizSetting != null)
+                    .Select(q => q.PlacementTestQuizSetting!.SubjectCodeName)
+                    .ToList();
+                
+                // Find matching transcripts: check if transcript SubjectCode is contained in quiz SubjectCodeName
+                var matchingTranscripts = studentTranscripts
+                    .Where(t => quizSubjectNames.Any(qsn => qsn.Contains(t.SubjectCode, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+                
+                if (matchingTranscripts.Any())
+                {
+                    // Calculate average transcript score (scale 0-10 to level 1-3)
+                    // Grade 0-5 -> Level 1, Grade 5-7.5 -> Level 2, Grade 7.5-10 -> Level 3
+                    var avgGrade = matchingTranscripts.Average(t => t.Grade ?? 0);
+                    
+                    // Convert grade to level (1-3)
+                    int transcriptLevel = avgGrade switch
+                    {
+                        < 5 => 1,
+                        < 7.5 => 2,
+                        _ => 3
+                    };
+                    
+                    // Store for LevelReason
+                    transcriptSubjectsUsed = matchingTranscripts
+                        .Where(t => t.Grade.HasValue)
+                        .Select(t => (t.SubjectCode, t.SubjectName, t.Grade!.Value))
+                        .ToList();
+                    
+                    // Combine: 80% from quiz/practice test + 20% from transcript
+                    finalStudentLevel = (int)Math.Round(baseLevel * 0.8 + transcriptLevel * 0.2);
+                    
+                    // Ensure level is between 1 and 3
+                    finalStudentLevel = Math.Max(1, Math.Min(3, finalStudentLevel));
+                }
             }
             
             var studentLevel = finalStudentLevel;
             
-            // Get student transcript for SubjectMarks if OtherQuestionAnswerCodes is provided
+            // Build detailed level reason
+            var levelReason = BuildLevelReason(
+                quizLevel, 
+                finalStudentLevel, 
+                practiceTestResults, 
+                difficultyPerformance,
+                transcriptSubjectsUsed);
+            
+            // Prepare SubjectMarks if OtherQuestionAnswerCodes is provided
             List<SubjectMarkContext>? subjectMarks = null;
             
-            var studentTranscriptEvent = new StudentTranscriptSelectEvent
+            // Get technologies from StudentService
+            // Send message to StudentService to get student information
+            var studentInformationSelectsEvent = new StudentInformationSelectsEvent
             {
                 StudentId = currentUser.UserId
             };
-
-            var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
-            var studentTranscripts = transcriptResponse.Message.Response;
+            var informationResponse = await _requestStudentInformationSelectsClient.GetResponse<StudentInformationSelectsEventResponse>(studentInformationSelectsEvent, cancellationToken);
+            
+            // Get major information from CourseService
+            var majorAndSemesterEvent = new CourseMajorSemesterSelectEvent
+            {
+                SemesterId = informationResponse.Message.Response.SemesterId,
+                MajorId = informationResponse.Message.Response.MajorId
+            };
+            
+            // Request major and semester information
+            var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(majorAndSemesterEvent, cancellationToken);
+            if (!majorAndSemesterEventResponse.Message.Success)
+            {
+                response.MessageId = majorAndSemesterEventResponse.Message.MessageId;
+                response.Message = majorAndSemesterEventResponse.Message.Message;
+                return false;
+            }
+            
+            if (!studentTranscripts.Any() && majorAndSemesterEventResponse.Message.Response.SemesterNumber > 4)
+            {
+                response.SetMessage(MessageId.E00000, "Sinh viên chưa có bảng điểm, không thể tạo lộ trình học tập cho sinh viên từ kỳ 5 trở lên");
+                return false;
+            }
+            
             List<CourseImproveContext> courseImporve = new();
             if (request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any())
             {
@@ -445,15 +534,6 @@ public class StudentTestService : IStudentTestService
                 }
             }
             
-            // Send message to StudentService to get student information
-            var studentInformationSelectsEvent = new StudentInformationSelectsEvent
-            {
-                StudentId = currentUser.UserId
-            };
-            
-            // Get technologies from StudentService
-            var informationResponse = await _requestStudentInformationSelectsClient.GetResponse<StudentInformationSelectsEventResponse>(studentInformationSelectsEvent, cancellationToken);
-            
             // Get StudentSurvey from cache
             var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
                 CacheKey.StudentSurvey(currentUser.UserId),
@@ -465,22 +545,6 @@ public class StudentTestService : IStudentTestService
                 return false;
             }
             
-            var learningPathId = Guid.NewGuid();
-
-            var learningPathEvent = new InsertLearningPathEvent
-            {
-                LearningPathId = learningPathId,
-                StudentId = currentUser.UserId,
-                CurrentUserEmail = currentUser.Email,
-                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}"
-            };
-            var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
-            if (!learningPathResponse.Message.Success)
-            {
-                response.MessageId = learningPathResponse.Message.MessageId;
-                response.Message = learningPathResponse.Message.Message;
-                return false;
-            }            
             var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
 
             var selectedAnswerIds = surveyHabit.Quiz.Questions
@@ -500,21 +564,31 @@ public class StudentTestService : IStudentTestService
 
             int limitTime = GetStudentStudyTime(studentQuizAnswers);
             
-            // Get major information from CourseService
-            var majorAndSemesterEvent = new CourseMajorSemesterSelectEvent
+            var learningPathId = Guid.NewGuid();
+
+            var evaluationAndImprove = request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any()
+                ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
+                : null;
+            
+            var learningPathEvent = new InsertLearningPathEvent
             {
-                SemesterId = informationResponse.Message.Response.SemesterId,
-                MajorId = informationResponse.Message.Response.MajorId
+                LearningPathId = learningPathId,
+                StudentId = currentUser.UserId,
+                CurrentUserEmail = currentUser.Email,
+                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}",
+                Level = (short) studentLevel,
+                LevelReason = levelReason,
+                IsSkipTest = false,
+                LimitTime = limitTime,
+                EvaluationAndImprove = evaluationAndImprove
             };
-            
-            var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(majorAndSemesterEvent, cancellationToken);
-            
-            if (!majorAndSemesterEventResponse.Message.Success)
+            var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
+            if (!learningPathResponse.Message.Success)
             {
-                response.MessageId = majorAndSemesterEventResponse.Message.MessageId;
-                response.Message = majorAndSemesterEventResponse.Message.Message;
+                response.MessageId = learningPathResponse.Message.MessageId;
+                response.Message = learningPathResponse.Message.Message;
                 return false;
-            }
+            }            
             
             var context = new LearningPathCreationContext
             {
@@ -764,10 +838,11 @@ public class StudentTestService : IStudentTestService
     /// </summary>
     /// <param name="studentAnswers">Student's answers</param>
     /// <param name="quizzes">List of quizzes in the test</param>
+    /// <param name="difficultyPerformance">Output: Performance by difficulty level</param>
     /// <returns>Student level (1-3)</returns>
-    private int DetermineStudentLevel(List<StudentAnswerCollection> studentAnswers, List<QuizCollection> quizzes)
+    private int DetermineStudentLevel(List<StudentAnswerCollection> studentAnswers, List<QuizCollection> quizzes, out Dictionary<int, (int correct, int total)> difficultyPerformance)
     {
-        var difficultyPerformance = new Dictionary<int, (int correct, int total)>();
+        difficultyPerformance = new Dictionary<int, (int correct, int total)>();
         
         for (int i = 1; i <= 3; i++)
         {
@@ -884,13 +959,6 @@ public class StudentTestService : IStudentTestService
         
         return studentLevel;
     }
-    
-    /// <summary>
-    /// Prepare student learning profile for AI analysis and send message to AiService
-    /// </summary>
-    /// <param name="context"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
 
     /// <summary>
     /// Get student study time from survey answers
@@ -955,6 +1023,238 @@ public class StudentTestService : IStudentTestService
 
         int totalHours = totalMinutes / 60;
         return totalHours;
+    }
+
+    /// <summary>
+    /// Build detailed level reason in Vietnamese based on quiz and practice test performance
+    /// </summary>
+    /// <param name="quizLevel">Level from quiz (1-3)</param>
+    /// <param name="finalLevel">Final combined level (1-3)</param>
+    /// <param name="practiceTestResults">Practice test results (optional)</param>
+    /// <param name="difficultyPerformance">Performance by difficulty level from quiz</param>
+    /// <param name="transcriptSubjectsUsed">Transcript subjects used in calculation (optional)</param>
+    /// <returns>Detailed reason string in Vietnamese</returns>
+    private string BuildLevelReason(
+        int quizLevel, 
+        int finalLevel, 
+        Dictionary<string, PracticeTestSubmitInsertResponse>? practiceTestResults,
+        Dictionary<int, (int correct, int total)> difficultyPerformance,
+        List<(string SubjectCode, string SubjectName, double Grade)>? transcriptSubjectsUsed = null)
+    {
+        var reason = new System.Text.StringBuilder();
+        
+        // Part 1: Quiz performance explanation
+        reason.AppendLine("📊 **Kết quả bài kiểm tra lý thuyết:**");
+        reason.AppendLine();
+        
+        for (int level = 1; level <= 3; level++)
+        {
+            var (correct, total) = difficultyPerformance[level];
+            if (total > 0)
+            {
+                double accuracy = (double)correct / total * 100;
+                string levelName = level switch
+                {
+                    1 => "Cơ bản",
+                    2 => "Trung bình",
+                    3 => "Nâng cao",
+                    _ => "Không xác định"
+                };
+                
+                reason.AppendLine($"- Câu hỏi mức độ **{levelName}**: {correct}/{total} câu đúng ({accuracy:F1}%)");
+            }
+        }
+        
+        reason.AppendLine();
+        reason.AppendLine($"→ Kết quả đánh giá từ bài kiểm tra lý thuyết: **Trình độ {quizLevel}**");
+        
+        string quizLevelDescription = quizLevel switch
+        {
+            1 => "Bạn đã nắm vững các kiến thức nền tảng cơ bản. Đây là nền tảng tốt để bắt đầu hành trình học tập.",
+            2 => "Bạn đã có kiến thức vững vàng ở mức trung bình. Bạn có thể tiếp tục phát triển lên các mức độ cao hơn.",
+            3 => "Xuất sắc! Bạn đã thể hiện năng lực vượt trội với kiến thức nâng cao. Bạn có nền tảng rất tốt để học các khóa học chuyên sâu.",
+            _ => "Chưa xác định được trình độ."
+        };
+        reason.AppendLine($"  {quizLevelDescription}");
+        
+        // Part 2: Practice test performance (if available)
+        if (practiceTestResults != null && practiceTestResults.Any())
+        {
+            reason.AppendLine();
+            reason.AppendLine(" **Kết quả bài kiểm tra thực hành (Coding):**");
+            reason.AppendLine();
+            
+            var difficulties = new[] 
+            { 
+                (nameof(ConstantEnum.ProblemDifficultyLevel.Easy), "Dễ", 1),
+                (nameof(ConstantEnum.ProblemDifficultyLevel.Medium), "Trung bình", 2),
+                (nameof(ConstantEnum.ProblemDifficultyLevel.Hard), "Khó", 3)
+            };
+            
+            int practiceLevel = 1;
+            foreach (var (diffKey, diffName, level) in difficulties)
+            {
+                if (practiceTestResults.ContainsKey(diffKey))
+                {
+                    var result = practiceTestResults[diffKey];
+                    double passRate = result.Response.TotalTests > 0 
+                        ? (double)result.Response.PassedTests / result.Response.TotalTests * 100
+                        : 0;
+                    
+                    string status = passRate >= 70 ? " Đạt" : " Chưa đạt";
+                    reason.AppendLine($"- Bài tập mức độ **{diffName}**: {result.Response.PassedTests}/{result.Response.TotalTests} test cases ({passRate:F1}%) {status}");
+                    
+                    if (passRate >= 70)
+                    {
+                        practiceLevel = level;
+                    }
+                }
+            }
+            
+            reason.AppendLine();
+            reason.AppendLine($"→ Kết quả đánh giá từ bài kiểm tra thực hành: **Trình độ {practiceLevel}**");
+            
+            string practiceLevelDescription = practiceLevel switch
+            {
+                1 => "Bạn đã hoàn thành tốt các bài tập cơ bản. Hãy tiếp tục luyện tập để nâng cao kỹ năng coding.",
+                2 => "Tốt! Bạn đã giải quyết được các bài tập ở mức trung bình. Kỹ năng lập trình của bạn đang phát triển tốt.",
+                3 => "Tuyệt vời! Bạn đã vượt qua các bài tập khó. Kỹ năng giải quyết vấn đề và tư duy thuật toán của bạn rất ấn tượng.",
+                _ => "Chưa xác định được trình độ thực hành."
+            };
+            reason.AppendLine($"  {practiceLevelDescription}");
+            
+            // Part 3: Transcript scores (if available)
+            if (transcriptSubjectsUsed != null && transcriptSubjectsUsed.Any())
+            {
+                reason.AppendLine();
+                reason.AppendLine(" **Kết quả học tập từ bảng điểm:**");
+                reason.AppendLine();
+                
+                foreach (var (subjectCode, subjectName, grade) in transcriptSubjectsUsed)
+                {
+                    reason.AppendLine($"- {subjectName} ({subjectCode}): {grade:F1}/10");
+                }
+                
+                var avgGrade = transcriptSubjectsUsed.Average(t => t.Grade);
+                int transcriptLevel = avgGrade switch
+                {
+                    < 5 => 1,
+                    < 7.5 => 2,
+                    _ => 3
+                };
+                
+                reason.AppendLine();
+                reason.AppendLine($"→ Điểm trung bình: {avgGrade:F1}/10");
+                reason.AppendLine($"→ Đánh giá từ bảng điểm: **Trình độ {transcriptLevel}**");
+                
+                string transcriptDescription = transcriptLevel switch
+                {
+                    1 => "Bạn cần cải thiện kết quả học tập ở các môn này. Lộ trình sẽ tập trung củng cố lại kiến thức nền tảng.",
+                    2 => "Bạn có kết quả học tập khá tốt. Lộ trình sẽ giúp bạn phát triển và nâng cao kiến thức.",
+                    3 => "Xuất sắc! Kết quả học tập của bạn rất tốt. Bạn đã có nền tảng vững để học các khóa học nâng cao.",
+                    _ => ""
+                };
+                reason.AppendLine($"  {transcriptDescription}");
+            }
+            
+            // Part 4: Combined result
+            reason.AppendLine();
+            reason.AppendLine(" **Kết quả tổng hợp:**");
+            reason.AppendLine();
+            
+            // Calculate base level from quiz + practice
+            int baseLevel = (int)Math.Round(quizLevel * 0.6 + practiceLevel * 0.4);
+            
+            if (transcriptSubjectsUsed != null && transcriptSubjectsUsed.Any())
+            {
+                var avgGrade = transcriptSubjectsUsed.Average(t => t.Grade);
+                int transcriptLevel = avgGrade switch
+                {
+                    < 5 => 1,
+                    < 7.5 => 2,
+                    _ => 3
+                };
+                
+                reason.AppendLine($"- Trọng số: [Lý thuyết (60%) + Thực hành (40%)] × 80% + Bảng điểm (20%)");
+                reason.AppendLine($"- Điểm từ bài kiểm tra: {quizLevel} × 0.6 + {practiceLevel} × 0.4 = {(quizLevel * 0.6 + practiceLevel * 0.4):F1}");
+                reason.AppendLine($"- Điểm từ bảng điểm: Level {transcriptLevel}");
+                reason.AppendLine($"- Điểm cuối cùng: {baseLevel} × 0.8 + {transcriptLevel} × 0.2 = {(baseLevel * 0.8 + transcriptLevel * 0.2):F1}");
+            }
+            else
+            {
+                reason.AppendLine($"- Trọng số: Lý thuyết (60%) + Thực hành (40%)");
+                reason.AppendLine($"- Điểm tổng hợp: {quizLevel} × 0.6 + {practiceLevel} × 0.4 = {(quizLevel * 0.6 + practiceLevel * 0.4):F1}");
+            }
+            
+            reason.AppendLine($"- Trình độ cuối cùng: **Level {finalLevel}**");
+        }
+        else
+        {
+            // No practice test - only quiz result (and possibly transcript)
+            
+            // Check if transcript is used
+            if (transcriptSubjectsUsed != null && transcriptSubjectsUsed.Any())
+            {
+                reason.AppendLine();
+                reason.AppendLine("📚 **Kết quả học tập từ bảng điểm:**");
+                reason.AppendLine();
+                
+                foreach (var (subjectCode, subjectName, grade) in transcriptSubjectsUsed)
+                {
+                    reason.AppendLine($"- {subjectName} ({subjectCode}): {grade:F1}/10");
+                }
+                
+                var avgGrade = transcriptSubjectsUsed.Average(t => t.Grade);
+                int transcriptLevel = avgGrade switch
+                {
+                    < 5 => 1,
+                    < 7.5 => 2,
+                    _ => 3
+                };
+                
+                reason.AppendLine();
+                reason.AppendLine($"→ Điểm trung bình: {avgGrade:F1}/10");
+                reason.AppendLine($"→ Đánh giá từ bảng điểm: **Trình độ {transcriptLevel}**");
+                
+                string transcriptDescription = transcriptLevel switch
+                {
+                    1 => "Bạn cần cải thiện kết quả học tập ở các môn này. Lộ trình sẽ tập trung củng cố lại kiến thức nền tảng.",
+                    2 => "Bạn có kết quả học tập khá tốt. Lộ trình sẽ giúp bạn phát triển và nâng cao kiến thức.",
+                    3 => "Xuất sắc! Kết quả học tập của bạn rất tốt. Bạn đã có nền tảng vững để học các khóa học nâng cao.",
+                    _ => ""
+                };
+                reason.AppendLine($"  {transcriptDescription}");
+            }
+            
+            reason.AppendLine();
+            reason.AppendLine("🎯 **Kết quả cuối cùng:**");
+            reason.AppendLine();
+            
+            if (transcriptSubjectsUsed != null && transcriptSubjectsUsed.Any())
+            {
+                var avgGrade = transcriptSubjectsUsed.Average(t => t.Grade);
+                int transcriptLevel = avgGrade switch
+                {
+                    < 5 => 1,
+                    < 7.5 => 2,
+                    _ => 3
+                };
+                
+                reason.AppendLine($"- Trọng số: Bài kiểm tra lý thuyết (80%) + Bảng điểm (20%)");
+                reason.AppendLine($"- Điểm từ bài kiểm tra: Level {quizLevel}");
+                reason.AppendLine($"- Điểm từ bảng điểm: Level {transcriptLevel}");
+                reason.AppendLine($"- Điểm cuối cùng: {quizLevel} × 0.8 + {transcriptLevel} × 0.2 = {(quizLevel * 0.8 + transcriptLevel * 0.2):F1}");
+                reason.AppendLine($"- Trình độ cuối cùng: **Level {finalLevel}**");
+            }
+            else
+            {
+                reason.AppendLine($"Trình độ của bạn được đánh giá là **Level {finalLevel}** dựa trên kết quả bài kiểm tra lý thuyết.");
+            }
+        }
+        
+        reason.AppendLine();
+        reason.AppendLine("---");
+        return reason.ToString();
     }
 }
 

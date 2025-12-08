@@ -94,6 +94,11 @@ public class LearningPathService : ILearningPathService
                 PathName = request.PathName,
                 StudentId = request.StudentId,
                 Status = (short)ConstantEnum.LearningPathStatus.Generating,
+                Level = request.Level,
+                LevelReason = request.LevelReason,
+                IsSkipTest = request.IsSkipTest,
+                LimitTime = request.LimitTime,
+                EvaluationAndImprove = request.EvaluationAndImprove,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -294,7 +299,8 @@ public class LearningPathService : ILearningPathService
                     SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
                     Level = x.Level
                 }).ToList(),
-                StudentTranscriptSelectEvent = request.StudentTranscripts
+                StudentTranscriptSelectEvent = request.StudentTranscripts,
+                StudentId = learningPath.StudentId ?? Guid.Empty
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 

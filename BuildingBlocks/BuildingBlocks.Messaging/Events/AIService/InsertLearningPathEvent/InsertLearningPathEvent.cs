@@ -4,10 +4,20 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent
 {
     public sealed record InsertLearningPathEvent
     {
-        public Guid LearningPathId { get; init; }
-        public string PathName { get; init; } = null!;
-        public Guid StudentId { get; init; }
-        public string CurrentUserEmail { get; init; } = null!;
+        public required Guid LearningPathId { get; init; }
+        public required string PathName { get; init; } = null!;
+        public required Guid StudentId { get; init; }
+        public required string CurrentUserEmail { get; init; } = null!;
+        
+        public required short Level { get; init; }
+        
+        public required string LevelReason { get; init; } = null!;
+        
+        public required bool IsSkipTest { get; init; }
+        
+        public required int LimitTime { get; set; }
+        
+        public required string? EvaluationAndImprove { get; init; }
         
         public List<InsertLearningPathMajor> Majors { get; init; } = null!;
     }

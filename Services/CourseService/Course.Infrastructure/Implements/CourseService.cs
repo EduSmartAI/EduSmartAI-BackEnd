@@ -1177,6 +1177,10 @@ namespace Course.Infrastructure.Implements
 				response.SetMessage(MessageId.E00000, "Semester not found");
 				return response;
 			}
+			
+			var courseEnrollment = await _courseStudentEnrollmentRepository
+				.Find(ce => ce.UserId == request.StudentId && ce.IsActive)
+				.FirstOrDefaultAsync(cancellationToken: ct);
 
 			// 2. Determine which major codes to query
 			var majorCodesToQuery = request.MajorCodes.ToList();

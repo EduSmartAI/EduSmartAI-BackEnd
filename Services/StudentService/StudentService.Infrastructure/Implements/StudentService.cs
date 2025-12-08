@@ -215,6 +215,7 @@ public class StudentService : IStudentService
             _studentRepository.Update(studentExist);
             await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
 
+            #region Update technology
             // Get all existing student technologies (active and inactive)
             var allExistingStudentTechnologies = await _studentTechnologyRepository
                 .Find(st => st.StudentId == request.StudentId)
@@ -284,36 +285,45 @@ public class StudentService : IStudentService
                 var tech = existingTechs.FirstOrDefault(t => t.TechnologyId == studentTech.TechnologyId);
                 return StudentTechnologyCollection.FromWriteModel(studentTech!, tech);
             }).ToList();
+            #endregion
             
             // Get all existing learning goals (including inactive ones)
-            var allExistingLearningGoals = await _studentLearningGoalRepository
-                .Find(slg => slg.StudentId == request.StudentId)
-                .ToListAsync(cancellationToken: cancellationToken);
-            
-            // Check if the requested learning goal exists
-            var studentLearningGoalExist = allExistingLearningGoals
-                .FirstOrDefault(slg => slg.GoalId == request.LearningGoalId);
-            
+            var studentLearningGoalExist = await _studentLearningGoalRepository
+                .Find(slg => slg.StudentId == request.StudentId && slg.GoalId == request.LearningGoalId && slg.IsActive)
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+
+            StudentLearningGoal studentLearningGoal;
             if (studentLearningGoalExist == null)
             {
                 // Insert new learning goal if it doesn't exist
-                studentLearningGoalExist = new StudentLearningGoal
+                var newStudentLearningGoal= new StudentLearningGoal
                 {
                     StudentId = request.StudentId,
                     GoalId = request.LearningGoalId
                 };
-                await _studentLearningGoalRepository.AddAsync(studentLearningGoalExist);
+                studentLearningGoal = newStudentLearningGoal;
+                await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
             }
-            else if (!studentLearningGoalExist.IsActive)
+            else
             {
-                // Reactivate if it exists but is inactive
+                // Delete old learning goal
                 _studentLearningGoalRepository.Update(studentLearningGoalExist);
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken, needLogicalDelete: true);
+                
+                // Insert new learning goal
+                var newStudentLearningGoal= new StudentLearningGoal
+                {
+                    StudentId = request.StudentId,
+                    GoalId = request.LearningGoalId
+                };
+                studentLearningGoal = newStudentLearningGoal;
+                await _studentLearningGoalRepository.AddAsync(newStudentLearningGoal);
+                await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
             }
-            
-            await _unitOfWork.SaveChangesAsync(request.StudentId.ToString(), cancellationToken);
             
             // Prepare learning goal for event
-            var studentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(studentLearningGoalExist, learningGoal: existingGoal);
+            var studentLearningGoalCollection = StudentLearningGoalCollection.FromWriteModel(studentLearningGoal, learningGoal: existingGoal);
             
             // Save event to Outbox
             var @event = new StudentInformationUpdatedEvent

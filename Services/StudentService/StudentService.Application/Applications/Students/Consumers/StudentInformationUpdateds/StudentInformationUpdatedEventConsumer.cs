@@ -23,43 +23,37 @@ public class StudentInformationUpdatedEventConsumer(IUnitOfWork unitOfWork, IQue
             // Update Learning Goal - if not exist, add new list
             if (message.StudentLearningGoal != null)
             {
-                var learningGoalExist = student.LearningGoals?.Any(x => x.GoalId == message.StudentLearningGoal.GoalId);
-                if (learningGoalExist != true)
+                if (student.LearningGoals == null || !student.LearningGoals.Any())
                 {
-                    if (student.LearningGoals == null)
-                    {
-                        student.LearningGoals = new List<StudentLearningGoalCollection>();
-                    }
+                    student.LearningGoals = new List<StudentLearningGoalCollection>();
                     student.LearningGoals.Add(message.StudentLearningGoal);
                 }
+                var learningGoalExist = student.LearningGoals?.FirstOrDefault(x => x.GoalId == message.StudentLearningGoal.GoalId && x.IsActive);
+                if (learningGoalExist != null)
+                {
+                    student.LearningGoals!.Remove(learningGoalExist);
+                    student.LearningGoals.Add(message.StudentLearningGoal);
+                }
+                unitOfWork.Store(student);
             }
             
             // Update Technologies - always replace with latest from event
             if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
             {
-                student.Technologies = message.StudentTechnologies.ToList();
+                if (student.Technologies == null || !student.Technologies.Any())
+                {
+                    student.Technologies = new List<StudentTechnologyCollection>();
+                    foreach (var technology in message.StudentTechnologies)
+                    {
+                        student.Technologies.Add(technology);
+                    }
+                }
+                else
+                {
+                    student.Technologies = message.StudentTechnologies.ToList();
+                }
+                unitOfWork.Store(student);
             }
-            else
-            {
-                student.Technologies = new List<StudentTechnologyCollection>();
-            }
-            
-            unitOfWork.Store(student);
-        }
-
-        // Store all technologies from event
-        if (message.StudentTechnologies != null && message.StudentTechnologies.Any())
-        {
-            foreach (var tech in message.StudentTechnologies)
-            {
-                unitOfWork.Store(tech);
-            }
-        }
-
-        // Store learning goal from event
-        if (message.StudentLearningGoal != null)
-        {
-            unitOfWork.Store(message.StudentLearningGoal);
         }
         await unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(message.Student.StudentId));
         await unitOfWork.SessionSaveChangesAsync();

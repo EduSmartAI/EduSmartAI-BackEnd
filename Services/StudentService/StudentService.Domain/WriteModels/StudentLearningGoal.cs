@@ -5,6 +5,8 @@ namespace StudentService.Domain.WriteModels;
 
 public partial class StudentLearningGoal
 {
+    public Guid StudentLearningGoalId { get; set; }
+
     public Guid StudentId { get; set; }
 
     public Guid GoalId { get; set; }
