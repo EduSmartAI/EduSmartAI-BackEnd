@@ -4,6 +4,7 @@ using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Pagination;
 using MapsterMapper;
@@ -37,8 +38,9 @@ public class LearningPathService : ILearningPathService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
     private readonly IIdentityService _identityService;
-    private readonly IRequestClient<GetInfoInternalCourseEvents> _requestClient;
+    private readonly IRequestClient<GetInfoInternalCourseEvents> _getInfoInternalCourseRequestClient;
     private readonly IRequestClient<GetSubjectSemesterEvent> _subjectSemesterClient;
+    private readonly IRequestClient<GetSuggestedCoursesEvent> _getSuggestedCoursesEventRequestClient;
     private readonly IMapper _mapper;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
 
@@ -66,7 +68,8 @@ public class LearningPathService : ILearningPathService
         IRequestClient<GetInfoInternalCourseEvents> requestClient,
         IMapper mapper,
         IRequestClient<GetSubjectSemesterEvent> subjectSemesterClient,
-        ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
+		IRequestClient<GetSuggestedCoursesEvent> getSuggestedCoursesEventRequestClient,
+		ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
     {
         _unitOfWork = unitOfWork;
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
@@ -76,10 +79,11 @@ public class LearningPathService : ILearningPathService
         _requestClientCoursesSelectEvent = requestClientCoursesSelectEvent;
         _learningPathQueryRepository = learningPathQueryRepository;
         _identityService = identityService;
-        _requestClient = requestClient;
+        _getInfoInternalCourseRequestClient = requestClient;
         _mapper = mapper;
         _subjectSemesterClient = subjectSemesterClient;
-        _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        _getSuggestedCoursesEventRequestClient = getSuggestedCoursesEventRequestClient;
+		_learningPathRealtimeNotifier = learningPathRealtimeNotifier;
     }
 
     public async Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken)
@@ -592,7 +596,7 @@ public class LearningPathService : ILearningPathService
         }
 
         var request = new GetInfoInternalCourseEvents(courseIds, userId);
-        var response = await _requestClient.GetResponse<GetInfoInternalCourseResponse>(request, cancellationToken);
+        var response = await _getInfoInternalCourseRequestClient.GetResponse<GetInfoInternalCourseResponse>(request, cancellationToken);
 
         return (response.Message.Response ?? Enumerable.Empty<InternalCourseInfoDto>())
             .Where(x => x.CourseId.HasValue)
@@ -2039,6 +2043,12 @@ public class LearningPathService : ILearningPathService
         return response;
     }
 
+	/// <summary>
+	/// Get suggested courses for learning path
+	/// </summary>
+	/// <param name="request"></param>
+	/// <param name="ct"></param>
+	/// <returns></returns>
 	public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default)
 	{
 		var response = new GetSuggestedCoursesForLearningPathResponse { Success = false };
@@ -2062,6 +2072,51 @@ public class LearningPathService : ILearningPathService
             response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
             return response;
 		}
+
+        var currentLevel = lp.Level;
+
+		// 2. Lấy existing course của subject code
+		var majorIds = await _learningPathMajorCommandRepository
+			.Find(x => x.PathId == request.PathId && x.IsActive, false, ct)
+			.Select(x => x.LearningPathMajorId)
+			.ToListAsync(ct);
+
+		List<Guid> existingCourseIds = new();
+
+		if (majorIds.Any())
+		{
+			existingCourseIds = await _learningPathCourseCommandRepository
+				.Find(x =>
+						majorIds.Contains(x.LearningPathMajorId) &&
+						x.SubjectCode == request.SubjectCode &&
+						x.InternalCourseId != null &&
+						x.IsActive,
+					false, ct)
+				.Select(x => x.InternalCourseId!.Value)
+				.ToListAsync(ct);
+		}
+
+		// 3. Gửi event sang CourseService
+		var evt = new GetSuggestedCoursesEvent
+		{
+			UserId = user.UserId,
+			SubjectCode = request.SubjectCode,
+			CurrentLevel = currentLevel,
+			ExistingCourseIds = existingCourseIds,
+			Type = request.Mode     // enum SuggestedCourseType
+		};
+
+		var evtResp = await _getSuggestedCoursesEventRequestClient.GetResponse<GetSuggestedCoursesEventResponse>(evt, ct);
+
+		if (!evtResp.Message.Success)
+		{
+			response.SetMessage(MessageId.E00000, evtResp.Message.Message);
+			return response;
+		}
+
+        response.Success = true;
+        response.Response = evtResp.Message.Response;
+        response.SetMessage(MessageId.I00000, "Lấy danh sách khóa học gợi ý");
 
 		return response;
 	}
