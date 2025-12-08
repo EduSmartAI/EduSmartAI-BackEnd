@@ -29,12 +29,14 @@ public class AdminPracticeTestSelectQueryHandler : IQueryHandler<AdminPracticeTe
                 predicate: x => x.ProblemId == request.ProblemId && x.IsActive,
                 isTracking: false,
                 cancellationToken: cancellationToken,
-                x => x.ProblemExamples,
-                x => x.TestCases,
-                x => x.ProblemTemplates,
-                x => x.ProblemSolutions)
+                include: q => q
+                    .Include(x => x.ProblemExamples)
+                    .Include(x => x.TestCases)
+                    .Include(x => x.ProblemTemplates)
+                    .Include(x => x.ProblemSolutions)
+                    .ThenInclude(s => s.Language)
+            )
             .FirstOrDefaultAsync(cancellationToken);
-
         if (problem == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy bài kiểm tra thực hành");

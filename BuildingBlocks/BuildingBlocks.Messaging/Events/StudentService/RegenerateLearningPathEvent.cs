@@ -12,6 +12,8 @@ public class RegenerateLearningPathEvent
     
     public required short Level { get; set; }
     
+    public required string LevelReason { get; set; }
+
     public required bool IsSkipTest { get; set; }
     
     public required int LimitTime { get; set; }
@@ -21,6 +23,8 @@ public class RegenerateLearningPathEvent
     public required Guid SemesterId { get; set; }
     
     public required List<string>? StudentPassedSubjects { get; set; }
+    
+    public required string? EvaluationAndImprove { get; set; }
 
     public required List<RegenerateLearningPathEventTechnologies> Technologies { get; set; }
     

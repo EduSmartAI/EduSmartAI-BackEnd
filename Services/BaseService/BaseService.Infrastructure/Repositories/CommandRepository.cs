@@ -145,6 +145,36 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
         return query;
     }
 
+	/// <summary>
+	/// Get IQueryable for the entity with ThenInclude support.
+	/// </summary>
+	/// <param name="predicate">Filter predicate</param>
+	/// <param name="isTracking">Enable change tracking</param>
+	/// <param name="cancellationToken">Cancellation token</param>
+	/// <param name="include">Include function supporting ThenInclude</param>
+	/// <returns></returns>
+	public IQueryable<TEntity?> Find(
+		Expression<Func<TEntity, bool>>? predicate = null,
+		bool isTracking = false,
+		CancellationToken cancellationToken = default,
+		Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object>>? include = null)
+	{
+		// Start with the DbSet
+		IQueryable<TEntity> query = DbSet;
+
+		// Apply includes first (if provided)
+		if (include != null) query = include(query);
+
+		// Apply the predicate if provided
+		if (predicate != null) query = query.Where(predicate);
+
+		// Apply tracking behavior
+		if (!isTracking) query = query.AsNoTracking();
+
+		// Return the constructed query
+		return query;
+	}
+
     /// <summary>
     /// Get the first entity matching the predicate.
     /// </summary>
@@ -286,3 +316,4 @@ public class CommandRepository<TEntity>(AppDbContext context) : ICommandReposito
         context.UpdateRange(entities);
     }
 }
+

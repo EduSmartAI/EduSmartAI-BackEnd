@@ -209,8 +209,10 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
             }
        }
 
-       List<SubjectMarkContext>? subjectMarks =
-           studentTranscripts
+       List<SubjectMarkContext>? subjectMarks = null;
+       if (studentTranscripts.Any())
+       {
+           subjectMarks = studentTranscripts
                .Where(x =>
                    x.Status == ConstantEnum.StudentTranscriptStatus.NotPassed.GetDescription() ||
                    (x.Status == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() &&
@@ -223,11 +225,16 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
                    Mark = x.Grade
                })
                .ToList();
+       }
 
-       List<string> studentPassedSubjects = studentTranscripts
-           .Where(x => x.Status == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription())
-           .Select(x => x.SubjectCode)
-           .ToList();
+       List<string>? studentPassedSubjects = null;
+       if (studentTranscripts.Any())
+       {
+           studentPassedSubjects =studentTranscripts
+               .Where(x => x.Status == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription())
+               .Select(x => x.SubjectCode)
+               .ToList();
+       }
        #endregion
        
      #region Tạo lộ trình học tập mới
@@ -258,6 +265,7 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
          StudentId = currentUser.UserId,
          StudentEmail = currentUser.Email,
          Level = studentLevel,
+         LevelReason = levelReason!,
          IsSkipTest = isSkipTest,
          Technologies = technologies,
          LearningGoal = learningGoalEvent,
@@ -272,7 +280,8 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
             SubjectCode = x.SubjectCode,
             Mark = x.Grade,
             Status = x.Status
-         }).ToList()
+         }).ToList(),
+         EvaluationAndImprove = evaluationAndImproveString
      };
 
      var eventResponse = await _regenerateLearningPathEventRequestClient.GetResponse<RegenerateLearningPathEventResponse>(reRegenerateLearningPathEvent, cancellationToken);

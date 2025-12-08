@@ -18,6 +18,20 @@ public interface ICommandRepository<TEntity> where TEntity : class
         CancellationToken cancellationToken = default,
         params Expression<Func<TEntity, object>>[] includes);
 
+    /// <summary>
+    /// Get IQueryable for the entity with ThenInclude support.
+    /// </summary>
+    /// <param name="predicate">Filter predicate</param>
+    /// <param name="isTracking">Enable change tracking</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <param name="include">Include function supporting ThenInclude</param>
+    /// <returns></returns>
+    IQueryable<TEntity?> Find(
+        Expression<Func<TEntity, bool>>? predicate = null,
+        bool isTracking = false,
+        CancellationToken cancellationToken = default,
+        Func<IQueryable<TEntity>, IIncludableQueryable<TEntity, object>>? include = null);
+
    /// <summary>
    /// Get first entity matching the predicate.
    /// </summary>
