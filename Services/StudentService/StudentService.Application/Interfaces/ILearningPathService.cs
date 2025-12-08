@@ -1,4 +1,5 @@
 using StudentService.Application.Applications.LearningPaths.Commands;
+using StudentService.Application.Applications.LearningPaths.Commands.AddLearningPathCourse;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
@@ -51,4 +52,6 @@ public interface ILearningPathService
     Task<UpdateLearningPathStatusResponse> UpdateLearningPathStatusAsync(Guid learningPathId, LearningPathStatus newStatus, CancellationToken ct = default);
 
 	Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default);
+
+    Task<AddLearningPathCourseResponse> AddLearningPathCourseAsync(AddLearningPathCourseCommand request, CancellationToken ct);
 }

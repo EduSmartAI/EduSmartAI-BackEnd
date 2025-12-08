@@ -11,6 +11,7 @@ using NLog;
 using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPathCourse.Commands.UpdateLearningPathCourseStatus;
 using StudentService.Application.Applications.LearningPaths.Commands;
+using StudentService.Application.Applications.LearningPaths.Commands.AddLearningPathCourse;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
@@ -406,6 +407,25 @@ public class LearningPathsController(
 			_httpContextAccessor,
 			new GetSuggestedCoursesForLearningPathResponse());
 	}
+
+    [HttpPatch("add-suggested-course")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Thêm khóa học được đề xuất vào lộ trình học tập",
+        Description = "API này cho phép thêm một khóa học được đề xuất vào lộ trình học tập hiện tại."
+    )]
+	public async Task<AddLearningPathCourseResponse> AddSuggestedCourseProcess(AddLearningPathCourseCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<AddLearningPathCourseCommand, AddLearningPathCourseResponse, LearningPathCourseDto>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AddLearningPathCourseResponse());
+    }
 
 
 	private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
