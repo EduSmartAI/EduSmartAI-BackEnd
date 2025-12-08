@@ -1,9 +1,9 @@
 ﻿using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.QuizService;
-using BuildingBlocks.Messaging.Events.StudentService;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Pagination;
 using MapsterMapper;
@@ -37,7 +37,6 @@ public class LearningPathService : ILearningPathService
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
     private readonly IIdentityService _identityService;
     private readonly IRequestClient<GetInfoInternalCourseEvents> _requestClient;
-    private readonly IRequestClient<CourseSelectsBySubjectCodeEvent> _requestClientCourseSelectsBySubjectCodeEvent;
     private readonly IRequestClient<GetSubjectSemesterEvent> _subjectSemesterClient;
     private readonly IMapper _mapper;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
@@ -65,7 +64,6 @@ public class LearningPathService : ILearningPathService
         IIdentityService identityService,
         IRequestClient<GetInfoInternalCourseEvents> requestClient,
         IMapper mapper,
-        IRequestClient<CourseSelectsBySubjectCodeEvent> requestClientCourseSelectsBySubjectCodeEvent,
         IRequestClient<GetSubjectSemesterEvent> subjectSemesterClient,
         ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
     {
@@ -79,7 +77,6 @@ public class LearningPathService : ILearningPathService
         _identityService = identityService;
         _requestClient = requestClient;
         _mapper = mapper;
-        _requestClientCourseSelectsBySubjectCodeEvent = requestClientCourseSelectsBySubjectCodeEvent;
         _subjectSemesterClient = subjectSemesterClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
     }
@@ -1866,8 +1863,51 @@ public class LearningPathService : ILearningPathService
             // Save changes vào Postgres
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            // 5. Cập nhật read model Marten cho các learning path bị ảnh hưởng
-            var affectedPathIds = await _learningPathMajorCommandRepository
+			var subjectCodeIds = coursesToUpdate
+			            .Where(c => c.LearningPathSubjectCodeId != null)
+			            .Select(c => c.LearningPathSubjectCodeId!.Value)
+			            .Distinct()
+			            .ToList();
+
+			if (subjectCodeIds.Any())
+			{
+				foreach (var subjectCodeId in subjectCodeIds)
+				{
+					// Lấy toàn bộ courses thuộc subject code này
+					var coursesInSubject = await _learningPathCourseCommandRepository
+						.Find(c => c.LearningPathSubjectCodeId == subjectCodeId && c.IsActive,
+							   isTracking: false,
+							   cancellationToken)
+						.ToListAsync(cancellationToken);
+
+					bool subjectCompleted = coursesInSubject
+						.Any(c => c.Status == (short)ConstantEnum.CourseProgressStatus.Completed);
+
+					// Load SubjectCode row (write model)
+					var subjectCode = await _learningPathSubjectCodeCommandRepository
+						.Find(s => s.LearningPathSubjectCodeId == subjectCodeId,
+							  isTracking: true,
+							  cancellationToken)
+						.FirstOrDefaultAsync(cancellationToken);
+
+					if (subjectCode != null)
+					{
+						var newStatus = subjectCompleted ? ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() : ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
+
+						if (subjectCode.Status != newStatus)
+						{
+							subjectCode.Status = newStatus;
+							subjectCode.UpdatedAt = DateTime.UtcNow;
+
+							_learningPathSubjectCodeCommandRepository.Update(subjectCode);
+							await _unitOfWork.SaveChangesAsync(cancellationToken);
+						}
+					}
+				}
+			}
+
+			// 5. Cập nhật read model Marten cho các learning path bị ảnh hưởng
+			var affectedPathIds = await _learningPathMajorCommandRepository
                 .Find(m => learningPathMajorIds.Contains(m.LearningPathMajorId), isTracking: false, cancellationToken)
                 .Where(m => coursesToUpdate.Select(c => c.LearningPathMajorId).Contains(m.LearningPathMajorId))
                 .Select(m => m.PathId)

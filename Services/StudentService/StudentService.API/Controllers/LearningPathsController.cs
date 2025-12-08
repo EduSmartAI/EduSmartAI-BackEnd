@@ -313,8 +313,7 @@ namespace StudentService.API.Controllers
         [SwaggerOperation(
         Summary = "Update course status in all learning paths for a user",
         Description = "Internal debug endpoint - userId lấy từ body, không dùng token")]
-        public async Task<UpdateLearningPathCourseStatusResponse> UpdateCourseStatus(
-        [FromBody] UpdateLearningPathCourseStatusCommand command)
+        public async Task<UpdateLearningPathCourseStatusResponse> UpdateCourseStatus([FromBody] UpdateLearningPathCourseStatusCommand command)
         {
             return await ApiControllerHelper.HandleRequest<
                 UpdateLearningPathCourseStatusCommand,
