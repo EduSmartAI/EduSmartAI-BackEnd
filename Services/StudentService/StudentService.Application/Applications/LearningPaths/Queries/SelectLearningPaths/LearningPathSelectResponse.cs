@@ -12,6 +12,11 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
         public int Status { get; set; }
         public string PathName { get; set; } = string.Empty;
         public decimal CompletionPercent { get; set; }
+        public short Level { get; set; }
+        public string? LevelReason { get; set; }
+        public bool IsSkipTest { get; set; }
+        public int LimitTime { get; set; }
+        public string? EvaluationAndImprove { get; set; }
         public string? SummaryFeedback { get; set; }
         public string? HabitAndInterestAnalysis { get; set; }
         public string? Personality { get; set; }
@@ -99,6 +104,7 @@ namespace StudentService.Application.Applications.LearningPaths.Queries.SelectLe
     // NEW: nhóm theo môn
     public record CourseGroupDto
     {
+        public Guid SubjectId { get; set; }
         public string SubjectCode { get; set; } = string.Empty;
         public short Status { get; set; }
         public int SemesterPosition { get; set; }

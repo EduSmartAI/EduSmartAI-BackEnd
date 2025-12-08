@@ -17,6 +17,11 @@ namespace StudentService.Application.Consumers
                 StudentEmail = evt.CurrentUserEmail,
                 StudentId = evt.StudentId,
                 PathName = evt.PathName,
+                Level = evt.Level,
+                LevelReason = evt.LevelReason,
+                IsSkipTest = evt.IsSkipTest,
+                LimitTime = evt.LimitTime,
+                EvaluationAndImprove = evt.EvaluationAndImprove,
             };
     
             var response = await service.InsertLearningPathAsync(request, context.CancellationToken);

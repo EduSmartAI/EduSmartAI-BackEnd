@@ -19,39 +19,41 @@ public class LearningPathInsertCommandHandler(
         {
             request.PathId = Guid.NewGuid();
         }
-        var command = new LearningPathInsertCommand
-        {
-            PathId = request.PathId,
-            PathName = request.PathName,
-            StudentEmail = identity!.Email,
-            StudentId = identity!.UserId,
-        };
+        // var command = new LearningPathInsertCommand
+        // {
+        //     PathId = request.PathId,
+        //     PathName = request.PathName,
+        //     StudentEmail = identity!.Email,
+        //     StudentId = identity!.UserId,
+        //     IsSkipTest = 
+        // };
 
-        var response = await learningPathService.InsertLearningPathAsync(command, cancellationToken);
+        //var response = await learningPathService.InsertLearningPathAsync(command, cancellationToken);
+        var response = new LearningPathInsertResponse();
 
-        if (response.Success)
-        {
-            if (string.IsNullOrWhiteSpace(response.Response))
-            {
-                response.Response = request.PathId.ToString();
-            }
-
-            var studentId = identity?.UserId ?? Guid.Empty;
-
-            if (request.PathId != Guid.Empty && studentId != Guid.Empty)
-            {
-                var snapshot = await learningPathService.GetLearningPathById(
-                    new LearningPathSelectsQuery { LearningPathId = request.PathId },
-                    studentId,
-                    true,
-                    cancellationToken);
-
-                if (snapshot.Success)
-                {
-                    await learningPathRealtimeNotifier.PublishAsync(request.PathId, snapshot, cancellationToken);
-                }
-            }
-        }
+        // if (response.Success)
+        // {
+        //     if (string.IsNullOrWhiteSpace(response.Response))
+        //     {
+        //         response.Response = request.PathId.ToString();
+        //     }
+        //
+        //     var studentId = identity?.UserId ?? Guid.Empty;
+        //
+        //     if (request.PathId != Guid.Empty && studentId != Guid.Empty)
+        //     {
+        //         var snapshot = await learningPathService.GetLearningPathById(
+        //             new LearningPathSelectsQuery { LearningPathId = request.PathId },
+        //             studentId,
+        //             true,
+        //             cancellationToken);
+        //
+        //         if (snapshot.Success)
+        //         {
+        //             await learningPathRealtimeNotifier.PublishAsync(request.PathId, snapshot, cancellationToken);
+        //         }
+        //     }
+        // }
 
         return response;
     }

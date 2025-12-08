@@ -26,40 +26,16 @@ public class AiSubjectCourseHandler(
             return response;
         }
 
-        var subjectTitle = request.SubjectTitle;
-        var subjectDescription = request.SubjectDescription;
-
-        try
-        {
-            var detailResponse = await subjectDetailClient.GetResponse<GetSubjectDetailEventResponse>(
+        var detailResponse = await subjectDetailClient.GetResponse<GetSubjectDetailEventResponse>(
                 new GetSubjectDetailEvent { SubjectCode = subjectCode },
                 cancellationToken);
-
-            if (detailResponse.Message.Success && detailResponse.Message.Response is { } detail)
-            {
-                if (string.IsNullOrWhiteSpace(subjectTitle))
-                {
-                    subjectTitle = detail.SubjectTitle;
-                }
-
-                if (string.IsNullOrWhiteSpace(subjectDescription))
-                {
-                    subjectDescription = detail.SubjectDescription;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Không thể lấy thông tin môn học {SubjectCode}", subjectCode);
-        }
-
         try
         {
             var matchRequest = new SubjectCourseMatchRequest
             {
                 SubjectCode = subjectCode,
-                SubjectTitle = string.IsNullOrWhiteSpace(subjectTitle) ? subjectCode : subjectTitle,
-                SubjectDescription = subjectDescription ?? string.Empty,
+                SubjectTitle = detailResponse.Message.Response.SubjectTitle,
+                SubjectDescription = detailResponse.Message.Response.SubjectDescription,
                 K = request.TopK,
                 ShowSources = request.ShowSources
             };

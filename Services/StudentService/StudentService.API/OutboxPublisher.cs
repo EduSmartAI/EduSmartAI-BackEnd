@@ -7,6 +7,7 @@ using StudentService.Application.Applications.Students.Consumers.StudentInformat
 using StudentService.Application.Applications.SuggestCourses.Consumers;
 using StudentService.Infrastructure.Contexts;
 using System.Text.Json;
+using BuildingBlocks.Messaging.Events.StudentService;
 
 namespace StudentService.API;
 
@@ -58,6 +59,12 @@ public class OutboxPublisher : BackgroundService
                             var e3 = JsonSerializer.Deserialize<StudentCollectionEvent>(e.Content);
                             await publishEndpoint.Publish(e3!, stoppingToken);
                             logging.InfoLog($"Successfully published StudentCollectionEvent for StudentId: {e3.Student.StudentId}");
+                            break;
+                        case nameof(RegenerateLearningPathEvent):
+                            logging.InfoLog("Processing RegenerateLearningPathEvent");
+                            var e4 = JsonSerializer.Deserialize<RegenerateLearningPathEvent>(e.Content);
+                            await publishEndpoint.Publish(e4!, stoppingToken);
+                            logging.InfoLog($"Successfully published RegenerateLearningPathEvent for StudentId: {e4!.StudentId}");
                             break;
                         default:
                             logging.WarningLog($"Unknown event type: {e.Type}");

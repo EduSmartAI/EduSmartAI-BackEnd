@@ -95,6 +95,11 @@ public class LearningPathService : ILearningPathService
                 PathName = request.PathName,
                 StudentId = request.StudentId,
                 Status = (short)ConstantEnum.LearningPathStatus.Generating,
+                Level = request.Level,
+                LevelReason = request.LevelReason,
+                IsSkipTest = request.IsSkipTest,
+                LimitTime = request.LimitTime,
+                EvaluationAndImprove = request.EvaluationAndImprove,
             };
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
@@ -295,7 +300,8 @@ public class LearningPathService : ILearningPathService
                     SubjectPrerequisiteCode = x.SubjectPrerequisiteCode,
                     Level = x.Level
                 }).ToList(),
-                StudentTranscriptSelectEvent = request.StudentTranscripts
+                StudentTranscriptSelectEvent = request.StudentTranscripts,
+                StudentId = learningPath.StudentId ?? Guid.Empty
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -695,6 +701,7 @@ public class LearningPathService : ILearningPathService
             var ordered = courseItems.OrderBy(x => x.SemesterPosition).ToList();
             groups.Add(new CourseGroupDto
             {
+                SubjectId = subject.LearningPathSubjectCodeId,
                 SubjectCode = string.IsNullOrWhiteSpace(subject.SubjectCode) ? "UNKNOWN" : subject.SubjectCode,
                 AnalysisMarkdown = subject.AnalysisMarkdown,
                 Status = AggregateGroupStatus(ordered),
@@ -885,6 +892,7 @@ public class LearningPathService : ILearningPathService
                 var courses = g.OrderBy(x => x.SemesterPosition).ToList();
                 return new CourseGroupDto
                 {
+                    SubjectId = Guid.Empty,
                     SubjectCode = g.Key,
                     AnalysisMarkdown = null,
                     Status = AggregateGroupStatus(courses),

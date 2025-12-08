@@ -4,6 +4,7 @@ using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
+using QuizService.Application.Applications.Consumers;
 using QuizService.Application.Applications.QuizCourses.Consumers;
 using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
 
@@ -29,6 +30,7 @@ public static class MessagingExtensions
             x.AddConsumer<QuizCourseCheckAttemptConsumer>();
             x.AddConsumer<GetLatestModuleQuizScoresConsumer>();
             x.AddConsumer<GetLatestLessonQuizScoresConsumer>();
+            x.AddConsumer<RegenerateLearningPathEventConsumer>();
 
 			x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "quiz", includeNamespace: false));
 
