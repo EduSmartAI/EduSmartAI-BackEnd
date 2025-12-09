@@ -977,7 +977,9 @@ public class StudentService : IStudentService
                         var gradeStr = row[8].ToString()?.Trim();
                         if (string.IsNullOrEmpty(gradeStr) && (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
                         {
-                            if (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription())
+                            // Add both Studying and NotStarted to validSemesterNumbers
+                            if (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || 
+                                status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription())
                             {
                                 validSemesterNumbers.Add((semesterNumber, status));
                             }
@@ -1044,6 +1046,16 @@ public class StudentService : IStudentService
                 if (!studentTranscripts.Any())
                 {
                     response.SetMessage(MessageId.E00000, "File không có dữ liệu bảng điểm hợp lệ");
+                    return false;
+                }
+                
+                // Get max semester from all transcripts
+                var maxSemesterInTranscript = studentTranscripts.Max(x => x.SemesterNumber);
+                
+                // Check: If max semester < 9 and no "Studying" or "NotStarted" subjects exist, reject
+                if (maxSemesterInTranscript < 9 && !validSemesterNumbers.Any())
+                {
+                    response.SetMessage(MessageId.E00000, "Bảng điểm không hợp lệ. Sinh viên dưới kỳ 9 phải có ít nhất một môn đang học (Studying) hoặc chưa bắt đầu (Not Started)");
                     return false;
                 }
                 
