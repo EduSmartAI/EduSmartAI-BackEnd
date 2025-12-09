@@ -24,3 +24,4 @@ public sealed record SubjectDetailDto
 
 
 
+
