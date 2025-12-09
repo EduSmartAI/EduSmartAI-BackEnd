@@ -959,11 +959,17 @@ public class StudentService : IStudentService
                             continue;
                         }
 
+                        // Cache status descriptions for comparison
+                        var studyingDesc = ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
+                        var notStartedDesc = ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription();
+                        
                         // Validate Credit (column 7)
                         var creditStr = row[7].ToString()?.Trim();
                         var credit = 0;
-                        if (!string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
-                                                                status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        
+                        if (!string.IsNullOrEmpty(creditStr) && 
+                            !string.Equals(status, studyingDesc, StringComparison.OrdinalIgnoreCase) && 
+                            !string.Equals(status, notStartedDesc, StringComparison.OrdinalIgnoreCase))
                         {
                             if (!int.TryParse(creditStr, out var creditOut))
                             {
@@ -975,14 +981,13 @@ public class StudentService : IStudentService
 
                         // Validate Grade (column 8)
                         var gradeStr = row[8].ToString()?.Trim();
-                        if (string.IsNullOrEmpty(gradeStr) && (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        
+                        if (string.IsNullOrEmpty(gradeStr) && 
+                            (string.Equals(status, studyingDesc, StringComparison.OrdinalIgnoreCase) || 
+                             string.Equals(status, notStartedDesc, StringComparison.OrdinalIgnoreCase)))
                         {
                             // Add both Studying and NotStarted to validSemesterNumbers
-                            if (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || 
-                                status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription())
-                            {
-                                validSemesterNumbers.Add((semesterNumber, status));
-                            }
+                            validSemesterNumbers.Add((semesterNumber, status));
                             continue;
                         }
                         double? parsedGrade = null;

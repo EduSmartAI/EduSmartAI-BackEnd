@@ -1188,7 +1188,7 @@ namespace Course.Infrastructure.Implements
 			var coursesData = await _courseRepository
 				.Find(c => c.Subject.SyllabusSubjects.Any(
 					           ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-					                 ss.Semester.SemesterNumber > semester.SemesterNumber) &&
+					                 ss.Semester.SemesterNumber >= semester.SemesterNumber) &&
 				           c.Level == request.StudentLevel &&
 				           c.IsActive,
 					includes: c => c.Subject
