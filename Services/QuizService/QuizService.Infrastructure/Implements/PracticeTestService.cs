@@ -727,7 +727,8 @@ public class PracticeTestService
                 cancellationToken: cancellationToken,
                 x => x.TestCases,
                 x => x.ProblemTemplates,
-                x => x.ProblemExamples)
+                x => x.ProblemExamples,
+                x => x.ProblemSolutions)
             .FirstOrDefaultAsync(cancellationToken);
         
         if (problem == null)
@@ -792,6 +793,19 @@ public class PracticeTestService
                         existingExample.InputData = exampleRequest.InputData;
                         existingExample.OutputData = exampleRequest.OutputData;
                         existingExample.Explanation = exampleRequest.Explanation;
+                    }
+                }
+            }
+            
+            // STEP 5: Update solutions (only update existing items)
+            if (request.Solutions != null && request.Solutions.Any())
+            {
+                foreach (var solutionRequest in request.Solutions)
+                {
+                    var existingSolution = problem.ProblemSolutions.FirstOrDefault(s => s.LanguageId == solutionRequest.LanguageId);
+                    if (existingSolution != null)
+                    {
+                        existingSolution.SolutionCode = solutionRequest.SolutionCode;
                     }
                 }
             }
