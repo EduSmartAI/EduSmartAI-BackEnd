@@ -22,3 +22,5 @@ public sealed record SubjectDetailDto
 
 
 
+
+
