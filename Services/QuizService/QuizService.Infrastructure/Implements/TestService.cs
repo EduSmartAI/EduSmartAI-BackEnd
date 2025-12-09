@@ -18,6 +18,7 @@ public class TestService : ITestService
     private readonly ICommandRepository<Quiz> _commandQuizRepository;
     private readonly ICommandRepository<Question> _commandQuestionRepository;
     private readonly IQueryRepository<TestCollection> _queryRepository;
+    private readonly IQueryRepository<QuestionCollection> _questionQueryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IRequestClient<SubjectSelectsEvent> _requestSubjectSelectClient;
@@ -32,12 +33,14 @@ public class TestService : ITestService
     /// <param name="requestSubjectSelectClient"></param>
     /// <param name="commandQuizRepository"></param>
     /// <param name="commandQuestionRepository"></param>
+    /// <param name="questionQueryRepository"></param>
     public TestService(ICommandRepository<Test> commandRepository,
         IQueryRepository<TestCollection> queryRepository,
         IIdentityService identityService, IUnitOfWork unitOfWork,
         IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient,
         ICommandRepository<Quiz> commandQuizRepository,
-        ICommandRepository<Question> commandQuestionRepository)
+        ICommandRepository<Question> commandQuestionRepository, 
+        IQueryRepository<QuestionCollection> questionQueryRepository)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
@@ -46,6 +49,7 @@ public class TestService : ITestService
         _requestSubjectSelectClient = requestSubjectSelectClient;
         _commandQuizRepository = commandQuizRepository;
         _commandQuestionRepository = commandQuestionRepository;
+        _questionQueryRepository = questionQueryRepository;
     }
 
     /// <summary>
@@ -406,6 +410,7 @@ public class TestService : ITestService
                 if (questionExists == null)
                 {
                     quizCollection.Questions.Add(QuestionCollection.FromWriteModel(question));
+                    _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
                 }
             }
             _unitOfWork.Store(testCollection);
