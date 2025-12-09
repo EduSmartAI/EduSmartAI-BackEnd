@@ -978,11 +978,7 @@ public class StudentService : IStudentService
                         if (string.IsNullOrEmpty(gradeStr) && (string.Equals(status, ConstantEnum.StudentTranscriptStatus.Studying.GetDescription(), StringComparison.OrdinalIgnoreCase) || string.Equals(status, ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription(), StringComparison.OrdinalIgnoreCase)))
                         {
                             // Add both Studying and NotStarted to validSemesterNumbers
-                            if (string.Equals(status, ConstantEnum.StudentTranscriptStatus.Studying.GetDescription(), StringComparison.OrdinalIgnoreCase) || 
-                                string.Equals(status, ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription(), StringComparison.OrdinalIgnoreCase))
-                            {
-                                validSemesterNumbers.Add((semesterNumber, status));
-                            }
+                            validSemesterNumbers.Add((semesterNumber, status));
                             continue;
                         }
                         double? parsedGrade = null;
