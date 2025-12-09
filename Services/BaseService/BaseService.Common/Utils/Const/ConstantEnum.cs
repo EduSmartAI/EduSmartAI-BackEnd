@@ -262,7 +262,7 @@ public static class ConstantEnum
         Evening = 3,
         LateNight = 4
     }
-    
+
     public enum ProblemDifficultyLevel
     {
         Easy = 1,
@@ -358,62 +358,68 @@ public static class ConstantEnum
     public enum PaymentReturnCode
     {
         PENDING = 1,
-        CANCELLED = 2, 
+        CANCELLED = 2,
         UNDERPAID = 3,
         PAID = 4,
         EXPIRED = 5,
         PROCESSING = 6,
         FAILED = 7
     }
-    
+
     public enum StudentTranscriptStatus
     {
         [Description("Not Started")]
         NotStarted = 0,
-        
+
         [Description("Studying")]
         Studying = 1,
-        
+
         [Description("Passed")]
         Passed = 2,
-        
+
         [Description("Not Passed")]
         NotPassed = 3
     }
-    
+
     public enum UserActionPayment
     {
         [Description("User cancelled the payment")]
         Cancelled = 1,
-        
+
         [Description("Payment completed successfully")]
         Success = 2,
-        
+
         [Description("Payment process failed")]
         Failed = 3
     }
-    
+
     public enum OtherQuestionCode
     {
         [Description("Điểm của bạn có môn từ 5 đến dưới 7, bạn có muốn học thêm khóa học để cải thiện không?")]
         GRADE_5_TO_7_COURSE = 1,
-        
+
         [Description("Điểm của bạn có môn từ 7 đến dưới 8, bạn có muốn học thêm khóa học để cải thiện không?")]
         GRADE_7_TO_8_COURSE = 2,
-        
+
         [Description("Điểm của bạn có môn từ 8 đến 9, bạn có muốn học thêm khóa học để cải thiện thêm kiến thức không?")]
         GRADE_8_TO_9_COURSE = 3,
-        
+
         [Description("Điểm của bạn có môn từ 5 đến dưới 7, bạn có muốn chúng tôi đánh giá để cải thiện về các môn đó không?")]
         GRADE_5_TO_7_EVALUATION = 4,
-        
+
         [Description("Điểm của bạn có môn từ 7 đến dưới 8, bạn có muốn chúng tôi đánh giá để cải thiện về các môn đó không?")]
         GRADE_7_TO_8_EVALUATION = 5
     }
 
     public enum SuggestedCourseType : short
     {
-		Easier = 1,
-		Harder = 2
-	}
+        Easier = 1,
+        Harder = 2
+    }
+    public enum ChatBotRawReason
+    {
+        GetAllLearningPath = 1,
+        GetDetailTrainingPath = 2,
+        SkipSubjectLearningPath = 3,
+    }
 }
