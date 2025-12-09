@@ -178,6 +178,7 @@ public static class ConstantEnum
         InProgress = 1,
         Completed = 2,
         Skipped = 3,
+        NoCourse = 4,
     }
 
     public enum SuggestionType
