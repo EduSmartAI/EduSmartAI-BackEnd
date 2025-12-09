@@ -474,11 +474,12 @@ namespace StudentService.Infrastructure.Implements
                 .ToList();
 
             var streakItems = streakEntities
+                .Where(s => s.StartDate.HasValue && s.EndDate.HasValue && s.StreakDays.HasValue)
                 .Select(s => new LearningStreakItem
                 {
-                    // StartDate = s.StartDate.ToDateTime(TimeOnly.MinValue),
-                    // EndDate = s.EndDate.ToDateTime(TimeOnly.MinValue),
-                    Days = (int)s.StreakDays
+                    StartDate = s.StartDate!.Value.ToDateTime(TimeOnly.MinValue),
+                    EndDate = s.EndDate!.Value.ToDateTime(TimeOnly.MinValue),
+                    Days = (int)s.StreakDays!.Value
                 })
                 .OrderByDescending(x => x.EndDate)
                 .ToList();
