@@ -13,6 +13,8 @@ public class PracticeTestAdminUpdateRequest : IRequest<PracticeTestAdminUpdateRe
     public List<PracticeTestAdminProblemTemplateUpdateRequest>? Templates { get; set; }
     
     public List<PracticeTestAdminProblemExampleUpdateRequest>? Examples { get; set; }
+    
+    public List<PracticeTestAdminSolutionUpdateRequest>? Solutions { get; set; }
 }
 
 public class PracticeTestAdminProblemUpdateRequest
@@ -62,3 +64,9 @@ public class PracticeTestAdminProblemTestcaseUpdateRequest
     public bool IsPublic { get; set; }
 }
 
+public class PracticeTestAdminSolutionUpdateRequest
+{
+    public int LanguageId { get; set; }
+
+    public string SolutionCode { get; set; } = null!;
+}
