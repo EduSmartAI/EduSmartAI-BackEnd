@@ -22,6 +22,6 @@ public class TestQuizQuestionsInsertCommand : ICommand<TestQuizQuestionsInsertRe
 
 public record TestQuizQuestionsInsertResponse : AbstractApiResponse<string>
 {
-    public override string Response { get; set; } = string.Empty;
+    public override string Response { get; set; }
 }
 
