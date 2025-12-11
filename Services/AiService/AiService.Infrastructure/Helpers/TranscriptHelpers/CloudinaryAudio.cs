@@ -31,11 +31,18 @@
 		}
 
 
-		public static string BuildAudioUrl(string cloud, string versionedIdNoExt)
-			=> $"https://res.cloudinary.com/{cloud}/video/upload/af_16000,ac_mp3,br_24k/{versionedIdNoExt}.mp3";
+		//public static string BuildAudioUrl(string cloud, string versionedIdNoExt)
+		//	=> $"https://res.cloudinary.com/{cloud}/video/upload/af_16000,ac_mp3,br_24k/{versionedIdNoExt}.mp3";
 
-		public static string BuildAudioChunkUrl(string cloud, string versionedIdNoExt, int startSec, int durSec)
-			=> $"https://res.cloudinary.com/{cloud}/video/upload/af_16000,ac_mp3,br_24k,so_{startSec},du_{durSec}/{versionedIdNoExt}.mp3";
+		//public static string BuildAudioChunkUrl(string cloud, string versionedIdNoExt, int startSec, int durSec)
+		//	=> $"https://res.cloudinary.com/{cloud}/video/upload/af_16000,ac_mp3,br_24k,so_{startSec},du_{durSec}/{versionedIdNoExt}.mp3";
+
+		/// <summary>
+		/// Tối ưu trong tương lai là đổi sang mp3 đồng thời có thể trunk từng đoạn được
+		/// </summary>
+		/// <param name="cloud"></param>
+		/// <param name="versionedIdNoExt"></param>
+		/// <returns></returns>
 
 		public static string BuildMp4Url(string cloud, string versionedIdNoExt)
 			=> $"https://res.cloudinary.com/{cloud}/video/upload/{versionedIdNoExt}.mp4";

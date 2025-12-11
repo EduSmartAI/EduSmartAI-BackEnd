@@ -182,6 +182,7 @@ namespace Course.Infrastructure.Implements
 			// Clear relevant caches
 			await _courseCache.ClearCourseDetailForStudentCacheAsync();
 			await _courseCache.ClearEnrollmentStatusCacheAsync(userId: currentUser.UserId, courseId: courseId);
+			await _courseCache.ClearGetAllCacheAsync();
 
 			// Respond success
 			response.Success = true;
