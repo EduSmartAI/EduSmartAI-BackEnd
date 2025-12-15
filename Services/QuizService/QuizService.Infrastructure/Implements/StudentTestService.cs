@@ -636,6 +636,19 @@ public class StudentTestService : IStudentTestService
             // True
             response.Success = true;
             response.Response = learningPathId;
+            
+            // Map StudentTestSubmitResponse
+            response.StudentTestSubmit = new StudentTestSubmitResponse
+            {
+                StudentTestId = studentTest.StudentTestId,
+                PracticeTestSubmits = practiceTestResults.Values
+                    .Select(ptr => new StudentPracticeTestSubmitResponse
+                    {
+                        PracticeTestSubmitId = ptr.Response.SubmissionId
+                    })
+                    .ToList()
+            };
+            
             response.SetMessage(MessageId.I00001, "Thêm bài kiểm tra của học sinh");
             return true;
         }, cancellationToken);

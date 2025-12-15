@@ -154,4 +154,70 @@ public class PracticeTestController : ControllerBase
             _httpContextAccessor,
             new PracticeTestCodeCheckResponse());
     }
+    
+    /// <summary>
+    /// Select student practice test submissions with pagination
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy danh sách các bài nộp practice test của sinh viên", 
+        Description = "API này trả về danh sách tất cả các lần nộp bài practice test của sinh viên đang đăng nhập. Hỗ trợ phân trang và filter theo ProblemId. Kết quả bao gồm thông tin bài toán, ngôn ngữ, status, số test case pass/fail, và thời gian nộp. Cần cấp quyền cho API")]
+    public async Task<StudentPracticeTestSubmissionsSelectResponse> SelectStudentPracticeTestSubmissions([FromQuery] StudentPracticeTestSubmissionsSelectRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<StudentPracticeTestSubmissionsSelectRequest, StudentPracticeTestSubmissionsSelectResponse, StudentPracticeTestSubmissionsSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new StudentPracticeTestSubmissionsSelectResponse());
+    }
+    
+    /// <summary>
+    /// Select student practice test submissions by list of SubmissionIds
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy chi tiết các bài nộp practice test theo danh sách SubmissionIds", 
+        Description = "API này trả về chi tiết đầy đủ các bài nộp practice test dựa trên danh sách SubmissionIds được cung cấp. Bao gồm source code, chi tiết test results, và tất cả thông tin liên quan. Chỉ trả về các submissions thuộc về sinh viên đang đăng nhập. Cần cấp quyền cho API")]
+    public async Task<StudentPracticeTestSubmissionsByIdsSelectResponse> SelectStudentPracticeTestSubmissionsByIds([FromQuery] StudentPracticeTestSubmissionsByIdsSelectRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<StudentPracticeTestSubmissionsByIdsSelectRequest, StudentPracticeTestSubmissionsByIdsSelectResponse, StudentPracticeTestSubmissionsByIdsSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new StudentPracticeTestSubmissionsByIdsSelectResponse());
+    }
+    
+    /// <summary>
+    /// Select all submissions of a specific student 
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy danh sách tất cả bài nộp practice test của một sinh viên", 
+        Description = "API này cho phép xem tất cả các bài nộp practice test của một sinh viên. Hỗ trợ phân trang và filter theo ProblemId. Admin có thể xem tất cả test cases (cả public và private). Bao gồm source code, chi tiết kết quả, thời gian runtime. Cần cấp quyền Admin cho API")]
+    public async Task<StudentSubmissionsSelectResponse> SelectStudentSubmissions([FromQuery] StudentSubmissionsSelectRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<StudentSubmissionsSelectRequest, StudentSubmissionsSelectResponse, StudentSubmissionsSelectResponseEntity>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new StudentSubmissionsSelectResponse());
+    }
 }
