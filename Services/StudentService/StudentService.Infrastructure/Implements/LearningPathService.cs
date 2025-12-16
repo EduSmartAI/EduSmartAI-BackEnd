@@ -1106,7 +1106,7 @@ public class LearningPathService : ILearningPathService
         var fetchBasicTask = FetchCourseInfoAsync(basicIds, userId, cancellationToken);
         var fetchInternalTask = FetchCourseInfoAsync(internalIds, userId, cancellationToken);
 
-        // await Task.WhenAll(fetchBasicTask, fetchInternalTask);
+        await Task.WhenAll(fetchBasicTask, fetchInternalTask);
 
         var dictBasic = await fetchBasicTask;
         var dictInternal = await fetchInternalTask;
