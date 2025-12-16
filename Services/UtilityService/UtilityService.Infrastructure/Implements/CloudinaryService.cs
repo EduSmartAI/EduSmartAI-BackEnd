@@ -108,9 +108,11 @@ public class CloudinaryService : ICloudinaryService
             if (uploadResult.Error != null)
             {
                 // Nếu key bị rate limit
-                if (uploadResult.Error.Message.Contains("Rate Limit Exceeded", StringComparison.OrdinalIgnoreCase))
+                if (uploadResult.Error.Message.Contains("Rate Limit Exceeded", StringComparison.OrdinalIgnoreCase) || 
+                    uploadResult.Error.Message.Contains("Too many requests", StringComparison.OrdinalIgnoreCase) ||
+                    uploadResult.Error.Message.Contains("cloud_name is disabled", StringComparison.OrdinalIgnoreCase))
                 {
-                    _cloudinaryConfigRepository.Update(cloudinaryKey, "Admin");
+                    _cloudinaryConfigRepository.Update(cloudinaryKey, uploadResult.Error.Message, true);
                     await _unitOfWork.SaveChangesAsync(CancellationToken.None);
 
                     var nextKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
