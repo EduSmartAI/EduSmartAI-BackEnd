@@ -28,6 +28,16 @@ public class StudentMajorOrientationEvent
     public StudentQuizSurvey? QuizSurvey { get; set; }
     
     public List<StudentTranscrptEvent>? StudentTranscripts { get; set; }
+    
+    public required List<AbilityImproveEvent>? AbilityImprove { get; init; }
+    
+}
+
+public class AbilityImproveEvent
+{
+    public string Name { get; set; }
+    
+    public double Mark { get; set; }
 }
 
 public class StudentMajor

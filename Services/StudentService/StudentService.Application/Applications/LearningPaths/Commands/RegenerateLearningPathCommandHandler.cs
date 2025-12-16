@@ -60,6 +60,9 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
         string? levelReason = null;
         int limitTime = 0;
         string? evaluationAndImproveString = null;
+        Guid? studentTestId = null;
+        List<Guid>? practiceSubmissionIds = null;
+        List<Guid> studentSurveyIds = new();
        await _unitOfWork.BeginTransactionAsync(async () =>
        {
            var learningPathOld = await _learningPathCommandRepository
@@ -100,6 +103,14 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
            // Delete old collection
            var learningPathCollectionOld = await _learningPathCollectionRepository
                .FirstOrDefaultAsync(x => x.PathId == learningPathOld.PathId && x.IsActive);
+           studentTestId = learningPathCollectionOld!.StudentQuizSubmission.PlacementTestSubmissionId;
+           practiceSubmissionIds = learningPathCollectionOld.StudentQuizSubmission.StudentPracticeTestSubmissions?
+                .Select(x => x.PracticeTestSubmissionId)
+                .ToList();
+           studentSurveyIds = learningPathCollectionOld.StudentQuizSubmission!.StudentSurveySubmissions
+               .Select(x => x.StudentSurveyId)
+               .ToList();
+           
            _unitOfWork.Delete(learningPathCollectionOld);
            await _unitOfWork.SessionSaveChangesAsync();
            return true;
@@ -281,7 +292,10 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
             Mark = x.Grade,
             Status = x.Status
          }).ToList(),
-         EvaluationAndImprove = evaluationAndImproveString
+         EvaluationAndImprove = evaluationAndImproveString,
+         StudentTestId = studentTestId,
+         PracticeSubmissionIds = practiceSubmissionIds,
+         StudentSurveyIds = studentSurveyIds
      };
 
      var eventResponse = await _regenerateLearningPathEventRequestClient.GetResponse<RegenerateLearningPathEventResponse>(reRegenerateLearningPathEvent, cancellationToken);

@@ -22,6 +22,9 @@ namespace StudentService.Application.Consumers
                 IsSkipTest = evt.IsSkipTest,
                 LimitTime = evt.LimitTime,
                 EvaluationAndImprove = evt.EvaluationAndImprove,
+                StudentSurveyIds = evt.StudentSurveyIds,
+                StudentTestId = evt.StudentTestId,
+                PracticeSubmissionIds = evt.PracticeSubmissionIds,
             };
     
             var response = await service.InsertLearningPathAsync(request, context.CancellationToken);

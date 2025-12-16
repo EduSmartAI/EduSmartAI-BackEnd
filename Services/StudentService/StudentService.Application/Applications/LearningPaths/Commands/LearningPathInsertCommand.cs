@@ -20,5 +20,12 @@ public class LearningPathInsertCommand : ICommand<LearningGoalInsertResponse>
     public required bool IsSkipTest { get; set; }
     
     public required int LimitTime { get; set; }
+    
+    public required List<Guid> StudentSurveyIds { get; set; }
+        
+    public required Guid? StudentTestId { get; set; }
+    
+    public required List<Guid>? PracticeSubmissionIds { get; set; }
+    
     public required string? EvaluationAndImprove { get; set; }
 }

@@ -58,9 +58,12 @@ public class SurveyAnalysisService : ISurveyAnalysis
     {
         var promptBuilder = new System.Text.StringBuilder();
         
-        promptBuilder.AppendLine("Hãy phân tích các câu trả lời khảo sát sở thích của học sinh dưới đây và đưa ra định hướng học tập phù hợp:");
+        promptBuilder.AppendLine("Bạn là một Chuyên gia Tư vấn Hướng nghiệp cấp cao trong lĩnh vực Công nghệ thông tin (IT).");
+        promptBuilder.AppendLine("Nhiệm vụ của bạn là phân tích dữ liệu khảo sát của học sinh để tìm ra chuyên ngành IT phù hợp nhất.");
+        promptBuilder.AppendLine("QUAN TRỌNG: Bất kể sở thích của học sinh là gì, hãy tìm mối liên hệ của nó với kỹ năng công nghệ và đề xuất một lộ trình IT tương ứng.");
+        
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("=== THÔNG TIN KHẢO SÁT ===");
+        promptBuilder.AppendLine("=== DỮ LIỆU ĐẦU VÀO ===");
         promptBuilder.AppendLine($"ID Học sinh: {request.StudentId}");
         promptBuilder.AppendLine();
 
@@ -75,15 +78,24 @@ public class SurveyAnalysisService : ISurveyAnalysis
             promptBuilder.AppendLine();
         }
 
-        promptBuilder.AppendLine("=== YÊU CẦU PHÂN TÍCH ===");
-        promptBuilder.AppendLine("Dựa trên các câu trả lời trên, hãy:");
-        promptBuilder.AppendLine("1. Phân tích sở thích, năng lực và xu hướng của học sinh");
-        promptBuilder.AppendLine("2. Đưa ra 1 định hướng học tập chính phù hợp nhất (LearningGoal)");
+        promptBuilder.AppendLine("=== HƯỚNG DẪN SUY LUẬN (MAPPING GUIDE) ===");
+        promptBuilder.AppendLine("Hãy sử dụng logic sau để ánh xạ sở thích sang chuyên ngành IT:");
+        promptBuilder.AppendLine("- Thích cái đẹp, vẽ, nghệ thuật, màu sắc -> Gợi ý: Frontend Development, UI/UX Design.");
+        promptBuilder.AppendLine("- Thích giải đố, logic, toán học, quy trình -> Gợi ý: Backend Development, Data Science, AI/Machine Learning.");
+        promptBuilder.AppendLine("- Thích giao tiếp, lãnh đạo, kinh doanh -> Gợi ý: Business Analyst (BA), Project Management, Product Owner.");
+        promptBuilder.AppendLine("- Thích sự tỉ mỉ, soi lỗi, kiểm tra -> Gợi ý: Software Testing (QC/QA).");
+        promptBuilder.AppendLine("- Thích phần cứng, lắp ráp, mạng lưới -> Gợi ý: DevOps, Network Engineering, IoT.");
+        promptBuilder.AppendLine("- Thích bảo vệ, điều tra, bí ẩn -> Gợi ý: Cyber Security.");
+
         promptBuilder.AppendLine();
-        promptBuilder.AppendLine("=== ĐỊNH DẠNG TRUYỀN VỀ ===");
-        promptBuilder.AppendLine("Vui lòng trả về kết quả dưới định dạng JSON với cấu trúc sau:");
+        promptBuilder.AppendLine("=== YÊU CẦU ĐẦU RA ===");
+        promptBuilder.AppendLine("1. LearningGoal BẮT BUỘC phải là tên một chuyên ngành hoặc vị trí trong ngành IT.");
+        promptBuilder.AppendLine("2. Phân tích ngắn gọn lý do tại sao sở thích đó lại phù hợp với chuyên ngành IT này.");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("=== ĐỊNH DẠNG JSON ===");
+        promptBuilder.AppendLine("Chỉ trả về chuỗi JSON thuần (không kèm Markdown ```json), theo cấu trúc:");
         promptBuilder.AppendLine("{");
-        promptBuilder.AppendLine("  \"LearningGoal\": \"[Tên định hướng học tập được chọn]\",");
+        promptBuilder.AppendLine("  \"LearningGoal\": \"[Tên chuyên ngành IT - Ví dụ: ReactJS Web Development, Data Analyst, v.v.]\",");
         promptBuilder.AppendLine("}");
 
         return promptBuilder.ToString();

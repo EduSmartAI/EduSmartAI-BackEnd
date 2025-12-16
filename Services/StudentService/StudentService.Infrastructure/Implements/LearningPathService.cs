@@ -109,8 +109,26 @@ public class LearningPathService : ILearningPathService
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            
+            var learningPathReadModel = LearningPathCollection.FromWriteModel(learningPath);
+            learningPathReadModel.StudentQuizSubmission = new StudentQuizSubmission
+            {
+                PlacementTestSubmissionId = request.StudentTestId,
+                StudentPracticeTestSubmissions = request.PracticeSubmissionIds?
+                    .Select(id => new StudentPracticeTestSubmission
+                    {
+                        PracticeTestSubmissionId = id
+                    })
+                    .ToList(),
+                StudentSurveySubmissions = request.StudentSurveyIds
+                    .Select(id => new StudentSurveySubmission
+                    {
+                        StudentSurveyId = id
+                    })
+                    .ToList()
+            };
 
-            _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
+            _unitOfWork.Store(learningPathReadModel);
             await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.CacheRemoveAsync(CacheKey.LearningGoalSelects());
 
@@ -316,7 +334,9 @@ public class LearningPathService : ILearningPathService
                 }).ToList(),
                 StudentTranscriptSelectEvent = request.StudentTranscripts,
                 StudentId = learningPath.StudentId ?? Guid.Empty,
-                LearningPathCourseExists = existingCourseIds
+                LearningPathCourseExists = existingCourseIds,
+                AbilityMarks = request.AbilityMarks,
+                AbilityImprove = request.AbilityImprove
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -1086,7 +1106,7 @@ public class LearningPathService : ILearningPathService
         var fetchBasicTask = FetchCourseInfoAsync(basicIds, userId, cancellationToken);
         var fetchInternalTask = FetchCourseInfoAsync(internalIds, userId, cancellationToken);
 
-        await Task.WhenAll(fetchBasicTask, fetchInternalTask);
+        // await Task.WhenAll(fetchBasicTask, fetchInternalTask);
 
         var dictBasic = await fetchBasicTask;
         var dictInternal = await fetchInternalTask;

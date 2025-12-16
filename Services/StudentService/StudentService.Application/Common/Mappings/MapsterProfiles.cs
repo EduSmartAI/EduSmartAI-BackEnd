@@ -97,6 +97,7 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.HabitAndInterestAnalysis, s => s.HabitAndInterestAnalysis)
                 .Map(d => d.Personality, s => s.Personality)
                 .Map(d => d.LearningAbility, s => s.LearningAbility)
+                .Map(d => d.StudentQuizSubmission, s => s.StudentQuizSubmission)
                 .Map(d => d.praticalAbilityFeedbacks, s => MapPracticalAbilityFeedbacks(s.AbilityFeedback))
                 .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto { CourseGroups = new List<CourseGroupDto>() })
                 .Map(d => d.InternalLearningPath,

@@ -40,7 +40,9 @@ public class InternalMajorEventConsumer(
                 Level = ci.Level
             }).ToList(),
             StudentMajor = evt.StudentMajor,
-            StudentTranscripts = evt.StudentTranscriptSelectEvent
+            StudentTranscripts = evt.StudentTranscriptSelectEvent,
+            AbilityMarks = evt.AbilityMarks,
+            AbilityImprove = evt.AbilityImproves,
         };
 
         if (!request.Majors.Select(x => x.MajorCode).Contains(request.StudentMajor.MajorCode))

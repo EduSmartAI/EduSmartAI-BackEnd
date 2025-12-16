@@ -16,6 +16,7 @@ using QuizService.Application.Applications.StudentTests.Queries;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
 using QuizService.Domain.WriteModels;
+using AbilityImprove = QuizService.Application.Applications.LearningPaths.AbilityImprove;
 using CourseImproveContext = QuizService.Application.Applications.LearningPaths.CourseImproveContext;
 using StudentTranscriptContext = QuizService.Application.Applications.LearningPaths.StudentTranscriptContext;
 using SubjectMarkContext = QuizService.Application.Applications.LearningPaths.SubjectMarkContext;
@@ -134,15 +135,15 @@ public class StudentTestService : IStudentTestService
             return response;
         }
 
-        if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
-        {
-            // Validate that we have exactly 3 problems (Easy, Medium, Hard)
-            if (request.PracticeTestAnswers.Count != 3)
-            {
-                response.SetMessage(MessageId.E00000, "PracticeTestAnswers phải có đúng 3 bài: Dễ, Trung bình, Khó");
-                return response;
-            }
-        }
+        // if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
+        // {
+        //     // Validate that we have exactly 3 problems (Easy, Medium, Hard)
+        //     if (request.PracticeTestAnswers.Count != 3)
+        //     {
+        //         response.SetMessage(MessageId.E00000, "PracticeTestAnswers phải có đúng 3 bài: Dễ, Trung bình, Khó");
+        //         return response;
+        //     }
+        // }
 
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
@@ -461,36 +462,99 @@ public class StudentTestService : IStudentTestService
             // Calculate AbilityMarks based on each Quiz (by SubjectCodeName from PlacementTestQuizSetting)
             var abilityMarks = new List<AbilityMarkContext>();
             
-            // Loop through each StudentQuizCollection to calculate ability marks for each quiz
-            foreach (var studentQuizCollection in studentTestCollection.StudentQuizzes)
+            // Get all quiz IDs that student has answered
+            var answeredQuizIds = studentTestCollection.StudentQuizzes
+                .Select(sq => sq.QuizId)
+                .ToHashSet();
+            
+            // Loop through ALL quizzes in the test (not just the ones student answered)
+            foreach (var quiz in testExist.Quizzes)
             {
-                // Get the quiz from testExist
-                var quiz = testExist.Quizzes.FirstOrDefault(q => q.QuizId == studentQuizCollection.QuizId);
-                
                 if (quiz?.PlacementTestQuizSetting == null)
                     continue;
                 
-                // Get all question IDs for this quiz
-                var quizQuestionIds = quiz.Questions.Select(q => q.QuestionId).ToHashSet();
+                var subjectCodeName = quiz.PlacementTestQuizSetting.SubjectCodeName;
                 
-                // Get student answers for this quiz only
-                var quizAnswers = studentTestCollection.StudentAnswers
-                    .Where(sa => quizQuestionIds.Contains(sa.QuestionId))
-                    .ToList();
+                // Check if student has answered this quiz
+                var hasAnsweredQuiz = answeredQuizIds.Contains(quiz.QuizId);
                 
-                if (!quizAnswers.Any())
-                    continue;
+                // Find matching transcript by checking if SubjectCodeName contains SubjectCode from transcript
+                var matchingTranscript = studentTranscripts?
+                    .FirstOrDefault(t => !string.IsNullOrEmpty(t.SubjectCode) && 
+                                         !string.IsNullOrEmpty(subjectCodeName) &&
+                                         subjectCodeName.Contains(t.SubjectCode, StringComparison.OrdinalIgnoreCase));
                 
-                // Calculate score for this quiz
-                var correctAnswers = quizAnswers.Count(sa => sa.Answer?.IsCorrect == true);
-                var totalQuestions = quizAnswers.Count;
-                var abilityScore = totalQuestions > 0 ? (double)correctAnswers / totalQuestions * 100 : 0;
+                double quizScore = 0;
                 
-                // Add ability mark with SubjectCodeName as the name
+                if (hasAnsweredQuiz)
+                {
+                    // Calculate quiz score from student answers
+                    var quizQuestionIds = quiz.Questions.Select(q => q.QuestionId).ToHashSet();
+                    var quizAnswers = studentTestCollection.StudentAnswers
+                        .Where(sa => quizQuestionIds.Contains(sa.QuestionId))
+                        .ToList();
+                    
+                    var correctCount = 0;
+                    var totalQuestions = quiz.Questions.Count;
+                    
+                    foreach (var question in quiz.Questions)
+                    {
+                        var studentSelectedAnswerIds = quizAnswers
+                            .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId.HasValue)
+                            .Select(sa => sa.AnswerId!.Value)
+                            .ToHashSet();
+                        
+                        if (!studentSelectedAnswerIds.Any()) continue;
+                        
+                        var correctAnswerIds = question.Answers
+                            .Where(a => a.IsCorrect)
+                            .Select(a => a.AnswerId)
+                            .ToHashSet();
+                        
+                        bool isCorrect;
+                        
+                        if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+                        {
+                            isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
+                                        && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
+                        }
+                        else
+                        {
+                            isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
+                        }
+                        
+                        if (isCorrect)
+                        {
+                            correctCount++;
+                        }
+                    }
+                    
+                    quizScore = totalQuestions > 0 ? (double)correctCount / totalQuestions * 100 : 0;
+                }
+                
+                double finalScore;
+                
+                if (matchingTranscript != null && matchingTranscript.Grade.HasValue)
+                {
+                    // Has transcript: 60% from transcript (scale 0-10 to 0-100) + 40% from quiz
+                    var transcriptScore = matchingTranscript.Grade.Value * 10; // Convert 0-10 to 0-100
+                    finalScore = (transcriptScore * 0.6) + (quizScore * 0.4);
+                }
+                else if (hasAnsweredQuiz)
+                {
+                    // No transcript but answered quiz: 100% from quiz
+                    finalScore = quizScore;
+                }
+                else
+                {
+                    // No transcript and didn't answer quiz: 0 points
+                    finalScore = 0;
+                }
+                
                 abilityMarks.Add(new AbilityMarkContext
                 {
-                    Name = quiz.PlacementTestQuizSetting.SubjectCodeName,
-                    Mark = abilityScore
+                    Name = subjectCodeName,
+                    Mark = finalScore
                 });
             }
             
@@ -535,17 +599,35 @@ public class StudentTestService : IStudentTestService
             }
             
             // Get StudentSurvey from cache
-            var studentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
+            var allStudentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
                 CacheKey.StudentSurvey(currentUser.UserId),
                 async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
                 TimeSpan.FromMinutes(10));
+            
+            // Get latest HABIT survey
+            var latestHabitSurvey = allStudentSurveys
+                .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT))
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+            
+            // Get latest INTEREST survey
+            var latestInterestSurvey = allStudentSurveys
+                .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST))
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefault();
+            
+            // Build list of latest surveys (HABIT and INTEREST)
+            var studentSurveys = new List<StudentQuizCollection>();
+            if (latestHabitSurvey != null) studentSurveys.Add(latestHabitSurvey);
+            if (latestInterestSurvey != null) studentSurveys.Add(latestInterestSurvey);
+            
             if (!studentSurveys.Any())
             {
                 response.SetMessage(MessageId.E00000, "Sinh viên chưa hoàn thành bài khảo sát nào");
                 return false;
             }
             
-            var surveyHabit = studentSurveys.First(x => x.Quiz.SurveyQuizSetting!.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+            var surveyHabit = latestHabitSurvey ?? studentSurveys.First();
 
             var selectedAnswerIds = surveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
@@ -570,17 +652,64 @@ public class StudentTestService : IStudentTestService
                 ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
                 : null;
             
+            string learningGoalName = request.LearningGoal.LearningGoalName;
+            
+            if (request.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
+            {
+                if (latestHabitSurvey == null)
+                {
+                    response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
+                    return false;
+                }
+
+                var selectedAnswerIdInterests = latestHabitSurvey.StudentQuizAnswers
+                    .Select(a => a.AnswerId)
+                    .ToHashSet();
+
+                var interestQuestions = latestHabitSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
+                {
+                    QuestionText = question.QuestionText,
+                    StudentAnswers = question.Answers
+                        .Where(a => selectedAnswerIdInterests.Contains(a.AnswerId))
+                        .Select(a => a.AnswerText)
+                        .ToList()
+                }).Where(q => q.StudentAnswers.Any()).ToList();
+
+                var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
+                {
+                    StudentId = currentUser.UserId,
+                    Questions = interestQuestions
+                };
+
+                var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(
+                    studentInterestAnalysisEvent, 
+                    cancellationToken);
+                
+                if (!aiAnalysisResponse.Message.Success)
+                {
+                    response.SetMessage(MessageId.E99999);
+                    return false;
+                }
+
+                learningGoalName = aiAnalysisResponse.Message.Response.LearningGoal;
+            }
+            
             var learningPathEvent = new InsertLearningPathEvent
             {
                 LearningPathId = learningPathId,
                 StudentId = currentUser.UserId,
                 CurrentUserEmail = currentUser.Email,
-                PathName = $"Lộ trình {request.LearningGoal.LearningGoalName}",
+                PathName = $"Lộ trình {learningGoalName}",
                 Level = (short) studentLevel,
                 LevelReason = levelReason,
                 IsSkipTest = false,
                 LimitTime = limitTime,
-                EvaluationAndImprove = evaluationAndImprove
+                EvaluationAndImprove = evaluationAndImprove,
+                StudentTestId = studentTest.StudentTestId,
+                PracticeSubmissionIds = request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any()
+                    ? practiceTestResults.Values.Select(ptr => ptr.Response.SubmissionId).ToList()
+                    : null,
+                StudentSurveyIds = studentSurveys.Select(ss => ss.StudentQuizId).ToList(),
             };
             var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
             if (!learningPathResponse.Message.Success)
@@ -588,7 +717,17 @@ public class StudentTestService : IStudentTestService
                 response.MessageId = learningPathResponse.Message.MessageId;
                 response.Message = learningPathResponse.Message.Message;
                 return false;
-            }            
+            }
+            
+            // Create AbilityImprove from abilityMarks - subjects with score < 70 need improvement
+            var abilityImprove = abilityMarks
+                .Where(am => am.Mark < 70)
+                .Select(am => new AbilityImprove
+                {
+                    Name = am.Name,
+                    Mark = am.Mark
+                })
+                .ToList();
             
             var context = new LearningPathCreationContext
             {
@@ -612,10 +751,11 @@ public class StudentTestService : IStudentTestService
                 },
                 SubjectMarks = subjectMarks,
                 AbilityMarks = abilityMarks,
-                CourseImprove = courseImporve
+                CourseImprove = courseImporve,
+                AbilityImprove = abilityImprove
             };
 
-            if (studentTranscripts.Any())
+            if (studentTranscripts != null && studentTranscripts.Any())
             {
                 context.StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
                 {
@@ -773,20 +913,45 @@ public class StudentTestService : IStudentTestService
             
             var questionResults = BuildQuestionResults(quiz, studentTest);
             
-            // Calculate total correct answers
-            var answeredQuestionIds = studentTest.StudentAnswers
-                .Where(sa => quiz.Questions.Any(q => q.QuestionId == sa.QuestionId))
-                .Select(sa => sa.QuestionId)
-                .Distinct()
-                .ToHashSet();
+            // Calculate total correct answers with proper logic for MultipleChoice
+            var totalCorrectAnswers = 0;
+            
+            foreach (var question in quiz.Questions)
+            {
+                // Get student's selected answers for this question
+                var studentSelectedAnswerIds = studentTest.StudentAnswers
+                    .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId.HasValue)
+                    .Select(sa => sa.AnswerId!.Value)
+                    .ToHashSet();
                 
-            // Count correct answers
-            var totalCorrectAnswers = quiz.Questions
-                .Where(q => answeredQuestionIds.Contains(q.QuestionId))
-                .Count(q => studentTest.StudentAnswers.Any(sa =>
-                    sa.QuestionId == q.QuestionId &&
-                    q.Answers.Any(a => a.AnswerId == sa.AnswerId && a.IsCorrect)
-                ));
+                // Skip if student didn't answer this question
+                if (!studentSelectedAnswerIds.Any()) continue;
+                
+                // Get all correct answer IDs for this question
+                var correctAnswerIds = question.Answers
+                    .Where(a => a.IsCorrect)
+                    .Select(a => a.AnswerId)
+                    .ToHashSet();
+                
+                bool isCorrect;
+                
+                // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+                if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+                {
+                    isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
+                                && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
+                }
+                else
+                {
+                    // For SingleChoice/TrueFalse: just check if selected answer is correct
+                    isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
+                }
+                
+                if (isCorrect)
+                {
+                    totalCorrectAnswers++;
+                }
+            }
             
             quizResults.Add(new QuizResultSelectResponseEntity
             {
@@ -890,9 +1055,19 @@ public class StudentTestService : IStudentTestService
                     .Select(a => a.AnswerId)
                     .ToHashSet();
 
-                // Check if student selected exactly the correct answers
-                bool isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count 
-                    && studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                bool isCorrect;
+                
+                // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+                if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+                {
+                    isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count 
+                        && studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                }
+                else
+                {
+                    // For SingleChoice/TrueFalse: just check if selected answer is correct
+                    isCorrect = studentAnswersForQuestion.Any(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                }
                 
                 if (isCorrect)
                 {

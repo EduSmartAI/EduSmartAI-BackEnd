@@ -1,5 +1,6 @@
 using BaseService.Application.Interfaces.Repositories;
 using BuildingBlocks.Messaging.Events.AIService;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
     private readonly IRequestClient<MappingSubjectCodeWithMajorCodeEvent> _requestClient;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
+    private readonly IRequestClient<StudentTranscriptSelectEvent> _requestStudentTranscriptClient;
+
 
     private readonly IUnitOfWork _unitOfWork;
 
@@ -27,7 +30,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseRepository,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
-        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
+        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier, IRequestClient<StudentTranscriptSelectEvent> requestStudentTranscriptClient)
     {
         _learningPathRepository = learningPathRepository;
         _learningPathMajorRepository = learningPathMajorRepository;
@@ -37,6 +40,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         _unitOfWork = unitOfWork;
         _requestClient = requestClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        _requestStudentTranscriptClient = requestStudentTranscriptClient;
     }
 
     public async Task Consume(ConsumeContext<LearningFeedbackEvent> context)
@@ -49,6 +53,13 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         {
             return;
         }
+        // Get student transcript (always needed for SubjectMarks in AI event)
+        var studentTranscriptEvent = new StudentTranscriptSelectEvent
+        {
+            StudentId = learningPath.StudentId ?? throw new NullReferenceException(),
+        };
+        var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent);
+        var studentTranscripts = transcriptResponse.Message.Response;
         
         learningPath.SummaryFeedback = evt.SummaryFeedback;
         learningPath.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;

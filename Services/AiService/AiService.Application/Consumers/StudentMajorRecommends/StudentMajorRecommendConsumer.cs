@@ -55,7 +55,8 @@ public class StudentMajorRecommendConsumer(IMediator mediator) : IConsumer<Stude
                 }).ToList()
             } : null,
             StudentMajor = evt.StudentMajor,
-            StudentTranscrpts = evt.StudentTranscripts
+            StudentTranscrpts = evt.StudentTranscripts,
+            AbilityImprove = evt.AbilityImprove
         };
         
         await mediator.Send(request, context.CancellationToken);

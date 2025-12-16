@@ -113,7 +113,7 @@ public class TestService : ITestService
                     {
                         QuestionId = Guid.NewGuid(),
                         QuestionText = q.QuestionText,
-                        QuestionType = q.QuestionType,
+                        QuestionType = (short) q.QuestionType,
                         DifficultyLevel = q.DifficultyLevel,
                         Answers = q.Answers.Select(a => new Answer
                         {
