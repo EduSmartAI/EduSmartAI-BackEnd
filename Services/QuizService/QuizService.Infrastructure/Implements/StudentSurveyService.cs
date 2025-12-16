@@ -198,7 +198,6 @@ public class StudentSurveyService : IStudentSurveyService
 
                 var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
                 {
-                    QuestionId = question.QuestionId,
                     QuestionText = question.QuestionText,
                     StudentAnswers = question.Answers
                         .Where(a => selectedAnswerIds.Contains(a.AnswerId))
@@ -228,7 +227,6 @@ public class StudentSurveyService : IStudentSurveyService
             #endregion
             
             #region 3.4. Create Learning Path (if not taking test)
-            
             if (!request.IsWantToTakeTest)
             {
                 #region 3.4.1. Get Student Transcript and Process Course Improvement Requests
@@ -422,7 +420,10 @@ public class StudentSurveyService : IStudentSurveyService
                     LevelReason = levelReason,
                     IsSkipTest = true,
                     LimitTime = limitTime,
-                    EvaluationAndImprove = evaluationAndImprove
+                    EvaluationAndImprove = evaluationAndImprove,
+                    StudentSurveyIds = studentQuizCollections.Select(sq => sq.StudentQuizId).ToList(),
+                    StudentTestId = null,
+                    PracticeSubmissionIds = null,
                 };
                 
                 var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
@@ -483,7 +484,9 @@ public class StudentSurveyService : IStudentSurveyService
                         SubjectCode = x.SubjectCode,
                         Status = x.Status,
                         Mark = x.Grade
-                    }).ToList()
+                    }).ToList(),
+                    // Survey thì không có bài test nên null
+                    AbilityImprove = null
                 };
 
                 var learningPathInsertResult = await _learningPathService.CreateLearningPathAsync(learningPathCreateRequest, cancellationToken);
@@ -495,59 +498,7 @@ public class StudentSurveyService : IStudentSurveyService
                 }
                 
                 #endregion
-                
-                #region 3.4.6. Create AI Recommendation Improvement Event
-                
-                // var aiRecommendImprovementEvent = new AiRecommendImprovementEvent
-                // {
-                //     CareerGoal = learningGoalName,
-                //     MajorCode = majorCodeSelectEventResponse.Message.Response.Major!.MajorCode,
-                //     AbilityMarks = null,
-                //     SubjectMarks = studentTranscripts
-                //         .Where(x =>
-                //             x.Status == ConstantEnum.StudentTranscriptStatus.NotPassed.GetDescription() ||
-                //             (x.Status == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() &&
-                //              subjectCodesForEvaluation.Contains(x.SubjectCode))
-                //         )
-                //         .Select(x => new SubjectMarkEvent
-                //         {
-                //             SubjectCode = x.SubjectCode,
-                //             SubjectName = x.SubjectName,
-                //             Mark = x.Grade
-                //         })
-                //         .ToList(),
-                //     QuizSurveyEvent = new QuizSurveyEvent
-                //     {
-                //         QuizInterests = surveyInterest?.StudentQuizAnswers
-                //             .Select(qa => new QuizInterestEvent
-                //             {
-                //                 Question = qa.Question?.QuestionText ?? string.Empty,
-                //                 Answer = qa.Answer?.AnswerText ?? string.Empty
-                //             })
-                //             .ToList() ?? new List<QuizInterestEvent>(),
-                //         QuizHabits = surveyHabit.StudentQuizAnswers
-                //             .Select(qa => new QuizHabitEvent
-                //             {
-                //                 Question = qa.Question?.QuestionText ?? string.Empty,
-                //                 Answer = qa.Answer?.AnswerText ?? string.Empty
-                //             })
-                //             .ToList()
-                //     },
-                //     LearningPathId = learningPathId,
-                //     Email = currentUser.Email,
-                // };
-                //
-                // outboxMessages.Add(new OutboxMessage
-                // {
-                //     Id = Guid.NewGuid(),
-                //     Type = nameof(AiRecommendImprovementEvent),
-                //     Content = JsonSerializer.Serialize(aiRecommendImprovementEvent),
-                //     OccurredOnUtc = DateTime.UtcNow,
-                // });
-                
                 response.Response = learningPathId;
-                
-                #endregion
             }
             
             #endregion

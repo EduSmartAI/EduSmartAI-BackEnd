@@ -105,15 +105,47 @@ public class AdminStudentTestsSelectQueryHandler : IQueryHandler<AdminStudentTes
         if (test == null) return 0;
 
         var quizzes = test.Quizzes?.ToList() ?? new List<QuizCollection>();
-        var answeredQuestionIds = studentTest.StudentAnswers.Select(sa => sa.QuestionId).Distinct().ToHashSet();
-
-        return quizzes
-            .SelectMany(q => q.Questions)
-            .Where(q => answeredQuestionIds.Contains(q.QuestionId))
-            .Count(q => studentTest.StudentAnswers.Any(sa =>
-                sa.QuestionId == q.QuestionId &&
-                q.Answers.Any(a => a.AnswerId == sa.AnswerId && a.IsCorrect)
-            ));
+        var allQuestions = quizzes.SelectMany(q => q.Questions).ToList();
+        var correctCount = 0;
+        
+        foreach (var question in allQuestions)
+        {
+            // Get student's selected answers for this question
+            var studentSelectedAnswerIds = studentTest.StudentAnswers
+                .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId.HasValue)
+                .Select(sa => sa.AnswerId!.Value)
+                .ToHashSet();
+            
+            // Skip if student didn't answer this question
+            if (!studentSelectedAnswerIds.Any()) continue;
+            
+            // Get all correct answer IDs for this question
+            var correctAnswerIds = question.Answers
+                .Where(a => a.IsCorrect)
+                .Select(a => a.AnswerId)
+                .ToHashSet();
+            
+            bool isCorrect;
+            
+            // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+            if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+            {
+                isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
+                            && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
+            }
+            else
+            {
+                // For SingleChoice/TrueFalse: just check if selected answer is correct
+                isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
+            }
+            
+            if (isCorrect)
+            {
+                correctCount++;
+            }
+        }
+        
+        return correctCount;
     }
 
     private int DetermineStudentLevel(StudentTestCollection studentTest, TestCollection? test)
@@ -145,8 +177,19 @@ public class AdminStudentTestsSelectQueryHandler : IQueryHandler<AdminStudentTes
                     .Select(a => a.AnswerId)
                     .ToHashSet();
 
-                bool isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count &&
-                                 studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                bool isCorrect;
+                
+                // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+                if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+                {
+                    isCorrect = studentAnswersForQuestion.Count == correctAnswerIds.Count &&
+                                studentAnswersForQuestion.All(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                }
+                else
+                {
+                    // For SingleChoice/TrueFalse: just check if selected answer is correct
+                    isCorrect = studentAnswersForQuestion.Any(id => correctAnswerIds.Contains(id ?? Guid.Empty));
+                }
 
                 if (isCorrect) performance.correct++;
                 performance.total++;

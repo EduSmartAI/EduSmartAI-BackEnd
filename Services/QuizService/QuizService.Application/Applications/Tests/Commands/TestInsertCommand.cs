@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 
 namespace QuizService.Application.Applications.Tests.Commands;
@@ -38,7 +39,7 @@ public record Questions
     [Required(ErrorMessage = "DifficultyLevel is required")]
     public short DifficultyLevel { get; set; }
     
-    public short QuestionType { get; set; }
+    public ConstantEnum.QuestionType  QuestionType { get; set; }
     
     public string? Explanation { get; set; }
     

@@ -163,7 +163,8 @@ public class LearningPathService : ILearningPathService
                 {
                     MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
                     MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
-                }
+                },
+                AbilityImprove = null
             };
 
             context.InformationResponse.LearningGoalName = request.LearningGoalName;
@@ -215,7 +216,6 @@ public class LearningPathService : ILearningPathService
 
             var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
             {
-                QuestionId = question.QuestionId,
                 QuestionText = question.QuestionText,
                 StudentAnswers = question.Answers
                     .Where(a => selectedAnswerIds.Contains(a.AnswerId))
@@ -319,6 +319,11 @@ public class LearningPathService : ILearningPathService
             {
                 SubjectCode = x.SubjectCode,
                 Status = x.Status,
+                Mark = x.Mark
+            }).ToList(),
+            AbilityImprove = context.AbilityImprove?.Select(x => new AbilityImproveEvent
+            {
+                Name = x.Name,
                 Mark = x.Mark
             }).ToList()
         };

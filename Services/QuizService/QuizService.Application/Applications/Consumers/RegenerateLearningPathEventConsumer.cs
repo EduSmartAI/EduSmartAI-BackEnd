@@ -8,6 +8,7 @@ using MassTransit;
 using QuizService.Application.Applications.LearningPaths;
 using QuizService.Application.Interfaces;
 using QuizService.Domain.ReadModels;
+using AbilityImprove = QuizService.Application.Applications.LearningPaths.AbilityImprove;
 using IdentityEntity = BaseService.Application.Interfaces.IdentityHepers.IdentityEntity;
 
 namespace QuizService.Application.Applications.Consumers;
@@ -101,7 +102,6 @@ public class RegenerateLearningPathEventConsumer : IConsumer<RegenerateLearningP
 
             var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
             {
-                QuestionId = question.QuestionId,
                 QuestionText = question.QuestionText,
                 StudentAnswers = question.Answers
                     .Where(a => selectedAnswerIds.Contains(a.AnswerId))
@@ -136,7 +136,10 @@ public class RegenerateLearningPathEventConsumer : IConsumer<RegenerateLearningP
             LevelReason = evt.LevelReason,
             IsSkipTest = false,
             LimitTime = evt.LimitTime,
-            EvaluationAndImprove = evt.EvaluationAndImprove
+            EvaluationAndImprove = evt.EvaluationAndImprove,
+            StudentTestId = evt.StudentTestId,
+            StudentSurveyIds = evt.StudentSurveyIds,
+            PracticeSubmissionIds = evt.PracticeSubmissionIds,
         };
         var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent);
         if (!learningPathResponse.Message.Success)
@@ -181,10 +184,48 @@ public class RegenerateLearningPathEventConsumer : IConsumer<RegenerateLearningP
                     if (!quizAnswers.Any())
                         continue;
                     
-                    // Calculate score for this quiz
-                    var correctAnswers = quizAnswers.Count(sa => sa.Answer?.IsCorrect == true);
-                    var totalQuestions = quizAnswers.Count;
-                    var abilityScore = totalQuestions > 0 ? (double) correctAnswers / totalQuestions * 100 : 0;
+                    // Calculate score for this quiz with proper logic for MultipleChoice
+                    var correctCount = 0;
+                    var totalQuestions = quiz.Questions.Count;
+                    
+                    foreach (var question in quiz.Questions)
+                    {
+                        // Get student's selected answers for this question
+                        var studentSelectedAnswerIds = quizAnswers
+                            .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId.HasValue)
+                            .Select(sa => sa.AnswerId!.Value)
+                            .ToHashSet();
+                        
+                        // Skip if student didn't answer this question
+                        if (!studentSelectedAnswerIds.Any()) continue;
+                        
+                        // Get all correct answer IDs for this question
+                        var correctAnswerIds = question.Answers
+                            .Where(a => a.IsCorrect)
+                            .Select(a => a.AnswerId)
+                            .ToHashSet();
+                        
+                        bool isCorrect;
+                        
+                        // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+                        if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+                        {
+                            isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
+                                        && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
+                        }
+                        else
+                        {
+                            // For SingleChoice/TrueFalse: just check if selected answer is correct
+                            isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
+                        }
+                        
+                        if (isCorrect)
+                        {
+                            correctCount++;
+                        }
+                    }
+                    
+                    var abilityScore = totalQuestions > 0 ? (double) correctCount / totalQuestions * 100 : 0;
                     
                     // Add ability mark with SubjectCodeName as the name
                     abilityMarks.Add(new AbilityMarkContext
@@ -231,7 +272,12 @@ public class RegenerateLearningPathEventConsumer : IConsumer<RegenerateLearningP
             CourseImprove = courseImproves,
             SubjectMarks = subjectMarks,
             StudentPassedSubjects = evt.StudentPassedSubjects,
-            StudentTranscripts = studentTranscripts
+            StudentTranscripts = studentTranscripts,
+            AbilityImprove = evt.AbilityImprove?.Select(x => new AbilityImprove
+            {
+                Name = x.Name,
+                Mark = x.Mark
+            }).ToList()
         };
         // Generate learning path details
         await _learningPathService.CreateLearningPathAsync(learningPathCreationContext, cancellationToken: CancellationToken.None);

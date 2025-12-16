@@ -19,6 +19,12 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent
         
         public required string? EvaluationAndImprove { get; init; }
         
+        public required List<Guid> StudentSurveyIds { get; set; }
+        
+        public required Guid? StudentTestId { get; set; }
+    
+        public required List<Guid>? PracticeSubmissionIds { get; set; }
+        
         public List<InsertLearningPathMajor> Majors { get; init; } = null!;
     }
 

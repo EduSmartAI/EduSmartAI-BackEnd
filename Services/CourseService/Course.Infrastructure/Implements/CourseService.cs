@@ -1253,6 +1253,85 @@ namespace Course.Infrastructure.Implements
                     .ToList();
             }
 
+            // 4.1. Add courses based on AbilityMarks (if provided)
+            // Logic: If AbilityMarks Name contains SubjectCode and Mark < 60 → Level 1, 60-70 → Level 2
+            if (request.AbilityImprove != null && request.AbilityImprove.Any())
+            {
+                // Get all subject codes from existing courses
+                var allSubjectCodes = await _courseRepository
+                    .Find(c => c.IsActive)
+                    .Select(c => c.Subject.SubjectCode)
+                    .Distinct()
+                    .ToListAsync(cancellationToken: ct);
+
+                // Find matching AbilityMarks where Name contains a SubjectCode
+                var abilityMarkSubjectLevels = new List<(string SubjectCode, short Level)>();
+                
+                foreach (var abilityMark in request.AbilityImprove)
+                {
+                    // Find SubjectCode that is contained in the AbilityMark Name
+                    var matchedSubjectCode = allSubjectCodes
+                        .FirstOrDefault(sc => abilityMark.Name.Contains(sc, StringComparison.OrdinalIgnoreCase));
+                    
+                    if (matchedSubjectCode != null)
+                    {
+                        short level;
+                        if (abilityMark.Mark < 60)
+                        {
+                            level = 1; // Beginner
+                        }
+                        else if (abilityMark.Mark < 70)
+                        {
+                            level = 2; // Intermediate
+                        }
+                        else
+                        {
+                            continue; // Mark >= 70, skip (no need to add course for improvement)
+                        }
+                        
+                        abilityMarkSubjectLevels.Add((matchedSubjectCode, level));
+                    }
+                }
+
+                if (abilityMarkSubjectLevels.Any())
+                {
+                    var abilityMarkSubjectCodes = abilityMarkSubjectLevels.Select(x => x.SubjectCode).Distinct().ToList();
+                    var abilityMarkLevels = abilityMarkSubjectLevels.Select(x => (int)x.Level).Distinct().ToList();
+
+                    // Get courses matching AbilityMarks subject codes and levels
+                    var abilityMarkCoursesData = await _courseRepository
+                        .Find(c =>
+                            abilityMarkSubjectCodes.Contains(c.Subject.SubjectCode) &&
+                            c.IsActive &&
+                            c.Level.HasValue && abilityMarkLevels.Contains(c.Level.Value),
+                            includes: c => c.Subject)
+                        .Select(c => new
+                        {
+                            c.CourseId,
+                            SubjectCode = c.Subject.SubjectCode,
+                            c.Level,
+                            MajorCodes = c.Subject.SyllabusSubjects
+                                .Select(ss => ss.Syllabus.Major.MajorCode)
+                                .Distinct()
+                                .ToList()
+                        })
+                        .ToListAsync(cancellationToken: ct);
+
+                    // Filter to only include courses with matching SubjectCode and Level from AbilityMarks
+                    var filteredAbilityMarkCourses = abilityMarkCoursesData
+                        .Where(c => c.Level.HasValue && abilityMarkSubjectLevels.Any(am =>
+                            am.SubjectCode == c.SubjectCode && am.Level == c.Level.Value))
+                        .ToList();
+
+                    // Merge with existing coursesData
+                    coursesData = coursesData
+                        .Concat(filteredAbilityMarkCourses)
+                        .GroupBy(c => new { c.CourseId, c.SubjectCode, c.Level })
+                        .Select(g => g.First())
+                        .ToList();
+                }
+            }
+
             // 5. Filter out passed subjects EXCEPT those in CourseImproves (student wants to retake them)
             if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
             {

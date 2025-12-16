@@ -25,6 +25,9 @@ public class LearningPathCollection
     public bool IsSkipTest { get; set; }
     public int LimitTime { get; set; }
     public string? EvaluationAndImprove { get; set; }
+    
+    public StudentQuizSubmission? StudentQuizSubmission { get; set; }
+
     public List<LearningPathMajorCollection> LearningPathMajors { get; set; } = new();
 
     public static LearningPathCollection FromWriteModel(LearningPath model)
@@ -59,4 +62,24 @@ public class LearningPathCollection
             EvaluationAndImprove = model.EvaluationAndImprove
         };
     }
+}
+
+public class StudentQuizSubmission
+{
+    public Guid? PlacementTestSubmissionId { get; set; } 
+    
+    public List<StudentPracticeTestSubmission>? StudentPracticeTestSubmissions { get; set; }
+
+
+    public List<StudentSurveySubmission> StudentSurveySubmissions { get; set; } = null!;
+}
+
+public class StudentSurveySubmission
+{
+    public Guid StudentSurveyId { get; set; }
+}
+
+public class StudentPracticeTestSubmission
+{
+    public Guid PracticeTestSubmissionId { get; set; }
 }

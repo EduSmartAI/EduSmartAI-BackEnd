@@ -27,7 +27,8 @@ namespace AiService.Application.Features.AiEvaluate
         public List<StudentAbilityMarkRequest>? AbilityMarks { get; set; }
         public StudentQuizSurveyRequest? QuizSurvey { get; set; }
         
-        public List<StudentTranscrptEvent>? StudentTranscrpts { get; set; } 
+        public List<StudentTranscrptEvent>? StudentTranscrpts { get; set; }
+        public required List<AbilityImproveEvent>? AbilityImprove { get; set; }
     }
     
     public class StudentSubjectMarkRequest

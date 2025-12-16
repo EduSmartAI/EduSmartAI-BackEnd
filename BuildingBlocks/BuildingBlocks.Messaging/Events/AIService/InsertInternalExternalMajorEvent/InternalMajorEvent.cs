@@ -13,6 +13,7 @@ namespace BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorE
         StudentMajor StudentMajor,
         List<string>? StudentPassedSubjects,
         List<CourseImprove>? CourseImproves,
+        List<AbilityImproveEvent>? AbilityImproves,
         List<StudentTranscrptEvent>? StudentTranscriptSelectEvent,
         string? CareerGoal = null,
         List<SubjectMarkForAI>? SubjectMarks = null,
