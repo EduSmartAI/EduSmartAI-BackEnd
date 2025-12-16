@@ -1951,6 +1951,8 @@ public class LearningPathService : ILearningPathService
             foreach (var pathId in affectedPathIds)
             {
                 await CheckAndUpdateLearningPathStatusAsync(pathId, cancellationToken);
+                // Đồng bộ read model để cập nhật collection courses
+                await SyncLearningPathReadModelByIdAsync(pathId, userId, cancellationToken);
             }
 
             return true;

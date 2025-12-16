@@ -1651,11 +1651,47 @@ namespace AiService.Infrastructure.Implements
             var strongAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark >= 8.0).Select(a => a.Name).ToList() : new List<string>();
             var weakAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark < 6.5).Select(a => a.Name).ToList() : new List<string>();
 
+            var interests = quizSurvey?.QuizInterests ?? new List<QuizInterest>();
+            var habits = quizSurvey?.QuizHabits ?? new List<QuizHabit>();
+
             var summaryBuilder = new StringBuilder();
             summaryBuilder.AppendLine("## Tổng quan");
-            if (subjectMarks.Count == 0)
+            if (scoredSubjects.Count == 0)
             {
-                summaryBuilder.AppendLine("- Chưa có dữ liệu môn học để tổng hợp. Cập nhật bảng điểm để AI đưa ra đánh giá chính xác hơn.");
+                // Không có điểm môn học, đánh giá dựa trên abilityMarks và quizSurvey
+                if (abilityMarks != null && abilityMarks.Count > 0)
+                {
+                    summaryBuilder.AppendLine($"- Đánh giá dựa trên năng lực hiện tại: điểm trung bình {avgAbility:F1}/10.");
+                    if (strongAbilities.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Thế mạnh nổi bật: {string.Join(", ", strongAbilities.Take(2))}.");
+                    }
+                    if (weakAbilities.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Cần củng cố: {string.Join(", ", weakAbilities.Take(2))}.");
+                    }
+                }
+                else
+                {
+                    summaryBuilder.AppendLine("- Chưa có dữ liệu điểm môn học hoặc năng lực để đánh giá tổng quan.");
+                }
+                
+                if (habits.Count > 0 || interests.Count > 0)
+                {
+                    if (habits.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Thói quen học tập: {habits[0].Answer}.");
+                    }
+                    if (interests.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Sở thích học tập: {interests[0].Answer}.");
+                    }
+                }
+                
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    summaryBuilder.AppendLine($"- Mục tiêu nghề nghiệp: {careerGoal}. Xây dựng lộ trình học tập phù hợp với mục tiêu này.");
+                }
             }
             else
             {
@@ -1674,9 +1710,6 @@ namespace AiService.Infrastructure.Implements
                 }
             }
             summaryBuilder.AppendLine("- Hành động: đặt checklist môn ưu tiên và cập nhật tiến độ mỗi tuần.");
-
-            var interests = quizSurvey.QuizInterests ?? new List<QuizInterest>();
-            var habits = quizSurvey.QuizHabits ?? new List<QuizHabit>();
 
             var habitBuilder = new StringBuilder();
             habitBuilder.AppendLine("## Thói quen & Sở thích");
@@ -1704,13 +1737,32 @@ namespace AiService.Infrastructure.Implements
 
             var personalityBuilder = new StringBuilder();
             personalityBuilder.AppendLine("## Phong cách học tập");
-            personalityBuilder.Append("- Người học cho thấy phong cách ");
-            personalityBuilder.Append(avgSubject >= 7.5 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
-            if (habits.Count > 0)
+            
+            // Xác định phong cách dựa trên dữ liệu có sẵn
+            double baseScore = scoredSubjects.Count > 0 ? avgSubject : (abilityMarks != null && abilityMarks.Count > 0 ? avgAbility : 0);
+            
+            if (scoredSubjects.Count == 0 && (abilityMarks == null || abilityMarks.Count == 0))
             {
-                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].Answer}\"");
+                // Không có dữ liệu điểm, dựa vào quizSurvey
+                if (habits.Count > 0)
+                {
+                    personalityBuilder.AppendLine($"- Phong cách học tập được phản ánh qua thói quen: \"{habits[0].Answer}\".");
+                }
+                else
+                {
+                    personalityBuilder.AppendLine("- Chưa có đủ dữ liệu để đánh giá phong cách học tập. Hoàn thành khảo sát để có đánh giá chính xác hơn.");
+                }
             }
-            personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
+            else
+            {
+                personalityBuilder.Append("- Người học cho thấy phong cách ");
+                personalityBuilder.Append(baseScore >= 7.5 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
+                if (habits.Count > 0)
+                {
+                    personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].Answer}\"");
+                }
+                personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
+            }
             personalityBuilder.AppendLine("- Hành động: sau mỗi tuần, tự đánh giá điểm tập trung và điều chỉnh phương pháp cho tuần kế tiếp.");
 
             var learningAbilityBuilder = new StringBuilder();
