@@ -388,9 +388,13 @@ DỮ LIỆU TỔNG HỢP:
 
 NHIỆM VỤ:
 - Viết 4 đoạn mô tả bằng tiếng Việt, mỗi đoạn bắt đầu bằng tiêu đề `##` và kết thúc bằng gợi ý hành động cụ thể (ưu tiên tầm 2–4 tuần).
+- **QUAN TRỌNG**: Nếu `subjectMarks` rỗng hoặc không có điểm nào (tất cả `mark` đều null):
+  - Phân tích dựa trên **`abilityMarks`** (nếu có) và **`survey`** (quizHabits, quizInterests) để đánh giá tổng quan.
+  - Trong `summaryFeedback`: Tập trung vào năng lực hiện tại từ `abilityMarks`, thói quen học từ `quizHabits`, và sở thích từ `quizInterests`. Không nhắc đến điểm môn học vì chưa có dữ liệu.
+  - Trong `learningAbility`: Đánh giá dựa trên điểm trung bình `abilityMarks` và đưa ra lộ trình phù hợp với `careerGoal`.
 - Nếu `abilityMarks` null/rỗng: Đây là sinh viên kỳ 5+ đã có bảng điểm đầy đủ. Phân tích dựa trên **kết quả môn học thực tế** thay vì năng lực cơ bản. 
   Trong `learningAbility`, nhấn mạnh rằng sinh viên đã vượt qua giai đoạn đánh giá cơ bản, nên tập trung vào chuyên môn sâu và dự án thực tế.
-- Nếu có `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
+- Nếu có cả `subjectMarks` và `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
 - Nhấn mạnh các môn/khả năng nổi bật và liệt kê tối đa 2 ưu tiên cải thiện rõ ràng, đo được để tiến gần `careerGoal`.
 
 OUTPUT JSON:
