@@ -687,7 +687,7 @@ public class StudentService : IStudentService
                     x => x.StudentTechnologies,
                     x => x.StudentLearningGoals);
             
-            var studentCollection = new StudentCollection();
+            var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId && x.IsActive);
             
             // Publish event to CourseService to get semester name and major name
             if (request.SemesterId != null || request.MajorId != null)
@@ -711,34 +711,46 @@ public class StudentService : IStudentService
                 }
             }
             
-            // Map student to student collection
-            studentCollection = StudentCollection.FromWriteModel(studentExist);
-            
-            // Map Technologies to StudentTechnologyCollection
-            studentCollection.Technologies = updatedStudent!.StudentTechnologies
-                .Where(st => st.IsActive)
-                .Select(st =>
-                {
-                    var tech = technologiesExist.FirstOrDefault(t => t.TechnologyId == st.TechnologyId);
-                    return StudentTechnologyCollection.FromWriteModel(st, tech);
-                }).ToList();
-            
-            // Map LearningGoals to StudentLearningGoalCollection
-            studentCollection.LearningGoals = updatedStudent.StudentLearningGoals
-                .Where(slg => slg.IsActive)
-                .Select(slg =>
-                {
-                    var goal = learningGoalsExist.FirstOrDefault(lg => lg.GoalId == slg.GoalId);
-                    return StudentLearningGoalCollection.FromWriteModel(slg, goal);
-                }).ToList();
-            
-            // Publish event to store collection
-            var studentCollectionEvent = new StudentCollectionEvent
+            // Map updatedStudent to studentCollection manually
+            if (studentCollection != null)
             {
-                Student = studentCollection
-            };
-            
-            _unitOfWork.Store(studentCollectionEvent.Student);
+                studentCollection.StudentId = updatedStudent!.StudentId;
+                studentCollection.FirstName = updatedStudent.FirstName;
+                studentCollection.LastName = updatedStudent.LastName;
+                studentCollection.DateOfBirth = updatedStudent.DateOfBirth;
+                studentCollection.PhoneNumber = updatedStudent.PhoneNumber;
+                studentCollection.Gender = updatedStudent.Gender;
+                studentCollection.AvatarUrl = updatedStudent.AvatarUrl;
+                studentCollection.Address = updatedStudent.Address;
+                studentCollection.MajorId = updatedStudent.MajorId;
+                studentCollection.SemesterId = updatedStudent.SemesterId;
+                studentCollection.Bio = updatedStudent.Bio;
+                studentCollection.CreatedAt = updatedStudent.CreatedAt;
+                studentCollection.UpdatedAt = updatedStudent.UpdatedAt;
+                studentCollection.CreatedBy = updatedStudent.CreatedBy;
+                studentCollection.UpdatedBy = updatedStudent.UpdatedBy;
+                studentCollection.IsActive = updatedStudent.IsActive;
+                
+                // Map Technologies to StudentTechnologyCollection
+                studentCollection.Technologies = updatedStudent.StudentTechnologies
+                    .Where(st => st.IsActive)
+                    .Select(st =>
+                    {
+                        var tech = technologiesExist.FirstOrDefault(t => t.TechnologyId == st.TechnologyId);
+                        return StudentTechnologyCollection.FromWriteModel(st, tech);
+                    }).ToList();
+                
+                // Map LearningGoals to StudentLearningGoalCollection
+                studentCollection.LearningGoals = updatedStudent.StudentLearningGoals
+                    .Where(slg => slg.IsActive)
+                    .Select(slg =>
+                    {
+                        var goal = learningGoalsExist.FirstOrDefault(lg => lg.GoalId == slg.GoalId);
+                        return StudentLearningGoalCollection.FromWriteModel(slg, goal);
+                    }).ToList();
+                
+                _unitOfWork.Store(studentCollection);
+            }
             await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
