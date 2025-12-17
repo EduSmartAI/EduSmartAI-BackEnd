@@ -738,16 +738,9 @@ public class StudentService : IStudentService
                 Student = studentCollection
             };
             
-            var outboxMessage = new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                Type = nameof(StudentCollectionEvent),
-                Content = JsonSerializer.Serialize(studentCollectionEvent),
-                OccurredOnUtc =  DateTime.UtcNow,
-            };
-
             await _unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(currentUser.UserId));
-            await _outboxService.AddAsync(outboxMessage);
+            _unitOfWork.Store(studentCollectionEvent.Student);
+            await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
             // True
