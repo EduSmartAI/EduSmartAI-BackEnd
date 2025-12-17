@@ -20,6 +20,28 @@ public class StudentController(IIdentityService identityService, IMediator media
     private readonly IdentityEntity _identityEntity;
 
     /// <summary>
+    /// Update student semester
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPatch("[action]")]
+    [Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(Summary = "Cập nhật thông tin học kỳ của học sinh", Description = "Cần cấp quyền Student")]
+    public async Task<StudentSemesterUpdateCommandResponse> UpdateStudentSemester([FromBody] StudentSemesterUpdateCommand request)
+    {
+        return await ApiControllerHelper.HandleRequest<StudentSemesterUpdateCommand, StudentSemesterUpdateCommandResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await mediator.Send(request),
+            identityService,
+            _identityEntity,
+            httpContextAccessor,
+            new StudentSemesterUpdateCommandResponse()
+        );
+    }
+    
+    /// <summary>
     /// Update student profile
     /// </summary>
     /// <param name="request"></param>
