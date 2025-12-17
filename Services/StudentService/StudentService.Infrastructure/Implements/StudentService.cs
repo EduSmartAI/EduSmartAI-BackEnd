@@ -738,7 +738,6 @@ public class StudentService : IStudentService
                 Student = studentCollection
             };
             
-            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(currentUser.UserId));
             _unitOfWork.Store(studentCollectionEvent.Student);
             await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
@@ -769,17 +768,8 @@ public class StudentService : IStudentService
             return response;
         }
 
-        var cacheKey = CacheKey.StudentProfile(currentUser.UserId);
-
         // Get student collection with all related data
-        var studentCollection = await _studentQueryRepository.GetOrSetAsync(
-            cacheKey,
-            async () =>
-            {
-                return await _studentQueryRepository.FirstOrDefaultAsync(x =>
-                    x.StudentId == currentUser.UserId && x.IsActive);
-            },
-            TimeSpan.FromMinutes(5));
+        var studentCollection = await  _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId && x.IsActive);
         if (studentCollection == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin sinh viên");
