@@ -45,7 +45,7 @@ public class StudentSemesterUpdateCommandHandler : ICommandHandler<StudentSemest
             response.SetMessage(MessageId.E00000, responseMajorAndSemester.Message.Message);
             return response;
         }
-        var majorName = responseMajorAndSemester.Message.Response.Major?.MajorName;
+        var semesterName = responseMajorAndSemester.Message.Response.Semester!.SemesterName;
 
         // Begin transaction
         await _unitOfWork.BeginTransactionAsync(async () =>
@@ -56,12 +56,16 @@ public class StudentSemesterUpdateCommandHandler : ICommandHandler<StudentSemest
                 .FirstOrDefaultAsync(x => x.StudentId == student.StudentId && x.IsActive);
             
             studentCollection!.SemesterId = request.SemesterId;
-            studentCollection.SemesterName = majorName;
+            studentCollection.SemesterName = semesterName;
             
             _studentRepository.Update(student);
             _unitOfWork.Store(studentCollection);
             await _unitOfWork.SaveChangesAsync(_identityService.GetCurrentUser()!.Email, cancellationToken);
             await _unitOfWork.SessionSaveChangesAsync();
+            
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Cập nhật kỳ học");
             return true;
         }, cancellationToken);
         

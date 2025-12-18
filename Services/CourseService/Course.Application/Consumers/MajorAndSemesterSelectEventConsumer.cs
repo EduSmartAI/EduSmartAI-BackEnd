@@ -53,6 +53,7 @@ public class MajorAndSemesterSelectEventConsumer(ICommandRepository<Semester> se
                 SemesterNumber = semesterSelect.SemesterNumber
             };
             response.Response.Semester = semesterSelectEntity;
+            response.Success = true;
         }
         await context.RespondAsync(response);
     }
