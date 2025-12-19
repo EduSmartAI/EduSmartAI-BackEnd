@@ -79,7 +79,7 @@ namespace Course.API.Controllers
 		[HttpPost("[action]")]
 		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
 		[SwaggerOperation(
-			Summary = "Tạo mới chương trình đào tạo cho chuyên ngành - FE không dùng API này",
+			Summary = "Tạo mới chương trình đào tạo cho chuyên ngành",
 			Description = "Tạo mới chương trình đào tạo cho chuyên ngành. Cần xác thực Bearer."
 		)]
 		public async Task<CreateFullSyllabusResponse> CreateFullSyllabusForMajor([FromBody] CreateFullSyllabusCommand cmd)
@@ -134,7 +134,7 @@ namespace Course.API.Controllers
 			Summary = "Clone chương trình đào tạo nền tảng kèm theo các môn học",
 			Description = "Clone chương trình đào tạo nền tảng kèm theo các môn học. Cần xác thực Bearer."
 		)]
-		public async Task<CloneCascadeSyllabusResponse> CloneFoundationSyllabus([FromBody] CloneCascadeSyllabusCommand cmd)
+		public async Task<CloneCascadeSyllabusResponse> CloneCascadeSyllabus([FromBody] CloneCascadeSyllabusCommand cmd)
 		{
 			return await ApiControllerHelper.HandleRequest<CloneCascadeSyllabusCommand, CloneCascadeSyllabusResponse, bool>(
 				cmd,

@@ -87,6 +87,17 @@ namespace Course.Infrastructure.Implements
 			var response = new CloneCascadeSyllabusResponse { Success = false };
 			var email = _identityService.GetCurrentUser()!.Email;
 
+			// Check Syllabus version existed
+			var syllabusExisted = await _syllabusCommandRepository.FirstOrDefaultAsync(
+				x => x.VersionLabel == dto.NewVersion &&
+					 x.Major.MajorCode == dto.MajorCode, ct);
+
+			if (syllabusExisted != null)
+			{
+				response.SetMessage(MessageId.E00000, $"Chương trình đào tạo cho chuyên ngành {dto.MajorCode} của khoá {dto.NewVersion} đã tồn tại.");
+				return response;
+			}
+
 			// 1) Lấy syllabus gốc (base version)
 			var baseSl = await _syllabusCommandRepository.FirstOrDefaultAsync(
 				x => x.VersionLabel == dto.BaseVersion &&
@@ -175,10 +186,21 @@ namespace Course.Infrastructure.Implements
 			var response = new CloneFoundationSyllabusResponse { Success = false };
 			var email = _identityService.GetCurrentUser()!.Email;
 
+			// Check Syllabus version existed
+			var existedFoundationSyllabus = await _syllabusCommandRepository.FirstOrDefaultAsync(
+				x => x.VersionLabel == dto.NewVersion &&
+					 x.Major.MajorCode == "SE", ct);
+
+			if (existedFoundationSyllabus != null)
+			{
+				response.SetMessage(MessageId.E00000, $"Chương trình đào tạo nền tảng (SE) cho khoá {dto.NewVersion} đã tồn tại.");
+				return response;
+			}
+
 			// 1) Lấy SE foundation version
 			var seSl = await _syllabusCommandRepository.FirstOrDefaultAsync(
-				x => x.VersionLabel == dto.BaseVersion &&
-					 x.Major.MajorCode == "SE", ct);
+			x => x.VersionLabel == dto.BaseVersion &&
+				 x.Major.MajorCode == "SE", ct);
 
 			if (seSl == null)
 			{
@@ -205,7 +227,7 @@ namespace Course.Infrastructure.Implements
 				// Copy foundation only (S1–S4)
 				var foundationSem = await _syllabusSemesterCommandRepository
 												.Find(x => x.SyllabusId == seSl.SyllabusId, false, ct,
-													x => x.Semester) 
+													x => x.Semester)
 												.ToListAsync(ct);
 
 

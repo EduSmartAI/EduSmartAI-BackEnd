@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Course.Application.Wishlists.Commands.RemoveFromWishlist
+﻿namespace Course.Application.Wishlists.Commands.RemoveFromWishlist
 {
 	public sealed class RemoveFromWishlistHandler(IWishlistService _wishlistService) : ICommandHandler<RemoveFromWishlistCommand, RemoveFromWishlistResponse>
 	{
