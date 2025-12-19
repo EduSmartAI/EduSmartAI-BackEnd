@@ -2431,8 +2431,9 @@ namespace Course.Infrastructure.Implements
                         VideoDurationSec = lessonDto.VideoDurationSec,
                         PositionIndex = lessonDto.PositionIndex,
                     });
-                }
-            }
+					// TODO: Create lesson transcript if needed
+				}
+			}
 
             // Add Discussions
             if (moduleDto.Discussions is { Count: > 0 })
@@ -2567,8 +2568,10 @@ namespace Course.Infrastructure.Implements
                         PositionIndex = lessonDto.PositionIndex,
                     };
                     module.Lessons.Add(newLesson);
-                }
-            }
+
+					// TODO: Create lesson transcript if needed
+				}
+			}
             return Task.CompletedTask;
         }
 
