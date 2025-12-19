@@ -121,7 +121,7 @@ public class SemesterService(ICommandRepository<Semester> _semesterCommandReposi
                 SemesterName = x.SemesterName,
                 SemesterNumber = x.SemesterNumber
             })
-            .OrderByDescending(x => x.SemesterNumber)
+            .OrderBy(x => x.SemesterNumber)
             .ToListAsync(cancellationToken: cancellationToken);
         if (!query.Any())
         {
