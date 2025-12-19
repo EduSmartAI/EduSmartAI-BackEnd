@@ -423,4 +423,19 @@ public static class ConstantEnum
         GetDetailTrainingPath = 2,
         SkipSubjectLearningPath = 3,
     }
+
+    public enum SubjectImprovementStatus
+    {
+        [Description("Đã đạt và đang cải thiện")]
+        PassedAndImproving = 1,
+        
+        [Description("Chưa đạt và đang cải thiện")]
+        NotPassedAndImproving = 2,
+        
+        [Description("Đang học và đang học cải thiện")]
+        StudyingAndImproving = 3,
+        
+        [Description("Chưa học trên FAP và đang học cải thiện")]
+        NotStartedAndImproving = 4
+    }
 }

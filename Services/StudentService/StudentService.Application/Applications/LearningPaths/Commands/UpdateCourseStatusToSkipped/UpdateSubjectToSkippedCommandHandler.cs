@@ -48,8 +48,6 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
         
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            
-
             var updatedCourseIds = new List<Guid>();
             foreach (var learningPath in learningPaths)
             {
@@ -60,16 +58,20 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
                     x.Type == (short) ConstantEnum.LearningPathMajor.Basic).ToList();
                 foreach (var learningPathMajor in learningPathMajors)
                 {
-                    var learningPathCoursesToSkip = learningPathMajor.LearningPathCourses
-                        .Where(c => c.IsActive && c.SubjectCode == request.SubjectCode)
-                        .ToList();
-                    foreach (var course in learningPathCoursesToSkip)
+                    // Loop through all SubjectCodes in the request
+                    foreach (var subjectCode in request.SubjectCode)
                     {
-                        if (course.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                        var learningPathCoursesToSkip = learningPathMajor.LearningPathCourses
+                            .Where(c => c.IsActive && c.SubjectCode == subjectCode)
+                            .ToList();
+                        foreach (var course in learningPathCoursesToSkip)
                         {
-                            course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
-                            updatedCourseIds.Add(course.LearningPathCourseId);
-                            _learningPathCourseCommandRepository.Update(course);
+                            if (course.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                            {
+                                course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                                updatedCourseIds.Add(course.LearningPathCourseId);
+                                _learningPathCourseCommandRepository.Update(course);
+                            }
                         }
                     }
                 }
@@ -107,14 +109,18 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
 
                 foreach (var major in learningPathMajors)
                 {
-                    var learningPathCoursesToSkip = major.LearningPathCourses
-                        .Where(c => c.IsActive && c.SubjectCode == request.SubjectCode)
-                        .ToList();
-                    foreach (var course in learningPathCoursesToSkip)
+                    // Loop through all SubjectCodes in the request
+                    foreach (var subjectCode in request.SubjectCode)
                     {
-                        if (updatedCourseIds.Contains(course.LearningPathCourseId))
+                        var learningPathCoursesToSkip = major.LearningPathCourses
+                            .Where(c => c.IsActive && c.SubjectCode == subjectCode)
+                            .ToList();
+                        foreach (var course in learningPathCoursesToSkip)
                         {
-                            course.Status = (short) ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            if (updatedCourseIds.Contains(course.LearningPathCourseId))
+                            {
+                                course.Status = (short) ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            }
                         }
                     }
                 }

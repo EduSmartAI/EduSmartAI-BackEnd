@@ -1,4 +1,6 @@
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
@@ -146,7 +148,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         if (existingEntity != null)
                         {
                             existingEntity.AnalysisMarkdown = subCode.AnalysisMarkdown;
-                            existingEntity.Status = subCode.Status;
+                            existingEntity.Status = MapToSubjectImprovementStatus(subCode.Status);
                             _learningPathSubjectCodeRepository.Update(existingEntity);
                             learningPathSubjectCodes.Add(existingEntity);
                         }
@@ -160,7 +162,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     LearningPathMajorId = learningPathMajorId,
                     SubjectCode = subCode.SubjectCode,
                     AnalysisMarkdown = subCode.AnalysisMarkdown,
-                    Status = subCode.Status
+                    Status = MapToSubjectImprovementStatus(subCode.Status)
                 };
                 learningPathSubjectCodes.Add(learningPathSubjectCode);
                 existingSubjectCodeSet.Add(compositeKey); // Add to set to prevent duplicate in same run
@@ -199,7 +201,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         LearningPathSubjectCodeId = subCode.LearningPathSubjectCodeId,
                         SubjectCode = subCode.SubjectCode,
                         AnalysisMarkdown = subCode.AnalysisMarkdown,
-                        Status = subCode.Status,
+                        Status = MapToSubjectImprovementStatus(subCode.Status),
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
                         CreatedBy = evt.Email,
@@ -261,5 +263,41 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         }
         
         await _unitOfWork.SaveChangesAsync(email, ct);
+    }
+    
+    private static string MapToSubjectImprovementStatus(string statusDescription)
+    {
+        // Try to match by StudentTranscriptStatus Description first
+        foreach (ConstantEnum.StudentTranscriptStatus status in Enum.GetValues(typeof(ConstantEnum.StudentTranscriptStatus)))
+        {
+            if (string.Equals(status.GetDescription(), statusDescription, StringComparison.OrdinalIgnoreCase))
+            {
+                // Map to SubjectImprovementStatus
+                return status switch
+                {
+                    ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
+                    _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
+                };
+            }
+        }
+
+        // Fallback: try direct enum parse
+        if (Enum.TryParse<ConstantEnum.StudentTranscriptStatus>(statusDescription, true, out var result))
+        {
+            return result switch
+            {
+                ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
+                _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
+            };
+        }
+
+        // Default to NotStartedAndImproving if cannot parse
+        return ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription();
     }
 }

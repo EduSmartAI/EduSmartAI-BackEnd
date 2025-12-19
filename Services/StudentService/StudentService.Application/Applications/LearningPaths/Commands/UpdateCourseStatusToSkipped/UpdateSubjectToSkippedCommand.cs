@@ -6,5 +6,5 @@ namespace StudentService.Application.Applications.LearningPaths.Commands.UpdateC
 public class UpdateSubjectToSkippedCommand : ICommand<UpdateSubjectToSkippedCommandResponse>
 {
     [Required(ErrorMessage = "SubjectCode is required.")]
-    public string SubjectCode { get; set;  }
+    public List<string> SubjectCode { get; set;  }
 }
