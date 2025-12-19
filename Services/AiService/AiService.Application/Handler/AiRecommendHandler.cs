@@ -59,6 +59,7 @@ namespace AiService.Application.Handler
                         StudentMajor: request.StudentMajor,
                         StudentPassedSubjects: request.StudentPassedSubjects,
                         CourseImproves: request.CourseImproves,
+                        AbilityImproves: request.AbilityImprove,
                         StudentTranscriptSelectEvent: request.StudentTranscrpts,
                         CareerGoal: request.CareerGoal,
                         SubjectMarks: request.SubjectMarks?.Select(sm => new SubjectMarkForAI(

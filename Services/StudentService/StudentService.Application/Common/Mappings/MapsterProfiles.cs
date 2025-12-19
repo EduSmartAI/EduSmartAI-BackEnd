@@ -1,10 +1,10 @@
 ﻿using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using Mapster;
-using System.Text.RegularExpressions;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
 using StudentService.Domain.ReadModels;
+using System.Text.RegularExpressions;
 
 namespace StudentService.Application.Common.Mappings
 {
@@ -27,7 +27,7 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.SemesterPosition, s => s.info == null ? (s.c.Position ?? 0) : (int)s.info.SemesterNumber)
                 .Map(d => d.Description, s => s.info == null ? string.Empty : s.info.Description)
                 .Map(d => d.ShortDescription, s => s.info == null ? string.Empty : s.info.ShortDescription)
-                .Map(d => d.Title, s => s.info == null ? null : s.info.SubjectName)
+                .Map(d => d.Title, s => s.info == null ? null : s.info.CourseTitle)
                 .Map(d => d.Slug, s => s.info == null ? null : s.info.Slug)
                 .Map(d => d.SubjectCode,
                     s => s.info != null
@@ -97,6 +97,7 @@ namespace StudentService.Application.Common.Mappings
                 .Map(d => d.HabitAndInterestAnalysis, s => s.HabitAndInterestAnalysis)
                 .Map(d => d.Personality, s => s.Personality)
                 .Map(d => d.LearningAbility, s => s.LearningAbility)
+                .Map(d => d.StudentQuizSubmission, s => s.StudentQuizSubmission)
                 .Map(d => d.praticalAbilityFeedbacks, s => MapPracticalAbilityFeedbacks(s.AbilityFeedback))
                 .Map(d => d.BasicLearningPath, s => new BasicLearningPathDto { CourseGroups = new List<CourseGroupDto>() })
                 .Map(d => d.InternalLearningPath,

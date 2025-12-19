@@ -10,5 +10,9 @@ namespace AiService.Application.Interfaces
         Task<string> GenerateProgressFeedbackMarkdownAsync(AiSummaryFeedbackModuleDto req, CancellationToken ct = default);
         
         Task<AiRecommendImprovementResponse> GenerateLearningFeedbackMarkdownAsync(AiRecommendImprovementRequest req, CancellationToken ct = default);
+        
+        Task<SubjectAnalysisResponse> AnalyzeSubjectMarkAsync(SubjectAnalysisRequest req, CancellationToken ct = default);
+        
+        Task<SubjectAnalysisResponse> AnalyzeCourseSubjectAsync(Guid courseId, CancellationToken ct = default);
     }
 }

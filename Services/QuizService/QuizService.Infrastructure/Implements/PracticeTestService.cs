@@ -727,7 +727,8 @@ public class PracticeTestService
                 cancellationToken: cancellationToken,
                 x => x.TestCases,
                 x => x.ProblemTemplates,
-                x => x.ProblemExamples)
+                x => x.ProblemExamples,
+                x => x.ProblemSolutions)
             .FirstOrDefaultAsync(cancellationToken);
         
         if (problem == null)
@@ -792,6 +793,19 @@ public class PracticeTestService
                         existingExample.InputData = exampleRequest.InputData;
                         existingExample.OutputData = exampleRequest.OutputData;
                         existingExample.Explanation = exampleRequest.Explanation;
+                    }
+                }
+            }
+            
+            // STEP 5: Update solutions (only update existing items)
+            if (request.Solutions != null && request.Solutions.Any())
+            {
+                foreach (var solutionRequest in request.Solutions)
+                {
+                    var existingSolution = problem.ProblemSolutions.FirstOrDefault(s => s.LanguageId == solutionRequest.LanguageId);
+                    if (existingSolution != null)
+                    {
+                        existingSolution.SolutionCode = solutionRequest.SolutionCode;
                     }
                 }
             }
@@ -1440,5 +1454,288 @@ public class PracticeTestService
             return "Wrong Answer";
 
         return "Failed";
+    }
+    
+    /// <summary>
+    /// Select Student Practice Test Submissions
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentPracticeTestSubmissionsSelectResponse> SelectStudentPracticeTestSubmissionsAsync(StudentPracticeTestSubmissionsSelectRequest request, CancellationToken cancellationToken)
+    {
+        var response = new StudentPracticeTestSubmissionsSelectResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Build query
+        var query = submissionRepository
+            .Find(
+                predicate: s => s.StudentId == currentUser.UserId && s.IsActive,
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                s => s.Problem,
+                s => s.Language,
+                s => s.SubmissionTestResults)
+            .Where(s => s != null);
+        
+        // Filter by SubmissionId if provided
+        if (request.SubmissionId.HasValue)
+        {
+            query = query.Where(s => s!.SubmissionId == request.SubmissionId.Value);
+        }
+        
+        // Filter by ProblemId if provided
+        if (request.ProblemId.HasValue)
+        {
+            query = query.Where(s => s!.ProblemId == request.ProblemId.Value);
+        }
+        
+        // Order by CreatedAt descending
+        query = query.OrderByDescending(s => s!.CreatedAt);
+        
+        // Get total count
+        var totalRecords = await query.CountAsync(cancellationToken);
+        
+        // Calculate pagination
+        var totalPages = (int)Math.Ceiling(totalRecords / (double)request.PageSize);
+        
+        // Apply pagination
+        var submissions = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        
+        // Map to response
+        var submissionItems = submissions.Select(s =>
+        {
+            var testResults = s!.SubmissionTestResults.Where(tr => tr.IsActive).ToList();
+            var passedTests = testResults.Count(tr => tr.Passed == true);
+            var totalTests = testResults.Count;
+            
+            return new StudentPracticeTestSubmissionItem
+            {
+                SubmissionId = s.SubmissionId,
+                ProblemId = s.ProblemId ?? Guid.Empty,
+                ProblemTitle = s.Problem?.Title ?? string.Empty,
+                ProblemDifficulty = s.Problem?.Difficulty ?? string.Empty,
+                LanguageName = s.Language?.Name ?? string.Empty,
+                LanguageId = s.LanguageId,
+                Status = s.Status,
+                PassedTests = passedTests,
+                TotalTests = totalTests,
+                AverageTimeMs = s.RuntimeMs ?? 0,
+                SubmittedAt = s.CreatedAt,
+                TestResults = testResults
+                    .Select(tr => new SubmissionTestResultItem
+                    {
+                        TestCaseId = tr.TestcaseId ?? Guid.Empty,
+                        IsPublic = tr.Testcase?.IsPublic ?? false,
+                        InputData = tr.Testcase?.IsPublic ?? false ? tr.Testcase!.InputData : null,
+                        ExpectedOutput = tr.Testcase?.IsPublic ?? false ? tr.Testcase!.ExpectedOutput : null,
+                        ActualOutput = tr.ActualOutput,
+                        Passed = tr.Passed ?? false
+                    })
+                    .ToList()
+            };
+        }).ToList();
+        
+        // True
+        response.Success = true;
+        response.Response = new StudentPracticeTestSubmissionsSelectResponseEntity
+        {
+            TotalRecords = totalRecords,
+            TotalPages = totalPages,
+            CurrentPage = request.PageNumber,
+            PageSize = request.PageSize,
+            Submissions = submissionItems
+        };
+        response.SetMessage(MessageId.I00001, "Lấy danh sách bài nộp thành công");
+        
+        return response;
+    }
+    
+    /// <summary>
+    /// Select Student Practice Test Submissions By Ids
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentPracticeTestSubmissionsByIdsSelectResponse> SelectStudentPracticeTestSubmissionsByIdsAsync(
+        StudentPracticeTestSubmissionsByIdsSelectRequest request, 
+        CancellationToken cancellationToken)
+    {
+        var response = new StudentPracticeTestSubmissionsByIdsSelectResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Validate request
+        if (request.SubmissionIds == null || !request.SubmissionIds.Any())
+        {
+            response.SetMessage(MessageId.E00000, "Danh sách SubmissionIds không được rỗng");
+            return response;
+        }
+        
+        // Query submissions with related data
+        var submissions = await submissionRepository
+            .Find(
+                predicate: s => s.StudentId == currentUser.UserId 
+                             && s.IsActive 
+                             && request.SubmissionIds.Contains(s.SubmissionId),
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                s => s.Problem,
+                s => s.Language,
+                s => s.SubmissionTestResults)
+            .Where(s => s != null)
+            .OrderByDescending(s => s!.CreatedAt)
+            .ToListAsync(cancellationToken);
+        
+        if (!submissions.Any())
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy bài nộp nào");
+            return response;
+        }
+        
+        // Map to response with detailed information including source code
+        var submissionItems = submissions.Select(s =>
+        {
+            var testResults = s!.SubmissionTestResults.Where(tr => tr.IsActive).ToList();
+            var passedTests = testResults.Count(tr => tr.Passed == true);
+            var totalTests = testResults.Count;
+            
+            return new StudentPracticeTestSubmissionDetailItem
+            {
+                SubmissionId = s.SubmissionId,
+                ProblemId = s.ProblemId ?? Guid.Empty,
+                ProblemTitle = s.Problem?.Title ?? string.Empty,
+                ProblemDifficulty = s.Problem?.Difficulty ?? string.Empty,
+                LanguageName = s.Language?.Name ?? string.Empty,
+                LanguageId = s.LanguageId,
+                Status = s.Status,
+                PassedTests = passedTests,
+                TotalTests = totalTests,
+                RuntimeMs = s.RuntimeMs ?? 0,
+                SubmittedAt = s.CreatedAt,
+                SourceCode = s.Code,
+                TestResults = testResults
+                    .Select(tr => new SubmissionTestResultDetailItem
+                    {
+                        TestCaseId = tr.TestcaseId ?? Guid.Empty,
+                        IsPublic = tr.Testcase?.IsPublic ?? false,
+                        InputData = tr.Testcase?.IsPublic ?? false ? tr.Testcase!.InputData : null,
+                        ExpectedOutput = tr.Testcase?.IsPublic ?? false ? tr.Testcase!.ExpectedOutput : null,
+                        ActualOutput = tr.ActualOutput,
+                        Passed = tr.Passed ?? false
+                    })
+                    .ToList()
+            };
+        }).ToList();
+        
+        // True
+        response.Success = true;
+        response.Response = new StudentPracticeTestSubmissionsByIdsSelectResponseEntity
+        {
+            Submissions = submissionItems
+        };
+        response.SetMessage(MessageId.I00001, $"Lấy thành công {submissionItems.Count} bài nộp");
+        
+        return response;
+    }
+    
+    /// <summary>
+    /// Select Student Submissions for Admin
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async Task<StudentSubmissionsSelectResponse> SelectAdminStudentSubmissionsAsync(StudentSubmissionsSelectRequest request, CancellationToken cancellationToken)
+    {
+        var response = new StudentSubmissionsSelectResponse { Success = false };
+        
+        var currentUser = identityService.GetCurrentUser()!;
+        
+        // Build query for specific student
+        var query = submissionRepository
+            .Find(
+                predicate: s => s.StudentId == currentUser.UserId && s.IsActive,
+                isTracking: false,
+                cancellationToken: cancellationToken,
+                s => s.Problem,
+                s => s.Language,
+                s => s.SubmissionTestResults)
+            .Where(s => s != null);
+        
+        // Filter by ProblemId if provided
+        if (request.ProblemId.HasValue)
+        {
+            query = query.Where(s => s!.ProblemId == request.ProblemId.Value);
+        }
+        
+        // Order by CreatedAt descending
+        query = query.OrderByDescending(s => s!.CreatedAt);
+        
+        // Get total count
+        var totalRecords = await query.CountAsync(cancellationToken);
+        
+        // Calculate pagination
+        var totalPages = (int)Math.Ceiling(totalRecords / (double)request.PageSize);
+        
+        // Apply pagination
+        var submissions = await query
+            .Skip((request.PageNumber - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .ToListAsync(cancellationToken);
+        
+        // Map to response with full details including all test cases (public and private)
+        var submissionItems = submissions.Select(s =>
+        {
+            var testResults = s!.SubmissionTestResults.Where(tr => tr.IsActive).ToList();
+            var passedTests = testResults.Count(tr => tr.Passed == true);
+            var totalTests = testResults.Count;
+            
+            return new AdminStudentSubmissionItem
+            {
+                SubmissionId = s.SubmissionId,
+                ProblemId = s.ProblemId ?? Guid.Empty,
+                ProblemTitle = s.Problem?.Title ?? string.Empty,
+                ProblemDifficulty = s.Problem?.Difficulty ?? string.Empty,
+                LanguageName = s.Language?.Name ?? string.Empty,
+                LanguageId = s.LanguageId,
+                Status = s.Status,
+                PassedTests = passedTests,
+                TotalTests = totalTests,
+                RuntimeMs = s.RuntimeMs ?? 0,
+                SubmittedAt = s.CreatedAt,
+                SourceCode = s.Code,
+                TestResults = testResults
+                    .Select(tr => new AdminSubmissionTestResultItem
+                    {
+                        TestCaseId = tr.TestcaseId ?? Guid.Empty,
+                        IsPublic = tr.Testcase?.IsPublic ?? false,
+                        // Admin can see all test cases (both public and private)
+                        InputData = tr.Testcase?.InputData ?? string.Empty,
+                        ExpectedOutput = tr.Testcase?.ExpectedOutput ?? string.Empty,
+                        ActualOutput = tr.ActualOutput,
+                        Passed = tr.Passed ?? false
+                    })
+                    .ToList()
+            };
+        }).ToList();
+        
+        // True
+        response.Success = true;
+        response.Response = new StudentSubmissionsSelectResponseEntity
+        {
+            StudentId = currentUser.UserId,
+            TotalRecords = totalRecords,
+            TotalPages = totalPages,
+            CurrentPage = request.PageNumber,
+            PageSize = request.PageSize,
+            Submissions = submissionItems
+        };
+        response.SetMessage(MessageId.I00001, "Lấy danh sách bài nộp của sinh viên thành công");
+        
+        return response;
     }
 }

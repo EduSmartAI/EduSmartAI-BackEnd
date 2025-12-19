@@ -940,20 +940,45 @@ public class QuizCourseService : IQuizCourseService
             });
         }
 
-        // Caculate total correct answers
-        var answeredQuestionIds = studentCourseQuiz.StudentQuizAnswers
-            .Where(sa => studentCourseQuiz.Quiz.Questions.Any(q => q.QuestionId == sa.QuestionId))
-            .Select(sa => sa.QuestionId)
-            .Distinct()
-            .ToHashSet();
-
-        // Count correct answers
-        var totalCorrectAnswers = studentCourseQuiz.Quiz.Questions
-            .Where(q => answeredQuestionIds.Contains(q.QuestionId))
-            .Count(q => studentCourseQuiz.StudentQuizAnswers.Any(sa =>
-                sa.QuestionId == q.QuestionId &&
-                q.Answers.Any(a => a.AnswerId == sa.AnswerId && a.IsCorrect)
-            ));
+        // Calculate total correct answers with proper logic for MultipleChoice
+        var totalCorrectAnswers = 0;
+        
+        foreach (var question in studentCourseQuiz.Quiz.Questions)
+        {
+            // Get student's selected answers for this question
+            var studentSelectedAnswerIds = studentCourseQuiz.StudentQuizAnswers
+                .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId != Guid.Empty)
+                .Select(sa => sa.AnswerId)
+                .ToHashSet();
+            
+            // Skip if student didn't answer this question
+            if (!studentSelectedAnswerIds.Any()) continue;
+            
+            // Get all correct answer IDs for this question
+            var correctAnswerIds = question.Answers
+                .Where(a => a.IsCorrect)
+                .Select(a => a.AnswerId)
+                .ToHashSet();
+            
+            bool isCorrect;
+            
+            // For MultipleChoice: student must select ALL correct answers and NO incorrect answers
+            if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
+            {
+                isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
+                            && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
+            }
+            else
+            {
+                // For SingleChoice/TrueFalse: just check if selected answer is correct
+                isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
+            }
+            
+            if (isCorrect)
+            {
+                totalCorrectAnswers++;
+            }
+        }
 
         response.Response = new StudentCourseQuizSelectResponseEntity
         {

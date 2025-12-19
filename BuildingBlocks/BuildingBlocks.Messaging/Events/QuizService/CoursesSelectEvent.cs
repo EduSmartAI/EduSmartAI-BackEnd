@@ -1,5 +1,6 @@
 using BaseService.Common.ApiEntities;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 
 namespace BuildingBlocks.Messaging.Events.QuizService;
 
@@ -20,6 +21,9 @@ public class CoursesSelectEvent
     public required Guid StudentId { get; set; }
     
     public required List<Guid> LearningPathCourseExists { get; set; }
+    
+    public List<AbilityMarkForAI>? AbilityMarks { get; set; }
+    public required List<AbilityImproveEvent>? AbilityImprove { get; set; }
 };
 
 public record CoursesSelectEventResponse : AbstractApiResponse<List<CoursesSelectEventResponseEntity>>

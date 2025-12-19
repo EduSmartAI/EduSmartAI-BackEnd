@@ -1,5 +1,8 @@
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
+using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService;
+using BuildingBlocks.Messaging.Events.QuizService;
 using BuildingBlocks.Messaging.Events.StudentService;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +21,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
     private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
     private readonly IRequestClient<MappingSubjectCodeWithMajorCodeEvent> _requestClient;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
+    private readonly IRequestClient<StudentTranscriptSelectEvent> _requestStudentTranscriptClient;
+
 
     private readonly IUnitOfWork _unitOfWork;
 
@@ -27,7 +32,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseRepository,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
-        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
+        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier, IRequestClient<StudentTranscriptSelectEvent> requestStudentTranscriptClient)
     {
         _learningPathRepository = learningPathRepository;
         _learningPathMajorRepository = learningPathMajorRepository;
@@ -37,6 +42,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         _unitOfWork = unitOfWork;
         _requestClient = requestClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        _requestStudentTranscriptClient = requestStudentTranscriptClient;
     }
 
     public async Task Consume(ConsumeContext<LearningFeedbackEvent> context)
@@ -49,6 +55,13 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         {
             return;
         }
+        // Get student transcript (always needed for SubjectMarks in AI event)
+        var studentTranscriptEvent = new StudentTranscriptSelectEvent
+        {
+            StudentId = learningPath.StudentId ?? throw new NullReferenceException(),
+        };
+        var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent);
+        var studentTranscripts = transcriptResponse.Message.Response;
         
         learningPath.SummaryFeedback = evt.SummaryFeedback;
         learningPath.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
@@ -135,7 +148,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         if (existingEntity != null)
                         {
                             existingEntity.AnalysisMarkdown = subCode.AnalysisMarkdown;
-                            existingEntity.Status = subCode.Status;
+                            existingEntity.Status = MapToSubjectImprovementStatus(subCode.Status);
                             _learningPathSubjectCodeRepository.Update(existingEntity);
                             learningPathSubjectCodes.Add(existingEntity);
                         }
@@ -149,7 +162,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     LearningPathMajorId = learningPathMajorId,
                     SubjectCode = subCode.SubjectCode,
                     AnalysisMarkdown = subCode.AnalysisMarkdown,
-                    Status = subCode.Status
+                    Status = MapToSubjectImprovementStatus(subCode.Status)
                 };
                 learningPathSubjectCodes.Add(learningPathSubjectCode);
                 existingSubjectCodeSet.Add(compositeKey); // Add to set to prevent duplicate in same run
@@ -188,7 +201,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         LearningPathSubjectCodeId = subCode.LearningPathSubjectCodeId,
                         SubjectCode = subCode.SubjectCode,
                         AnalysisMarkdown = subCode.AnalysisMarkdown,
-                        Status = subCode.Status,
+                        Status = MapToSubjectImprovementStatus(subCode.Status),
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
                         CreatedBy = evt.Email,
@@ -250,5 +263,41 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         }
         
         await _unitOfWork.SaveChangesAsync(email, ct);
+    }
+    
+    private static string MapToSubjectImprovementStatus(string statusDescription)
+    {
+        // Try to match by StudentTranscriptStatus Description first
+        foreach (ConstantEnum.StudentTranscriptStatus status in Enum.GetValues(typeof(ConstantEnum.StudentTranscriptStatus)))
+        {
+            if (string.Equals(status.GetDescription(), statusDescription, StringComparison.OrdinalIgnoreCase))
+            {
+                // Map to SubjectImprovementStatus
+                return status switch
+                {
+                    ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
+                    ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
+                    _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
+                };
+            }
+        }
+
+        // Fallback: try direct enum parse
+        if (Enum.TryParse<ConstantEnum.StudentTranscriptStatus>(statusDescription, true, out var result))
+        {
+            return result switch
+            {
+                ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
+                ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
+                _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
+            };
+        }
+
+        // Default to NotStartedAndImproving if cannot parse
+        return ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription();
     }
 }

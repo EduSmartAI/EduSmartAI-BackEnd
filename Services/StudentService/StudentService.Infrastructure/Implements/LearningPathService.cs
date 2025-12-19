@@ -69,8 +69,8 @@ public class LearningPathService : ILearningPathService
         IRequestClient<GetInfoInternalCourseEvents> requestClient,
         IMapper mapper,
         IRequestClient<GetSubjectSemesterEvent> subjectSemesterClient,
-		IRequestClient<GetSuggestedCoursesEvent> getSuggestedCoursesEventRequestClient,
-		ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
+        IRequestClient<GetSuggestedCoursesEvent> getSuggestedCoursesEventRequestClient,
+        ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
     {
         _unitOfWork = unitOfWork;
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
@@ -84,7 +84,7 @@ public class LearningPathService : ILearningPathService
         _mapper = mapper;
         _subjectSemesterClient = subjectSemesterClient;
         _getSuggestedCoursesEventRequestClient = getSuggestedCoursesEventRequestClient;
-		_learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
     }
 
     public async Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken)
@@ -109,8 +109,26 @@ public class LearningPathService : ILearningPathService
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+            
+            var learningPathReadModel = LearningPathCollection.FromWriteModel(learningPath);
+            learningPathReadModel.StudentQuizSubmission = new StudentQuizSubmission
+            {
+                PlacementTestSubmissionId = request.StudentTestId,
+                StudentPracticeTestSubmissions = request.PracticeSubmissionIds?
+                    .Select(id => new StudentPracticeTestSubmission
+                    {
+                        PracticeTestSubmissionId = id
+                    })
+                    .ToList(),
+                StudentSurveySubmissions = request.StudentSurveyIds
+                    .Select(id => new StudentSurveySubmission
+                    {
+                        StudentSurveyId = id
+                    })
+                    .ToList()
+            };
 
-            _unitOfWork.Store(LearningPathCollection.FromWriteModel(learningPath));
+            _unitOfWork.Store(learningPathReadModel);
             await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.CacheRemoveAsync(CacheKey.LearningGoalSelects());
 
@@ -316,7 +334,9 @@ public class LearningPathService : ILearningPathService
                 }).ToList(),
                 StudentTranscriptSelectEvent = request.StudentTranscripts,
                 StudentId = learningPath.StudentId ?? Guid.Empty,
-                LearningPathCourseExists = existingCourseIds
+                LearningPathCourseExists = existingCourseIds,
+                AbilityMarks = request.AbilityMarks,
+                AbilityImprove = request.AbilityImprove
             };
             var courseSelectEvent = await _requestClientCoursesSelectEvent.GetResponse<CoursesSelectEventResponse>(coursesSelectEventRequest, cancellationToken);
 
@@ -578,17 +598,22 @@ public class LearningPathService : ILearningPathService
     /// <returns></returns>
     private static short AggregateGroupStatus(IEnumerable<CourseItemDto> courses)
     {
+        if (!courses.Any())
+            return (short)ConstantEnum.StudentLearningPathCourseStatus.NoCourse;
+
         if (courses.Any(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Completed))
             return (short)ConstantEnum.StudentLearningPathCourseStatus.Completed;
 
         if (courses.Any(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress))
             return (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress;
 
-        if (courses.Any() && courses.All(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped))
+        if (courses.All(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped))
             return (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
 
         return (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted;
     }
+
+
     /// <summary>
     /// Fetch course
     /// </summary>
@@ -702,12 +727,28 @@ public class LearningPathService : ILearningPathService
             }
 
             var ordered = courseItems.OrderBy(x => x.SemesterPosition).ToList();
+
+            // Parse Status from LearningPathSubjectCodeCollection to StudentTranscriptStatus
+            short learningCurrentStatus = (short)ConstantEnum.StudentTranscriptStatus.NotStarted;
+            if (!string.IsNullOrWhiteSpace(subject.Status))
+            {
+                foreach (ConstantEnum.StudentTranscriptStatus status in Enum.GetValues<ConstantEnum.StudentTranscriptStatus>())
+                {
+                    if (string.Equals(status.GetDescription(), subject.Status, StringComparison.OrdinalIgnoreCase))
+                    {
+                        learningCurrentStatus = (short)status;
+                        break;
+                    }
+                }
+            }
+
             groups.Add(new CourseGroupDto
             {
                 SubjectId = subject.LearningPathSubjectCodeId,
                 SubjectCode = string.IsNullOrWhiteSpace(subject.SubjectCode) ? "UNKNOWN" : subject.SubjectCode,
                 AnalysisMarkdown = subject.AnalysisMarkdown,
                 Status = AggregateGroupStatus(ordered),
+                LearningCurrentStatus = learningCurrentStatus,
                 Courses = ordered
             });
         }
@@ -899,6 +940,7 @@ public class LearningPathService : ILearningPathService
                     SubjectCode = g.Key,
                     AnalysisMarkdown = null,
                     Status = AggregateGroupStatus(courses),
+                    LearningCurrentStatus = (short)ConstantEnum.StudentTranscriptStatus.NotStarted,
                     Courses = courses
                 };
             })
@@ -1875,51 +1917,51 @@ public class LearningPathService : ILearningPathService
             // Save changes vào Postgres
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-			var subjectCodeIds = coursesToUpdate
-			            .Where(c => c.LearningPathSubjectCodeId != null)
-			            .Select(c => c.LearningPathSubjectCodeId!.Value)
-			            .Distinct()
-			            .ToList();
+            var subjectCodeIds = coursesToUpdate
+                        .Where(c => c.LearningPathSubjectCodeId != null)
+                        .Select(c => c.LearningPathSubjectCodeId!.Value)
+                        .Distinct()
+                        .ToList();
 
-			if (subjectCodeIds.Any())
-			{
-				foreach (var subjectCodeId in subjectCodeIds)
-				{
-					// Lấy toàn bộ courses thuộc subject code này
-					var coursesInSubject = await _learningPathCourseCommandRepository
-						.Find(c => c.LearningPathSubjectCodeId == subjectCodeId && c.IsActive,
-							   isTracking: false,
-							   cancellationToken)
-						.ToListAsync(cancellationToken);
+            if (subjectCodeIds.Any())
+            {
+                foreach (var subjectCodeId in subjectCodeIds)
+                {
+                    // Lấy toàn bộ courses thuộc subject code này
+                    var coursesInSubject = await _learningPathCourseCommandRepository
+                        .Find(c => c.LearningPathSubjectCodeId == subjectCodeId && c.IsActive,
+                               isTracking: false,
+                               cancellationToken)
+                        .ToListAsync(cancellationToken);
 
-					bool subjectCompleted = coursesInSubject
-						.Any(c => c.Status == (short)ConstantEnum.CourseProgressStatus.Completed);
+                    bool subjectCompleted = coursesInSubject
+                        .Any(c => c.Status == (short)ConstantEnum.CourseProgressStatus.Completed);
 
-					// Load SubjectCode row (write model)
-					var subjectCode = await _learningPathSubjectCodeCommandRepository
-						.Find(s => s.LearningPathSubjectCodeId == subjectCodeId,
-							  isTracking: true,
-							  cancellationToken)
-						.FirstOrDefaultAsync(cancellationToken);
+                    // Load SubjectCode row (write model)
+                    var subjectCode = await _learningPathSubjectCodeCommandRepository
+                        .Find(s => s.LearningPathSubjectCodeId == subjectCodeId,
+                              isTracking: true,
+                              cancellationToken)
+                        .FirstOrDefaultAsync(cancellationToken);
 
-					if (subjectCode != null)
-					{
-						var newStatus = subjectCompleted ? ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() : ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
+                    if (subjectCode != null)
+                    {
+                        var newStatus = subjectCompleted ? ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() : ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
 
-						if (subjectCode.Status != newStatus)
-						{
-							subjectCode.Status = newStatus;
-							subjectCode.UpdatedAt = DateTime.UtcNow;
+                        if (subjectCode.Status != newStatus)
+                        {
+                            subjectCode.Status = newStatus;
+                            subjectCode.UpdatedAt = DateTime.UtcNow;
 
-							_learningPathSubjectCodeCommandRepository.Update(subjectCode);
-							await _unitOfWork.SaveChangesAsync(cancellationToken);
-						}
-					}
-				}
-			}
+                            _learningPathSubjectCodeCommandRepository.Update(subjectCode);
+                            await _unitOfWork.SaveChangesAsync(cancellationToken);
+                        }
+                    }
+                }
+            }
 
-			// 5. Cập nhật read model Marten cho các learning path bị ảnh hưởng
-			var affectedPathIds = await _learningPathMajorCommandRepository
+            // 5. Cập nhật read model Marten cho các learning path bị ảnh hưởng
+            var affectedPathIds = await _learningPathMajorCommandRepository
                 .Find(m => learningPathMajorIds.Contains(m.LearningPathMajorId), isTracking: false, cancellationToken)
                 .Where(m => coursesToUpdate.Select(c => c.LearningPathMajorId).Contains(m.LearningPathMajorId))
                 .Select(m => m.PathId)
@@ -1929,6 +1971,8 @@ public class LearningPathService : ILearningPathService
             foreach (var pathId in affectedPathIds)
             {
                 await CheckAndUpdateLearningPathStatusAsync(pathId, cancellationToken);
+                // Đồng bộ read model để cập nhật collection courses
+                await SyncLearningPathReadModelByIdAsync(pathId, userId, cancellationToken);
             }
 
             return true;
@@ -2042,392 +2086,392 @@ public class LearningPathService : ILearningPathService
         return response;
     }
 
-	/// <summary>
-	/// Get suggested courses for learning path
-	/// </summary>
-	/// <param name="request"></param>
-	/// <param name="ct"></param>
-	/// <returns></returns>
-	public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default)
-	{
-		var response = new GetSuggestedCoursesForLearningPathResponse { Success = false };
+    /// <summary>
+    /// Get suggested courses for learning path
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default)
+    {
+        var response = new GetSuggestedCoursesForLearningPathResponse { Success = false };
 
-		var user = _identityService.GetCurrentUser();
-		if (user == null)
-		{
-			response.SetMessage(MessageId.E00000, "User chưa đăng nhập");
-			return response;
-		}
+        var user = _identityService.GetCurrentUser();
+        if (user == null)
+        {
+            response.SetMessage(MessageId.E00000, "User chưa đăng nhập");
+            return response;
+        }
 
-		// 1. Lấy learning path
-		var lp = await _learningPathCommandRepository.FirstOrDefaultAsync(
-		                    x => x.PathId == request.PathId &&
-		                    	 x.StudentId == user.UserId &&
-		                    	 x.IsActive,
-		                    ct);
+        // 1. Lấy learning path
+        var lp = await _learningPathCommandRepository.FirstOrDefaultAsync(
+                            x => x.PathId == request.PathId &&
+                                 x.StudentId == user.UserId &&
+                                 x.IsActive,
+                            ct);
 
         if (lp == null)
         {
             response.SetMessage(MessageId.E00000, "Lộ trình học tập không tồn tại");
             return response;
-		}
+        }
 
         var currentLevel = lp.Level;
 
-		// 2. Lấy existing course của subject code
-		var majorIds = await _learningPathMajorCommandRepository
-			.Find(x => x.PathId == request.PathId && x.IsActive, false, ct)
-			.Select(x => x.LearningPathMajorId)
-			.ToListAsync(ct);
+        // 2. Lấy existing course của subject code
+        var majorIds = await _learningPathMajorCommandRepository
+            .Find(x => x.PathId == request.PathId && x.IsActive, false, ct)
+            .Select(x => x.LearningPathMajorId)
+            .ToListAsync(ct);
 
-		List<Guid> existingCourseIds = new();
+        List<Guid> existingCourseIds = new();
 
-		if (majorIds.Any())
-		{
-			existingCourseIds = await _learningPathCourseCommandRepository
-				.Find(x =>
-						majorIds.Contains(x.LearningPathMajorId) &&
-						x.SubjectCode == request.SubjectCode &&
-						x.InternalCourseId != null &&
-						x.IsActive,
-					false, ct)
-				.Select(x => x.InternalCourseId!.Value)
-				.ToListAsync(ct);
-		}
+        if (majorIds.Any())
+        {
+            existingCourseIds = await _learningPathCourseCommandRepository
+                .Find(x =>
+                        majorIds.Contains(x.LearningPathMajorId) &&
+                        x.SubjectCode == request.SubjectCode &&
+                        x.InternalCourseId != null &&
+                        x.IsActive,
+                    false, ct)
+                .Select(x => x.InternalCourseId!.Value)
+                .ToListAsync(ct);
+        }
 
-		// 3. Gửi event sang CourseService
-		var evt = new GetSuggestedCoursesEvent
-		{
-			UserId = user.UserId,
-			SubjectCode = request.SubjectCode,
-			CurrentLevel = currentLevel,
-			ExistingCourseIds = existingCourseIds,
-			Type = request.Mode     // enum SuggestedCourseType
-		};
+        // 3. Gửi event sang CourseService
+        var evt = new GetSuggestedCoursesEvent
+        {
+            UserId = user.UserId,
+            SubjectCode = request.SubjectCode,
+            CurrentLevel = currentLevel,
+            ExistingCourseIds = existingCourseIds,
+            Type = request.Mode     // enum SuggestedCourseType
+        };
 
-		var evtResp = await _getSuggestedCoursesEventRequestClient.GetResponse<GetSuggestedCoursesEventResponse>(evt, ct);
+        var evtResp = await _getSuggestedCoursesEventRequestClient.GetResponse<GetSuggestedCoursesEventResponse>(evt, ct);
 
-		if (!evtResp.Message.Success)
-		{
-			response.SetMessage(MessageId.E00000, evtResp.Message.Message);
-			return response;
-		}
+        if (!evtResp.Message.Success)
+        {
+            response.SetMessage(MessageId.E00000, evtResp.Message.Message);
+            return response;
+        }
 
         response.Success = true;
         response.Response = evtResp.Message.Response;
         response.SetMessage(MessageId.I00000, "Lấy danh sách khóa học gợi ý");
 
-		return response;
-	}
+        return response;
+    }
 
 
-	public async Task<AddLearningPathCourseResponse> AddLearningPathCourseAsync(AddLearningPathCourseCommand request, CancellationToken ct)
+    public async Task<AddLearningPathCourseResponse> AddLearningPathCourseAsync(AddLearningPathCourseCommand request, CancellationToken ct)
     {
-		var response = new AddLearningPathCourseResponse { Success = false };
-		var currentUser = _identityService.GetCurrentUser();
+        var response = new AddLearningPathCourseResponse { Success = false };
+        var currentUser = _identityService.GetCurrentUser();
 
-		if (currentUser == null)
-		{
-			response.SetMessage(MessageId.E00000, "Không tìm thấy người dùng");
-			return response;
-		}
+        if (currentUser == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy người dùng");
+            return response;
+        }
 
-		// 1) Validate major
-		var major = await _learningPathMajorCommandRepository
-			.Find(x => x.LearningPathMajorId == request.LearningPathMajorId && x.IsActive,
-				  isTracking: false, cancellationToken: ct)
-			.FirstOrDefaultAsync(ct);
+        // 1) Validate major
+        var major = await _learningPathMajorCommandRepository
+            .Find(x => x.LearningPathMajorId == request.LearningPathMajorId && x.IsActive,
+                  isTracking: false, cancellationToken: ct)
+            .FirstOrDefaultAsync(ct);
 
-		if (major == null)
-		{
-			response.SetMessage(MessageId.E00000, "Không tìm thấy Learning Path Major");
-			return response;
-		}
+        if (major == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy Learning Path Major");
+            return response;
+        }
 
-		var pathId = major.PathId;
+        var pathId = major.PathId;
 
-		// 2) Validate subject code id nếu có
-		if (request.LearningPathSubjectCodeId is not null)
-		{
-			var subjectCode = await _learningPathSubjectCodeCommandRepository
-				.Find(x => x.LearningPathSubjectCodeId == request.LearningPathSubjectCodeId && x.IsActive,
-					  isTracking: false, cancellationToken: ct)
-				.FirstOrDefaultAsync(ct);
+        // 2) Validate subject code id nếu có
+        if (request.LearningPathSubjectCodeId is not null)
+        {
+            var subjectCode = await _learningPathSubjectCodeCommandRepository
+                .Find(x => x.LearningPathSubjectCodeId == request.LearningPathSubjectCodeId && x.IsActive,
+                      isTracking: false, cancellationToken: ct)
+                .FirstOrDefaultAsync(ct);
 
-			if (subjectCode == null)
-			{
-				response.SetMessage(MessageId.E00000, "Subject Code không tồn tại");
-				return response;
-			}
-		}
+            if (subjectCode == null)
+            {
+                response.SetMessage(MessageId.E00000, "Subject Code không tồn tại");
+                return response;
+            }
+        }
 
-		// 3) Lấy position = max + 1
-		var maxPos = await _learningPathCourseCommandRepository
-			.Find(x => x.LearningPathMajorId == request.LearningPathMajorId && x.IsActive,
-				  isTracking: false, cancellationToken: ct)
-			.Select(x => x.Position)
-			.OrderByDescending(x => x)
-			.FirstOrDefaultAsync(ct);
+        // 3) Lấy position = max + 1
+        var maxPos = await _learningPathCourseCommandRepository
+            .Find(x => x.LearningPathMajorId == request.LearningPathMajorId && x.IsActive,
+                  isTracking: false, cancellationToken: ct)
+            .Select(x => x.Position)
+            .OrderByDescending(x => x)
+            .FirstOrDefaultAsync(ct);
 
-		int newPosition = (maxPos ?? 0) + 1;
+        int newPosition = (maxPos ?? 0) + 1;
 
-		// 4) Tạo entity mới
-		var newCourse = new LearningPathCourse
-		{
-			LearningPathCourseId = Guid.NewGuid(),
-			LearningPathMajorId = request.LearningPathMajorId,
-			InternalCourseId = request.InternalCourseId,
-			Position = newPosition,
-			LearningPathSubjectCodeId = request.LearningPathSubjectCodeId,
-			SubjectCode = request.SubjectCode,
-			Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
+        // 4) Tạo entity mới
+        var newCourse = new LearningPathCourse
+        {
+            LearningPathCourseId = Guid.NewGuid(),
+            LearningPathMajorId = request.LearningPathMajorId,
+            InternalCourseId = request.InternalCourseId,
+            Position = newPosition,
+            LearningPathSubjectCodeId = request.LearningPathSubjectCodeId,
+            SubjectCode = request.SubjectCode,
+            Status = (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted,
 
-			// InternalCourse → external set NULL
-			StepName = null,
-			ExternalCourseLevel = null,
-			ExternalCourseLink = null,
-			ExternalCourseDuration = null,
-			ExternalCourseProvider = null,
-			ExternalCourseRating = null,
-			ExternalCourseReason = null
-		};
+            // InternalCourse → external set NULL
+            StepName = null,
+            ExternalCourseLevel = null,
+            ExternalCourseLink = null,
+            ExternalCourseDuration = null,
+            ExternalCourseProvider = null,
+            ExternalCourseRating = null,
+            ExternalCourseReason = null
+        };
 
-		// 5) Lưu DB + sync read model
-		await _unitOfWork.BeginTransactionAsync(async () =>
-		{
-			await _learningPathCourseCommandRepository.AddAsync(newCourse, currentUser.Email);
-			await _unitOfWork.SaveChangesAsync(ct);
+        // 5) Lưu DB + sync read model
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            await _learningPathCourseCommandRepository.AddAsync(newCourse, currentUser.Email);
+            await _unitOfWork.SaveChangesAsync(ct);
 
-			// Sync read model cho LearningPath
-			await SyncLearningPathReadModelByIdAsync(pathId, currentUser.UserId, ct);
+            // Sync read model cho LearningPath
+            await SyncLearningPathReadModelByIdAsync(pathId, currentUser.UserId, ct);
 
-			return true;
-		}, ct);
+            return true;
+        }, ct);
 
-		// 6) Clear cache
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(major.PathId));
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(major.PathId));
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUser.UserId, pathId));
+        // 6) Clear cache
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(major.PathId));
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(major.PathId));
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathSelect(currentUser.UserId, pathId));
 
-		// 8) Response
-		response.Success = true;
-		response.SetMessage(MessageId.I00001, "Đã thêm khóa học vào Learning Path");
-		response.Response = new LearningPathCourseDto
-		{
-			LearningPathCourseId = newCourse.LearningPathCourseId,
-			LearningPathMajorId = newCourse.LearningPathMajorId,
-			InternalCourseId = newCourse.InternalCourseId,
-			SubjectCode = newCourse.SubjectCode,
-			Position = newCourse.Position,
-			Status = newCourse.Status
-		};
+        // 8) Response
+        response.Success = true;
+        response.SetMessage(MessageId.I00001, "Đã thêm khóa học vào Learning Path");
+        response.Response = new LearningPathCourseDto
+        {
+            LearningPathCourseId = newCourse.LearningPathCourseId,
+            LearningPathMajorId = newCourse.LearningPathMajorId,
+            InternalCourseId = newCourse.InternalCourseId,
+            SubjectCode = newCourse.SubjectCode,
+            Position = newCourse.Position,
+            Status = newCourse.Status
+        };
 
-		return response;
-	}
+        return response;
+    }
 
-	#region Private Helpers Methods
+    #region Private Helpers Methods
 
-	/// <summary>
-	/// Sync LearningPath Read Model từ Write Model theo Id
-	/// </summary>
-	/// <param name="learningPathId"></param>
-	/// <param name="studentId"></param>
-	/// <param name="cancellationToken"></param>
-	/// <returns></returns>
-	private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid? studentId, CancellationToken cancellationToken)
-	{
-		// 1) Lấy write-model gốc
-		var lpWrite = await _learningPathCommandRepository
-							.Find(x => x.PathId == learningPathId && x.IsActive,
-								  isTracking: false,
-								  cancellationToken: cancellationToken)
-							.FirstOrDefaultAsync(cancellationToken);
+    /// <summary>
+    /// Sync LearningPath Read Model từ Write Model theo Id
+    /// </summary>
+    /// <param name="learningPathId"></param>
+    /// <param name="studentId"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    private async Task SyncLearningPathReadModelByIdAsync(Guid learningPathId, Guid? studentId, CancellationToken cancellationToken)
+    {
+        // 1) Lấy write-model gốc
+        var lpWrite = await _learningPathCommandRepository
+                            .Find(x => x.PathId == learningPathId && x.IsActive,
+                                  isTracking: false,
+                                  cancellationToken: cancellationToken)
+                            .FirstOrDefaultAsync(cancellationToken);
 
-		if (lpWrite == null)
-		{
-			// Không có learning path tương ứng -> bỏ qua (hoặc log warning)
-			return;
-		}
-
-
-		// 2) Lấy majors từ write-model (kèm theo LearningPathCourses hiện có)
-		var majorsWrite = await _learningPathMajorCommandRepository
-			.Find(m => m.PathId == learningPathId && m.IsActive,
-				  isTracking: false,
-				  cancellationToken: cancellationToken,
-				  m => m.LearningPathCourses)
-			.ToListAsync(cancellationToken);
-
-		majorsWrite = majorsWrite.OfType<LearningPathMajor>().ToList();
-
-		var majorIds = majorsWrite
-			.Select(m => m.LearningPathMajorId)
-			.ToList();
-
-		// 3) Lấy toàn bộ subject code thuộc các major này
-		var subjectCodes = await _learningPathSubjectCodeCommandRepository
-			.Find(sc => majorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
-				  isTracking: false,
-				  cancellationToken: cancellationToken)
-			.ToListAsync(cancellationToken);
-
-		// Lấy danh sách SubjectCode string (chuẩn hóa Upper để group)
-		var subjectCodeValues = subjectCodes
-			.Select(sc => sc.SubjectCode)
-			.Where(code => !string.IsNullOrWhiteSpace(code))
-			.Select(code => code!.Trim().ToUpperInvariant())
-			.Distinct()
-			.ToList();
-
-		// 4) Lấy toàn bộ courses thuộc các major này,
-		//    sau đó group theo SubjectCode (KHÔNG phụ thuộc LearningPathSubjectCodeId)
-		var allCoursesInMajors = await _learningPathCourseCommandRepository
-			.Find(c =>
-					c.IsActive &&
-					majorIds.Contains(c.LearningPathMajorId),
-				  isTracking: false,
-				  cancellationToken: cancellationToken)
-			.ToListAsync(cancellationToken);
-
-		// Courses có SubjectCode (dùng cho SubjectCode node)
-		var subjectCodeCourses = allCoursesInMajors
-			.Where(c => !string.IsNullOrWhiteSpace(c.SubjectCode))
-			.ToList();
-
-		// Group theo SubjectCode (Upper) + MajorId để tránh dính nhầm major khác
-		var courseGroupsByMajorAndSubject = subjectCodeCourses
-			.GroupBy(c => new
-			{
-				c.LearningPathMajorId,
-				SubjectCode = c.SubjectCode!.Trim().ToUpperInvariant()
-			})
-			.ToDictionary(
-				g => (MajorId: g.Key.LearningPathMajorId, SubjectCode: g.Key.SubjectCode),
-				g => g.ToList()
-			);
-
-		// 5) Gán SubjectCodes + Courses cho từng Major
-		foreach (var major in majorsWrite)
-		{
-			// Subject codes thuộc major này
-			major.LearningPathSubjectCodes = subjectCodes
-				.Where(sc => sc.LearningPathMajorId == major.LearningPathMajorId)
-				.ToList();
-
-			// Gán courses theo SubjectCode
-			foreach (var sc in major.LearningPathSubjectCodes)
-			{
-				var keySubject = sc.SubjectCode?.Trim().ToUpperInvariant() ?? string.Empty;
-
-				if (!string.IsNullOrEmpty(keySubject) &&
-					courseGroupsByMajorAndSubject.TryGetValue(
-						(major.LearningPathMajorId, keySubject),
-						out var coursesOfSubject))
-				{
-					sc.LearningPathCourses = coursesOfSubject
-						.OrderBy(c => c.Position ?? int.MaxValue)
-						.ToList();
-				}
-				else
-				{
-					// Không có course cho subject code này -> mảng rỗng (giống test.json)
-					sc.LearningPathCourses = new List<LearningPathCourse>();
-				}
-			}
-
-			// Lưu ý:
-			// major.LearningPathCourses (các course nằm trực tiếp dưới Major)
-			// được load từ Include ở trên và KHÔNG bị thay đổi.
-			// -> Điều này cho phép giữ đúng cấu trúc:
-			//    Major → LearningPathCourses (external / tổng hợp)
-			//    Major → LearningPathSubjectCodes → LearningPathCourses (theo môn)
-			// như test.json.
-		}
-
-		// Đưa majors đã chuẩn hóa vào write-model
-		lpWrite.LearningPathMajors = majorsWrite;
-
-		// 6) Lấy document read-model hiện có (giữ nguyên identity doc)
-		var lpRead = await _learningPathQueryRepository.FirstOrDefaultAsync(
-			x => x.PathId == learningPathId
-		);
-
-		// Chuẩn bị danh sách major read-model đã sort theo PositionIndex
-		var majorsRead = majorsWrite
-			.OrderBy(m => m.PositionIndex ?? int.MaxValue)
-			.Select(LearningPathMajorCollection.FromWriteModel)
-			.ToList();
-
-		if (lpRead != null)
-		{
-			// 7a) UPDATE IN-PLACE: cập nhật thẳng object đang có
-			lpRead.PathName = lpWrite.PathName;
-			lpRead.CreatedAt = lpWrite.CreatedAt;
-			lpRead.UpdatedAt = lpWrite.UpdatedAt;
-			lpRead.CreatedBy = lpWrite.CreatedBy;
-			lpRead.UpdatedBy = lpWrite.UpdatedBy;
-			lpRead.IsActive = lpWrite.IsActive;
-			lpRead.StudentId = lpWrite.StudentId;
-			lpRead.Status = lpWrite.Status;
-			lpRead.SummaryFeedback = lpWrite.SummaryFeedback;
-			lpRead.HabitAndInterestAnalysis = lpWrite.HabitAndInterestAnalysis;
-			lpRead.Personality = lpWrite.Personality;
-			lpRead.LearningAbility = lpWrite.LearningAbility;
-			lpRead.AbilityFeedback = lpWrite.AbilityFeedback;
-			lpRead.Level = lpWrite.Level;
-			lpRead.LevelReason = lpWrite.LevelReason;
-			lpRead.IsSkipTest = lpWrite.IsSkipTest;
-			lpRead.LimitTime = lpWrite.LimitTime;
-
-			// Majors đã chuẩn hóa (Major → SubjectCode → Courses)
-			lpRead.LearningPathMajors = majorsRead;
-
-			_unitOfWork.Store(lpRead); // upsert đúng document hiện tại
-		}
-		else
-		{
-			// 7b) Không có thì map mới từ write-model (fallback)
-			var lpReadNew = LearningPathCollection.FromWriteModel(lpWrite);
-			// Bảo đảm majors đã sort theo PositionIndex + chuẩn cấu trúc
-			lpReadNew.LearningPathMajors = majorsRead;
-
-			_unitOfWork.Store(lpReadNew);
-		}
-
-		// Nếu app của bạn đang sử dụng major-collection riêng → giữ như mẫu
-		foreach (var m in majorsWrite)
-		{
-			_unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(m));
-		}
-
-		await _unitOfWork.SessionSaveChangesAsync();
-
-		// 8) Xoá cache liên quan
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
-		await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
-
-		if (studentId.HasValue)
-		{
-			await _unitOfWork.CacheRemoveAsync(
-				CacheKey.LearningPathSelect(studentId.Value, learningPathId));
-		}
-
-	}
+        if (lpWrite == null)
+        {
+            // Không có learning path tương ứng -> bỏ qua (hoặc log warning)
+            return;
+        }
 
 
-	/// <summary>
-	/// Check và update status của Learning Path
-	/// </summary>
-	/// Một SubjectCode được coi là completed khi:
-	/// Có ít nhất 1 LearningPathCourse thuộc SubjectCode đó có Status = Completed.
-	/// Một Learning Path hoàn thành khi:
-	/// TẤT CẢ SubjectCodes trong LearningPath đều completed.
-	/// Mỗi môn có thể có 1–N LearningPathCourse (InternalCourseId khác nhau nhưng cùng SubjectCode).
-	/// Sinh viên chỉ cần hoàn thành 1 course của SubjectCode đó → xem như đã hoàn thành môn đó.
-	/// <param name="pathId"></param>
-	/// <param name="ct"></param>
-	/// <returns></returns>
-	private async Task CheckAndUpdateLearningPathStatusAsync(Guid pathId, CancellationToken ct)
+        // 2) Lấy majors từ write-model (kèm theo LearningPathCourses hiện có)
+        var majorsWrite = await _learningPathMajorCommandRepository
+            .Find(m => m.PathId == learningPathId && m.IsActive,
+                  isTracking: false,
+                  cancellationToken: cancellationToken,
+                  m => m.LearningPathCourses)
+            .ToListAsync(cancellationToken);
+
+        majorsWrite = majorsWrite.OfType<LearningPathMajor>().ToList();
+
+        var majorIds = majorsWrite
+            .Select(m => m.LearningPathMajorId)
+            .ToList();
+
+        // 3) Lấy toàn bộ subject code thuộc các major này
+        var subjectCodes = await _learningPathSubjectCodeCommandRepository
+            .Find(sc => majorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
+                  isTracking: false,
+                  cancellationToken: cancellationToken)
+            .ToListAsync(cancellationToken);
+
+        // Lấy danh sách SubjectCode string (chuẩn hóa Upper để group)
+        var subjectCodeValues = subjectCodes
+            .Select(sc => sc.SubjectCode)
+            .Where(code => !string.IsNullOrWhiteSpace(code))
+            .Select(code => code!.Trim().ToUpperInvariant())
+            .Distinct()
+            .ToList();
+
+        // 4) Lấy toàn bộ courses thuộc các major này,
+        //    sau đó group theo SubjectCode (KHÔNG phụ thuộc LearningPathSubjectCodeId)
+        var allCoursesInMajors = await _learningPathCourseCommandRepository
+            .Find(c =>
+                    c.IsActive &&
+                    majorIds.Contains(c.LearningPathMajorId),
+                  isTracking: false,
+                  cancellationToken: cancellationToken)
+            .ToListAsync(cancellationToken);
+
+        // Courses có SubjectCode (dùng cho SubjectCode node)
+        var subjectCodeCourses = allCoursesInMajors
+            .Where(c => !string.IsNullOrWhiteSpace(c.SubjectCode))
+            .ToList();
+
+        // Group theo SubjectCode (Upper) + MajorId để tránh dính nhầm major khác
+        var courseGroupsByMajorAndSubject = subjectCodeCourses
+            .GroupBy(c => new
+            {
+                c.LearningPathMajorId,
+                SubjectCode = c.SubjectCode!.Trim().ToUpperInvariant()
+            })
+            .ToDictionary(
+                g => (MajorId: g.Key.LearningPathMajorId, SubjectCode: g.Key.SubjectCode),
+                g => g.ToList()
+            );
+
+        // 5) Gán SubjectCodes + Courses cho từng Major
+        foreach (var major in majorsWrite)
+        {
+            // Subject codes thuộc major này
+            major.LearningPathSubjectCodes = subjectCodes
+                .Where(sc => sc.LearningPathMajorId == major.LearningPathMajorId)
+                .ToList();
+
+            // Gán courses theo SubjectCode
+            foreach (var sc in major.LearningPathSubjectCodes)
+            {
+                var keySubject = sc.SubjectCode?.Trim().ToUpperInvariant() ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(keySubject) &&
+                    courseGroupsByMajorAndSubject.TryGetValue(
+                        (major.LearningPathMajorId, keySubject),
+                        out var coursesOfSubject))
+                {
+                    sc.LearningPathCourses = coursesOfSubject
+                        .OrderBy(c => c.Position ?? int.MaxValue)
+                        .ToList();
+                }
+                else
+                {
+                    // Không có course cho subject code này -> mảng rỗng (giống test.json)
+                    sc.LearningPathCourses = new List<LearningPathCourse>();
+                }
+            }
+
+            // Lưu ý:
+            // major.LearningPathCourses (các course nằm trực tiếp dưới Major)
+            // được load từ Include ở trên và KHÔNG bị thay đổi.
+            // -> Điều này cho phép giữ đúng cấu trúc:
+            //    Major → LearningPathCourses (external / tổng hợp)
+            //    Major → LearningPathSubjectCodes → LearningPathCourses (theo môn)
+            // như test.json.
+        }
+
+        // Đưa majors đã chuẩn hóa vào write-model
+        lpWrite.LearningPathMajors = majorsWrite;
+
+        // 6) Lấy document read-model hiện có (giữ nguyên identity doc)
+        var lpRead = await _learningPathQueryRepository.FirstOrDefaultAsync(
+            x => x.PathId == learningPathId
+        );
+
+        // Chuẩn bị danh sách major read-model đã sort theo PositionIndex
+        var majorsRead = majorsWrite
+            .OrderBy(m => m.PositionIndex ?? int.MaxValue)
+            .Select(LearningPathMajorCollection.FromWriteModel)
+            .ToList();
+
+        if (lpRead != null)
+        {
+            // 7a) UPDATE IN-PLACE: cập nhật thẳng object đang có
+            lpRead.PathName = lpWrite.PathName;
+            lpRead.CreatedAt = lpWrite.CreatedAt;
+            lpRead.UpdatedAt = lpWrite.UpdatedAt;
+            lpRead.CreatedBy = lpWrite.CreatedBy;
+            lpRead.UpdatedBy = lpWrite.UpdatedBy;
+            lpRead.IsActive = lpWrite.IsActive;
+            lpRead.StudentId = lpWrite.StudentId;
+            lpRead.Status = lpWrite.Status;
+            lpRead.SummaryFeedback = lpWrite.SummaryFeedback;
+            lpRead.HabitAndInterestAnalysis = lpWrite.HabitAndInterestAnalysis;
+            lpRead.Personality = lpWrite.Personality;
+            lpRead.LearningAbility = lpWrite.LearningAbility;
+            lpRead.AbilityFeedback = lpWrite.AbilityFeedback;
+            lpRead.Level = lpWrite.Level;
+            lpRead.LevelReason = lpWrite.LevelReason;
+            lpRead.IsSkipTest = lpWrite.IsSkipTest;
+            lpRead.LimitTime = lpWrite.LimitTime;
+
+            // Majors đã chuẩn hóa (Major → SubjectCode → Courses)
+            lpRead.LearningPathMajors = majorsRead;
+
+            _unitOfWork.Store(lpRead); // upsert đúng document hiện tại
+        }
+        else
+        {
+            // 7b) Không có thì map mới từ write-model (fallback)
+            var lpReadNew = LearningPathCollection.FromWriteModel(lpWrite);
+            // Bảo đảm majors đã sort theo PositionIndex + chuẩn cấu trúc
+            lpReadNew.LearningPathMajors = majorsRead;
+
+            _unitOfWork.Store(lpReadNew);
+        }
+
+        // Nếu app của bạn đang sử dụng major-collection riêng → giữ như mẫu
+        foreach (var m in majorsWrite)
+        {
+            _unitOfWork.Store(LearningPathMajorCollection.FromWriteModel(m));
+        }
+
+        await _unitOfWork.SessionSaveChangesAsync();
+
+        // 8) Xoá cache liên quan
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(learningPathId));
+        await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(learningPathId));
+
+        if (studentId.HasValue)
+        {
+            await _unitOfWork.CacheRemoveAsync(
+                CacheKey.LearningPathSelect(studentId.Value, learningPathId));
+        }
+
+    }
+
+
+    /// <summary>
+    /// Check và update status của Learning Path
+    /// </summary>
+    /// Một SubjectCode được coi là completed khi:
+    /// Có ít nhất 1 LearningPathCourse thuộc SubjectCode đó có Status = Completed.
+    /// Một Learning Path hoàn thành khi:
+    /// TẤT CẢ SubjectCodes trong LearningPath đều completed.
+    /// Mỗi môn có thể có 1–N LearningPathCourse (InternalCourseId khác nhau nhưng cùng SubjectCode).
+    /// Sinh viên chỉ cần hoàn thành 1 course của SubjectCode đó → xem như đã hoàn thành môn đó.
+    /// <param name="pathId"></param>
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    private async Task CheckAndUpdateLearningPathStatusAsync(Guid pathId, CancellationToken ct)
     {
         // Load all majors (+ courses) trong Learning Path
         var majors = await _learningPathMajorCommandRepository
@@ -2481,7 +2525,7 @@ public class LearningPathService : ILearningPathService
         }
     }
 
-	
-	#endregion
+
+    #endregion
 
 }

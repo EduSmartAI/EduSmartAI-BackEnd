@@ -30,5 +30,11 @@ public interface IPracticeTestService
     
     Task<PracticeTestAdminUpdateResponse> UpdatePracticeTestAsync(PracticeTestAdminUpdateRequest request, CancellationToken cancellationToken);
     
-    Task<PracticeTestAdminDeleteResponse> DeletePracticeTestAsync(PracticeTestAdminDeleteRequest request, CancellationToken cancellationToken); 
+    Task<PracticeTestAdminDeleteResponse> DeletePracticeTestAsync(PracticeTestAdminDeleteRequest request, CancellationToken cancellationToken);
+    
+    Task<StudentPracticeTestSubmissionsSelectResponse> SelectStudentPracticeTestSubmissionsAsync(StudentPracticeTestSubmissionsSelectRequest request, CancellationToken cancellationToken);
+    
+    Task<StudentPracticeTestSubmissionsByIdsSelectResponse> SelectStudentPracticeTestSubmissionsByIdsAsync(StudentPracticeTestSubmissionsByIdsSelectRequest request, CancellationToken cancellationToken);
+    
+    Task<StudentSubmissionsSelectResponse> SelectAdminStudentSubmissionsAsync(StudentSubmissionsSelectRequest request, CancellationToken cancellationToken);
 }

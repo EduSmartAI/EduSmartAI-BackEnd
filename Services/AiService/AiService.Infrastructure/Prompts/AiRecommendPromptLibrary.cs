@@ -388,9 +388,13 @@ DỮ LIỆU TỔNG HỢP:
 
 NHIỆM VỤ:
 - Viết 4 đoạn mô tả bằng tiếng Việt, mỗi đoạn bắt đầu bằng tiêu đề `##` và kết thúc bằng gợi ý hành động cụ thể (ưu tiên tầm 2–4 tuần).
+- **QUAN TRỌNG**: Nếu `subjectMarks` rỗng hoặc không có điểm nào (tất cả `mark` đều null):
+  - Phân tích dựa trên **`abilityMarks`** (nếu có) và **`survey`** (quizHabits, quizInterests) để đánh giá tổng quan.
+  - Trong `summaryFeedback`: Tập trung vào năng lực hiện tại từ `abilityMarks`, thói quen học từ `quizHabits`, và sở thích từ `quizInterests`. Không nhắc đến điểm môn học vì chưa có dữ liệu.
+  - Trong `learningAbility`: Đánh giá dựa trên điểm trung bình `abilityMarks` và đưa ra lộ trình phù hợp với `careerGoal`.
 - Nếu `abilityMarks` null/rỗng: Đây là sinh viên kỳ 5+ đã có bảng điểm đầy đủ. Phân tích dựa trên **kết quả môn học thực tế** thay vì năng lực cơ bản. 
   Trong `learningAbility`, nhấn mạnh rằng sinh viên đã vượt qua giai đoạn đánh giá cơ bản, nên tập trung vào chuyên môn sâu và dự án thực tế.
-- Nếu có `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
+- Nếu có cả `subjectMarks` và `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
 - Nhấn mạnh các môn/khả năng nổi bật và liệt kê tối đa 2 ưu tiên cải thiện rõ ràng, đo được để tiến gần `careerGoal`.
 
 OUTPUT JSON:
@@ -486,5 +490,101 @@ LƯU Ý:
         semesterIndex.HasValue && semesterIndex.Value > 0
             ? $"Kỳ {semesterIndex.Value}"
             : null;
+
+    public static string BuildSubjectAnalysisPrompt(
+        string subjectCode,
+        string subjectName,
+        double mark,
+        List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents,
+        string? careerGoal)
+    {
+        var dependentDetails = (dependents ?? new List<(string, string, int?)>())
+            .Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return new
+                {
+                    subjectCode = dep.subjectCode,
+                    subjectName = dep.subjectName,
+                    semesterIndex = dep.semesterIndex,
+                    semesterLabel = scopeSuffix
+                };
+            })
+            .ToList();
+
+        var payload = new
+        {
+            subjectCode,
+            subjectName,
+            mark,
+            markScale = "0-100",
+            dependents = dependentDetails,
+            careerGoal = careerGoal ?? string.Empty
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU MÔN HỌC:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+Phân tích điểm số của môn học `{{subjectName}}` ({{subjectCode}}) với điểm {{mark}}/100. PHÂN TÍCH THEO MỨC ĐIỂM:
+
+**ĐIỂM DƯỚI 60 (0-59) - CẢNH BÁO NGHIÊM TRỌNG:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức RẤT YẾU, có nguy cơ rớt môn.
+- Điểm yếu: Phân tích chi tiết các phần kiến thức còn yếu, cần củng cố ngay lập tức.
+- Lộ trình: Lộ trình cải thiện KHẨN CẤP 2-4 tuần với khối lượng học tập cao (5-7 buổi/tuần, 10+ bài tập/tuần).
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó, nêu rõ lý do cụ thể.
+
+**ĐIỂM 60-79 - NHẬN XÉT VÀ GỢI Ý:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TRUNG BÌNH, cần cải thiện để đạt kết quả tốt hơn.
+- Điểm yếu: Chỉ ra các phần kiến thức còn cần củng cố thêm.
+- Lộ trình: Lộ trình cải thiện vừa phải 2-4 tuần (3-4 buổi/tuần, 5-7 bài tập/tuần).
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, nhận xét về ảnh hưởng có thể có đến các môn đó, khuyến khích củng cố để tránh khó khăn.
+
+**ĐIỂM 80-89 - KHEN NGỢI VỪA PHẢI:**
+- Đánh giá: Khen ngợi vừa phải - "Bạn đã nắm vững kiến thức tốt", "Kết quả học tập khá tốt", gợi ý duy trì và phát triển thêm.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm (không gọi là "yếu").
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+
+**ĐIỂM 90-99 - KHEN NGỢI TÍCH CỰC:**
+- Đánh giá: Khen ngợi tích cực - "Bạn đã nắm vững kiến thức rất tốt", "Kết quả học tập xuất sắc", khuyến khích tiếp tục phát triển.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm ở mức nâng cao.
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+
+**ĐIỂM 100 - KHEN NGỢI CAO NHẤT:**
+- Đánh giá: Khen ngợi cao nhất - "Bạn đã nắm vững kiến thức xuất sắc", "Kết quả học tập hoàn hảo", nhưng vẫn gợi ý các bước tiếp theo để phát triển.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm ở mức chuyên sâu.
+- Lộ trình: Lộ trình phát triển chuyên sâu (2-3 buổi/tuần, 3-5 bài tập chuyên sâu/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+
+OUTPUT JSON (không thêm văn bản khác):
+{
+  "improvementAnalysis": "<Markdown text với format: ## Phân tích điểm số [Tên môn]\\n### Đánh giá điểm số\\n- [Đánh giá theo mức điểm]\\n### [Điểm yếu cần cải thiện / Điểm có thể phát triển thêm]\\n- ...\\n### [Lộ trình cải thiện / Lộ trình phát triển] 2-4 tuần\\n- ... (nêu rõ khối lượng học tập cụ thể)\\n### [Cảnh báo / Nhận xét] môn phụ thuộc\\n[Nếu có dependents: liệt kê từng môn với nhận xét/cảnh báo phù hợp. Nếu không có: ghi 'Không có môn học phụ thuộc trực tiếp.']"
+}
+
+QUY TẮC QUAN TRỌNG:
+- **ĐIỂM DƯỚI 60**: Dùng từ ngữ CẢNH BÁO, NGHIÊM TRỌNG, KHẨN CẤP. Nếu có `dependents`, CẢNH BÁO RÕ RÀNG về nguy cơ rớt.
+- **ĐIỂM 60-79**: Dùng từ ngữ NHẬN XÉT, GỢI Ý, CẢI THIỆN. Nếu có `dependents`, nhận xét về ảnh hưởng có thể có.
+- **ĐIỂM 80-89**: Dùng từ ngữ KHEN NGỢI VỪA PHẢI - "nắm vững tốt", "kết quả khá tốt", không khen quá.
+- **ĐIỂM 90-99**: Dùng từ ngữ KHEN NGỢI TÍCH CỰC - "nắm vững rất tốt", "kết quả xuất sắc".
+- **ĐIỂM 100**: Dùng từ ngữ KHEN NGỢI CAO NHẤT - "nắm vững xuất sắc", "kết quả hoàn hảo", nhưng vẫn thực tế và gợi ý phát triển.
+- Nếu `dependents` có dữ liệu, BẮT BUỘC phải liệt kê từng môn với nhận xét/cảnh báo phù hợp với mức điểm.
+- Nếu `dependents` rỗng hoặc null, ghi rõ "Không có môn học phụ thuộc trực tiếp."
+- Nếu có `careerGoal`, liên hệ với mục tiêu nghề nghiệp trong phần đánh giá và gợi ý.
+
+YÊU CẦU ĐỊNH DẠNG:
+- Luôn mở đầu `improvementAnalysis` bằng `## Phân tích điểm số [Tên môn]`.
+- Bắt buộc đủ 4 heading với tên phù hợp theo mức điểm.
+- Mỗi heading có 2-4 bullet, bắt đầu bằng động từ, ghi rõ khối lượng.
+- KHÔNG được khen quá mức, phải thực tế và có mức độ.
+""";
+    }
 }
 

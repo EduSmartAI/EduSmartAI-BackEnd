@@ -118,4 +118,44 @@ public class AiRecommendController : ControllerBase
             _httpContextAccessor,
             new AiSubjectCourseResponse());
     }
+
+    /// <summary>
+    /// Analyze subject mark and provide improvement suggestions with dependent subject warnings
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("subject-analysis")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<SubjectAnalysisResponse> AnalyzeSubject(SubjectAnalysisRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<SubjectAnalysisRequest, SubjectAnalysisResponse, SubjectAnalysisDto>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new SubjectAnalysisResponse());
+    }
+
+    /// <summary>
+    /// Analyze subject by courseId - automatically gets subject info and score
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("course-subject-analysis")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<SubjectAnalysisResponse> AnalyzeCourseSubject(CourseSubjectAnalysisRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<CourseSubjectAnalysisRequest, SubjectAnalysisResponse, SubjectAnalysisDto>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new SubjectAnalysisResponse());
+    }
 }

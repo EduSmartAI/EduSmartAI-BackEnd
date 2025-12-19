@@ -21,7 +21,6 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 MajorCode = m.MajorCode,
                 MajorName = m.MajorName
             }).ToList(),
-            
             QuizSurvey = new QuizSurvey
             {
                 QuizHabits = evt.QuizSurveyEvent.QuizHabits.Select(x => new QuizHabit

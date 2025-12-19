@@ -1,4 +1,5 @@
 using BuildingBlocks.CQRS;
+using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.QuizService;
 
 namespace StudentService.Application.Applications.LearningPaths.Commands;
@@ -16,6 +17,9 @@ public class LearningPathMajorInsertCommand : ICommand<LearningPathMajorInternal
     public List<string>? StudentPassedSubjects { get; set; }
     public required List<CourseImprove>? CourseImproves { get; set; }
     public List<StudentTranscrptEvent>? StudentTranscripts { get; set; }
+    
+    public required List<AbilityMarkForAI>? AbilityMarks { get; set; }
+    public required List<AbilityImproveEvent>? AbilityImprove { get; set; }
 }
 
 public class LearningPathMajorRequest

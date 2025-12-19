@@ -16,6 +16,8 @@ using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
 using BuildingBlocks.Messaging.Events.AIService.ModuleProgress;
 using BuildingBlocks.Messaging.Events.AIService.SubjectInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
+using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetOverviewAiEvaluation;
 using BuildingBlocks.Messaging.Events.UtilityService;
 using MassTransit;
 
@@ -75,6 +77,8 @@ public static class MessagingExtensions
             x.AddRequestClient<AiUpdateCourseStatusToSkipped>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<SubjectInfoEvent>(TimeSpan.FromSeconds(120));
             x.AddRequestClient<GetSubjectDetailEvent>(TimeSpan.FromSeconds(120));
+            x.AddRequestClient<GetOverviewAiEvaluationEvent>(TimeSpan.FromSeconds(60));
+            x.AddRequestClient<GetInfoInternalCourseEvents>(TimeSpan.FromSeconds(60));
         });
 
         return services;

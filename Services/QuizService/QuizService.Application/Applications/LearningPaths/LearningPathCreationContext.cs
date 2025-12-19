@@ -13,6 +13,8 @@ public class LearningPathCreationContext
     public required int LimitTime { get; init; }
     public required short StudentLevel { get; init; }
     public required StudentMajor StudentMajor { get; set; }
+    
+    public required List<AbilityImprove>? AbilityImprove { get; init; }
     public List<CourseImproveContext>? CourseImprove { get; init; }
     public List<string>? StudentPassedSubjects { get; set; }
     
@@ -20,6 +22,7 @@ public class LearningPathCreationContext
     public List<AbilityMarkContext>? AbilityMarks { get; set; } 
     
     public List<StudentTranscriptContext>? StudentTranscripts { get; set; }
+    
 }
 
 public class SubjectMarkContext
@@ -51,4 +54,11 @@ public class StudentTranscriptContext
     public required double? Mark { get; set; }
     
     public required string Status { get; set; }
+}
+
+public class AbilityImprove
+{
+    public string Name { get; set; }
+    
+    public double Mark { get; set; }
 }

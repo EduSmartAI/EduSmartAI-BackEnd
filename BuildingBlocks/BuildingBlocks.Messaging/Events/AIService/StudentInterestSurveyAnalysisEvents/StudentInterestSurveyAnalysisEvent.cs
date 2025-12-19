@@ -11,8 +11,6 @@ public class StudentInterestSurveyAnalysisEvent
 
 public class StudentInterestQuestion
 {
-    public Guid QuestionId { get; set; }
-    
     public string QuestionText { get; set; } = string.Empty;
     
     public List<string> StudentAnswers { get; set; } = new();

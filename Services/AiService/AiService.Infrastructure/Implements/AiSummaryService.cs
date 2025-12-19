@@ -3,9 +3,12 @@ using AiService.Application.Features.AiSummary;
 using AiService.Application.Interfaces;
 using AiService.Infrastructure.Helpers.AiQuizEvaluator;
 using AiService.Infrastructure.Prompts;
+using BaseService.Application.Interfaces.IdentityHepers;
 using BuildingBlocks.Messaging.Events.AIService.SubjectInfoEvent;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse; // NEW
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
+using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetOverviewAiEvaluation;
 using MassTransit;
 using OpenAI.Chat;
 using System.Text;
@@ -19,6 +22,9 @@ namespace AiService.Infrastructure.Implements
         IRequestClient<GetInfoEvaluationEvent> requestClient,
         IRequestClient<GetAllDetailCourseEvent> courseClient,
         IRequestClient<SubjectInfoEvent> subjectInfoClient,
+        IRequestClient<GetOverviewAiEvaluationEvent> overviewAiEvaluationClient,
+        IRequestClient<GetInfoInternalCourseEvents> getInfoInternalCourseClient,
+        IIdentityService identityService,
         ChatClient chat
     ) : IAiSummaryService
     {
@@ -784,6 +790,356 @@ namespace AiService.Infrastructure.Implements
                     WithoutMarkAnalysis = withoutMarkAnalyses
                 }
             };
+        }
+        #endregion
+
+        #region Subject Analysis
+        public async Task<SubjectAnalysisResponse> AnalyzeSubjectMarkAsync(
+            SubjectAnalysisRequest req,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(req);
+
+            var normalizedSubjectCode = NormalizeSubjectCode(req.SubjectCode);
+            if (string.IsNullOrWhiteSpace(normalizedSubjectCode))
+            {
+                return new SubjectAnalysisResponse
+                {
+                    Success = false,
+                    Response = new SubjectAnalysisDto
+                    {
+                        SubjectCode = req.SubjectCode,
+                        SubjectName = req.SubjectName,
+                        Mark = req.Mark,
+                        ImprovementAnalysis = "Mã môn học không hợp lệ."
+                    }
+                };
+            }
+
+            // 1. Load curriculum subjects để lấy thông tin về môn phụ thuộc
+            var curriculumSubjects = await LoadCurriculumSubjectsForAnalysisAsync(
+                normalizedSubjectCode,
+                req.MajorCode,
+                ct);
+
+            // 2. Tìm các môn phụ thuộc (subjects that depend on this subject)
+            var dependentsLookup = BuildDependentsLookupForAnalysis(curriculumSubjects);
+            dependentsLookup.TryGetValue(normalizedSubjectCode, out var dependents);
+
+            // 3. Gọi AI để phân tích
+            var prompt = AiRecommendPromptLibrary.BuildSubjectAnalysisPrompt(
+                req.SubjectCode,
+                req.SubjectName,
+                req.Mark,
+                dependents,
+                req.CareerGoal);
+
+            var aiResponse = await CompleteJsonChatAsync(
+                AiRecommendPromptLibrary.SystemPrompt,
+                prompt,
+                ct);
+
+            // 4. Parse response
+            var parsed = TryParseSubjectAnalysisResponse(aiResponse);
+            if (parsed == null)
+            {
+                // Fallback
+                parsed = BuildSubjectAnalysisFallback(req, dependents);
+            }
+
+            // 5. Build dependent warnings
+            var dependentWarnings = (dependents ?? new List<(string, string, int?)>())
+                .Select(dep =>
+                {
+                    var semesterLabel = dep.Item3.HasValue && dep.Item3.Value > 0
+                        ? $"Kỳ {dep.Item3.Value}"
+                        : "các kỳ sau";
+                    return new DependentSubjectWarning
+                    {
+                        SubjectCode = dep.Item1,
+                        SubjectName = dep.Item2,
+                        SemesterIndex = dep.Item3,
+                        WarningMessage = $"Điểm thấp ở {req.SubjectName} ({req.SubjectCode}) có thể ảnh hưởng đến kết quả học tập của {dep.Item2} ({dep.Item1}) {semesterLabel}."
+                    };
+                })
+                .ToList();
+
+            return new SubjectAnalysisResponse
+            {
+                Success = true,
+                Response = new SubjectAnalysisDto
+                {
+                    SubjectCode = req.SubjectCode,
+                    SubjectName = req.SubjectName,
+                    Mark = req.Mark,
+                    ImprovementAnalysis = parsed,
+                    DependentWarnings = dependentWarnings
+                }
+            };
+        }
+
+        private async Task<List<SubjectCur>> LoadCurriculumSubjectsForAnalysisAsync(
+            string subjectCode,
+            string? majorCode,
+            CancellationToken ct)
+        {
+            var normalizedMajorCode = string.IsNullOrWhiteSpace(majorCode)
+                ? string.Empty
+                : NormalizeSubjectCode(majorCode);
+
+            // Request tất cả subjects trong major để có thể tìm các môn phụ thuộc
+            // Nếu không có majorCode, chỉ request môn hiện tại
+            var eventRequest = new SubjectInfoEvent
+            {
+                MajorCode = normalizedMajorCode,
+                // Nếu có majorCode, request tất cả subjects (để tìm dependents)
+                // Nếu không, chỉ request môn hiện tại
+                SubjectCodes = string.IsNullOrWhiteSpace(normalizedMajorCode)
+                    ? new List<string> { subjectCode }
+                    : new List<string>() // Empty list để lấy tất cả subjects trong major
+            };
+
+            try
+            {
+                var response = await subjectInfoClient.GetResponse<SubjectInfoEventResponse>(eventRequest, ct);
+                var message = response.Message;
+
+                if (message.Success && message.Response is { Count: > 0 } items)
+                {
+                    var allSubjects = items
+                        .Select(item => new SubjectCur
+                        {
+                            SubjectCode = item.SubjectCode,
+                            SubjectName = item.SubjectName,
+                            Index = item.SemesterIndex.HasValue && item.SemesterIndex.Value > 0
+                                ? item.SemesterIndex.Value
+                                : item.SubjectIndex,
+                            SubjectPrerequisiteCode = item.PrereqSubjectCodes ?? new List<string>()
+                        })
+                        .ToList();
+
+                    // Nếu không có majorCode và không tìm thấy môn hiện tại, thêm vào
+                    if (string.IsNullOrWhiteSpace(normalizedMajorCode))
+                    {
+                        var found = allSubjects.Any(s => 
+                            s.SubjectCode.Equals(subjectCode, StringComparison.OrdinalIgnoreCase));
+                        if (!found)
+                        {
+                            allSubjects.Add(new SubjectCur
+                            {
+                                SubjectCode = subjectCode,
+                                SubjectName = string.Empty,
+                                Index = 0,
+                                SubjectPrerequisiteCode = new List<string>()
+                            });
+                        }
+                    }
+
+                    return allSubjects;
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+
+            // Fallback: return môn hiện tại với empty prerequisites
+            return new List<SubjectCur>
+            {
+                new SubjectCur
+                {
+                    SubjectCode = subjectCode,
+                    SubjectName = string.Empty,
+                    Index = 0,
+                    SubjectPrerequisiteCode = new List<string>()
+                }
+            };
+        }
+
+        private static string? TryParseSubjectAnalysisResponse(string? jsonResponse)
+        {
+            if (string.IsNullOrWhiteSpace(jsonResponse))
+                return null;
+
+            try
+            {
+                var doc = JsonDocument.Parse(jsonResponse);
+                if (doc.RootElement.TryGetProperty("improvementAnalysis", out var analysisElement))
+                {
+                    return analysisElement.GetString();
+                }
+            }
+            catch
+            {
+                // Ignore parse errors
+            }
+
+            return null;
+        }
+
+        private static string BuildSubjectAnalysisFallback(
+            SubjectAnalysisRequest req,
+            List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine($"## Phân tích điểm số {req.SubjectName}");
+            sb.AppendLine();
+            sb.AppendLine("### Đánh giá điểm số");
+            sb.AppendLine($"- Điểm {req.Mark}/100 cho thấy mức độ nắm vững kiến thức cần được cải thiện.");
+            sb.AppendLine();
+            sb.AppendLine("### Điểm yếu cần cải thiện");
+            sb.AppendLine("- Cần xác định các phần kiến thức còn yếu thông qua việc ôn tập lại.");
+            sb.AppendLine();
+            sb.AppendLine("### Lộ trình cải thiện 2-4 tuần");
+            sb.AppendLine("- Ôn tập lại kiến thức cơ bản: 3-4 buổi/tuần");
+            sb.AppendLine("- Làm bài tập và thực hành: 5-7 bài/tuần");
+            sb.AppendLine("- Tham khảo tài liệu và video hướng dẫn");
+            sb.AppendLine();
+            sb.AppendLine("### Cảnh báo môn phụ thuộc");
+            if (dependents != null && dependents.Count > 0)
+            {
+                foreach (var dep in dependents)
+                {
+                    var semesterLabel = dep.semesterIndex.HasValue && dep.semesterIndex.Value > 0
+                        ? $"ở Kỳ {dep.semesterIndex.Value}"
+                        : "trong các kỳ sau";
+                    sb.AppendLine($"- {dep.subjectName} ({dep.subjectCode}) {semesterLabel}: Điểm thấp ở {req.SubjectName} có thể ảnh hưởng đến kết quả học tập môn này.");
+                }
+            }
+            else
+            {
+                sb.AppendLine("- Không có môn học phụ thuộc trực tiếp.");
+            }
+
+            return sb.ToString();
+        }
+
+        private static Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> BuildDependentsLookupForAnalysis(IEnumerable<SubjectCur> subjects)
+        {
+            var map = new Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
+            {
+                foreach (var prerequisite in subject.SubjectPrerequisiteCode ?? new List<string>())
+                {
+                    if (string.IsNullOrWhiteSpace(prerequisite)) continue;
+
+                    var normalizedPrereq = NormalizeSubjectCode(prerequisite);
+                    if (string.IsNullOrWhiteSpace(normalizedPrereq)) continue;
+
+                    if (!map.TryGetValue(normalizedPrereq, out var list))
+                    {
+                        list = new List<(string subjectCode, string subjectName, int? semesterIndex)>();
+                        map[normalizedPrereq] = list;
+                    }
+
+                    var dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
+                        ? subject.SubjectCode
+                        : subject.SubjectName;
+                    var semesterIndex = subject.Index > 0 ? subject.Index : (int?)null;
+
+                    if (!list.Any(dep => dep.subjectCode.Equals(subject.SubjectCode, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        list.Add((subject.SubjectCode, dependentName, semesterIndex));
+                    }
+                }
+            }
+
+            return map;
+        }
+        #endregion
+
+        #region Course Subject Analysis
+        public async Task<SubjectAnalysisResponse> AnalyzeCourseSubjectAsync(Guid courseId, CancellationToken ct = default)
+        {
+            // 1. Lấy userId từ identity service
+            var currentUser = identityService.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return new SubjectAnalysisResponse
+                {
+                    Success = false,
+                    Response = new SubjectAnalysisDto
+                    {
+                        SubjectCode = string.Empty,
+                        SubjectName = string.Empty,
+                        Mark = 0,
+                        ImprovementAnalysis = "Không tìm thấy thông tin người dùng."
+                    }
+                };
+            }
+
+            // 2. Lấy thông tin subject từ courseId qua messaging
+            var courseInfoEvent = new GetInfoInternalCourseEvents(new List<Guid> { courseId }, currentUser.UserId);
+            var courseInfoResponse = await getInfoInternalCourseClient.GetResponse<GetInfoInternalCourseResponse>(
+                courseInfoEvent,
+                ct);
+
+            if (!courseInfoResponse.Message.Success || courseInfoResponse.Message.Response == null || courseInfoResponse.Message.Response.Count == 0)
+            {
+                return new SubjectAnalysisResponse
+                {
+                    Success = false,
+                    Response = new SubjectAnalysisDto
+                    {
+                        SubjectCode = string.Empty,
+                        SubjectName = string.Empty,
+                        Mark = 0,
+                        ImprovementAnalysis = "Không tìm thấy thông tin môn học cho khóa học này."
+                    }
+                };
+            }
+
+            var courseInfo = courseInfoResponse.Message.Response.FirstOrDefault(c => c.CourseId == courseId);
+            if (courseInfo == null || string.IsNullOrWhiteSpace(courseInfo.SubjectCode))
+            {
+                return new SubjectAnalysisResponse
+                {
+                    Success = false,
+                    Response = new SubjectAnalysisDto
+                    {
+                        SubjectCode = string.Empty,
+                        SubjectName = string.Empty,
+                        Mark = 0,
+                        ImprovementAnalysis = "Không tìm thấy thông tin môn học cho khóa học này."
+                    }
+                };
+            }
+
+            // 3. Lấy điểm từ AI evaluation qua messaging
+            var evaluationEvent = new GetOverviewAiEvaluationEvent(currentUser.UserId, courseId);
+            var evaluationResponse = await overviewAiEvaluationClient.GetResponse<GetOverviewAiEvaluationEventResponse>(
+                evaluationEvent,
+                ct);
+
+            if (!evaluationResponse.Message.Success)
+            {
+                return new SubjectAnalysisResponse
+                {
+                    Success = false,
+                    Response = new SubjectAnalysisDto
+                    {
+                        SubjectCode = courseInfo.SubjectCode,
+                        SubjectName = courseInfo.SubjectName ?? string.Empty,
+                        Mark = 0,
+                        ImprovementAnalysis = "Không tìm thấy dữ liệu đánh giá AI cho khóa học này."
+                    }
+                };
+            }
+
+            var mark = evaluationResponse.Message.Response.AverageScore100;
+
+            // 4. Tạo SubjectAnalysisRequest và gọi AnalyzeSubjectMarkAsync
+            var subjectAnalysisRequest = new SubjectAnalysisRequest
+            {
+                SubjectCode = courseInfo.SubjectCode,
+                SubjectName = courseInfo.SubjectName ?? courseInfo.SubjectCode,
+                Mark = mark,
+                MajorCode = courseInfo.MajorCode,
+                CareerGoal = null // Có thể thêm sau nếu cần
+            };
+
+            return await AnalyzeSubjectMarkAsync(subjectAnalysisRequest, ct);
         }
         #endregion
 
@@ -1651,11 +2007,47 @@ namespace AiService.Infrastructure.Implements
             var strongAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark >= 8.0).Select(a => a.Name).ToList() : new List<string>();
             var weakAbilities = (abilityMarks != null) ? abilityMarks.Where(a => a.Mark < 6.5).Select(a => a.Name).ToList() : new List<string>();
 
+            var interests = quizSurvey?.QuizInterests ?? new List<QuizInterest>();
+            var habits = quizSurvey?.QuizHabits ?? new List<QuizHabit>();
+
             var summaryBuilder = new StringBuilder();
             summaryBuilder.AppendLine("## Tổng quan");
-            if (subjectMarks.Count == 0)
+            if (scoredSubjects.Count == 0)
             {
-                summaryBuilder.AppendLine("- Chưa có dữ liệu môn học để tổng hợp. Cập nhật bảng điểm để AI đưa ra đánh giá chính xác hơn.");
+                // Không có điểm môn học, đánh giá dựa trên abilityMarks và quizSurvey
+                if (abilityMarks != null && abilityMarks.Count > 0)
+                {
+                    summaryBuilder.AppendLine($"- Đánh giá dựa trên năng lực hiện tại: điểm trung bình {avgAbility:F1}/10.");
+                    if (strongAbilities.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Thế mạnh nổi bật: {string.Join(", ", strongAbilities.Take(2))}.");
+                    }
+                    if (weakAbilities.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Cần củng cố: {string.Join(", ", weakAbilities.Take(2))}.");
+                    }
+                }
+                else
+                {
+                    summaryBuilder.AppendLine("- Chưa có dữ liệu điểm môn học hoặc năng lực để đánh giá tổng quan.");
+                }
+                
+                if (habits.Count > 0 || interests.Count > 0)
+                {
+                    if (habits.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Thói quen học tập: {habits[0].Answer}.");
+                    }
+                    if (interests.Count > 0)
+                    {
+                        summaryBuilder.AppendLine($"- Sở thích học tập: {interests[0].Answer}.");
+                    }
+                }
+                
+                if (!string.IsNullOrWhiteSpace(careerGoal))
+                {
+                    summaryBuilder.AppendLine($"- Mục tiêu nghề nghiệp: {careerGoal}. Xây dựng lộ trình học tập phù hợp với mục tiêu này.");
+                }
             }
             else
             {
@@ -1674,9 +2066,6 @@ namespace AiService.Infrastructure.Implements
                 }
             }
             summaryBuilder.AppendLine("- Hành động: đặt checklist môn ưu tiên và cập nhật tiến độ mỗi tuần.");
-
-            var interests = quizSurvey.QuizInterests ?? new List<QuizInterest>();
-            var habits = quizSurvey.QuizHabits ?? new List<QuizHabit>();
 
             var habitBuilder = new StringBuilder();
             habitBuilder.AppendLine("## Thói quen & Sở thích");
@@ -1704,13 +2093,32 @@ namespace AiService.Infrastructure.Implements
 
             var personalityBuilder = new StringBuilder();
             personalityBuilder.AppendLine("## Phong cách học tập");
-            personalityBuilder.Append("- Người học cho thấy phong cách ");
-            personalityBuilder.Append(avgSubject >= 7.5 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
-            if (habits.Count > 0)
+            
+            // Xác định phong cách dựa trên dữ liệu có sẵn
+            double baseScore = scoredSubjects.Count > 0 ? avgSubject : (abilityMarks != null && abilityMarks.Count > 0 ? avgAbility : 0);
+            
+            if (scoredSubjects.Count == 0 && (abilityMarks == null || abilityMarks.Count == 0))
             {
-                personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].Answer}\"");
+                // Không có dữ liệu điểm, dựa vào quizSurvey
+                if (habits.Count > 0)
+                {
+                    personalityBuilder.AppendLine($"- Phong cách học tập được phản ánh qua thói quen: \"{habits[0].Answer}\".");
+                }
+                else
+                {
+                    personalityBuilder.AppendLine("- Chưa có đủ dữ liệu để đánh giá phong cách học tập. Hoàn thành khảo sát để có đánh giá chính xác hơn.");
+                }
             }
-            personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
+            else
+            {
+                personalityBuilder.Append("- Người học cho thấy phong cách ");
+                personalityBuilder.Append(baseScore >= 7.5 ? "kỷ luật và thiên về hệ thống" : "linh hoạt nhưng cần thêm cấu trúc");
+                if (habits.Count > 0)
+                {
+                    personalityBuilder.Append($", phản ánh trong chia sẻ \"{habits[0].Answer}\"");
+                }
+                personalityBuilder.AppendLine(". Duy trì phản hồi sau mỗi buổi học để tự điều chỉnh.");
+            }
             personalityBuilder.AppendLine("- Hành động: sau mỗi tuần, tự đánh giá điểm tập trung và điều chỉnh phương pháp cho tuần kế tiếp.");
 
             var learningAbilityBuilder = new StringBuilder();

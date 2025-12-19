@@ -30,7 +30,7 @@ public static class ConstantEnum
     {
         MultipleChoice = 1,
         TrueFalse = 2,
-        SingleChoice = 3,
+        SingleChoice = 4,
     }
 
     public enum TechnologyType
@@ -178,6 +178,7 @@ public static class ConstantEnum
         InProgress = 1,
         Completed = 2,
         Skipped = 3,
+        NoCourse = 4,
     }
 
     public enum SuggestionType
@@ -421,5 +422,20 @@ public static class ConstantEnum
         GetAllLearningPath = 1,
         GetDetailTrainingPath = 2,
         SkipSubjectLearningPath = 3,
+    }
+
+    public enum SubjectImprovementStatus
+    {
+        [Description("Đã đạt và đang cải thiện")]
+        PassedAndImproving = 1,
+        
+        [Description("Chưa đạt và đang cải thiện")]
+        NotPassedAndImproving = 2,
+        
+        [Description("Đang học và đang học cải thiện")]
+        StudyingAndImproving = 3,
+        
+        [Description("Chưa học trên FAP và đang học cải thiện")]
+        NotStartedAndImproving = 4
     }
 }

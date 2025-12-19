@@ -12,6 +12,7 @@ using BuildingBlocks.Messaging.Events.StudentService.Dashboards.ModuleDashboard;
 using BuildingBlocks.Messaging.Events.StudentService.GetAllDetailCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoEvaluation;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
+using BuildingBlocks.Messaging.Events.StudentService.GetOverviewAiEvaluation;
 using BuildingBlocks.Messaging.Events.StudentService.GetOverviewCourse;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
@@ -54,6 +55,7 @@ public static class MessagingExtensions
             x.AddConsumer<SuggestCourseForStudentEventConsumer>();
             x.AddConsumer<StudentCollectionEventConsumer>();
             x.AddConsumer<GetInfoEvaluationConsumer>();
+            x.AddConsumer<GetOverviewAiEvaluationConsumer>();
             x.AddConsumer<InsertAiFeedbackOverViewConsumer>();
             x.AddConsumer<GetModuleProgressEventsConsumer>();
             x.AddConsumer<UpdateModuleFeedbackEventConsumer>();

@@ -687,7 +687,7 @@ public class StudentService : IStudentService
                     x => x.StudentTechnologies,
                     x => x.StudentLearningGoals);
             
-            var studentCollection = new StudentCollection();
+            var studentCollection = await _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId && x.IsActive);
             
             // Publish event to CourseService to get semester name and major name
             if (request.SemesterId != null || request.MajorId != null)
@@ -711,43 +711,47 @@ public class StudentService : IStudentService
                 }
             }
             
-            // Map student to student collection
-            studentCollection = StudentCollection.FromWriteModel(studentExist);
-            
-            // Map Technologies to StudentTechnologyCollection
-            studentCollection.Technologies = updatedStudent!.StudentTechnologies
-                .Where(st => st.IsActive)
-                .Select(st =>
-                {
-                    var tech = technologiesExist.FirstOrDefault(t => t.TechnologyId == st.TechnologyId);
-                    return StudentTechnologyCollection.FromWriteModel(st, tech);
-                }).ToList();
-            
-            // Map LearningGoals to StudentLearningGoalCollection
-            studentCollection.LearningGoals = updatedStudent.StudentLearningGoals
-                .Where(slg => slg.IsActive)
-                .Select(slg =>
-                {
-                    var goal = learningGoalsExist.FirstOrDefault(lg => lg.GoalId == slg.GoalId);
-                    return StudentLearningGoalCollection.FromWriteModel(slg, goal);
-                }).ToList();
-            
-            // Publish event to store collection
-            var studentCollectionEvent = new StudentCollectionEvent
+            // Map updatedStudent to studentCollection manually
+            if (studentCollection != null)
             {
-                Student = studentCollection
-            };
-            
-            var outboxMessage = new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                Type = nameof(StudentCollectionEvent),
-                Content = JsonSerializer.Serialize(studentCollectionEvent),
-                OccurredOnUtc =  DateTime.UtcNow,
-            };
-
-            await _unitOfWork.CacheRemoveAsync(CacheKey.StudentProfile(currentUser.UserId));
-            await _outboxService.AddAsync(outboxMessage);
+                studentCollection.StudentId = updatedStudent!.StudentId;
+                studentCollection.FirstName = updatedStudent.FirstName;
+                studentCollection.LastName = updatedStudent.LastName;
+                studentCollection.DateOfBirth = updatedStudent.DateOfBirth;
+                studentCollection.PhoneNumber = updatedStudent.PhoneNumber;
+                studentCollection.Gender = updatedStudent.Gender;
+                studentCollection.AvatarUrl = updatedStudent.AvatarUrl;
+                studentCollection.Address = updatedStudent.Address;
+                studentCollection.MajorId = updatedStudent.MajorId;
+                studentCollection.SemesterId = updatedStudent.SemesterId;
+                studentCollection.Bio = updatedStudent.Bio;
+                studentCollection.CreatedAt = updatedStudent.CreatedAt;
+                studentCollection.UpdatedAt = updatedStudent.UpdatedAt;
+                studentCollection.CreatedBy = updatedStudent.CreatedBy;
+                studentCollection.UpdatedBy = updatedStudent.UpdatedBy;
+                studentCollection.IsActive = updatedStudent.IsActive;
+                
+                // Map Technologies to StudentTechnologyCollection
+                studentCollection.Technologies = updatedStudent.StudentTechnologies
+                    .Where(st => st.IsActive)
+                    .Select(st =>
+                    {
+                        var tech = technologiesExist.FirstOrDefault(t => t.TechnologyId == st.TechnologyId);
+                        return StudentTechnologyCollection.FromWriteModel(st, tech);
+                    }).ToList();
+                
+                // Map LearningGoals to StudentLearningGoalCollection
+                studentCollection.LearningGoals = updatedStudent.StudentLearningGoals
+                    .Where(slg => slg.IsActive)
+                    .Select(slg =>
+                    {
+                        var goal = learningGoalsExist.FirstOrDefault(lg => lg.GoalId == slg.GoalId);
+                        return StudentLearningGoalCollection.FromWriteModel(slg, goal);
+                    }).ToList();
+                
+                _unitOfWork.Store(studentCollection);
+            }
+            await _unitOfWork.SessionSaveChangesAsync();
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
             // True
@@ -776,17 +780,8 @@ public class StudentService : IStudentService
             return response;
         }
 
-        var cacheKey = CacheKey.StudentProfile(currentUser.UserId);
-
         // Get student collection with all related data
-        var studentCollection = await _studentQueryRepository.GetOrSetAsync(
-            cacheKey,
-            async () =>
-            {
-                return await _studentQueryRepository.FirstOrDefaultAsync(x =>
-                    x.StudentId == currentUser.UserId && x.IsActive);
-            },
-            TimeSpan.FromMinutes(5));
+        var studentCollection = await  _studentQueryRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId && x.IsActive);
         if (studentCollection == null)
         {
             response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin sinh viên");
@@ -959,11 +954,17 @@ public class StudentService : IStudentService
                             continue;
                         }
 
+                        // Cache status descriptions for comparison
+                        var studyingDesc = ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
+                        var notStartedDesc = ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription();
+                        
                         // Validate Credit (column 7)
                         var creditStr = row[7].ToString()?.Trim();
                         var credit = 0;
-                        if (!string.IsNullOrEmpty(creditStr) && (status != ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() && 
-                                                                status != ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        
+                        if (!string.IsNullOrEmpty(creditStr) && 
+                            !string.Equals(status, studyingDesc, StringComparison.OrdinalIgnoreCase) && 
+                            !string.Equals(status, notStartedDesc, StringComparison.OrdinalIgnoreCase))
                         {
                             if (!int.TryParse(creditStr, out var creditOut))
                             {
@@ -975,12 +976,13 @@ public class StudentService : IStudentService
 
                         // Validate Grade (column 8)
                         var gradeStr = row[8].ToString()?.Trim();
-                        if (string.IsNullOrEmpty(gradeStr) && (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription() || status == ConstantEnum.StudentTranscriptStatus.NotStarted.GetDescription()))
+                        
+                        if (string.IsNullOrEmpty(gradeStr) && 
+                            (string.Equals(status, studyingDesc, StringComparison.OrdinalIgnoreCase) || 
+                             string.Equals(status, notStartedDesc, StringComparison.OrdinalIgnoreCase)))
                         {
-                            if (status == ConstantEnum.StudentTranscriptStatus.Studying.GetDescription())
-                            {
-                                validSemesterNumbers.Add((semesterNumber, status));
-                            }
+                            // Add both Studying and NotStarted to validSemesterNumbers
+                            validSemesterNumbers.Add((semesterNumber, status));
                             continue;
                         }
                         double? parsedGrade = null;
@@ -1044,6 +1046,16 @@ public class StudentService : IStudentService
                 if (!studentTranscripts.Any())
                 {
                     response.SetMessage(MessageId.E00000, "File không có dữ liệu bảng điểm hợp lệ");
+                    return false;
+                }
+                
+                // Get max semester from all transcripts
+                var maxSemesterInTranscript = studentTranscripts.Max(x => x.SemesterNumber);
+                
+                // Check: If max semester < 9 and no "Studying" or "NotStarted" subjects exist, reject
+                if (maxSemesterInTranscript < 9 && !validSemesterNumbers.Any())
+                {
+                    response.SetMessage(MessageId.E00000, "Bảng điểm không hợp lệ. Sinh viên dưới kỳ 9 phải có ít nhất một môn đang học (Studying) hoặc chưa bắt đầu (Not Started)");
                     return false;
                 }
                 

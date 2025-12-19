@@ -18,6 +18,7 @@ public class TestService : ITestService
     private readonly ICommandRepository<Quiz> _commandQuizRepository;
     private readonly ICommandRepository<Question> _commandQuestionRepository;
     private readonly IQueryRepository<TestCollection> _queryRepository;
+    private readonly IQueryRepository<QuestionCollection> _questionQueryRepository;
     private readonly IIdentityService _identityService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IRequestClient<SubjectSelectsEvent> _requestSubjectSelectClient;
@@ -32,12 +33,14 @@ public class TestService : ITestService
     /// <param name="requestSubjectSelectClient"></param>
     /// <param name="commandQuizRepository"></param>
     /// <param name="commandQuestionRepository"></param>
+    /// <param name="questionQueryRepository"></param>
     public TestService(ICommandRepository<Test> commandRepository,
         IQueryRepository<TestCollection> queryRepository,
         IIdentityService identityService, IUnitOfWork unitOfWork,
         IRequestClient<SubjectSelectsEvent> requestSubjectSelectClient,
         ICommandRepository<Quiz> commandQuizRepository,
-        ICommandRepository<Question> commandQuestionRepository)
+        ICommandRepository<Question> commandQuestionRepository, 
+        IQueryRepository<QuestionCollection> questionQueryRepository)
     {
         _commandRepository = commandRepository;
         _queryRepository = queryRepository;
@@ -46,6 +49,7 @@ public class TestService : ITestService
         _requestSubjectSelectClient = requestSubjectSelectClient;
         _commandQuizRepository = commandQuizRepository;
         _commandQuestionRepository = commandQuestionRepository;
+        _questionQueryRepository = questionQueryRepository;
     }
 
     /// <summary>
@@ -109,7 +113,7 @@ public class TestService : ITestService
                     {
                         QuestionId = Guid.NewGuid(),
                         QuestionText = q.QuestionText,
-                        QuestionType = q.QuestionType,
+                        QuestionType = (short) q.QuestionType,
                         DifficultyLevel = q.DifficultyLevel,
                         Answers = q.Answers.Select(a => new Answer
                         {
@@ -350,11 +354,14 @@ public class TestService : ITestService
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            // Get existing test with quizzes
-            var existingTest = await _commandRepository.FirstOrDefaultAsync(
+            // Get existing test with quizzes and questions (with proper tracking)
+            var existingTest = await _commandRepository.Find(
                 t => t.TestId == request.TestId && t.IsActive,
-                cancellationToken: cancellationToken,
-                includes: t => t.Quizzes);
+                isTracking: true,
+                cancellationToken: cancellationToken)
+                .Include(t => t.Quizzes)
+                .ThenInclude(q => q.Questions)
+                .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
             if (existingTest == null)
             {
@@ -377,6 +384,7 @@ public class TestService : ITestService
                 var newQuestion = new Question
                 {
                     QuestionId = Guid.NewGuid(),
+                    QuizId = targetQuiz.QuizId, // Set QuizId explicitly
                     QuestionText = questionDto.QuestionText,
                     QuestionType = (short)questionDto.QuestionType,
                     DifficultyLevel = questionDto.DifficultyLevel,
@@ -387,41 +395,25 @@ public class TestService : ITestService
                         IsCorrect = a.IsCorrect,
                     }).ToList()
                 };
-                
-                targetQuiz.Questions.Add(newQuestion);
+                await _commandQuestionRepository.AddAsync(newQuestion);
                 newQuestions.Add(newQuestion);
             }
-
-            // Save to write database
-            _commandRepository.Update(existingTest);
             await _unitOfWork.SaveChangesAsync(currentEmail, cancellationToken);
-
-            // Update read database - store new questions and answers
+            
+            // Reload and update QuizCollection to include new questions
+            var testCollection = await _queryRepository.FirstOrDefaultAsync(t => t.TestId == request.TestId && t.IsActive);
+            var quizCollection = testCollection?.Quizzes
+                .FirstOrDefault(q => q.QuizId == request.QuizId);
             foreach (var question in newQuestions)
             {
-                _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
-                foreach (var answer in question.Answers)
+                var questionExists = quizCollection?.Questions.FirstOrDefault(q => q.QuestionId == question.QuestionId);
+                if (questionExists == null)
                 {
-                    _unitOfWork.Store(AnswerCollection.FromWriteModel(answer));
+                    quizCollection.Questions.Add(QuestionCollection.FromWriteModel(question));
+                    _unitOfWork.Store(QuestionCollection.FromWriteModel(question));
                 }
             }
-
-            // Reload and update QuizCollection to include new questions
-            var updatedQuiz = existingTest.Quizzes.FirstOrDefault(q => q.QuizId == request.QuizId);
-            if (updatedQuiz != null && updatedQuiz.PlacementTestQuizSetting != null)
-            {
-                var subjectSelectEvent = new SubjectSelectsEvent 
-                { 
-                    SubjectIds = new List<Guid> { updatedQuiz.PlacementTestQuizSetting.SubjectCode } 
-                };
-                
-                var messageResponse = await _requestSubjectSelectClient.GetResponse<SubjectSelectsEventResponse>(
-                    subjectSelectEvent, cancellationToken);
-                
-                var subjectName = messageResponse.Message.Response.FirstOrDefault()?.SubjectNameCode ?? string.Empty;
-                _unitOfWork.Store(QuizCollection.FromWriteModel(updatedQuiz, subjectName));
-            }
-
+            _unitOfWork.Store(testCollection);
             await _unitOfWork.SessionSaveChangesAsync();
             
             // Clear cache

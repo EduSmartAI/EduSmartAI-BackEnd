@@ -25,6 +25,12 @@ public class RegenerateLearningPathEvent
     public required List<string>? StudentPassedSubjects { get; set; }
     
     public required string? EvaluationAndImprove { get; set; }
+    
+    public required List<Guid> StudentSurveyIds { get; set; }
+        
+    public required Guid? StudentTestId { get; set; }
+    
+    public required List<Guid>? PracticeSubmissionIds { get; set; }
 
     public required List<RegenerateLearningPathEventTechnologies> Technologies { get; set; }
     
@@ -35,6 +41,14 @@ public class RegenerateLearningPathEvent
     public required List<SubjectMarkContext>? SubjectMarks { get; set; }
     
     public required List<StudentTranscriptContext>? StudentTranscripts { get; set; }
+    public List<AbilityImprove>? AbilityImprove { get; set; }
+}
+
+public class AbilityImprove
+{
+    public string Name { get; set; }
+    
+    public double Mark { get; set; }
 }
 
 public class StudentTranscriptContext

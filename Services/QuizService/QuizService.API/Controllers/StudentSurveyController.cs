@@ -84,6 +84,30 @@ public class StudentSurveyController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new StudentSurveySelectResponse());
+    }   
+    
+    /// <summary>
+    /// Select latest student survey
+    /// </summary>
+    /// <returns></returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Hiển câu trả lời phần khảo sát của học sinh, lấy bài khảo sát mới nhất",
+        Description = "Cần cấp quyền cho API"
+    )]
+    public async Task<StudentSurveyLatestSelectQueryResponse> SelectStudentSurveyLatest()
+    {
+        var request = new StudentSurveyLatestSelectQuery();
+        return await ApiControllerHelper.HandleRequest<StudentSurveyLatestSelectQuery, StudentSurveyLatestSelectQueryResponse, List<StudentSurveySelectDetailResponseEntity>>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new StudentSurveyLatestSelectQueryResponse());
     }
     
     /// <summary>
