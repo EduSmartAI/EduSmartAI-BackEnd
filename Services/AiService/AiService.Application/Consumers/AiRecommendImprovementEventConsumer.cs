@@ -4,6 +4,7 @@ using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.QuizService;
 using MassTransit;
 using BaseService.Common.Utils;
+using BaseService.Common.Utils.Const;
 
 namespace AiService.Application.Consumers;
 
@@ -92,62 +93,31 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
                 .Select(x => x.SubjectCode)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             
+            // Create a dictionary for quick lookup of subject marks
+            var subjectMarkMap = evt.SubjectMarks
+                .Where(sm => sm.Mark.HasValue)
+                .ToDictionary(sm => sm.SubjectCode, sm => sm.Mark!.Value, StringComparer.OrdinalIgnoreCase);
+            
             var missingSubjects = evt.StudentCurriculums
                 .Where(c => !existingSubjectCodes.Contains(c.SubjectCode))
-                .Select(c => new LearningPathSubjectCodeEvent
+                .Select(c => 
                 {
-                    SubjectCode = c.SubjectCode,
-                    AnalysisMarkdown = null,
-                    Status = c.Status.GetDescription()
+                    // Get mark for this subject if exists
+                    var hasMark = subjectMarkMap.TryGetValue(c.SubjectCode, out var mark);
+                    
+                    return new LearningPathSubjectCodeEvent
+                    {
+                        SubjectCode = c.SubjectCode,
+                        AnalysisMarkdown = null,
+                        Status = 
+                            hasMark && mark >= 8.0 && c.Status.GetDescription() == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() ? 
+                                ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription() : c.Status.GetDescription()
+                    };
                 })
                 .ToList();
             
             learningFeedbackEvent.LearningPathSubjectCodes.AddRange(missingSubjects);
         }
-
-        // // Add mapping from subject code => ability name
-        // var subjectToAbilityMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        // {
-        //     { "PRO192", "Lập trình hướng đối tượng" },
-        //     { "CSD201", "Cấu trúc dữ liệu và giải thuật" },
-        //     { "DBI202", "Cơ sở dữ liệu" },
-        //     { "WED201c", "Lập trình web HTML/CSS cơ bản" }
-        // };
-        //
-        // var abilityAnalyses = generateLearningFeedbackResult.Response.AbilityAnalyses;
-        //
-        // foreach (var kv in subjectToAbilityMap)
-        // {
-        //     var subjectCode = kv.Key;
-        //     var abilityName = kv.Value;
-        //
-        //     // Find existing subject entry (case-insensitive)
-        //     var subjectEntry = learningFeedbackEvent.LearningPathSubjectCodes.FirstOrDefault(s => string.Equals(s.SubjectCode, subjectCode, StringComparison.OrdinalIgnoreCase));
-        //
-        //     // Find corresponding ability analysis by name - using Contains instead of Equals (case-insensitive)
-        //     var abilityEntry = abilityAnalyses
-        //         .FirstOrDefault(a => a.Name != null && a.Name.Contains(abilityName, StringComparison.OrdinalIgnoreCase));
-        //
-        //     if (abilityEntry == null || string.IsNullOrWhiteSpace(abilityEntry.AnalysisMarkdown))
-        //         continue;
-        //
-        //     if (subjectEntry != null)
-        //     {
-        //         subjectEntry.AnalysisMarkdown = string.IsNullOrWhiteSpace(subjectEntry.AnalysisMarkdown)
-        //             ? abilityEntry.AnalysisMarkdown
-        //             : subjectEntry.AnalysisMarkdown + Environment.NewLine + abilityEntry.AnalysisMarkdown;
-        //     }
-        //     else
-        //     {
-        //         // Create new subject entry if missing
-        //         learningFeedbackEvent.LearningPathSubjectCodes.Add(new LearningPathSubjectCodeEvent
-        //         {
-        //             SubjectCode = subjectCode,
-        //             AnalysisMarkdown = abilityEntry.AnalysisMarkdown,
-        //             Status = curriculumStatusMap.TryGetValue(subjectCode, out var status) ? status : "Not Started"
-        //         });
-        //     }
-        // }
         
         await context.Publish(learningFeedbackEvent, context.CancellationToken);
     }

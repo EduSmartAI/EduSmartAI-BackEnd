@@ -162,10 +162,10 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     LearningPathMajorId = learningPathMajorId,
                     SubjectCode = subCode.SubjectCode,
                     AnalysisMarkdown = subCode.AnalysisMarkdown,
-                    Status = MapToSubjectImprovementStatus(subCode.Status)
+                    Status = subCode.AnalysisMarkdown != null ? MapToSubjectImprovementStatus(subCode.Status) : subCode.Status
                 };
                 learningPathSubjectCodes.Add(learningPathSubjectCode);
-                existingSubjectCodeSet.Add(compositeKey); // Add to set to prevent duplicate in same run
+                existingSubjectCodeSet.Add(compositeKey);
                 await _learningPathSubjectCodeRepository.AddAsync(learningPathSubjectCode);
             }
         }
