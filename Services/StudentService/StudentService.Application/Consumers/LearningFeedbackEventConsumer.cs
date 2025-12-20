@@ -113,6 +113,12 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             .Select(x => $"{x.SubjectCode}_{x.LearningPathMajorId}")
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         
+        // Create dictionary for quick lookup of transcript grades
+        var transcriptGradeMap = studentTranscripts?
+            .Where(t => t.Grade.HasValue)
+            .ToDictionary(t => t.SubjectCode, t => t.Grade!.Value, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        
         // Insert LearningPathSubjectCodes with CORRECT foreign key based on SubjectCode -> MajorCode mapping
         var learningPathSubjectCodes = new List<LearningPathSubjectCode>();
         foreach (var subCode in evt.LearningPathSubjectCodes)
@@ -121,6 +127,28 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             if (!subjectCodeToMajorCodeMap.TryGetValue(subCode.SubjectCode, out var majorCodes) || !majorCodes.Any())
             {
                 continue;
+            }
+            
+            // Determine status based on AnalysisMarkdown and transcript grade
+            string determinedStatus;
+            if (subCode.AnalysisMarkdown == null)
+            {
+                // No AI analysis: check transcript grade
+                if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade) && grade > 8.0)
+                {
+                    // Grade > 8.0: PassedWithGoodGrade
+                    determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription();
+                }
+                else
+                {
+                    // Use original status from event
+                    determinedStatus = subCode.Status;
+                }
+            }
+            else
+            {
+                // Has AI analysis: map using standard logic
+                determinedStatus = MapToSubjectImprovementStatus(subCode.Status);
             }
             
             // For each major that this subject belongs to, create a subject code entry
@@ -148,7 +176,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         if (existingEntity != null)
                         {
                             existingEntity.AnalysisMarkdown = subCode.AnalysisMarkdown;
-                            existingEntity.Status = MapToSubjectImprovementStatus(subCode.Status);
+                            existingEntity.Status = determinedStatus;
                             _learningPathSubjectCodeRepository.Update(existingEntity);
                             learningPathSubjectCodes.Add(existingEntity);
                         }
@@ -162,7 +190,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                     LearningPathMajorId = learningPathMajorId,
                     SubjectCode = subCode.SubjectCode,
                     AnalysisMarkdown = subCode.AnalysisMarkdown,
-                    Status = subCode.AnalysisMarkdown != null ? MapToSubjectImprovementStatus(subCode.Status) : subCode.Status
+                    Status = determinedStatus
                 };
                 learningPathSubjectCodes.Add(learningPathSubjectCode);
                 existingSubjectCodeSet.Add(compositeKey);
@@ -193,6 +221,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 if (existingSubjectCode != null)
                 {
                     existingSubjectCode.AnalysisMarkdown = subCode.AnalysisMarkdown;
+                    existingSubjectCode.Status = subCode.Status; // Use status already calculated
                 }
                 else
                 {
@@ -201,7 +230,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                         LearningPathSubjectCodeId = subCode.LearningPathSubjectCodeId,
                         SubjectCode = subCode.SubjectCode,
                         AnalysisMarkdown = subCode.AnalysisMarkdown,
-                        Status = MapToSubjectImprovementStatus(subCode.Status),
+                        Status = subCode.Status, // Use status already calculated
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
                         CreatedBy = evt.Email,

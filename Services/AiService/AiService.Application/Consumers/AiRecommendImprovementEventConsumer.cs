@@ -100,19 +100,11 @@ public class AiRecommendImprovementEventConsumer(IAiSummaryService aiSummaryServ
             
             var missingSubjects = evt.StudentCurriculums
                 .Where(c => !existingSubjectCodes.Contains(c.SubjectCode))
-                .Select(c => 
+                .Select(c => new LearningPathSubjectCodeEvent
                 {
-                    // Get mark for this subject if exists
-                    var hasMark = subjectMarkMap.TryGetValue(c.SubjectCode, out var mark);
-                    
-                    return new LearningPathSubjectCodeEvent
-                    {
                         SubjectCode = c.SubjectCode,
                         AnalysisMarkdown = null,
-                        Status = 
-                            hasMark && mark >= 8.0 && c.Status.GetDescription() == ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() ? 
-                                ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription() : c.Status.GetDescription()
-                    };
+                        Status = c.Status.GetDescription(),
                 })
                 .ToList();
             
