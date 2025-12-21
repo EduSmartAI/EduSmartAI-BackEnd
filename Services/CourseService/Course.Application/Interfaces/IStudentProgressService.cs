@@ -1,4 +1,6 @@
-﻿using Course.Application.DTOs.UserLessonProgressDTO;
+﻿using Course.Application.Courses.Commands.RatingCourse;
+using Course.Application.Courses.Queries.GetMyCourseRating;
+using Course.Application.DTOs.UserLessonProgressDTO;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
 using Course.Application.UserLessonProgresses.Commands.UpsertUserLessonProgress;
 using Course.Application.UserLessonProgresses.Queries.CheckEnrollment;
@@ -23,5 +25,8 @@ namespace Course.Application.Interfaces
 
 		Task<GetMyLearningCoursesResponse> GetMyLearningAsync(GetMyLearningCoursesQuery request, CancellationToken ct = default);
 
+		Task<UpsertCourseRatingResponse> UpsertCourseRatingAsync(Guid courseId, short rating, CancellationToken ct = default);
+
+		Task<GetMyCourseRatingResponse> IsCourseRatedByCurrentUserAsync(Guid courseId, CancellationToken ct = default);
 	}
 }

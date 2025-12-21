@@ -1,5 +1,7 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
+using Course.Application.Courses.Commands.RatingCourse;
+using Course.Application.Courses.Queries.GetMyCourseRating;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
@@ -33,6 +35,7 @@ namespace Course.Infrastructure.Implements
 		ICommandRepository<UserLessonProgress> _userLessonProgress,
 		ICommandRepository<UserModuleProgress> _userModuleProgressQuery,
 		ICommandRepository<UserCourseProgress> _userCourseProgressQuery,
+		ICommandRepository<CourseRating> _ratingRepository,
 		IPublishEndpoint _publishEndpoint,
 		ICourseCache _courseCache,
 		ICourseMapper _courseMapper,
@@ -236,7 +239,7 @@ namespace Course.Infrastructure.Implements
 				.Include(x => x.CourseRequirements.Where(r => r.IsActive))
 				.Include(x => x.CourseComments.Where(c => c.IsActive))
 				.Include(x => x.CourseTags).ThenInclude(ctg => ctg.Tag)
-				.Include(x => x.CourseRatings)
+				.Include(x => x.CourseRatings).Where(x => x.IsActive)
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleObjectives.Where(o => o.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleDiscussions.Where(d => d.IsActive))
 				.Include(x => x.Modules.Where(m => m.IsActive)).ThenInclude(m => m.ModuleMaterials.Where(mat => mat.IsActive))
@@ -689,6 +692,122 @@ namespace Course.Infrastructure.Implements
 			response.SetMessage(MessageId.I00001, "Cập nhật tiến độ thành công.");
 			return response;
 		}
+
+		/// <summary>
+		/// Upsert course rating by current user
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="rating"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<UpsertCourseRatingResponse> UpsertCourseRatingAsync(Guid courseId, short rating, CancellationToken ct = default)
+		{
+			var response = new UpsertCourseRatingResponse() { Success = false };
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			// Check if user is logged in
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			// Validate rating value
+			if (rating < 1 || rating > 5)
+			{
+				response.SetMessage(MessageId.E00000, "Đánh giá không hợp lệ. Giá trị phải từ 1 đến 5.");
+				return response;
+			}
+
+			// Check if course exists
+			var courseExists = await _courseRepository
+				.Find(x => x.CourseId == courseId && x.IsActive, isTracking: false, ct)
+				.AnyAsync(ct);
+
+			if (!courseExists)
+			{
+				response.SetMessage(MessageId.E00000, $"Không tìm thấy khóa học với mã {courseId}");
+				return response;
+			}
+
+			// Check if user has already rated the course
+			var existingRating = await _ratingRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId, isTracking: true, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingRating is not null)
+			{
+				response.SetMessage(MessageId.E11005, "Người dùng đã đánh giá khóa học này");
+				return response;
+			}
+
+			var newRating = new CourseRating
+			{
+				RatingId = Guid.NewGuid(),
+				CourseId = courseId,
+				UserId = currentUser.UserId,
+				Rating = rating,
+			};
+
+			await unitOfWork.BeginTransactionAsync(async () =>
+			{
+				await _ratingRepository.AddAsync(newRating, currentUser.Email);
+				await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+				return true;
+			}, ct);
+
+			response.Success = true;
+			response.Response = true;
+			response.SetMessage(MessageId.I00001, "Đánh giá khóa học");
+
+			return response;
+		}
+
+		/// <summary>
+		/// Check if the current user has rated a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetMyCourseRatingResponse> IsCourseRatedByCurrentUserAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new GetMyCourseRatingResponse() { Success = false };
+
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			var existingRating = await _ratingRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingRating is null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00000, "Người dùng chưa đánh giá khóa học này");
+				response.Response = new GetMyCourseRatingDto
+				{
+					IsRatedByCurrentUser = false
+				};
+			}
+			else
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Người dùng đã đánh giá khóa học này");
+				response.Response = new GetMyCourseRatingDto
+				{
+					IsRatedByCurrentUser = true
+				};
+			}
+
+			return response;
+		}
+
 
 		public async Task<GetMyLearningCoursesResponse> GetMyLearningAsync(GetMyLearningCoursesQuery request, CancellationToken ct = default)
 		{

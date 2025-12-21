@@ -71,6 +71,7 @@ namespace Course.Infrastructure
             services.AddScoped<ICommandRepository<Syllabus>, CommandRepository<Syllabus>>();
             services.AddScoped<ICommandRepository<SyllabusSemester>, CommandRepository<SyllabusSemester>>();
             services.AddScoped<ICommandRepository<SyllabusSubject>, CommandRepository<SyllabusSubject>>();
+            services.AddScoped<ICommandRepository<CourseRating>, CommandRepository<CourseRating>>();
 
 
             // Services

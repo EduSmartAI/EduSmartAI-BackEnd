@@ -1,4 +1,6 @@
 ﻿using BuildingBlocks.Pagination;
+using Course.Application.Courses.Commands.RatingCourse;
+using Course.Application.Courses.Queries.GetMyCourseRating;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.UserLessonProgresses.Commands.EnrollCourse;
@@ -147,6 +149,42 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(query),
 				new GetMyLearningCoursesResponse()
+			);
+		}
+
+		[HttpPost("{courseId:guid}/rating")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Upsert course rating",
+			Description = "Create or update the rating for a specific course by the authenticated student."
+		)]
+		public async Task<UpsertCourseRatingResponse> UpsertCourseRating([FromRoute] Guid courseId, [FromBody] short rating)
+		{
+			var command = new UpsertCourseRatingCommand(courseId, rating);
+			return await ApiControllerHelper.HandleRequest<UpsertCourseRatingCommand, UpsertCourseRatingResponse, bool>(
+				command,
+				_logger,
+				ModelState,
+				async () => await sender.Send(command),
+				new UpsertCourseRatingResponse()
+			);
+		}
+
+		[HttpGet("{courseId:guid}/rating")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Check if the current user has rated a course",
+			Description = "Retrieve the rating given by the authenticated student for a specific course."
+		)]
+		public async Task<GetMyCourseRatingResponse> GetMyCourseRating([FromRoute] Guid courseId)
+		{
+			var query = new GetMyCourseRatingQuery(courseId);
+			return await ApiControllerHelper.HandleRequest<GetMyCourseRatingQuery, GetMyCourseRatingResponse, GetMyCourseRatingDto>(
+				query,
+				_logger,
+				ModelState,
+				async () => await sender.Send(query),
+				new GetMyCourseRatingResponse()
 			);
 		}
 	}
