@@ -134,7 +134,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             if (subCode.AnalysisMarkdown == null)
             {
                 // No AI analysis: check transcript grade
-                if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade) && grade > 8.0)
+                if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade) && grade >= 8.0)
                 {
                     // Grade > 8.0: PassedWithGoodGrade
                     determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription();
