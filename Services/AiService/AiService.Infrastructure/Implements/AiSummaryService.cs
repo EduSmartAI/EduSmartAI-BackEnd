@@ -1143,6 +1143,820 @@ namespace AiService.Infrastructure.Implements
         }
         #endregion
 
+        #region Subject Mark Update Analysis
+        public async Task<SubjectMarkUpdateResponse> AnalyzeSubjectMarkUpdateAsync(
+            SubjectMarkUpdateRequest req,
+            CancellationToken ct = default)
+        {
+            ArgumentNullException.ThrowIfNull(req);
+
+            var normalizedSubjectCode = NormalizeSubjectCode(req.SubjectCode);
+            if (string.IsNullOrWhiteSpace(normalizedSubjectCode))
+            {
+                return new SubjectMarkUpdateResponse
+                {
+                    Success = false,
+                    Response = new SubjectMarkUpdateDto
+                    {
+                        SubjectCode = req.SubjectCode,
+                        SubjectName = req.SubjectName,
+                        OldMark = req.OldMark ?? 0,
+                        NewMark = req.NewMark,
+                        MarkImprovement = req.OldMark.HasValue ? req.NewMark - req.OldMark.Value : 0,
+                        ImprovementAnalysis = "Mã môn học không hợp lệ.",
+                        ComparisonAnalysis = "Mã môn học không hợp lệ."
+                    }
+                };
+            }
+
+            // 1. Lấy MajorCode từ SubjectCode thông qua SubjectInfoEvent (sử dụng v_major_semester_subject_prereqs)
+            string? majorCode = null;
+            try
+            {
+                var subjectInfoEvent = new SubjectInfoEvent
+                {
+                    MajorCode = string.Empty, // Empty để lấy tất cả majors có subject này
+                    SubjectCodes = new List<string> { normalizedSubjectCode }
+                };
+
+                var subjectInfoResponse = await subjectInfoClient.GetResponse<SubjectInfoEventResponse>(
+                    subjectInfoEvent,
+                    ct);
+
+                if (subjectInfoResponse.Message.Success && 
+                    subjectInfoResponse.Message.Response != null && 
+                    subjectInfoResponse.Message.Response.Count > 0)
+                {
+                    // Lấy MajorCode từ item đầu tiên
+                    var firstItem = subjectInfoResponse.Message.Response.FirstOrDefault();
+                    if (firstItem != null && !string.IsNullOrWhiteSpace(firstItem.MajorCode))
+                    {
+                        majorCode = firstItem.MajorCode;
+                    }
+                }
+            }
+            catch
+            {
+                // Nếu không lấy được từ SubjectInfoEvent, tiếp tục với majorCode = null
+            }
+
+            // 2. Load curriculum subjects để lấy thông tin về môn phụ thuộc
+            var curriculumSubjects = await LoadCurriculumSubjectsForAnalysisAsync(
+                normalizedSubjectCode,
+                majorCode,
+                ct);
+
+            // 2. Tìm các môn phụ thuộc (subjects that depend on this subject)
+            var dependentsLookup = BuildDependentsLookupForAnalysis(curriculumSubjects);
+            dependentsLookup.TryGetValue(normalizedSubjectCode, out var dependents);
+
+            // 3. Gọi AI để phân tích
+            var prompt = AiRecommendPromptLibrary.BuildSubjectMarkUpdatePrompt(
+                req.SubjectCode,
+                req.SubjectName,
+                req.OldMark,
+                req.NewMark,
+                req.NewAnalysis,
+                dependents,
+                req.CareerGoal);
+
+            var aiResponse = await CompleteJsonChatAsync(
+                AiRecommendPromptLibrary.SystemPrompt,
+                prompt,
+                ct);
+
+            // 4. Parse response
+            var parsed = TryParseSubjectMarkUpdateResponse(aiResponse);
+            if (parsed == null)
+            {
+                // Fallback
+                parsed = BuildSubjectMarkUpdateFallback(req, dependents);
+            }
+
+            // 5. Build dependent warnings - chỉ cảnh báo nếu điểm mới < 6
+            var dependentWarnings = new List<DependentSubjectWarning>();
+            if (req.NewMark < 6.0 && dependents != null && dependents.Count > 0)
+            {
+                dependentWarnings = dependents
+                    .Select(dep =>
+                    {
+                        var semesterLabel = dep.Item3.HasValue && dep.Item3.Value > 0
+                            ? $"Kỳ {dep.Item3.Value}"
+                            : "các kỳ sau";
+                        return new DependentSubjectWarning
+                        {
+                            SubjectCode = dep.Item1,
+                            SubjectName = dep.Item2,
+                            SemesterIndex = dep.Item3,
+                            WarningMessage = $"⚠️ CẢNH BÁO: Điểm thấp ({req.NewMark}/10) ở {req.SubjectName} ({req.SubjectCode}) có thể ảnh hưởng nghiêm trọng đến kết quả học tập của {dep.Item2} ({dep.Item1}) {semesterLabel}. Cần củng cố kiến thức ngay lập tức."
+                        };
+                    })
+                    .ToList();
+            }
+
+            var markImprovement = req.OldMark.HasValue ? req.NewMark - req.OldMark.Value : 0;
+
+            return new SubjectMarkUpdateResponse
+            {
+                Success = true,
+                Response = new SubjectMarkUpdateDto
+                {
+                    SubjectCode = req.SubjectCode,
+                    SubjectName = req.SubjectName,
+                    OldMark = req.OldMark ?? 0,
+                    NewMark = req.NewMark,
+                    MarkImprovement = markImprovement,
+                    ImprovementAnalysis = parsed.Value.improvementAnalysis,
+                    ComparisonAnalysis = parsed.Value.comparisonAnalysis,
+                    DependentWarnings = dependentWarnings
+                }
+            };
+        }
+
+        private static (string improvementAnalysis, string comparisonAnalysis)? TryParseSubjectMarkUpdateResponse(string? jsonResponse)
+        {
+            if (string.IsNullOrWhiteSpace(jsonResponse))
+                return null;
+
+            try
+            {
+                // Strip code fences nếu có
+                var cleanedJson = AiQuizEvaluatorCommon.StripCodeFence(jsonResponse);
+                
+                var doc = JsonDocument.Parse(cleanedJson);
+                string? improvementAnalysis = null;
+                string? comparisonAnalysis = null;
+
+                if (doc.RootElement.TryGetProperty("improvementAnalysis", out var improvementElement))
+                {
+                    improvementAnalysis = improvementElement.GetString();
+                    // Clean markdown: unescape và strip code fences nếu có
+                    if (!string.IsNullOrWhiteSpace(improvementAnalysis))
+                    {
+                        improvementAnalysis = CleanMarkdown(improvementAnalysis);
+                    }
+                }
+
+                if (doc.RootElement.TryGetProperty("comparisonAnalysis", out var comparisonElement))
+                {
+                    comparisonAnalysis = comparisonElement.GetString();
+                    // Clean markdown: unescape và strip code fences nếu có
+                    if (!string.IsNullOrWhiteSpace(comparisonAnalysis))
+                    {
+                        comparisonAnalysis = CleanMarkdown(comparisonAnalysis);
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(improvementAnalysis) && string.IsNullOrWhiteSpace(comparisonAnalysis))
+                {
+                    return null;
+                }
+
+                return (
+                    improvementAnalysis ?? string.Empty,
+                    comparisonAnalysis ?? string.Empty
+                );
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string ExtractSectionFromMarkdown(string markdown, string sectionTitle)
+        {
+            if (string.IsNullOrWhiteSpace(markdown) || string.IsNullOrWhiteSpace(sectionTitle))
+                return string.Empty;
+
+            // Tìm section bằng heading (## hoặc ###)
+            var patterns = new[]
+            {
+                $"## {sectionTitle}",
+                $"### {sectionTitle}",
+                $"##{sectionTitle}",
+                $"###{sectionTitle}"
+            };
+
+            foreach (var pattern in patterns)
+            {
+                var index = markdown.IndexOf(pattern, StringComparison.OrdinalIgnoreCase);
+                if (index >= 0)
+                {
+                    // Tìm vị trí bắt đầu nội dung (sau heading và newline)
+                    var contentStart = markdown.IndexOf('\n', index);
+                    if (contentStart < 0) continue;
+                    contentStart++; // Bỏ qua newline
+
+                    // Tìm heading tiếp theo (## hoặc ###) hoặc kết thúc document
+                    var nextHeading = markdown.IndexOf("\n##", contentStart, StringComparison.Ordinal);
+                    if (nextHeading < 0)
+                        nextHeading = markdown.Length;
+
+                    var content = markdown.Substring(contentStart, nextHeading - contentStart).Trim();
+                    return content;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static List<string> ExtractBullets(string text)
+        {
+            var bullets = new List<string>();
+            if (string.IsNullOrWhiteSpace(text))
+                return bullets;
+
+            var lines = text.Split('\n');
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                // Tìm các bullet points (bắt đầu bằng - hoặc •)
+                if (trimmed.StartsWith("-", StringComparison.Ordinal) || trimmed.StartsWith("•", StringComparison.Ordinal))
+                {
+                    var content = trimmed.Substring(1).Trim();
+                    if (!string.IsNullOrWhiteSpace(content) && content.Length > 5) // Bỏ qua bullet quá ngắn
+                    {
+                        bullets.Add(content);
+                    }
+                }
+            }
+
+            return bullets;
+        }
+
+        private static string CleanMarkdown(string markdown)
+        {
+            if (string.IsNullOrWhiteSpace(markdown))
+                return markdown;
+
+            // Strip code fences nếu có
+            var cleaned = AiQuizEvaluatorCommon.StripCodeFence(markdown);
+            
+            // Unescape các ký tự escape sequence
+            cleaned = cleaned.Replace("\\n", "\n", StringComparison.Ordinal);
+            cleaned = cleaned.Replace("\\t", "\t", StringComparison.Ordinal);
+            cleaned = cleaned.Replace("\\r", "\r", StringComparison.Ordinal);
+            cleaned = cleaned.Replace("\\\"", "\"", StringComparison.Ordinal);
+            cleaned = cleaned.Replace("\\\\", "\\", StringComparison.Ordinal);
+            
+            // Loại bỏ các dòng trống thừa ở đầu và cuối
+            cleaned = cleaned.Trim();
+            
+            // Đảm bảo format markdown đúng: các heading phải có dòng trống trước đó (trừ dòng đầu)
+            var lines = cleaned.Split('\n').ToList();
+            var result = new List<string>();
+            
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var line = lines[i];
+                var trimmedLine = line.Trim();
+                
+                // Nếu là heading (## hoặc ###) và không phải dòng đầu
+                if ((trimmedLine.StartsWith("##", StringComparison.Ordinal) || 
+                     trimmedLine.StartsWith("###", StringComparison.Ordinal)) && 
+                    result.Count > 0 && 
+                    !string.IsNullOrWhiteSpace(result[result.Count - 1]))
+                {
+                    // Thêm dòng trống trước heading
+                    result.Add(string.Empty);
+                }
+                
+                result.Add(line);
+            }
+            
+            return string.Join("\n", result).Trim();
+        }
+
+        private static (string improvementAnalysis, string comparisonAnalysis) BuildSubjectMarkUpdateFallback(
+            SubjectMarkUpdateRequest req,
+            List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents = null)
+        {
+            var hasOldMark = req.OldMark.HasValue;
+            var markImprovement = hasOldMark ? req.NewMark - req.OldMark.Value : 0;
+            var improvementPercentage = hasOldMark && req.OldMark.Value > 0 ? (markImprovement / req.OldMark.Value) * 100 : 0;
+
+            var improvementSb = new StringBuilder();
+            improvementSb.AppendLine($"## Phân tích cải thiện điểm số {req.SubjectName}");
+            improvementSb.AppendLine();
+            improvementSb.AppendLine("### Mức độ cải thiện");
+            
+            // Phân loại theo điểm mới
+            if (req.NewMark < 60.0)
+            {
+                if (hasOldMark)
+                {
+                    if (markImprovement > 0)
+                    {
+                        improvementSb.AppendLine($"- Điểm đã cải thiện **{markImprovement:F1} điểm** ({improvementPercentage:F1}%) từ {req.OldMark.Value}/100 lên {req.NewMark}/100.");
+                        improvementSb.AppendLine("- ⚠️ CẢNH BÁO: Mặc dù có cải thiện, điểm hiện tại vẫn ở mức RẤT YẾU (< 60), có nguy cơ rớt môn.");
+                    }
+                    else if (markImprovement < 0)
+                    {
+                        improvementSb.AppendLine($"- Điểm đã giảm **{Math.Abs(markImprovement):F1} điểm** ({Math.Abs(improvementPercentage):F1}%) từ {req.OldMark.Value}/100 xuống {req.NewMark}/100.");
+                        improvementSb.AppendLine("- ⚠️ CẢNH BÁO NGHIÊM TRỌNG: Điểm hiện tại ở mức RẤT YẾU (< 60), có nguy cơ rớt môn.");
+                    }
+                    else
+                    {
+                        improvementSb.AppendLine($"- Điểm số giữ nguyên ở mức {req.OldMark.Value}/100.");
+                        improvementSb.AppendLine("- ⚠️ CẢNH BÁO: Điểm hiện tại ở mức RẤT YẾU (< 60), cần cải thiện ngay lập tức.");
+                    }
+                }
+                else
+                {
+                    improvementSb.AppendLine($"- Điểm hiện tại là {req.NewMark}/100 (không có điểm cũ để so sánh).");
+                    improvementSb.AppendLine("- ⚠️ CẢNH BÁO: Điểm hiện tại ở mức RẤT YẾU (< 60), có nguy cơ rớt môn.");
+                }
+            }
+            else if (req.NewMark >= 6.0 && req.NewMark < 7.0)
+            {
+                if (markImprovement > 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã cải thiện **{markImprovement:F1} điểm** ({improvementPercentage:F1}%) từ {req.OldMark}/10 lên {req.NewMark}/10.");
+                    improvementSb.AppendLine("- Đây là sự cải thiện tích cực, nhưng điểm vẫn ở mức trung bình yếu, cần tiếp tục cải thiện.");
+                }
+                else if (markImprovement < 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã giảm **{Math.Abs(markImprovement):F1} điểm** ({Math.Abs(improvementPercentage):F1}%) từ {req.OldMark}/10 xuống {req.NewMark}/10.");
+                    improvementSb.AppendLine("- Cần xem xét lại phương pháp học tập và tập trung vào các phần kiến thức còn yếu.");
+                }
+                else
+                {
+                    improvementSb.AppendLine($"- Điểm số giữ nguyên ở mức {req.OldMark}/10.");
+                    improvementSb.AppendLine("- Cần thay đổi phương pháp học tập để đạt kết quả tốt hơn.");
+                }
+            }
+            else if (req.NewMark >= 7.0 && req.NewMark < 8.0)
+            {
+                if (markImprovement > 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã cải thiện **{markImprovement:F1} điểm** ({improvementPercentage:F1}%) từ {req.OldMark}/10 lên {req.NewMark}/10.");
+                    improvementSb.AppendLine("- Khen ngợi: Bạn đã đạt mức khá tốt, đây là sự cải thiện tích cực.");
+                }
+                else if (markImprovement < 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã giảm **{Math.Abs(markImprovement):F1} điểm** ({Math.Abs(improvementPercentage):F1}%) từ {req.OldMark}/10 xuống {req.NewMark}/10.");
+                    improvementSb.AppendLine("- Mặc dù điểm giảm, bạn vẫn ở mức khá, cần duy trì và cải thiện lại.");
+                }
+                else
+                {
+                    improvementSb.AppendLine($"- Điểm số giữ nguyên ở mức {req.OldMark}/10.");
+                    improvementSb.AppendLine("- Bạn đang ở mức khá, có thể phát triển thêm để đạt mức tốt hơn.");
+                }
+            }
+            else // >= 8.0
+            {
+                if (markImprovement > 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã cải thiện **{markImprovement:F1} điểm** ({improvementPercentage:F1}%) từ {req.OldMark}/10 lên {req.NewMark}/10.");
+                    improvementSb.AppendLine("- 🎉 Khen ngợi: Bạn đã nắm vững kiến thức rất tốt, đây là sự cải thiện xuất sắc!");
+                }
+                else if (markImprovement < 0)
+                {
+                    improvementSb.AppendLine($"- Điểm đã giảm **{Math.Abs(markImprovement):F1} điểm** ({Math.Abs(improvementPercentage):F1}%) từ {req.OldMark}/10 xuống {req.NewMark}/10.");
+                    improvementSb.AppendLine("- Mặc dù điểm giảm, bạn vẫn ở mức xuất sắc, cần duy trì phong độ.");
+                }
+                else
+                {
+                    improvementSb.AppendLine($"- Điểm số giữ nguyên ở mức {req.OldMark}/10.");
+                    improvementSb.AppendLine("- Khen ngợi: Bạn đang ở mức xuất sắc, tiếp tục phát triển để duy trì phong độ.");
+                }
+            }
+            
+            improvementSb.AppendLine();
+            if (hasOldMark)
+            {
+                improvementSb.AppendLine("### So sánh điểm cũ và mới");
+                improvementSb.AppendLine($"- Điểm cũ ({req.OldMark.Value}/100): {ClassifyMarkLevel(req.OldMark.Value / 10)}");
+                improvementSb.AppendLine($"- Điểm mới ({req.NewMark}/100): {ClassifyMarkLevel(req.NewMark / 10)}");
+            }
+            else
+            {
+                improvementSb.AppendLine("### Điểm số hiện tại");
+                improvementSb.AppendLine($"- Điểm hiện tại ({req.NewMark}/100): {ClassifyMarkLevel(req.NewMark / 10)}");
+            }
+            improvementSb.AppendLine();
+            improvementSb.AppendLine("### Nguyên nhân cải thiện");
+            if (!string.IsNullOrWhiteSpace(req.NewAnalysis))
+            {
+                improvementSb.AppendLine($"- Dựa trên phân tích: {req.NewAnalysis}");
+            }
+            else
+            {
+                improvementSb.AppendLine("- Chưa có phân tích chi tiết về nguyên nhân cải thiện.");
+            }
+            improvementSb.AppendLine();
+            
+            // Cảnh báo/Nhận xét về môn phụ thuộc
+            improvementSb.AppendLine("### Cảnh báo/Nhận xét về môn phụ thuộc ở kỳ tiếp theo");
+            if (dependents != null && dependents.Count > 0)
+            {
+                if (req.NewMark < 6.0)
+                {
+                    foreach (var dep in dependents)
+                    {
+                        var semesterLabel = dep.semesterIndex.HasValue && dep.semesterIndex.Value > 0
+                            ? $"Kỳ {dep.semesterIndex.Value}"
+                            : "các kỳ sau";
+                        improvementSb.AppendLine($"- ⚠️ **CẢNH BÁO NGHIÊM TRỌNG**: Điểm thấp ({req.NewMark}/10) ở {req.SubjectName} có thể khiến bạn RỚT môn {dep.subjectName} ({dep.subjectCode}) {semesterLabel}. Cần củng cố kiến thức ngay lập tức.");
+                    }
+                }
+                else if (req.NewMark >= 6.0 && req.NewMark < 7.0)
+                {
+                    foreach (var dep in dependents)
+                    {
+                        var semesterLabel = dep.semesterIndex.HasValue && dep.semesterIndex.Value > 0
+                            ? $"Kỳ {dep.semesterIndex.Value}"
+                            : "các kỳ sau";
+                        improvementSb.AppendLine($"- ⚠️ **Lưu ý**: Điểm trung bình yếu ({req.NewMark}/10) ở {req.SubjectName} có thể ảnh hưởng đến kết quả học tập của {dep.subjectName} ({dep.subjectCode}) {semesterLabel}. Nên củng cố thêm.");
+                    }
+                }
+                else if (req.NewMark >= 7.0 && req.NewMark < 8.0)
+                {
+                    foreach (var dep in dependents)
+                    {
+                        var semesterLabel = dep.semesterIndex.HasValue && dep.semesterIndex.Value > 0
+                            ? $"Kỳ {dep.semesterIndex.Value}"
+                            : "các kỳ sau";
+                        improvementSb.AppendLine($"- ✅ **Nhận xét tích cực**: Với điểm khá ({req.NewMark}/10) ở {req.SubjectName}, bạn có khả năng học tốt môn {dep.subjectName} ({dep.subjectCode}) {semesterLabel}. Duy trì phong độ.");
+                    }
+                }
+                else // >= 8.0
+                {
+                    foreach (var dep in dependents)
+                    {
+                        var semesterLabel = dep.semesterIndex.HasValue && dep.semesterIndex.Value > 0
+                            ? $"Kỳ {dep.semesterIndex.Value}"
+                            : "các kỳ sau";
+                        improvementSb.AppendLine($"- 🎉 **Nhận xét rất tích cực**: Với điểm xuất sắc ({req.NewMark}/10) ở {req.SubjectName}, bạn có khả năng học rất tốt môn {dep.subjectName} ({dep.subjectCode}) {semesterLabel}. Tiếp tục phát huy!");
+                    }
+                }
+            }
+            else
+            {
+                improvementSb.AppendLine("- Không có môn học phụ thuộc trực tiếp.");
+            }
+            
+            improvementSb.AppendLine();
+            improvementSb.AppendLine("### Đề xuất hành động tiếp theo");
+            
+            // Phân loại lộ trình theo điểm mới
+            if (req.NewMark < 6.0)
+            {
+                improvementSb.AppendLine("- Lộ trình cải thiện KHẨN CẤP: 5-7 buổi/tuần, 10+ bài tập/tuần.");
+                improvementSb.AppendLine("- Ôn lại toàn bộ kiến thức cơ bản và làm lại bài tập đã sai.");
+                improvementSb.AppendLine("- Nhờ mentor/giáo viên hỗ trợ giải đáp thắc mắc ngay lập tức.");
+            }
+            else if (req.NewMark >= 6.0 && req.NewMark < 7.0)
+            {
+                improvementSb.AppendLine("- Lộ trình cải thiện vừa phải: 4-5 buổi/tuần, 7-9 bài tập/tuần.");
+                improvementSb.AppendLine("- Củng cố các phần kiến thức còn yếu và làm thêm bài tập.");
+            }
+            else if (req.NewMark >= 7.0 && req.NewMark < 8.0)
+            {
+                improvementSb.AppendLine("- Lộ trình phát triển vừa phải: 3-4 buổi/tuần, 5-7 bài tập/tuần.");
+                improvementSb.AppendLine("- Duy trì phương pháp học tập hiện tại và phát triển thêm các phần nâng cao.");
+            }
+            else // >= 8.0
+            {
+                improvementSb.AppendLine("- Lộ trình phát triển nâng cao: 2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần.");
+                improvementSb.AppendLine("- Tiếp tục phát triển các phần kiến thức chuyên sâu và thử thách bản thân với bài tập khó hơn.");
+            }
+
+            // Parse newAnalysis để lấy thông tin về điểm mạnh, điểm yếu
+            var strengths = ExtractSectionFromMarkdown(req.NewAnalysis, "Điểm mạnh nổi bật");
+            var weaknesses = ExtractSectionFromMarkdown(req.NewAnalysis, "Vấn đề & Khoảng trống kỹ năng");
+            var rootCauses = ExtractSectionFromMarkdown(req.NewAnalysis, "Nguyên nhân gốc");
+            var priorities = ExtractSectionFromMarkdown(req.NewAnalysis, "Ưu tiên hành động");
+            var trends = ExtractSectionFromMarkdown(req.NewAnalysis, "Xu hướng theo thời gian");
+            
+            var comparisonSb = new StringBuilder();
+            comparisonSb.AppendLine("## So sánh chi tiết");
+            comparisonSb.AppendLine();
+            
+            // Điểm cũ - viết dài hơn, chi tiết hơn, sử dụng dữ liệu từ newAnalysis
+            // Chỉ hiển thị nếu có OldMark
+            if (hasOldMark)
+            {
+                var oldMarkInScale10 = req.OldMark.Value / 10;
+                comparisonSb.AppendLine($"### Điểm cũ ({req.OldMark.Value}/100)");
+                var oldLevel = ClassifyMarkLevel(oldMarkInScale10);
+                var oldAssessment = GetMarkAssessment(oldMarkInScale10);
+                comparisonSb.AppendLine($"Điểm {req.OldMark.Value}/100 cho thấy mức độ nắm vững kiến thức ở mức {oldLevel.ToLower()}. {oldAssessment}");
+            }
+            else
+            {
+                comparisonSb.AppendLine("### Điểm cũ");
+                comparisonSb.AppendLine("Không có điểm cũ để so sánh.");
+            }
+            
+            // Sử dụng dữ liệu từ newAnalysis nếu có
+            if (!string.IsNullOrWhiteSpace(strengths))
+            {
+                var strengthBullets = ExtractBullets(strengths);
+                if (strengthBullets.Count > 0)
+                {
+                    comparisonSb.AppendLine($"Dựa trên phân tích, điểm mạnh của bạn ở thời điểm này bao gồm: {string.Join(", ", strengthBullets.Take(2))}.");
+                }
+            }
+            
+            if (!string.IsNullOrWhiteSpace(weaknesses))
+            {
+                var weaknessBullets = ExtractBullets(weaknesses);
+                if (weaknessBullets.Count > 0)
+                {
+                    comparisonSb.AppendLine($"Điểm yếu chính được xác định là: {string.Join(", ", weaknessBullets.Take(2))}.");
+                }
+            }
+            else
+            {
+                // Fallback nếu không có dữ liệu từ newAnalysis
+                if (hasOldMark)
+                {
+                    var oldMarkInScale10 = req.OldMark.Value / 10;
+                    if (oldMarkInScale10 < 6.0)
+                    {
+                        comparisonSb.AppendLine($"Với điểm này, bạn đang gặp khó khăn trong việc nắm vững các kiến thức cơ bản của môn học. Các phần kiến thức nền tảng như khái niệm, nguyên lý cơ bản và cách áp dụng vào bài tập đơn giản có thể chưa được nắm vững.");
+                        comparisonSb.AppendLine($"Điểm yếu chính có thể nằm ở việc chưa hiểu sâu các khái niệm cốt lõi, thiếu kỹ năng giải quyết bài tập cơ bản, hoặc chưa có phương pháp học tập hiệu quả.");
+                    }
+                    else if (oldMarkInScale10 >= 6.0 && oldMarkInScale10 < 7.0)
+                    {
+                        comparisonSb.AppendLine($"Với điểm này, bạn đã nắm được một phần kiến thức cơ bản nhưng vẫn còn nhiều khoảng trống. Các phần kiến thức trọng tâm có thể đã được tiếp thu nhưng chưa đủ sâu để áp dụng vào các bài tập phức tạp hơn.");
+                    }
+                }
+            }
+            comparisonSb.AppendLine();
+            
+            // Điểm mới - viết dài hơn, chi tiết hơn, sử dụng dữ liệu từ newAnalysis
+            var newMarkInScale10 = req.NewMark / 10;
+            comparisonSb.AppendLine($"### Điểm mới ({req.NewMark}/100)");
+            var newLevel = ClassifyMarkLevel(newMarkInScale10);
+            var newAssessment = GetMarkAssessment(newMarkInScale10);
+            comparisonSb.AppendLine($"Điểm {req.NewMark}/100 cho thấy mức độ nắm vững kiến thức hiện tại ở mức {newLevel.ToLower()}. {newAssessment}");
+            
+            // Sử dụng dữ liệu từ newAnalysis
+            if (!string.IsNullOrWhiteSpace(strengths))
+            {
+                var strengthBullets = ExtractBullets(strengths);
+                if (strengthBullets.Count > 0)
+                {
+                    comparisonSb.AppendLine($"Điểm mạnh hiện tại của bạn, dựa trên phân tích chi tiết, bao gồm: {string.Join(", ", strengthBullets)}. Đây là những điểm tích cực cần được duy trì và phát triển thêm.");
+                }
+            }
+            
+            if (!string.IsNullOrWhiteSpace(weaknesses))
+            {
+                var weaknessBullets = ExtractBullets(weaknesses);
+                if (weaknessBullets.Count > 0)
+                {
+                    comparisonSb.AppendLine($"Điểm yếu và các vấn đề cần cải thiện được xác định cụ thể là: {string.Join(", ", weaknessBullets)}. Đây là những phần kiến thức và kỹ năng cần được tập trung củng cố để đạt được kết quả tốt hơn.");
+                }
+            }
+            else
+            {
+                // Fallback nếu không có dữ liệu từ newAnalysis
+                if (newMarkInScale10 < 6.0)
+                {
+                    comparisonSb.AppendLine($"Với điểm này, bạn vẫn đang gặp khó khăn trong việc nắm vững các kiến thức cơ bản. Các phần kiến thức nền tảng vẫn cần được củng cố thêm.");
+                }
+            }
+            comparisonSb.AppendLine();
+            
+            // So sánh chi tiết - sử dụng dữ liệu từ newAnalysis
+            comparisonSb.AppendLine("### So sánh chi tiết");
+            if (hasOldMark && markImprovement > 0)
+            {
+                var oldMarkInScale10 = req.OldMark.Value / 10;
+                comparisonSb.AppendLine($"Sự cải thiện {markImprovement:F1} điểm ({improvementPercentage:F1}%) cho thấy bạn đã có sự tiến bộ rõ rệt trong quá trình học tập.");
+                if (oldMarkInScale10 < 6.0 && newMarkInScale10 >= 6.0)
+                {
+                    comparisonSb.AppendLine($"Bạn đã vượt qua ngưỡng tối thiểu (60/100), từ mức yếu lên mức trung bình, đây là một bước tiến quan trọng. Điều này cho thấy bạn đã nỗ lực củng cố kiến thức nền tảng và có phương pháp học tập hiệu quả hơn.");
+                }
+                else if (oldMarkInScale10 < 7.0 && newMarkInScale10 >= 7.0)
+                {
+                    comparisonSb.AppendLine($"Bạn đã vượt qua ngưỡng khá (70/100), từ mức trung bình lên mức khá, thể hiện sự cải thiện đáng kể. Điều này cho thấy bạn không chỉ nắm vững kiến thức cơ bản mà còn có khả năng áp dụng vào các bài tập phức tạp hơn.");
+                }
+                else if (oldMarkInScale10 < 8.0 && newMarkInScale10 >= 8.0)
+                {
+                    comparisonSb.AppendLine($"Bạn đã vượt qua ngưỡng xuất sắc (80/100), từ mức khá lên mức xuất sắc, đây là một thành tựu đáng khen ngợi. Điều này cho thấy bạn đã nắm vững kiến thức một cách sâu sắc và có khả năng vận dụng linh hoạt.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Mặc dù chưa vượt qua ngưỡng mới, nhưng sự cải thiện này cho thấy bạn đang đi đúng hướng. Các phần kiến thức đã được củng cố và bạn đang tiến gần hơn đến mức cao hơn.");
+                }
+                
+                // Sử dụng dữ liệu từ newAnalysis
+                if (!string.IsNullOrWhiteSpace(strengths))
+                {
+                    var strengthBullets = ExtractBullets(strengths);
+                    if (strengthBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Những phần đã cải thiện rõ rệt, dựa trên phân tích chi tiết, bao gồm: {string.Join(", ", strengthBullets)}. Đây là những điểm tích cực cho thấy bạn đang đi đúng hướng.");
+                    }
+                }
+                
+                if (!string.IsNullOrWhiteSpace(weaknesses))
+                {
+                    var weaknessBullets = ExtractBullets(weaknesses);
+                    if (weaknessBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Tuy nhiên, vẫn còn một số phần cần chú ý để đạt được mức cao hơn: {string.Join(", ", weaknessBullets)}. Đây là những vấn đề cần được tập trung cải thiện trong thời gian tới.");
+                    }
+                }
+            }
+            else if (hasOldMark && markImprovement < 0)
+            {
+                comparisonSb.AppendLine($"Sự giảm {Math.Abs(markImprovement):F1} điểm ({Math.Abs(improvementPercentage):F1}%) cho thấy bạn cần chú ý và điều chỉnh phương pháp học tập.");
+                
+                // Sử dụng dữ liệu từ newAnalysis về nguyên nhân
+                if (!string.IsNullOrWhiteSpace(rootCauses))
+                {
+                    var causeBullets = ExtractBullets(rootCauses);
+                    if (causeBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Nguyên nhân gốc của sự giảm điểm, dựa trên phân tích chi tiết, bao gồm: {string.Join(", ", causeBullets)}. Đây là những vấn đề cần được giải quyết để cải thiện điểm số.");
+                    }
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Điều này có thể do nhiều nguyên nhân: chưa ôn tập đầy đủ, gặp khó khăn với các phần kiến thức mới, hoặc phương pháp học tập chưa phù hợp. Cần xác định nguyên nhân cụ thể để có biện pháp khắc phục.");
+                }
+                
+                if (newMarkInScale10 < 6.0)
+                {
+                    comparisonSb.AppendLine($"Điểm hiện tại đã xuống dưới ngưỡng tối thiểu (60/100), đây là dấu hiệu cảnh báo. Cần củng cố lại kiến thức nền tảng ngay lập tức và tìm kiếm sự hỗ trợ từ giáo viên hoặc bạn học.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Mặc dù điểm đã giảm, nhưng vẫn ở trên ngưỡng tối thiểu. Cần điều chỉnh phương pháp học tập và tập trung vào các phần kiến thức còn yếu để cải thiện lại điểm số.");
+                }
+            }
+            else if (hasOldMark)
+            {
+                comparisonSb.AppendLine($"Điểm số giữ nguyên cho thấy bạn cần thay đổi cách tiếp cận để đạt kết quả tốt hơn.");
+                
+                // Sử dụng dữ liệu từ newAnalysis về nguyên nhân
+                if (!string.IsNullOrWhiteSpace(rootCauses))
+                {
+                    var causeBullets = ExtractBullets(rootCauses);
+                    if (causeBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Nguyên nhân khiến điểm số không cải thiện, dựa trên phân tích, bao gồm: {string.Join(", ", causeBullets)}. Đây là những vấn đề cần được giải quyết để đạt được sự cải thiện.");
+                    }
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Mặc dù đã có nỗ lực, nhưng điểm số không cải thiện có thể do: phương pháp học tập chưa hiệu quả, chưa tập trung vào đúng các phần kiến thức cần thiết, hoặc cần thêm thời gian để kiến thức được củng cố.");
+                }
+                
+                if (newMarkInScale10 < 6.0)
+                {
+                    comparisonSb.AppendLine($"Điểm hiện tại vẫn ở dưới ngưỡng tối thiểu (60/100), cần có biện pháp khẩn cấp để cải thiện. Nên tham khảo ý kiến của giáo viên hoặc tìm kiếm các nguồn tài liệu học tập khác.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Cần điều chỉnh phương pháp học tập, có thể thử các cách tiếp cận mới như học nhóm, làm thêm bài tập, hoặc xem lại các phần kiến thức cơ bản.");
+                }
+            }
+            else
+            {
+                // Không có OldMark để so sánh
+                comparisonSb.AppendLine($"Điểm số hiện tại là {req.NewMark}/100. Dựa trên phân tích, bạn cần tiếp tục cải thiện để đạt kết quả tốt hơn.");
+            }
+            comparisonSb.AppendLine();
+            
+            // Xu hướng học tập - sử dụng dữ liệu từ newAnalysis
+            comparisonSb.AppendLine("### Xu hướng học tập");
+            
+            // Sử dụng dữ liệu từ newAnalysis về xu hướng nếu có
+            if (!string.IsNullOrWhiteSpace(trends) && !trends.Trim().Equals("—", StringComparison.OrdinalIgnoreCase))
+            {
+                comparisonSb.AppendLine($"Dựa trên phân tích xu hướng theo thời gian: {trends.Trim()}");
+            }
+            
+            if (hasOldMark && markImprovement > 0)
+            {
+                if (newMarkInScale10 >= 8.0)
+                {
+                    comparisonSb.AppendLine($"Xu hướng hiện tại cho thấy bạn đang cải thiện tích cực và đạt mức xuất sắc. Nếu duy trì phương pháp học tập hiện tại, bạn có thể tiếp tục phát triển và đạt được những thành tích cao hơn.");
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu tiếp tục duy trì nhịp độ học tập và phương pháp hiện tại, bạn có thể giữ vững hoặc cải thiện thêm điểm số trong các bài kiểm tra tiếp theo.");
+                }
+                else if (newMarkInScale10 >= 7.0)
+                {
+                    comparisonSb.AppendLine($"Xu hướng hiện tại cho thấy bạn đang cải thiện tích cực và đạt mức khá tốt. Nếu duy trì phương pháp học tập hiện tại, bạn có thể tiếp tục cải thiện và đạt mức xuất sắc.");
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu tiếp tục nỗ lực và củng cố các phần kiến thức còn yếu, bạn có thể đạt được điểm số cao hơn trong các bài kiểm tra tiếp theo.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Xu hướng hiện tại cho thấy bạn đang cải thiện tích cực, mặc dù vẫn cần tiếp tục nỗ lực. Nếu duy trì phương pháp học tập hiện tại và tăng cường luyện tập, bạn có thể tiếp tục cải thiện điểm số.");
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu tiếp tục nỗ lực và tập trung vào các phần kiến thức cơ bản, bạn có thể đạt được điểm số tốt hơn và vượt qua các ngưỡng tiếp theo.");
+                }
+            }
+            else if (markImprovement < 0)
+            {
+                comparisonSb.AppendLine($"Xu hướng hiện tại cho thấy điểm số đang giảm, đây là dấu hiệu cần chú ý. Cần điều chỉnh phương pháp học tập và tập trung vào các phần kiến thức còn yếu.");
+                if (req.NewMark < 6.0)
+                {
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu không có biện pháp khắc phục ngay lập tức, điểm số có thể tiếp tục giảm và ảnh hưởng đến kết quả học tập tổng thể. Cần có kế hoạch học tập cụ thể và tìm kiếm sự hỗ trợ.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu điều chỉnh phương pháp học tập và tập trung vào các phần kiến thức còn yếu, bạn có thể cải thiện lại điểm số và đạt được kết quả tốt hơn.");
+                }
+            }
+            else
+            {
+                comparisonSb.AppendLine($"Xu hướng hiện tại cho thấy điểm số đang ổn định, nhưng chưa có sự cải thiện. Cần thay đổi phương pháp học tập để đạt được kết quả tốt hơn.");
+                if (req.NewMark < 6.0)
+                {
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu không có thay đổi trong phương pháp học tập, điểm số có thể tiếp tục ở mức thấp. Cần có kế hoạch học tập mới và tìm kiếm các nguồn tài liệu học tập hiệu quả hơn.");
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Dự đoán xu hướng tiếp theo: Nếu thay đổi phương pháp học tập và tập trung vào các phần kiến thức cần cải thiện, bạn có thể đạt được điểm số cao hơn trong các bài kiểm tra tiếp theo.");
+                }
+            }
+            comparisonSb.AppendLine();
+            
+            // Ý nghĩa của sự thay đổi - sử dụng dữ liệu từ newAnalysis
+            comparisonSb.AppendLine("### Ý nghĩa của sự thay đổi");
+            if (markImprovement > 0)
+            {
+                comparisonSb.AppendLine($"Sự cải thiện này có ý nghĩa quan trọng đối với quá trình học tập của bạn. Nó cho thấy bạn đã tìm được phương pháp học tập phù hợp và đang đi đúng hướng.");
+                comparisonSb.AppendLine($"Đối với các môn học liên quan, việc cải thiện điểm số ở môn này sẽ tạo nền tảng tốt hơn để học các môn phụ thuộc. Kiến thức đã được củng cố sẽ giúp bạn tiếp thu các kiến thức mới dễ dàng hơn.");
+                
+                // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
+                if (!string.IsNullOrWhiteSpace(priorities))
+                {
+                    var priorityBullets = ExtractBullets(priorities);
+                    if (priorityBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Để duy trì và phát triển thêm, bạn nên tập trung vào các ưu tiên hành động: {string.Join(", ", priorityBullets.Take(3))}. Điều này sẽ giúp bạn tiếp tục cải thiện và đạt được kết quả tốt hơn.");
+                    }
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Điều này cũng cho thấy bạn có khả năng cải thiện và phát triển, điều quan trọng là duy trì động lực và tiếp tục nỗ lực.");
+                }
+            }
+            else if (markImprovement < 0)
+            {
+                comparisonSb.AppendLine($"Sự giảm điểm này là một dấu hiệu cảnh báo về quá trình học tập của bạn. Nó cho thấy có thể có vấn đề với phương pháp học tập hoặc việc tiếp thu kiến thức.");
+                comparisonSb.AppendLine($"Đối với các môn học liên quan, việc điểm số giảm ở môn này có thể ảnh hưởng đến khả năng học các môn phụ thuộc. Cần củng cố lại kiến thức nền tảng để tránh ảnh hưởng đến các môn học khác.");
+                
+                // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
+                if (!string.IsNullOrWhiteSpace(priorities))
+                {
+                    var priorityBullets = ExtractBullets(priorities);
+                    if (priorityBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Để khắc phục tình trạng này, bạn cần tập trung vào các ưu tiên hành động: {string.Join(", ", priorityBullets.Take(3))}. Đây là những bước cụ thể cần thực hiện để cải thiện điểm số.");
+                    }
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Tuy nhiên, đây cũng là cơ hội để bạn nhìn nhận lại và điều chỉnh phương pháp học tập, tìm ra cách tiếp cận phù hợp hơn.");
+                }
+            }
+            else
+            {
+                comparisonSb.AppendLine($"Việc điểm số giữ nguyên cho thấy bạn cần thay đổi cách tiếp cận để đạt được sự cải thiện. Mặc dù đã có nỗ lực, nhưng phương pháp hiện tại có thể chưa phù hợp.");
+                comparisonSb.AppendLine($"Đối với các môn học liên quan, việc điểm số không cải thiện có thể ảnh hưởng đến khả năng học các môn phụ thuộc. Cần tìm cách củng cố kiến thức để tạo nền tảng tốt hơn.");
+                
+                // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
+                if (!string.IsNullOrWhiteSpace(priorities))
+                {
+                    var priorityBullets = ExtractBullets(priorities);
+                    if (priorityBullets.Count > 0)
+                    {
+                        comparisonSb.AppendLine($"Để đạt được sự cải thiện, bạn nên tập trung vào các ưu tiên hành động: {string.Join(", ", priorityBullets.Take(3))}. Đây là những bước cụ thể cần thực hiện để thay đổi kết quả học tập.");
+                    }
+                }
+                else
+                {
+                    comparisonSb.AppendLine($"Đây là thời điểm thích hợp để bạn đánh giá lại phương pháp học tập và tìm kiếm các cách tiếp cận mới hiệu quả hơn.");
+                }
+            }
+
+            return (improvementSb.ToString().Trim(), comparisonSb.ToString().Trim());
+        }
+
+        private static string ClassifyMarkLevel(double mark) => mark switch
+        {
+            >= 8.0 => "Xuất sắc",
+            >= 7.0 => "Khá",
+            >= 6.0 => "Trung bình",
+            _ => "Yếu"
+        };
+
+        private static string GetMarkAssessment(double mark) => mark switch
+        {
+            >= 8.0 => "Bạn đã nắm vững kiến thức rất tốt, có thể tiếp tục phát triển ở mức nâng cao.",
+            >= 7.0 => "Bạn đã nắm vững kiến thức ở mức khá, cần củng cố thêm để đạt kết quả tốt hơn.",
+            >= 6.0 => "Bạn đã nắm vững kiến thức ở mức trung bình, cần cải thiện nhiều hơn.",
+            _ => "Bạn cần củng cố kiến thức nền tảng ngay lập tức để tránh hổng kiến thức và nguy cơ rớt môn."
+        };
+        #endregion
+
         private static readonly JsonSerializerOptions AiResponseJsonOptions = new()
         {
             PropertyNameCaseInsensitive = true

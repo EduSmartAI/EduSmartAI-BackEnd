@@ -23,6 +23,7 @@ public static class MessagingExtensions
             x.AddConsumer<SendKeyEventConsumer>();
             x.AddConsumer<UploadVideoRequestedConsumer>();
             x.AddConsumer<AvatarUploadEventConsumer>();
+            x.AddConsumer<PdfUploadEventConsumer>();
             x.AddConsumer<GetSystemConfigEventConsumer>();
             x.AddConsumer<ForgotPasswordEventConsumer>();
 

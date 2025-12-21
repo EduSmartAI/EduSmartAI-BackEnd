@@ -14,5 +14,7 @@ namespace AiService.Application.Interfaces
         Task<SubjectAnalysisResponse> AnalyzeSubjectMarkAsync(SubjectAnalysisRequest req, CancellationToken ct = default);
         
         Task<SubjectAnalysisResponse> AnalyzeCourseSubjectAsync(Guid courseId, CancellationToken ct = default);
+        
+        Task<SubjectMarkUpdateResponse> AnalyzeSubjectMarkUpdateAsync(SubjectMarkUpdateRequest req, CancellationToken ct = default);
     }
 }

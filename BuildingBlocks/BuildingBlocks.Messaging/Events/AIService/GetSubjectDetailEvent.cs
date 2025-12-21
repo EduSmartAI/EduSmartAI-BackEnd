@@ -27,3 +27,5 @@ public sealed record SubjectDetailDto
 
 
 
+
+

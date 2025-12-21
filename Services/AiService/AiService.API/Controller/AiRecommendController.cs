@@ -56,6 +56,20 @@ public class AiRecommendController : ControllerBase
             _httpContextAccessor,
             new AiEvaluateResponse());
     }
+    [HttpPost("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<AiEvaluateResponse> GetLearningPathAiV2(AiEvaluationV2Request request)
+    {
+        return await ApiControllerHelper.HandleRequest<AiEvaluationV2Request, AiEvaluateResponse, EvaluateResult>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new AiEvaluateResponse());
+    }
     [HttpPost("external-courses")]
     [Authorize(Roles = ConstRole.Admin, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     public async Task<AiExternalCourseResponse> GenExternalCourseByAI(AiExternalCourseRequest request)
@@ -157,5 +171,25 @@ public class AiRecommendController : ControllerBase
             _identityEntity,
             _httpContextAccessor,
             new SubjectAnalysisResponse());
+    }
+
+    /// <summary>
+    /// Analyze subject mark update - compares old mark and new mark with new analysis
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("subject-mark-update")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<SubjectMarkUpdateResponse> AnalyzeSubjectMarkUpdate(SubjectMarkUpdateRequest request)
+    {
+        return await ApiControllerHelper.HandleRequest<SubjectMarkUpdateRequest, SubjectMarkUpdateResponse, SubjectMarkUpdateDto>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new SubjectMarkUpdateResponse());
     }
 }

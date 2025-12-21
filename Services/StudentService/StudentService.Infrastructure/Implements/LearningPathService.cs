@@ -18,6 +18,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearn
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSubjectMarksByLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
@@ -44,6 +45,9 @@ public class LearningPathService : ILearningPathService
     private readonly IRequestClient<GetSuggestedCoursesEvent> _getSuggestedCoursesEventRequestClient;
     private readonly IMapper _mapper;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
+    private readonly IQueryRepository<LearningPathCourseCollection> _learningPathCourseQueryRepository;
+    private readonly IAiQuizEvaluateStudentService _aiQuizEvaluateStudentService;
+    private readonly ICommandRepository<StudentTranscript> _studentTranscriptRepository;
 
     /// <summary>
     /// Constructor
@@ -70,7 +74,10 @@ public class LearningPathService : ILearningPathService
         IMapper mapper,
         IRequestClient<GetSubjectSemesterEvent> subjectSemesterClient,
         IRequestClient<GetSuggestedCoursesEvent> getSuggestedCoursesEventRequestClient,
-        ILearningPathRealtimeNotifier learningPathRealtimeNotifier)
+        ILearningPathRealtimeNotifier learningPathRealtimeNotifier,
+        IQueryRepository<LearningPathCourseCollection> learningPathCourseQueryRepository,
+        IAiQuizEvaluateStudentService aiQuizEvaluateStudentService,
+        ICommandRepository<StudentTranscript> studentTranscriptRepository)
     {
         _unitOfWork = unitOfWork;
         _learningPathMajorCommandRepository = learningPathMajorCommandRepository;
@@ -85,6 +92,9 @@ public class LearningPathService : ILearningPathService
         _subjectSemesterClient = subjectSemesterClient;
         _getSuggestedCoursesEventRequestClient = getSuggestedCoursesEventRequestClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
+        _learningPathCourseQueryRepository = learningPathCourseQueryRepository;
+        _aiQuizEvaluateStudentService = aiQuizEvaluateStudentService;
+        _studentTranscriptRepository = studentTranscriptRepository;
     }
 
     public async Task<LearningPathInsertResponse> InsertLearningPathAsync(LearningPathInsertCommand request, CancellationToken cancellationToken)
@@ -109,7 +119,7 @@ public class LearningPathService : ILearningPathService
 
             await _learningPathCommandRepository.AddAsync(learningPath, request.StudentEmail);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
-            
+
             var learningPathReadModel = LearningPathCollection.FromWriteModel(learningPath);
             learningPathReadModel.StudentQuizSubmission = new StudentQuizSubmission
             {
@@ -2525,6 +2535,215 @@ public class LearningPathService : ILearningPathService
         }
     }
 
+    public async Task<GetSubjectMarksByLearningPathResponse> GetSubjectMarksByLearningPathAsync(GetSubjectMarksByLearningPathQuery request, CancellationToken cancellationToken)
+    {
+        var response = new GetSubjectMarksByLearningPathResponse { Success = false };
+
+        // 1. Lấy learning path từ collection để lấy studentId
+        var learningPath = await _learningPathQueryRepository
+            .FirstOrDefaultAsync(lp => lp.PathId == request.LearningPathId && lp.IsActive);
+
+        if (learningPath == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy learning path");
+            return response;
+        }
+
+        if (learningPath.StudentId == null)
+        {
+            response.SetMessage(MessageId.E00000, "Learning path không có studentId");
+            return response;
+        }
+
+        var studentId = learningPath.StudentId.Value;
+
+        // 2. Lấy tất cả courses có InternalCourseId != null trong learning path từ collection
+        var allCourses = learningPath.LearningPathMajors
+            .Where(m => m.IsActive)
+            .SelectMany(m => m.LearningPathCourses ?? Enumerable.Empty<LearningPathCourseCollection>())
+            .Where(c => c.InternalCourseId != null && c.IsActive)
+            .Select(c => new
+            {
+                c.InternalCourseId,
+                c.SubjectCode
+            })
+            .Distinct()
+            .ToList();
+
+        if (!allCourses.Any())
+        {
+            response.Success = true;
+            response.Response = new List<SubjectMarkDto>();
+            response.SetMessage(MessageId.I00001, "Không có môn học nào có internal course");
+            return response;
+        }
+
+        // 3. Lấy career goal từ learning path name (bỏ chữ "lộ trình" đi)
+        var careerGoal = string.Empty;
+        if (!string.IsNullOrWhiteSpace(learningPath.PathName))
+        {
+            careerGoal = learningPath.PathName
+                .Replace("lộ trình", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("Lộ trình", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("LỘ TRÌNH", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+        }
+
+        // 4. Lấy oldMark từ StudentTranscript
+        var subjectCodes = allCourses
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
+            .Select(x => x.SubjectCode!)
+            .Distinct()
+            .ToList();
+
+        var transcriptDict = new Dictionary<string, double?>();
+        if (subjectCodes.Any())
+        {
+            var transcripts = await _studentTranscriptRepository
+                .Find(t => t.StudentId == studentId
+                    && t.IsActive
+                    && !string.IsNullOrWhiteSpace(t.SubjectCode)
+                    && subjectCodes.Contains(t.SubjectCode),
+                    isTracking: false,
+                    cancellationToken: cancellationToken)
+                .ToListAsync(cancellationToken);
+
+            foreach (var transcript in transcripts)
+            {
+                if (!string.IsNullOrWhiteSpace(transcript.SubjectCode))
+                {
+                    // Chuyển đổi từ thang điểm 10 sang thang điểm 100
+                    transcriptDict[transcript.SubjectCode] = transcript.Grade.HasValue
+                        ? transcript.Grade.Value * 10
+                        : null;
+                }
+            }
+        }
+
+        // 5. Lấy thông tin courses từ CourseService
+        var courseIds = allCourses
+            .Where(x => x.InternalCourseId.HasValue)
+            .Select(x => x.InternalCourseId!.Value)
+            .ToList();
+
+        var courseInfoDict = new Dictionary<Guid, InternalCourseInfoDto>();
+
+        if (courseIds.Any())
+        {
+            var courseInfoRequest = new GetInfoInternalCourseEvents(courseIds, studentId);
+            var courseInfoResponse = await _getInfoInternalCourseRequestClient
+                .GetResponse<GetInfoInternalCourseResponse>(courseInfoRequest, cancellationToken);
+
+            if (courseInfoResponse.Message.Success && courseInfoResponse.Message.Response != null)
+            {
+                foreach (var courseInfo in courseInfoResponse.Message.Response)
+                {
+                    if (courseInfo.CourseId.HasValue)
+                    {
+                        courseInfoDict[courseInfo.CourseId.Value] = courseInfo;
+                    }
+                }
+            }
+        }
+
+        // 6. Lấy điểm từ AI evaluation cho tất cả courses và group theo SubjectCode
+        var courseEvaluations = new List<(string SubjectCode, Guid CourseId, double? NewMark, string NewAnalysis, string SubjectName)>();
+
+        foreach (var item in allCourses)
+        {
+            if (!item.InternalCourseId.HasValue || string.IsNullOrWhiteSpace(item.SubjectCode))
+                continue;
+
+            var courseId = item.InternalCourseId.Value;
+
+            // Lấy thông tin course
+            var courseInfo = courseInfoDict.GetValueOrDefault(courseId);
+            var subjectName = courseInfo?.SubjectName ?? string.Empty;
+
+            // Lấy điểm từ AI evaluation
+            var aiEvaluation = await _aiQuizEvaluateStudentService
+                .GetOverviewAiEvaludationAsync(studentId, courseId, cancellationToken);
+            double? newMark = null;
+            newMark = aiEvaluation.AverageScore100Raw * 10;
+
+            var newAnalysis = aiEvaluation.Summary ?? string.Empty;
+
+            courseEvaluations.Add((item.SubjectCode, courseId, newMark, newAnalysis, subjectName));
+        }
+
+        // 7. Group theo SubjectCode và tính toán
+        var result = new List<SubjectMarkDto>();
+        var groupedBySubject = courseEvaluations
+            .GroupBy(x => x.SubjectCode)
+            .ToList();
+
+        foreach (var group in groupedBySubject)
+        {
+            var subjectCode = group.Key;
+            var evaluations = group.ToList();
+
+            // Lấy oldMark từ transcript (chỉ có 1 giá trị cho mỗi SubjectCode)
+            var oldMark = transcriptDict.GetValueOrDefault(subjectCode);
+
+            // Tính newMark: trung bình của tất cả các course cùng môn (chỉ tính các course có điểm > 0)
+            var marksWithValue = evaluations
+                .Where(e => e.NewMark.HasValue)
+                .Select(e => e.NewMark!.Value)
+                .ToList();
+
+            double? newMark = null;
+            if (marksWithValue.Any())
+            {
+                newMark = Math.Round(marksWithValue.Average(), 2);
+            }
+
+            // Lấy newAnalysis: từ course có điểm cao nhất, nếu không có điểm thì lấy course đầu tiên có analysis
+            string newAnalysis = string.Empty;
+            var courseWithHighestMark = evaluations
+                .Where(e => e.NewMark.HasValue)
+                .OrderByDescending(e => e.NewMark!.Value)
+                .FirstOrDefault();
+
+            if (courseWithHighestMark != default && courseWithHighestMark.NewMark.HasValue)
+            {
+                newAnalysis = courseWithHighestMark.NewAnalysis;
+            }
+            else
+            {
+                // Nếu không có course nào có điểm, lấy analysis từ course đầu tiên có analysis
+                var firstWithAnalysis = evaluations
+                    .FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.NewAnalysis));
+                if (firstWithAnalysis != default)
+                {
+                    newAnalysis = firstWithAnalysis.NewAnalysis;
+                }
+            }
+
+            // Lấy subjectName từ course đầu tiên (tất cả cùng môn nên tên giống nhau)
+            var firstEvaluation = evaluations.FirstOrDefault();
+            var subjectName = firstEvaluation != default && !string.IsNullOrWhiteSpace(firstEvaluation.SubjectName)
+                ? firstEvaluation.SubjectName
+                : string.Empty;
+
+            var subjectMark = new SubjectMarkDto
+            {
+                SubjectCode = subjectCode,
+                SubjectName = subjectName,
+                OldMark = oldMark,
+                NewMark = newMark,
+                NewAnalysis = newAnalysis,
+                CareerGoal = careerGoal
+            };
+
+            result.Add(subjectMark);
+        }
+
+        response.Success = true;
+        response.Response = result;
+        response.SetMessage(MessageId.I00001, "Lấy danh sách điểm môn học thành công");
+
+        return response;
+    }
 
     #endregion
 

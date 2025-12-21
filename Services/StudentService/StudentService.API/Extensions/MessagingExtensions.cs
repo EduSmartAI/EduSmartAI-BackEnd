@@ -98,9 +98,11 @@ public static class MessagingExtensions
             x.AddRequestClient<GetCoursesBySubjectAndLevelEvent>();
             x.AddRequestClient<GetCourseModuleCountEvent>();
             x.AddRequestClient<AvatarUploadEvent>();
+            x.AddRequestClient<PdfUploadEvent>();
             x.AddRequestClient<SemesterIdSelectsEvent>();
             x.AddRequestClient<GetInfoEvaluationEvent>();
             x.AddRequestClient<GetAllDetailCourseEvent>();
+            x.AddRequestClient<SubjectMarkUpdateEvent>(TimeSpan.FromSeconds(300)); // 5 phút timeout vì AI analysis có thể lâu
             x.AddRequestClient<GetOverviewCourseEvents>();
             x.AddRequestClient<GetSubjectSemesterEvent>();
             x.AddRequestClient<StudentTranscriptSelectEvent>();

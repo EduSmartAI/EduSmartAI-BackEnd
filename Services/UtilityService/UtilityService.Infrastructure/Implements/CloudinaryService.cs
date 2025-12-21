@@ -314,4 +314,52 @@ private async Task<string> RetryWithNewKey(string fileName, Stream stream, Cloud
             throw;
         }
     }
+
+    public async Task<string> UploadPdfAsync(string fileName, Stream stream, string contentType, CancellationToken ct = default)
+    {
+        try
+        {
+            // Get Key
+            var cloudinaryKey = await _cloudinaryConfigRepository.FirstOrDefaultAsync(x => x.IsActive);
+            if (cloudinaryKey == null)
+            {
+                throw new Exception("Cloudinary configuration not found");
+            }
+
+            var account = new Account(
+                cloudinaryKey.CloudApiName,
+                cloudinaryKey.CloudApiKey,
+                cloudinaryKey.CloudApiSecret
+            );
+            var cloudinary = new Cloudinary(account);
+
+            var publicId = $"{Guid.NewGuid():N}.pdf";
+
+            var uploadParams = new RawUploadParams
+            {
+                File = new FileDescription(fileName, stream),
+                Folder = "pdfs",
+                PublicId = publicId,
+                UseFilename = false,
+                UniqueFilename = false,
+                Overwrite = false,
+            };
+
+            RawUploadResult result = await cloudinary.UploadLargeAsync<RawUploadResult>(
+                uploadParams,
+                bufferSize: 6 * 1024 * 1024,
+                cancellationToken: ct
+            );
+
+            if (result.Error != null)
+                throw new Exception($"Cloudinary upload failed: {result.Error.Message}");
+
+            return result.SecureUrl?.ToString() ?? string.Empty;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            throw;
+        }
+    }
 }

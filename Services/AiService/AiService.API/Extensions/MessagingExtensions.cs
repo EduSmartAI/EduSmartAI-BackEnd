@@ -1,5 +1,6 @@
 using AiService.Application.Consumers;
 using AiService.Application.Consumers.AiQuizEvaluates;
+using AiService.Application.Consumers.AiRecommend;
 using AiService.Application.Consumers.AiSearch;
 using AiService.Application.Consumers.AiSummaryAndFeedback;
 using AiService.Application.Consumers.CourseService;
@@ -10,6 +11,7 @@ using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService;
 using BuildingBlocks.Messaging.Events.AIService.AiFeedback;
 using BuildingBlocks.Messaging.Events.AIService.AiChatLearningPathEvents;
+using BuildingBlocks.Messaging.Events.AIService.AiRecommend;
 using BuildingBlocks.Messaging.Events.AIService.GetLessonInfoEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertInternalExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
@@ -43,6 +45,7 @@ public static class MessagingExtensions
             x.AddConsumer<QuizAiFeedBackModuleEventConsumer>();
             x.AddConsumer<SearchAiRecommendImproveConsumer>();
             x.AddConsumer<AiRecommendImprovementEventConsumer>();
+            x.AddConsumer<SubjectMarkUpdateEventConsumer>();
 
             x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "ai", includeNamespace: false));
 
