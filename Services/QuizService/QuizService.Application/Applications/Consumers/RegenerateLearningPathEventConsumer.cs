@@ -88,7 +88,7 @@ public class RegenerateLearningPathEventConsumer : IConsumer<RegenerateLearningP
             
         if (evt.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
         {
-            var interestSurvey = studentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
+            var interestSurvey = studentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
             if (interestSurvey == null)
             {
                 response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");

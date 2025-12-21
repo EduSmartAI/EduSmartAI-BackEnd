@@ -1357,8 +1357,18 @@ namespace Course.Infrastructure.Implements
                 .ToDictionaryAsync(m => m.MajorCode, m => m.MajorName, cancellationToken: ct);
 
             // 6.3. Group courses by major and map major name
+            // Priority: If a course belongs to SE major, only assign it to SE (not other majors)
             var groupedCourses = coursesData
-                .SelectMany(c => c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode, c.Level }))
+                .SelectMany(c =>
+                {
+                    // If course has SE in its MajorCodes, only assign to SE
+                    if (c.MajorCodes.Contains("SE", StringComparer.OrdinalIgnoreCase))
+                    {
+                        return new[] { new { MajorCode = "SE", c.CourseId, c.SubjectCode, c.Level } };
+                    }
+                    // Otherwise, assign to all its major codes
+                    return c.MajorCodes.Select(mc => new { MajorCode = mc, c.CourseId, c.SubjectCode, c.Level });
+                })
                 .GroupBy(x => x.MajorCode)
                 .Select(g => new CoursesSelectEventResponseEntity
                 {

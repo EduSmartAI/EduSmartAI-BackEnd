@@ -656,17 +656,18 @@ public class StudentTestService : IStudentTestService
             
             if (request.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
             {
-                if (latestHabitSurvey == null)
+                if (latestInterestSurvey == null)
                 {
                     response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
                     return false;
                 }
 
-                var selectedAnswerIdInterests = latestHabitSurvey.StudentQuizAnswers
+                var selectedAnswerIdInterests = latestInterestSurvey!.StudentQuizAnswers
+                    .Where(a => a.AnswerId != Guid.Empty)
                     .Select(a => a.AnswerId)
                     .ToHashSet();
 
-                var interestQuestions = latestHabitSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
+                var interestQuestions = latestInterestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
                 {
                     QuestionText = question.QuestionText,
                     StudentAnswers = question.Answers

@@ -95,7 +95,7 @@ public class SurveyAnalysisService : ISurveyAnalysis
         promptBuilder.AppendLine("=== ĐỊNH DẠNG JSON ===");
         promptBuilder.AppendLine("Chỉ trả về chuỗi JSON thuần (không kèm Markdown ```json), theo cấu trúc:");
         promptBuilder.AppendLine("{");
-        promptBuilder.AppendLine("  \"LearningGoal\": \"[Tên chuyên ngành IT - Ví dụ: ReactJS Web Development, Data Analyst, v.v.]\",");
+        promptBuilder.AppendLine("  \"LearningGoal\": \"[Tên chuyên ngành IT - Ví dụ: ReactJS Web Development, Backend Development, Data Analyst, v.v.]\",");
         promptBuilder.AppendLine("}");
 
         return promptBuilder.ToString();

@@ -179,53 +179,6 @@ public class StudentSurveyService : IStudentSurveyService
             
             #endregion
             
-            #region 3.3. Determine Learning Goal Name (with AI Analysis if needed)
-            
-            string learningGoalName = request.StudentInformation.LearningGoal.LearningGoalName;
-            
-            if (request.StudentInformation.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
-            {
-                var interestSurvey = studentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT));
-                if (interestSurvey == null)
-                {
-                    response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
-                    return false;
-                }
-
-                var selectedAnswerIds = interestSurvey.StudentQuizAnswers
-                    .Select(a => a.AnswerId)
-                    .ToHashSet();
-
-                var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
-                {
-                    QuestionText = question.QuestionText,
-                    StudentAnswers = question.Answers
-                        .Where(a => selectedAnswerIds.Contains(a.AnswerId))
-                        .Select(a => a.AnswerText)
-                        .ToList()
-                }).Where(q => q.StudentAnswers.Any()).ToList();
-
-                var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
-                {
-                    StudentId = currentUser.UserId,
-                    Questions = interestQuestions
-                };
-
-                var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(
-                    studentInterestAnalysisEvent, 
-                    cancellationToken);
-                
-                if (!aiAnalysisResponse.Message.Success)
-                {
-                    response.SetMessage(MessageId.E99999);
-                    return false;
-                }
-
-                learningGoalName = aiAnalysisResponse.Message.Response.LearningGoal;
-            }
-            
-            #endregion
-            
             #region 3.4. Create Learning Path (if not taking test)
             if (!request.IsWantToTakeTest)
             {
@@ -409,6 +362,53 @@ public class StudentSurveyService : IStudentSurveyService
                 var evaluationAndImprove = request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any()
                     ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
                     : null;
+                
+                #region 3.3. Determine Learning Goal Name (with AI Analysis if needed)
+            
+                string learningGoalName = request.StudentInformation.LearningGoal.LearningGoalName;
+                
+                if (request.StudentInformation.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
+                {
+                    var interestSurvey = studentQuizCollections.FirstOrDefault(sq => sq.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST));
+                    if (interestSurvey == null)
+                    {
+                        response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
+                        return false;
+                    }
+
+                    var selectedInterestSurveyAnswerIds = interestSurvey.StudentQuizAnswers
+                        .Select(a => a.AnswerId)
+                        .ToHashSet();
+
+                    var interestQuestions = interestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
+                    {
+                        QuestionText = question.QuestionText,
+                        StudentAnswers = question.Answers
+                            .Where(a => selectedInterestSurveyAnswerIds.Contains(a.AnswerId))
+                            .Select(a => a.AnswerText)
+                            .ToList()
+                    }).Where(q => q.StudentAnswers.Any()).ToList();
+
+                    var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
+                    {
+                        StudentId = currentUser.UserId,
+                        Questions = interestQuestions
+                    };
+
+                    var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(
+                        studentInterestAnalysisEvent, 
+                        cancellationToken);
+                    
+                    if (!aiAnalysisResponse.Message.Success)
+                    {
+                        response.SetMessage(MessageId.E99999);
+                        return false;
+                    }
+
+                    learningGoalName = aiAnalysisResponse.Message.Response.LearningGoal;
+                }
+                
+                #endregion
 
                 var learningPathEvent = new InsertLearningPathEvent
                 {
