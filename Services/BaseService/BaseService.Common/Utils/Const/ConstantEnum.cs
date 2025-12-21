@@ -30,7 +30,7 @@ public static class ConstantEnum
     {
         MultipleChoice = 1,
         TrueFalse = 2,
-        SingleChoice = 4,
+        SingleChoice = 3,
     }
 
     public enum TechnologyType
