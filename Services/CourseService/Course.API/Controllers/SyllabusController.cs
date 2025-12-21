@@ -4,6 +4,7 @@ using Course.Application.DTOs.SyllabusDTO.Majors;
 using Course.Application.DTOs.SyllabusDTO.Semester;
 using Course.Application.DTOs.SyllabusDTO.Subjects;
 using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Majors.Commands.UpdateMajorDescription;
 using Course.Application.Majors.Queries.GetMajorDetails;
 using Course.Application.Majors.Queries.GetMajors;
 using Course.Application.Semesters.Queries.GetSemesterDetails;
@@ -282,6 +283,27 @@ namespace Course.API.Controllers
 				ModelState,
 				async () => await sender.Send(request),
 				new UpdateSyllabusSubjectsResponse()
+			);
+		}
+
+		[HttpPut("major/{id}")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Cập nhật mô tả chuyên ngành",
+			Description = "Cập nhật mô tả chuyên ngành. Cần xác thực Bearer."
+		)]
+		public async Task<UpdateMajorDescriptionResponse> UpdateMajorDescription([FromRoute] Guid id, [FromBody] string description)
+		{
+			var command = new UpdateMajorDescriptionCommand(id, description);
+			return await ApiControllerHelper.HandleRequest<
+				UpdateMajorDescriptionCommand,
+				UpdateMajorDescriptionResponse,
+				bool>(
+				command,
+				_logger,
+				ModelState,
+				async () => await sender.Send(command),
+				new UpdateMajorDescriptionResponse()
 			);
 		}
 	}

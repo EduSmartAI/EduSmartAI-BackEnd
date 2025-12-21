@@ -1,5 +1,6 @@
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Majors.Commands.UpdateMajorDescription;
 using Course.Application.Majors.Queries.GetMajorDetails;
 using Course.Application.Majors.Queries.GetMajors;
 using Course.Application.Majors.Queries.SelectMajorCode;
@@ -24,4 +25,6 @@ public interface IMajorService
 	Task<GetMajorsResponse> GetMajorsAsync(int? page, int? size, string? search, CancellationToken ct = default);
 
 	Task<GetMajorDetailResponse> GetMajorDetailAsync(Guid majorId, CancellationToken ct = default);
+
+	Task<UpdateMajorDescriptionResponse> UpdateMajorDescriptionAsync(Guid majorId, string? description, CancellationToken ct = default);
 }
