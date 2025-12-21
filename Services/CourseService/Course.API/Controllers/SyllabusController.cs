@@ -241,7 +241,7 @@ namespace Course.API.Controllers
 			return await ApiControllerHelper.HandleRequest<
 				GetSubjectsQuery,
 				GetSubjectsResponse,
-				PagedResult<SubjectDto>>(
+				PagedResult<SubjectWithPrereqsDto>>(
 				request,
 				_logger,
 				ModelState,
@@ -260,7 +260,7 @@ namespace Course.API.Controllers
 			return await ApiControllerHelper.HandleRequest<
 				GetSubjectDetailQuery,
 				GetSubjectDetailResponse,
-				SubjectDto?>(
+				SubjectWithPrereqsDto?>(
 				request,
 				_logger,
 				ModelState,

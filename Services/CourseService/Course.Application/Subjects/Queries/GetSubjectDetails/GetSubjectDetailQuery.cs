@@ -6,8 +6,8 @@ namespace Course.Application.Subjects.Queries.GetSubjectDetails
 		Guid SubjectId
 	) : IQuery<GetSubjectDetailResponse>;
 
-	public sealed record GetSubjectDetailResponse : AbstractApiResponse<SubjectDto?>
+	public sealed record GetSubjectDetailResponse : AbstractApiResponse<SubjectWithPrereqsDto?>
 	{
-		public override SubjectDto? Response { get; set; } = default!;
+		public override SubjectWithPrereqsDto? Response { get; set; } = default!;
 	}
 }

@@ -96,17 +96,38 @@ public class SubjectService(
 	{
 		var response = new GetSubjectDetailResponse { Success = false };
 
-		var entity = await _subjectCommandRepository.FirstOrDefaultAsync(x => x.SubjectId == subjectId, ct);
+		// Step 1: check tồn tại (nhanh, đúng style bạn đang dùng)
+		var exists = await _subjectCommandRepository.FirstOrDefaultAsync(x => x.SubjectId == subjectId && x.IsActive, ct);
+		if (exists is null)
+		{
+			response.SetMessage(MessageId.E00000, "Không tìm thấy môn học");
+			return response;
+		}
+
+		// Step 2 (cách B): load lại với prerequisites
+		// Lưu ý: Find(...) phải trả IQueryable để dùng Include
+		var entity = await _subjectCommandRepository
+			.Find(x => x.SubjectId == subjectId && x.IsActive, isTracking: false, ct)
+			.Include(x => x.PrereqSubjects)
+			.FirstOrDefaultAsync(ct);
+
 		if (entity is null)
 		{
 			response.SetMessage(MessageId.E00000, "Không tìm thấy môn học");
 			return response;
 		}
 
-		response.Response = new SubjectDto(
+		var prereqs = entity.PrereqSubjects
+			.Where(p => p.IsActive)
+			.OrderBy(p => p.SubjectCode)
+			.Select(p => new SubjectPrereqDto(p.SubjectId, p.SubjectCode, p.SubjectName))
+			.ToList();
+
+		response.Response = new SubjectWithPrereqsDto(
 			entity.SubjectId,
 			entity.SubjectCode,
 			entity.SubjectName,
+			prereqs,
 			entity.SubjectDescription
 		);
 		response.Success = true;
@@ -146,15 +167,33 @@ public class SubjectService(
 			cancellationToken: ct
 		);
 
-		var dtoItems = paged.Items.Select(x =>
-			new SubjectDto(
-				x.SubjectId,
-				x.SubjectCode,
-				x.SubjectName,
-				x.SubjectDescription
-			)).ToList();
+		var subjectIds = paged.Items.Select(x => x.SubjectId).ToList();
 
-		var dtoPaged = new PagedResult<SubjectDto>
+		var subjectsWithPrereqs = await _subjectCommandRepository
+			.Find(x => subjectIds.Contains(x.SubjectId) && x.IsActive, isTracking: false, ct)
+			.Include(x => x.PrereqSubjects)
+			.ToListAsync(ct);
+
+		var map = subjectsWithPrereqs.ToDictionary(x => x.SubjectId);
+
+		var dtoItems = paged.Items.Select(x =>
+		{
+			var s = map[x.SubjectId];
+
+			return new SubjectWithPrereqsDto(
+				s.SubjectId,
+				s.SubjectCode,
+				s.SubjectName,
+				s.PrereqSubjects
+					.Where(p => p.IsActive)
+					.OrderBy(p => p.SubjectCode)
+					.Select(p => new SubjectPrereqDto(p.SubjectId, p.SubjectCode, p.SubjectName))
+					.ToList(),
+				s.SubjectDescription
+			);
+		}).ToList();
+
+		var dtoPaged = new PagedResult<SubjectWithPrereqsDto>
 		{
 			Items = dtoItems,
 			TotalCount = paged.TotalCount,
