@@ -466,9 +466,9 @@ namespace Course.Infrastructure.Helpers.Courses
 
 			var ratingsCount = ratings.Count;
 
-			//var ratingsAverage = ratingsCount > 0
-			//	? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
-			//	: 0.0
+			var ratingsAverage = ratingsCount > 0
+				? Math.Round(e.CourseRatings.Average(r => r.Rating), 2)
+				: 0.0;
 
 			//var firstLesson = e.Modules.SelectMany(m => m.Lessons).OrderBy(l => l.PositionIndex).FirstOrDefault()
 
@@ -502,8 +502,8 @@ namespace Course.Infrastructure.Helpers.Courses
 				tags,
 				ratings,
 				ratingsCount,
-				//ratingsAverage
-				5.0,
+				ratingsAverage.Equals(0.0) ? 5 : ratingsAverage,
+				//5.0,
 				// Progress course
 				new CourseProgressDto(courseTotalLessons, courseCompletedLessons, coursePercent, courseStatus, courseStartedAt, courseCompletedAt)
 			// Continue hint – set ở ngoài

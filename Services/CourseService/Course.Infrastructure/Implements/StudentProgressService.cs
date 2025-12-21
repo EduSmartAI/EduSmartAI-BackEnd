@@ -1,6 +1,7 @@
 ﻿using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
 using Course.Application.Courses.Commands.RatingCourse;
+using Course.Application.Courses.Queries.GetMyCourseRating;
 using Course.Application.DTOs.CoursesDTO;
 using Course.Application.DTOs.CoursesDTO.CourseStudentDTO;
 using Course.Application.DTOs.LessonsDTO.LessonStudentDTO;
@@ -692,6 +693,13 @@ namespace Course.Infrastructure.Implements
 			return response;
 		}
 
+		/// <summary>
+		/// Upsert course rating by current user
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="rating"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
 		public async Task<UpsertCourseRatingResponse> UpsertCourseRatingAsync(Guid courseId, short rating, CancellationToken ct = default)
 		{
 			var response = new UpsertCourseRatingResponse() { Success = false };
@@ -752,6 +760,50 @@ namespace Course.Infrastructure.Implements
 			response.Success = true;
 			response.Response = true;
 			response.SetMessage(MessageId.I00001, "Đánh giá khóa học");
+
+			return response;
+		}
+
+		/// <summary>
+		/// Check if the current user has rated a course
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		public async Task<GetMyCourseRatingResponse> IsCourseRatedByCurrentUserAsync(Guid courseId, CancellationToken ct = default)
+		{
+			var response = new GetMyCourseRatingResponse() { Success = false };
+
+			var currentUser = _identityService.GetCurrentUser()!;
+
+			if (currentUser is null)
+			{
+				response.SetMessage(MessageId.E00000, "Người dùng chưa đăng nhập");
+				return response;
+			}
+
+			var existingRating = await _ratingRepository
+				.Find(x => x.CourseId == courseId && x.UserId == currentUser.UserId, isTracking: false, ct)
+				.FirstOrDefaultAsync(ct);
+
+			if (existingRating is null)
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00000, "Người dùng chưa đánh giá khóa học này");
+				response.Response = new GetMyCourseRatingDto
+				{
+					IsRatedByCurrentUser = false
+				};
+			}
+			else
+			{
+				response.Success = true;
+				response.SetMessage(MessageId.I00001, "Người dùng đã đánh giá khóa học này");
+				response.Response = new GetMyCourseRatingDto
+				{
+					IsRatedByCurrentUser = true
+				};
+			}
 
 			return response;
 		}
