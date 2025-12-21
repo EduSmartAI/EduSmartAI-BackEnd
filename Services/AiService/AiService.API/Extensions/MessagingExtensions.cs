@@ -77,8 +77,8 @@ public static class MessagingExtensions
             x.AddRequestClient<AiUpdateCourseStatusToSkipped>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<SubjectInfoEvent>(TimeSpan.FromSeconds(120));
             x.AddRequestClient<GetSubjectDetailEvent>(TimeSpan.FromSeconds(120));
-            x.AddRequestClient<GetOverviewAiEvaluationEvent>(TimeSpan.FromSeconds(60));
-            x.AddRequestClient<GetInfoInternalCourseEvents>(TimeSpan.FromSeconds(60));
+            x.AddRequestClient<GetOverviewAiEvaluationEvent>(TimeSpan.FromSeconds(200));
+            x.AddRequestClient<GetInfoInternalCourseEvents>(TimeSpan.FromSeconds(200));
         });
 
         return services;

@@ -22,6 +22,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
     private readonly IRequestClient<MappingSubjectCodeWithMajorCodeEvent> _requestClient;
     private readonly ILearningPathRealtimeNotifier _learningPathRealtimeNotifier;
     private readonly IRequestClient<StudentTranscriptSelectEvent> _requestStudentTranscriptClient;
+    private readonly IRequestClient<MajorAndSemesterSelectEvent> _requestClientMajorAndSemesterSelect;
+    private readonly IQueryRepository<StudentCollection>  _studentCollectionRepository;
 
 
     private readonly IUnitOfWork _unitOfWork;
@@ -32,7 +34,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeRepository,
         ICommandRepository<LearningPathCourse> learningPathCourseRepository,
         IQueryRepository<LearningPathCollection> learningPathQueryRepository,
-        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier, IRequestClient<StudentTranscriptSelectEvent> requestStudentTranscriptClient)
+        IUnitOfWork unitOfWork, IRequestClient<MappingSubjectCodeWithMajorCodeEvent> requestClient, ILearningPathRealtimeNotifier learningPathRealtimeNotifier, IRequestClient<StudentTranscriptSelectEvent> requestStudentTranscriptClient, IRequestClient<MajorAndSemesterSelectEvent> requestClientMajorAndSemesterSelect, IQueryRepository<StudentCollection> studentCollectionRepository)
     {
         _learningPathRepository = learningPathRepository;
         _learningPathMajorRepository = learningPathMajorRepository;
@@ -43,6 +45,8 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         _requestClient = requestClient;
         _learningPathRealtimeNotifier = learningPathRealtimeNotifier;
         _requestStudentTranscriptClient = requestStudentTranscriptClient;
+        _requestClientMajorAndSemesterSelect = requestClientMajorAndSemesterSelect;
+        _studentCollectionRepository = studentCollectionRepository;
     }
 
     public async Task Consume(ConsumeContext<LearningFeedbackEvent> context)
@@ -62,6 +66,21 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         };
         var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent);
         var studentTranscripts = transcriptResponse.Message.Response;
+
+        var student =
+            await _studentCollectionRepository.FirstOrDefaultAsync(x =>
+                x.StudentId == learningPath.StudentId && x.IsActive);
+        
+        var responseMajorAndSemester = await _requestClientMajorAndSemesterSelect
+            .GetResponse<MajorAndSemesterSelectEventResponse>(new MajorAndSemesterSelectEvent
+            {
+                MajorId = student!.MajorId,
+                SemesterId = student.SemesterId
+            });
+        if (!responseMajorAndSemester.Message.Success)
+        {
+            return;
+        }
         
         learningPath.SummaryFeedback = evt.SummaryFeedback;
         learningPath.HabitAndInterestAnalysis = evt.HabitAndInterestAnalysis;
@@ -72,6 +91,59 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 evt.AbilityAnalyses.Select(a => $"{a.Name}: {a.AnalysisMarkdown}"))
             : null;
         _learningPathRepository.Update(learningPath);
+        
+        // 1.5. Parse EvaluationAndImprove to get OtherQuestionCodes
+        var evaluationCodes = new HashSet<ConstantEnum.OtherQuestionCode>();
+        if (!string.IsNullOrEmpty(learningPath.EvaluationAndImprove))
+        {
+            var codeStrings = learningPath.EvaluationAndImprove.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var codeStr in codeStrings)
+            {
+                if (int.TryParse(codeStr.Trim(), out var codeInt) && 
+                    Enum.IsDefined(typeof(ConstantEnum.OtherQuestionCode), codeInt))
+                {
+                    evaluationCodes.Add((ConstantEnum.OtherQuestionCode)codeInt);
+                }
+            }
+        }
+        
+        // 1.6. Build set of subject codes that should be included based on EvaluationAndImprove
+        var subjectCodesForEvaluation = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var subjectCodesForCourseImprove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (evaluationCodes.Any() && studentTranscripts != null && studentTranscripts.Any())
+        {
+            foreach (var questionCode in evaluationCodes)
+            {
+                switch (questionCode)
+                {
+                    case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE:
+                        foreach (var t in studentTranscripts.Where(t => t.Grade >= 5 && t.Grade < 7))
+                            subjectCodesForCourseImprove.Add(t.SubjectCode);
+                        break;
+
+                    case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE:
+                        foreach (var t in studentTranscripts.Where(t => t.Grade >= 7 && t.Grade < 8))
+                            subjectCodesForCourseImprove.Add(t.SubjectCode);
+                        break;
+
+                    case ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE:
+                        foreach (var t in studentTranscripts.Where(t => t.Grade >= 8 && t.Grade < 9))
+                            subjectCodesForCourseImprove.Add(t.SubjectCode);
+                        break;
+
+                    case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION:
+                        foreach (var t in studentTranscripts.Where(t => t.Grade >= 5 && t.Grade < 7))
+                            subjectCodesForEvaluation.Add(t.SubjectCode);
+                        break;
+
+                    case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION:
+                        foreach (var t in studentTranscripts.Where(t => t.Grade >= 7 && t.Grade < 8))
+                            subjectCodesForEvaluation.Add(t.SubjectCode);
+                        break;
+                }
+            }
+        }
         
         // TODO Phase 2: Update to handle MajorFeedbacks hierarchy when event structure is updated
         
@@ -127,6 +199,32 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             if (!subjectCodeToMajorCodeMap.TryGetValue(subCode.SubjectCode, out var majorCodes) || !majorCodes.Any())
             {
                 continue;
+            }
+            
+            // Check if this subject should be included based on EvaluationAndImprove
+            // If user has selected evaluation codes, only include:
+            // - NotPassed subjects (always include)
+            // - NotStarted subjects (always include - future subjects)
+            // - Studying subjects (always include)
+            // - Passed subjects ONLY if they are in subjectCodesForEvaluation or subjectCodesForCourseImprove
+            if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var subjectGrade))
+            {
+                // Subject has a grade (Passed)
+                // Only include if user selected this grade range for evaluation/improvement
+                var isInEvaluationList = subjectCodesForEvaluation.Contains(subCode.SubjectCode);
+                var isInCourseImproveList = subjectCodesForCourseImprove.Contains(subCode.SubjectCode);
+                
+                // If subject is Passed with grade >= 8, skip (PassedWithGoodGrade - no improvement needed)
+                if (subjectGrade >= 8.0 && !isInEvaluationList && !isInCourseImproveList)
+                {
+                    continue;
+                }
+                
+                // If subject is Passed (grade < 8) but user didn't select any evaluation codes for this grade range, skip
+                if (subjectGrade >= 5.0 && subjectGrade < 8.0 && evaluationCodes.Any() && !isInEvaluationList && !isInCourseImproveList)
+                {
+                    continue;
+                }
             }
             
             // Determine status based on AnalysisMarkdown and transcript grade
