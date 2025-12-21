@@ -2,6 +2,7 @@ using BaseService.Application.Common;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.DTOs.SyllabusDTO.Majors;
 using Course.Application.Majors.Commands.CreateMajor;
+using Course.Application.Majors.Commands.UpdateMajorDescription;
 using Course.Application.Majors.Queries.GetMajorDetails;
 using Course.Application.Majors.Queries.GetMajors;
 using Course.Application.Majors.Queries.SelectMajorCode;
@@ -13,7 +14,7 @@ namespace Course.Infrastructure.Implements;
 public class MajorService(
 	IIdentityService identityService,
 	IUnitOfWork unitOfWork,
-	ICommandRepository<Major> majorCommandRepository) : IMajorService
+	ICommandRepository<Major> _majorCommandRepository) : IMajorService
 {
 	/// <summary>
 	/// Create Major
@@ -31,7 +32,7 @@ public class MajorService(
 		var name = dto.MajorName?.Trim();
 		var description = TrimOrNull(dto.Description);
 
-		var existed = await majorCommandRepository.FirstOrDefaultAsync(
+		var existed = await _majorCommandRepository.FirstOrDefaultAsync(
 			m => m.MajorCode.ToUpper() == code,
 			cancellationToken
 		);
@@ -44,7 +45,7 @@ public class MajorService(
 
 		var parentMajorCode = "SE";
 
-		var parentMajor = await majorCommandRepository.FirstOrDefaultAsync(
+		var parentMajor = await _majorCommandRepository.FirstOrDefaultAsync(
 			m => m.MajorCode.ToUpper() == parentMajorCode,
 			cancellationToken
 		);
@@ -65,7 +66,7 @@ public class MajorService(
 			RequiredCredits = dto.RequiredCredits,
 		};
 
-		await majorCommandRepository.AddAsync(entity, userEmail);
+		await _majorCommandRepository.AddAsync(entity, userEmail);
 		await unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
 
 		response.Success = true;
@@ -82,7 +83,7 @@ public class MajorService(
 	/// <param name="cancellationToken"></param>
 	/// <returns></returns>
 	public async Task<Major?> SelectMajorAsync(Guid id, CancellationToken cancellationToken)
-		=> await majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == id, cancellationToken);
+		=> await _majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == id, cancellationToken);
 
 	/// <summary>
 	/// Select all majors
@@ -95,7 +96,7 @@ public class MajorService(
 		var response = new MajorSelectsEventResponse { Success = false };
 
 		// Get data
-		var majorsQuery = majorCommandRepository.Find(x => x.IsActive, isTracking: false);
+		var majorsQuery = _majorCommandRepository.Find(x => x.IsActive, isTracking: false);
 
 		if (request.MajorCodes != null && request.MajorCodes.Any())
 		{
@@ -146,7 +147,7 @@ public class MajorService(
 				: predicate.AndAlso(x => x.MajorCode.ToLower().Contains(s) || x.MajorName.ToLower().Contains(s));
 		}
 
-		var paged = await majorCommandRepository.PagedAsync(
+		var paged = await _majorCommandRepository.PagedAsync(
 			pageNumber: page,
 			pageSize: size,
 			predicate: predicate,
@@ -189,7 +190,7 @@ public class MajorService(
 	{
 		var response = new GetMajorDetailResponse { Success = false };
 
-		var entity = await majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == majorId, ct);
+		var entity = await _majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == majorId, ct);
 		if (entity is null)
 		{
 			response.SetMessage(MessageId.E00000, "Không tìm thấy ngành học");
@@ -209,13 +210,43 @@ public class MajorService(
 		return response;
 	}
 
+	public async Task<UpdateMajorDescriptionResponse> UpdateMajorDescriptionAsync(Guid majorId, string? description, CancellationToken ct = default)
+	{
+		var response = new UpdateMajorDescriptionResponse { Success = false };
+		var currentUser = identityService.GetCurrentUser();
+
+		if (currentUser is null)
+		{
+			response.SetMessage(MessageId.E00000, "Người dùng hiện không đăng nhập");
+			return response;
+		}
+
+		var entity = await _majorCommandRepository.FirstOrDefaultAsync(x => x.MajorId == majorId, ct);
+
+		if (entity is null)
+		{
+			response.SetMessage(MessageId.E00000, "Không tìm thấy ngành học");
+			return response;
+		}
+
+		entity.Description = TrimOrNull(description);
+
+		_majorCommandRepository.Update(entity, currentUser.Email);
+		await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
+
+		response.Response = true;
+		response.Success = true;
+		response.SetMessage(MessageId.I00001, "Cập nhật mô tả ngành học thành công");
+		return response;
+	}
+
 	#region Private Helper Methods
 
-	/// <summary>
-	/// Helper : Trim string or return null if empty
-	/// </summary>
-	/// <param name="s"></param>
-	/// <returns></returns>
+		/// <summary>
+		/// Helper : Trim string or return null if empty
+		/// </summary>
+		/// <param name="s"></param>
+		/// <returns></returns>
 	private static string? TrimOrNull(string? s)
 		=> string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 

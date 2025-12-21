@@ -9,8 +9,8 @@ namespace Course.Application.Subjects.Queries.GetSubjects
 		string? Search
 	) : IQuery<GetSubjectsResponse>;
 
-	public sealed record GetSubjectsResponse : AbstractApiResponse<PagedResult<SubjectDto>>
+	public sealed record GetSubjectsResponse : AbstractApiResponse<PagedResult<SubjectWithPrereqsDto>>
 	{
-		public override PagedResult<SubjectDto> Response { get; set; } = default!;
+		public override PagedResult<SubjectWithPrereqsDto> Response { get; set; } = default!;
 	}
 }
