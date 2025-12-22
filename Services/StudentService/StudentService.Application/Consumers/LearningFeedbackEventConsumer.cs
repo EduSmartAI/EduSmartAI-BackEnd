@@ -240,7 +240,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 else
                 {
                     // Use original status from event
-                    determinedStatus = subCode.Status;
+                    determinedStatus = MapToSubjectImprovementStatus(subCode.Status);
                 }
             }
             else

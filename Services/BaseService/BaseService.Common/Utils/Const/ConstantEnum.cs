@@ -177,7 +177,7 @@ public static class ConstantEnum
         NotStarted = 0,
         InProgress = 1,
         Completed = 2,
-        Skipped = 3,
+        // Skipped = 3,
         NoCourse = 4,
     }
 

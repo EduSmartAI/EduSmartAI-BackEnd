@@ -617,8 +617,8 @@ public class LearningPathService : ILearningPathService
         if (courses.Any(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress))
             return (short)ConstantEnum.StudentLearningPathCourseStatus.InProgress;
 
-        if (courses.All(x => x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped))
-            return (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+        if (courses.All(x => x.Status == (short)ConstantEnum.SubjectImprovementStatus.Skipped))
+            return (short)ConstantEnum.SubjectImprovementStatus.Skipped;
 
         return (short)ConstantEnum.StudentLearningPathCourseStatus.NotStarted;
     }
@@ -1024,7 +1024,7 @@ public class LearningPathService : ILearningPathService
             {
                 Subject = g.Key,
                 Courses = g.SelectMany(x => x.Courses ?? new List<CourseItemDto>())
-                           .Where(c => c.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                           .Where(c => c.Status != (short)ConstantEnum.SubjectImprovementStatus.Skipped)
                            .ToList()
             })
             .Where(x => x.Courses.Count > 0)
@@ -1696,9 +1696,9 @@ public class LearningPathService : ILearningPathService
             var updatedCourseIds = new List<Guid>();
             foreach (var course in coursesToUpdate)
             {
-                if (course!.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                if (course!.Status != (short)ConstantEnum.SubjectImprovementStatus.Skipped)
                 {
-                    course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                    course.Status = (short)ConstantEnum.SubjectImprovementStatus.Skipped;
                     updatedCourseIds.Add(course.LearningPathCourseId);
                 }
             }
@@ -1726,7 +1726,7 @@ public class LearningPathService : ILearningPathService
                     {
                         if (updatedCourseIds.Contains(course.LearningPathCourseId))
                         {
-                            course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            course.Status = (short)ConstantEnum.SubjectImprovementStatus.Skipped;
                             hasChanges = true;
                         }
                     }
@@ -1817,9 +1817,9 @@ public class LearningPathService : ILearningPathService
             var updatedCourseIds = new List<Guid>();
             foreach (var course in coursesToUpdate)
             {
-                if (course.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                if (course.Status != (short)ConstantEnum.SubjectImprovementStatus.Skipped)
                 {
-                    course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                    course.Status = (short)ConstantEnum.SubjectImprovementStatus.Skipped;
                     updatedCourseIds.Add(course.LearningPathCourseId);
                 }
             }
@@ -1846,7 +1846,7 @@ public class LearningPathService : ILearningPathService
                     {
                         if (updatedCourseIds.Contains(course.LearningPathCourseId))
                         {
-                            course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                            course.Status = (short)ConstantEnum.SubjectImprovementStatus.Skipped;
                             hasChanges = true;
                         }
                     }

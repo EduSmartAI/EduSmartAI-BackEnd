@@ -66,9 +66,9 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
                             .ToList();
                         foreach (var course in learningPathCoursesToSkip)
                         {
-                            if (course.Status != (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped)
+                            if (course.Status != (short)ConstantEnum.SubjectImprovementStatus.Skipped)
                             {
-                                course.Status = (short)ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                                course.Status = (short)ConstantEnum.SubjectImprovementStatus.Skipped;
                                 updatedCourseIds.Add(course.LearningPathCourseId);
                                 _learningPathCourseCommandRepository.Update(course);
                             }
@@ -119,7 +119,7 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
                         {
                             if (updatedCourseIds.Contains(course.LearningPathCourseId))
                             {
-                                course.Status = (short) ConstantEnum.StudentLearningPathCourseStatus.Skipped;
+                                course.Status = (short) ConstantEnum.SubjectImprovementStatus.Skipped;
                             }
                         }
                     }
