@@ -494,16 +494,17 @@ public class LearningPathsController(
     /// <returns></returns>
     [HttpPost("process-and-export-subject-marks")]
     [Consumes("application/json")]
+    [ProducesResponseType(typeof(ProcessAndExportSubjectMarksResponse), StatusCodes.Status200OK)]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Xử lý và export phân tích điểm số môn học ra file PDF",
         Description = "API này lấy danh sách điểm môn học từ learning path, lọc các môn có đủ oldMark và newMark, publish message qua AiRecommend, sau đó export ra file PDF và upload lên Cloudinary. Trả về URL của file PDF."
     )]
-    public async Task<IActionResult> ProcessAndExportSubjectMarks(
+    public async Task<ProcessAndExportSubjectMarksResponse> ProcessAndExportSubjectMarks(
         [FromBody] ProcessAndExportSubjectMarksCommand request,
         CancellationToken cancellationToken)
     {
-        var response = await ApiControllerHelper.HandleRequest<ProcessAndExportSubjectMarksCommand, ProcessAndExportSubjectMarksResponse, string>(
+        return await ApiControllerHelper.HandleRequest<ProcessAndExportSubjectMarksCommand, ProcessAndExportSubjectMarksResponse, string>(
             request,
             _logger,
             ModelState,
@@ -512,14 +513,6 @@ public class LearningPathsController(
             _identityEntity,
             _httpContextAccessor,
             new ProcessAndExportSubjectMarksResponse());
-
-        if (!response.Success)
-        {
-            return BadRequest(response);
-        }
-
-        // Trả về URL của file PDF đã upload
-        return Ok(response);
     }
 
     /// <summary>
