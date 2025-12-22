@@ -403,7 +403,6 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
                 return status switch
                 {
                     ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
-                    ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
                     ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
                     ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
                     _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
@@ -417,7 +416,6 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             return result switch
             {
                 ConstantEnum.StudentTranscriptStatus.Passed => ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription(),
-                ConstantEnum.StudentTranscriptStatus.Studying => ConstantEnum.SubjectImprovementStatus.StudyingAndImproving.GetDescription(),
                 ConstantEnum.StudentTranscriptStatus.NotPassed => ConstantEnum.SubjectImprovementStatus.NotPassedAndImproving.GetDescription(),
                 ConstantEnum.StudentTranscriptStatus.NotStarted => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription(),
                 _ => ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving.GetDescription()
