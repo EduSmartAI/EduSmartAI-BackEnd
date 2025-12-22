@@ -12,12 +12,15 @@ using OpenIddict.Validation.AspNetCore;
 using StudentService.Application.Applications.LearningPathCourse.Commands.UpdateLearningPathCourseStatus;
 using StudentService.Application.Applications.LearningPaths.Commands;
 using StudentService.Application.Applications.LearningPaths.Commands.AddLearningPathCourse;
+using StudentService.Application.Applications.LearningPaths.Commands.ExportSubjectMarkUpdateWord;
+using StudentService.Application.Applications.LearningPaths.Commands.ProcessAndExportSubjectMarks;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourses;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateCourseStatusToSkipped;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearningPathStatus;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSubjectMarksByLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
@@ -311,7 +314,7 @@ public class LearningPathsController(
             _httpContextAccessor,
             new UpdateCourseStatusToSkippedResponse());
     }
-    
+
     /// <summary>
     /// Update course status to Skipped (Student accepts course overload/skip)
     /// </summary>
@@ -389,7 +392,7 @@ public class LearningPathsController(
             mediaType.MediaType.HasValue &&
             mediaType.MediaType.Value.Equals("text/event-stream", StringComparison.OrdinalIgnoreCase));
     }
-    
+
     /// <summary>
     /// Re-generate learning path
     /// </summary>
@@ -411,26 +414,26 @@ public class LearningPathsController(
             new RegenerateLearningPathCommandResponse());
     }
 
-	[HttpGet("suggested-courses/{pathId:guid}/subjects/{subjectCode}/recommend")]
-	[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
-	[SwaggerOperation(
-		Summary = "Lấy các khóa học được đề xuất cho một lộ trình học tập dựa trên độ khó",
-		Description = "API này cho phép lấy các khóa học được đề xuất dựa trên độ khó (dễ hơn hoặc khó hơn) cho một lộ trình học tập cụ thể."
-	)]
-	public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathProcess(Guid pathId, string subjectCode, [FromQuery] SuggestedCourseType type)
-	{
-		var request = new GetSuggestedCoursesForLearningPathQuery(pathId, subjectCode, type);
+    [HttpGet("suggested-courses/{pathId:guid}/subjects/{subjectCode}/recommend")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy các khóa học được đề xuất cho một lộ trình học tập dựa trên độ khó",
+        Description = "API này cho phép lấy các khóa học được đề xuất dựa trên độ khó (dễ hơn hoặc khó hơn) cho một lộ trình học tập cụ thể."
+    )]
+    public async Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathProcess(Guid pathId, string subjectCode, [FromQuery] SuggestedCourseType type)
+    {
+        var request = new GetSuggestedCoursesForLearningPathQuery(pathId, subjectCode, type);
 
-		return await ApiControllerHelper.HandleRequest<GetSuggestedCoursesForLearningPathQuery, GetSuggestedCoursesForLearningPathResponse, List<CourseBasicInfoDto>>(
-			request,
-			_logger,
-			ModelState,
-			async () => await _mediator.Send(request),
-			_identityService,
-			_identityEntity,
-			_httpContextAccessor,
-			new GetSuggestedCoursesForLearningPathResponse());
-	}
+        return await ApiControllerHelper.HandleRequest<GetSuggestedCoursesForLearningPathQuery, GetSuggestedCoursesForLearningPathResponse, List<CourseBasicInfoDto>>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new GetSuggestedCoursesForLearningPathResponse());
+    }
 
     [HttpPatch("add-suggested-course")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
@@ -438,7 +441,7 @@ public class LearningPathsController(
         Summary = "Thêm khóa học được đề xuất vào lộ trình học tập",
         Description = "API này cho phép thêm một khóa học được đề xuất vào lộ trình học tập hiện tại."
     )]
-	public async Task<AddLearningPathCourseResponse> AddSuggestedCourseProcess(AddLearningPathCourseCommand request)
+    public async Task<AddLearningPathCourseResponse> AddSuggestedCourseProcess(AddLearningPathCourseCommand request)
     {
         return await ApiControllerHelper.HandleRequest<AddLearningPathCourseCommand, AddLearningPathCourseResponse, LearningPathCourseDto>(
             request,
@@ -451,8 +454,107 @@ public class LearningPathsController(
             new AddLearningPathCourseResponse());
     }
 
+    /// <summary>
+    /// Get subject marks with AI evaluation for learning path
+    /// </summary>
+    /// <param name="learningPathId"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    [HttpGet("{learningPathId:guid}/subject-marks")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy danh sách điểm môn học có internal course trong learning path",
+        Description = "API này lấy danh sách các môn học có internal course từ learning path và điểm AI evaluation tương ứng."
+    )]
+    public async Task<GetSubjectMarksByLearningPathResponse> GetSubjectMarksByLearningPath(
+        Guid learningPathId,
+        CancellationToken cancellationToken)
+    {
+        var request = new GetSubjectMarksByLearningPathQuery
+        {
+            LearningPathId = learningPathId
+        };
 
-	private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
+        return await ApiControllerHelper.HandleRequest<GetSubjectMarksByLearningPathQuery, GetSubjectMarksByLearningPathResponse, List<SubjectMarkDto>>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request, cancellationToken),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new GetSubjectMarksByLearningPathResponse());
+    }
+
+    /// <summary>
+    /// Process and export subject mark update analysis to PDF document
+    /// </summary>
+    /// <param name="request"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    [HttpPost("process-and-export-subject-marks")]
+    [Consumes("application/json")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Xử lý và export phân tích điểm số môn học ra file PDF",
+        Description = "API này lấy danh sách điểm môn học từ learning path, lọc các môn có đủ oldMark và newMark, publish message qua AiRecommend, sau đó export ra file PDF và upload lên Cloudinary. Trả về URL của file PDF."
+    )]
+    public async Task<IActionResult> ProcessAndExportSubjectMarks(
+        [FromBody] ProcessAndExportSubjectMarksCommand request,
+        CancellationToken cancellationToken)
+    {
+        var response = await ApiControllerHelper.HandleRequest<ProcessAndExportSubjectMarksCommand, ProcessAndExportSubjectMarksResponse, string>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request, cancellationToken),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new ProcessAndExportSubjectMarksResponse());
+
+        if (!response.Success)
+        {
+            return BadRequest(response);
+        }
+
+        // Trả về URL của file PDF đã upload
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Export subject mark update analysis to PDF document
+    /// </summary>
+    /// <param name="request"></param>
+    /// <returns></returns>
+    [HttpPost("export-subject-mark-update-pdf")]
+    [Consumes("application/json")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Export phân tích điểm số môn học ra file PDF",
+        Description = "API này cho phép export danh sách phân tích điểm số môn học ra file PDF với biểu đồ so sánh."
+    )]
+    public async Task<IActionResult> ExportSubjectMarkUpdatePdf([FromBody] ExportSubjectMarkUpdateWordCommand request)
+    {
+        var response = await ApiControllerHelper.HandleRequest<ExportSubjectMarkUpdateWordCommand, ExportSubjectMarkUpdateWordResponse, byte[]>(
+            request,
+            _logger,
+            ModelState,
+            async () => await _mediator.Send(request),
+            _identityService,
+            _identityEntity,
+            _httpContextAccessor,
+            new ExportSubjectMarkUpdateWordResponse());
+
+        if (!response.Success)
+        {
+            return BadRequest(response);
+        }
+
+        return File(response.Response, response.ContentType, response.FileName);
+    }
+
+    private CancellationTokenSource CreateSseCancellationTokenSource(CancellationToken cancellationToken)
     {
         var httpAbortToken = HttpContext?.RequestAborted ?? CancellationToken.None;
         var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, httpAbortToken);

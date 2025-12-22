@@ -12,4 +12,5 @@ public interface ICloudinaryService
 
     Task<string> UploadVideoAsync(string filePath, string publicId, CancellationToken ct);
     Task<string> UploadZipAsync(IFormFile file, CancellationToken ct = default);
+    Task<string> UploadPdfAsync(string fileName, Stream stream, string contentType, CancellationToken ct = default);
 }

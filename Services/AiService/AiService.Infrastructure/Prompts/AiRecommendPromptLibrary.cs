@@ -586,5 +586,196 @@ YÊU CẦU ĐỊNH DẠNG:
 - KHÔNG được khen quá mức, phải thực tế và có mức độ.
 """;
     }
+
+    public static string BuildSubjectMarkUpdatePrompt(
+        string subjectCode,
+        string subjectName,
+        double? oldMark,
+        double newMark,
+        string newAnalysis,
+        List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents,
+        string? careerGoal)
+    {
+        var hasOldMark = oldMark.HasValue;
+        var markImprovement = hasOldMark ? newMark - oldMark.Value : 0;
+        var improvementPercentage = hasOldMark && oldMark.Value > 0 ? (markImprovement / oldMark.Value) * 100 : 0;
+
+        var dependentDetails = (dependents ?? new List<(string, string, int?)>())
+            .Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return new
+                {
+                    subjectCode = dep.subjectCode,
+                    subjectName = dep.subjectName,
+                    semesterIndex = dep.semesterIndex,
+                    semesterLabel = scopeSuffix
+                };
+            })
+            .ToList();
+
+        var payload = new
+        {
+            subjectCode,
+            subjectName,
+            oldMark = hasOldMark ? oldMark.Value : (double?)null,
+            newMark,
+            markImprovement = hasOldMark ? markImprovement : (double?)null,
+            improvementPercentage = hasOldMark ? Math.Round(improvementPercentage, 2) : (double?)null,
+            markScale = "0-100",
+            newAnalysis,
+            dependents = dependentDetails,
+            careerGoal = careerGoal ?? string.Empty,
+            hasComparison = hasOldMark
+        };
+
+        var json = Serialize(payload);
+
+        var taskDescription = hasOldMark
+            ? $"Phân tích sự thay đổi điểm số của môn học `{subjectName}` ({subjectCode}) từ {oldMark.Value}/100 lên {newMark}/100."
+            : $"Phân tích điểm số hiện tại của môn học `{subjectName}` ({subjectCode}) là {newMark}/100 (không có điểm cũ để so sánh).";
+
+        var improvementSection = hasOldMark
+            ? $"""
+   - Tính toán mức cải thiện: {markImprovement} điểm ({Math.Round(improvementPercentage, 2)}%).
+   - Đánh giá mức độ cải thiện theo phân loại trên.
+   - Phân tích nguyên nhân cải thiện dựa trên `newAnalysis` (nếu có).
+   - Nếu có cải thiện: Khen ngợi phù hợp với mức điểm mới.
+"""
+            : """
+   - Đánh giá điểm số hiện tại theo phân loại trên (không có điểm cũ để so sánh).
+   - Phân tích điểm mạnh và điểm yếu dựa trên `newAnalysis` (nếu có).
+   - Đưa ra nhận xét về mức độ nắm vững kiến thức hiện tại.
+""";
+
+        var comparisonSection = hasOldMark
+            ? """
+   - Phân tích sâu về điểm cũ: Mức độ nắm vững kiến thức, dựa vào `newAnalysis` để xác định điểm mạnh và điểm yếu cụ thể từ phần "Điểm mạnh nổi bật" và "Vấn đề & Khoảng trống kỹ năng", các phần kiến thức nào đã nắm được và chưa nắm được (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Phân tích sâu về điểm mới: Mức độ nắm vững kiến thức hiện tại, so sánh với điểm cũ để xác định điểm mạnh mới (từ phần "Điểm mạnh nổi bật" trong `newAnalysis`), điểm yếu còn lại (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`), các phần kiến thức nào đã cải thiện và còn cần cải thiện (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - So sánh chi tiết: Đánh giá sự tiến bộ cụ thể dựa trên so sánh điểm cũ và mới, đã vượt qua ngưỡng nào (nếu có), còn thiếu gì để đạt mức cao hơn (dựa vào phần "Vấn đề & Khoảng trống kỹ năng" và "Nguyên nhân gốc" trong `newAnalysis`), những phần nào đã cải thiện rõ rệt (so sánh điểm mạnh) và những phần nào vẫn cần chú ý (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`) (4-5 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Nhận xét về xu hướng học tập: Đánh giá xu hướng dựa trên sự thay đổi điểm số và thông tin từ `newAnalysis` (phần "Xu hướng theo thời gian" nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần "Nguyên nhân gốc" trong `newAnalysis` (2-3 câu).
+   
+   - Ý nghĩa của sự thay đổi: Giải thích ý nghĩa của việc cải thiện/giảm điểm này đối với quá trình học tập và các môn học liên quan, liên hệ với phần "Ưu tiên hành động" trong `newAnalysis` để đưa ra nhận xét về tác động (2-3 câu).
+"""
+            : """
+   - Phân tích sâu về điểm số hiện tại: Mức độ nắm vững kiến thức hiện tại, dựa vào `newAnalysis` để xác định điểm mạnh (từ phần "Điểm mạnh nổi bật" trong `newAnalysis`) và điểm yếu (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`), các phần kiến thức nào đã nắm được và còn cần cải thiện (4-5 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Đánh giá tổng quan: Đánh giá tổng quan về mức độ nắm vững kiến thức hiện tại, dựa vào phần "Nguyên nhân gốc" trong `newAnalysis` để giải thích nguyên nhân, và phần "Ưu tiên hành động" để đưa ra nhận xét về tác động (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Nhận xét về xu hướng học tập: Đánh giá xu hướng dựa trên thông tin từ `newAnalysis` (phần "Xu hướng theo thời gian" nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần "Nguyên nhân gốc" trong `newAnalysis` (2-3 câu).
+""";
+
+        var comparisonTitle = hasOldMark ? "So sánh điểm cũ và mới" : "Phân tích điểm số hiện tại";
+
+        return $$"""
+DỮ LIỆU CẬP NHẬT ĐIỂM MÔN HỌC:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+{{taskDescription}}
+
+PHÂN LOẠI ĐÁNH GIÁ THEO MỨC ĐIỂM MỚI:
+
+**ĐIỂM MỚI < 60 - CẢNH BÁO NGHIÊM TRỌNG:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức RẤT YẾU, có nguy cơ rớt môn.
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó ở kỳ tiếp theo, nêu rõ lý do cụ thể và tác động.
+- Lộ trình: Lộ trình cải thiện KHẨN CẤP 2-4 tuần với khối lượng học tập cao (5-7 buổi/tuần, 10+ bài tập/tuần).
+- Nếu có cải thiện từ điểm cũ: Ghi nhận sự nỗ lực nhưng vẫn nhấn mạnh cần cải thiện nhiều hơn.
+
+**ĐIỂM MỚI 60-69 - CẦN CẢI THIỆN:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TRUNG BÌNH YẾU, cần cải thiện để đạt kết quả tốt hơn.
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, nhận xét về ảnh hưởng có thể có đến các môn đó, khuyến khích củng cố để tránh khó khăn.
+- Lộ trình: Lộ trình cải thiện vừa phải 2-4 tuần (4-5 buổi/tuần, 7-9 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi sự tiến bộ nhưng nhấn mạnh cần duy trì và cải thiện thêm.
+
+**ĐIỂM MỚI 70-79 - KHÁ TỐT:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức KHÁ, đã đạt chuẩn nhưng có thể phát triển thêm.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+- Lộ trình: Lộ trình phát triển vừa phải (3-4 buổi/tuần, 5-7 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi sự tiến bộ và khuyến khích tiếp tục phát triển.
+
+**ĐIỂM MỚI 80-89 - TỐT:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TỐT, đã nắm vững kiến thức tốt và có thể phát triển lên mức xuất sắc.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+- Lộ trình: Lộ trình phát triển tốt (2-3 buổi/tuần, 4-6 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi mạnh mẽ về sự tiến bộ và khuyến khích phấn đấu đạt mức xuất sắc.
+
+**ĐIỂM MỚI 90-100 - XUẤT SẮC:**
+- Đánh giá: Khen ngợi tích cực - "Bạn đã nắm vững kiến thức rất tốt", "Kết quả học tập xuất sắc", khuyến khích tiếp tục phát triển và duy trì phong độ.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nếu có cải thiện: Khen ngợi mạnh mẽ về sự tiến bộ và khuyến khích duy trì phong độ xuất sắc.
+
+YÊU CẦU PHÂN TÍCH:
+1. **Phân tích cải thiện điểm số**:
+{{improvementSection}}
+
+2. **{{comparisonTitle}} (CHI TIẾT VÀ DÀI HƠN - SỬ DỤNG DỮ LIỆU TỪ newAnalysis)**:
+   - **QUAN TRỌNG**: Phải sử dụng thông tin từ `newAnalysis` để phân tích chính xác. Trong `newAnalysis` đã có:
+     * Điểm mạnh nổi bật (phần "## Điểm mạnh nổi bật")
+     * Vấn đề & Khoảng trống kỹ năng (phần "## Vấn đề & Khoảng trống kỹ năng")
+     * Nguyên nhân gốc (phần "## Nguyên nhân gốc")
+     * Ưu tiên hành động (phần "## Ưu tiên hành động")
+   
+{{comparisonSection}}
+
+3. **Cảnh báo/Nhận xét về môn phụ thuộc**:
+   - Nếu điểm mới < 60 và có `dependents`: CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó, nêu rõ từng môn và kỳ học.
+   - Nếu điểm mới 60-69 và có `dependents`: Nhận xét về ảnh hưởng có thể có, khuyến khích củng cố.
+   - Nếu điểm mới 70-79 và có `dependents`: Nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+   - Nếu điểm mới >= 80 và có `dependents`: Nhận xét rất tích cực về khả năng học tốt các môn đó.
+   - Nếu không có `dependents`: Ghi "Không có môn học phụ thuộc trực tiếp."
+
+4. **Đề xuất hành động tiếp theo**:
+   - Theo phân loại mức điểm ở trên.
+   - Lộ trình phải cụ thể với số buổi/bài tập rõ ràng.
+
+OUTPUT JSON (không thêm văn bản khác):
+{
+  "improvementAnalysis": "<Markdown text với format: ## Phân tích cải thiện điểm số [Tên môn]\n### Mức độ cải thiện\n- [Đánh giá mức cải thiện và % theo phân loại]\n### So sánh điểm cũ và mới\n- [So sánh chi tiết]\n### Nguyên nhân cải thiện\n- [Phân tích dựa trên newAnalysis]\n### [Cảnh báo/Nhận xét] về môn phụ thuộc ở kỳ tiếp theo\n[Nếu có dependents: liệt kê từng môn với cảnh báo/nhận xét phù hợp với mức điểm. Nếu không có: ghi 'Không có môn học phụ thuộc trực tiếp.']\n### Đề xuất hành động tiếp theo\n- [Lộ trình cụ thể với khối lượng học tập]",
+  "comparisonAnalysis": "<Markdown text với format CHÍNH XÁC:\n\n## So sánh chi tiết\n\n### Điểm cũ ({{oldMark}}/100)\n\n[Viết 3-4 câu phân tích sâu về điểm cũ: mức độ nắm vững kiến thức, điểm mạnh và điểm yếu cụ thể DỰA VÀO phần 'Điểm mạnh nổi bật' và 'Vấn đề & Khoảng trống kỹ năng' trong newAnalysis, các phần kiến thức nào đã nắm được và chưa nắm được. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### Điểm mới ({{newMark}}/100)\n\n[Viết 3-4 câu phân tích sâu về điểm mới: mức độ nắm vững kiến thức hiện tại, điểm mạnh mới (từ phần 'Điểm mạnh nổi bật' trong newAnalysis), điểm yếu còn lại (từ phần 'Vấn đề & Khoảng trống kỹ năng' trong newAnalysis), các phần kiến thức nào đã cải thiện và còn cần cải thiện. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### So sánh chi tiết\n\n[Viết 4-5 câu so sánh chi tiết: đánh giá sự tiến bộ cụ thể dựa trên so sánh điểm cũ và mới, đã vượt qua ngưỡng nào, còn thiếu gì để đạt mức cao hơn (dựa vào phần 'Vấn đề & Khoảng trống kỹ năng' và 'Nguyên nhân gốc' trong newAnalysis), những phần nào đã cải thiện rõ rệt và những phần nào vẫn cần chú ý. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### Xu hướng học tập\n\n[Viết 2-3 câu nhận xét về xu hướng học tập: đánh giá dựa trên sự thay đổi điểm số và thông tin từ newAnalysis (phần 'Xu hướng theo thời gian' nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần 'Nguyên nhân gốc' trong newAnalysis]\n\n### Ý nghĩa của sự thay đổi\n\n[Viết 2-3 câu giải thích ý nghĩa của việc cải thiện/giảm điểm này đối với quá trình học tập và các môn học liên quan, liên hệ với phần 'Ưu tiên hành động' trong newAnalysis để đưa ra nhận xét về tác động]"
+}
+
+LƯU Ý QUAN TRỌNG VỀ FORMAT MARKDOWN:
+- Trong JSON, các ký tự xuống dòng phải được biểu diễn bằng `\n` (không phải `\\n`)
+- Markdown phải là chuỗi hợp lệ, không có code fences (```) bao quanh
+- **QUAN TRỌNG**: Các heading (##, ###) PHẢI có dòng trống trước đó (trừ heading đầu tiên `## So sánh chi tiết`)
+- Mỗi heading con (###) PHẢI có dòng trống trước và sau heading
+- Mỗi bullet point (-) phải ở dòng riêng
+- Không được escape các ký tự markdown đặc biệt như #, -, *
+- `comparisonAnalysis` PHẢI có đầy đủ 5 heading con: "Điểm cũ", "Điểm mới", "So sánh chi tiết", "Xu hướng học tập", "Ý nghĩa của sự thay đổi"
+
+QUY TẮC QUAN TRỌNG:
+- **ĐIỂM MỚI < 60**: Dùng từ ngữ CẢNH BÁO, NGHIÊM TRỌNG, KHẨN CẤP. Nếu có `dependents`, CẢNH BÁO RÕ RÀNG về nguy cơ rớt các môn đó ở kỳ tiếp theo.
+- **ĐIỂM MỚI 60-69**: Dùng từ ngữ NHẬN XÉT, GỢI Ý, CẢI THIỆN. Nếu có `dependents`, nhận xét về ảnh hưởng có thể có.
+- **ĐIỂM MỚI 70-79**: Dùng từ ngữ KHEN NGỢI VỪA PHẢI - "nắm vững tốt", "kết quả khá tốt". Nếu có `dependents`, nhận xét tích cực.
+- **ĐIỂM MỚI 80-89**: Dùng từ ngữ KHEN NGỢI TỐT - "nắm vững kiến thức tốt", "kết quả tốt". Nếu có `dependents`, nhận xét rất tích cực.
+- **ĐIỂM MỚI 90-100**: Dùng từ ngữ KHEN NGỢI TÍCH CỰC - "nắm vững rất tốt", "kết quả xuất sắc". Nếu có `dependents`, nhận xét rất tích cực.
+- Nếu có cải thiện từ điểm cũ: Khen ngợi phù hợp với mức điểm mới.
+- Nếu `dependents` có dữ liệu, BẮT BUỘC phải liệt kê từng môn với cảnh báo/nhận xét phù hợp với mức điểm.
+- Nếu `dependents` rỗng hoặc null, ghi rõ "Không có môn học phụ thuộc trực tiếp."
+- Nếu có `careerGoal`, liên hệ với mục tiêu nghề nghiệp trong phần đánh giá và gợi ý.
+
+YÊU CẦU ĐỊNH DẠNG:
+- `improvementAnalysis` mở đầu bằng `## Phân tích cải thiện điểm số [Tên môn]`.
+- `comparisonAnalysis` mở đầu bằng `## So sánh chi tiết` và PHẢI DÀI HƠN, CHI TIẾT HƠN với ít nhất 5 heading con.
+- Mỗi heading trong `improvementAnalysis` có 2-4 bullet, bắt đầu bằng động từ, ghi rõ khối lượng.
+- Mỗi heading trong `comparisonAnalysis` có 2-5 câu văn (không phải bullet), viết dưới dạng đoạn văn mạch lạc, chi tiết.
+- **QUAN TRỌNG**: Trong `comparisonAnalysis`, PHẢI sử dụng và trích dẫn cụ thể thông tin từ `newAnalysis`, đặc biệt là:
+  * Phần "Điểm mạnh nổi bật" để xác định điểm mạnh
+  * Phần "Vấn đề & Khoảng trống kỹ năng" để xác định điểm yếu và vấn đề cần cải thiện
+  * Phần "Nguyên nhân gốc" để giải thích nguyên nhân
+  * Phần "Ưu tiên hành động" để đánh giá tác động
+- Sử dụng tiếng Việt có dấu, ngắn gọn nhưng đầy đủ thông tin cho `improvementAnalysis`.
+- Sử dụng tiếng Việt có dấu, viết DÀI HƠN và CHI TIẾT HƠN cho `comparisonAnalysis` (mỗi phần ít nhất 2-3 câu), và PHẢI trích dẫn cụ thể từ `newAnalysis`.
+- KHÔNG được khen quá mức, phải thực tế và có mức độ.
+""";
+    }
 }
 

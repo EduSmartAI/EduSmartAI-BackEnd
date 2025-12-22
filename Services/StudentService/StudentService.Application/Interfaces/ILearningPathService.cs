@@ -6,6 +6,7 @@ using StudentService.Application.Applications.LearningPaths.Commands.UpdateLearn
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
 using StudentService.Application.Applications.LearningPaths.Commands.UpdateStatusLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries;
+using StudentService.Application.Applications.LearningPaths.Queries.GetSubjectMarksByLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.GetSuggestedCoursesForLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectAllLearningPath;
 using StudentService.Application.Applications.LearningPaths.Queries.SelectLearningPaths;
@@ -54,4 +55,6 @@ public interface ILearningPathService
 	Task<GetSuggestedCoursesForLearningPathResponse> GetSuggestedCoursesForLearningPathAsync(GetSuggestedCoursesForLearningPathQuery request, CancellationToken ct = default);
 
     Task<AddLearningPathCourseResponse> AddLearningPathCourseAsync(AddLearningPathCourseCommand request, CancellationToken ct);
+
+    Task<GetSubjectMarksByLearningPathResponse> GetSubjectMarksByLearningPathAsync(GetSubjectMarksByLearningPathQuery request, CancellationToken cancellationToken);
 }

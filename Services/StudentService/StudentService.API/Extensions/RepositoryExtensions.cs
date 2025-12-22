@@ -68,6 +68,7 @@ public static class RepositoryExtensions
         services.AddScoped<ICourseSuggestionService, CourseSuggestionService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IAiEvaluationService, AiEvaluationService>();
+        services.AddScoped<IPdfExportService, PdfExportService>();
         services.AddSingleton<ILearningPathRealtimeNotifier, LearningPathRealtimeNotifier>();
 
         // MediatR configuration
