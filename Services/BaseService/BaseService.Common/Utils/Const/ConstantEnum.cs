@@ -445,6 +445,8 @@ public static class ConstantEnum
         Completed = 7,
         
         [Description("Bỏ qua")]
-        Skipped = 8
+        Skipped = 8,
+        [Description("Đang học")]
+        Studying = 9
     }
 }
