@@ -432,16 +432,19 @@ public static class ConstantEnum
         [Description("Chưa đạt và đang cải thiện")]
         NotPassedAndImproving = 2,
         
-        [Description("Chưa học trên FAP và đang học cải thiện")]
+        [Description("Chưa học trên FAP và đang học khoá học")]
         NotStartedAndImproving = 4,
         
+        [Description("Đã đạt và chỉ đánh giá")]
+        PassedAndEvaluation = 5,
+        
         [Description("Đã đạt điểm tốt")]
-        PassedWithGoodGrade = 5,
+        PassedWithGoodGrade = 6,
          
         [Description("Đã hoàn thành")]
-        Completed = 6,
+        Completed = 7,
         
         [Description("Bỏ qua")]
-        Skipped = 7
+        Skipped = 8
     }
 }

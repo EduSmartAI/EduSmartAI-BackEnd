@@ -111,7 +111,7 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
         var subjectCodesForEvaluation = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var subjectCodesForCourseImprove = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
-        if (evaluationCodes.Any() && studentTranscripts != null && studentTranscripts.Any())
+        if (evaluationCodes.Any() && studentTranscripts.Any())
         {
             foreach (var questionCode in evaluationCodes)
             {
@@ -211,41 +211,54 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             {
                 // Subject has a grade (Passed)
                 // Only include if user selected this grade range for evaluation/improvement
-                var isInEvaluationList = subjectCodesForEvaluation.Contains(subCode.SubjectCode);
-                var isInCourseImproveList = subjectCodesForCourseImprove.Contains(subCode.SubjectCode);
+                var isInEvaluationListCheck = subjectCodesForEvaluation.Contains(subCode.SubjectCode);
+                var isInCourseImproveListCheck = subjectCodesForCourseImprove.Contains(subCode.SubjectCode);
                 
                 // If subject is Passed with grade >= 8, skip (PassedWithGoodGrade - no improvement needed)
-                if (subjectGrade >= 8.0 && !isInEvaluationList && !isInCourseImproveList)
+                if (subjectGrade >= 8.0 && !isInEvaluationListCheck && !isInCourseImproveListCheck)
                 {
                     continue;
                 }
                 
                 // If subject is Passed (grade < 8) but user didn't select any evaluation codes for this grade range, skip
-                if (subjectGrade >= 5.0 && subjectGrade < 8.0 && evaluationCodes.Any() && !isInEvaluationList && !isInCourseImproveList)
+                if (subjectGrade >= 5.0 && subjectGrade < 8.0 && evaluationCodes.Any() && !isInEvaluationListCheck && !isInCourseImproveListCheck)
                 {
                     continue;
                 }
             }
             
-            // Determine status based on AnalysisMarkdown and transcript grade
+            // Determine status based on AnalysisMarkdown, transcript grade, and user selection
             string determinedStatus;
-            if (subCode.AnalysisMarkdown == null)
+            var isInEvalList = subjectCodesForEvaluation.Contains(subCode.SubjectCode);
+            var isInCourseImproveList = subjectCodesForCourseImprove.Contains(subCode.SubjectCode);
+            
+            if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade))
             {
-                // No AI analysis: check transcript grade
-                if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade) && grade >= 8.0)
+                // Subject has a grade (Passed)
+                if (grade >= 8.0)
                 {
-                    // Grade > 8.0: PassedWithGoodGrade
+                    // Grade >= 8.0: PassedWithGoodGrade (no improvement needed)
                     determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription();
+                }
+                else if (isInEvalList && !isInCourseImproveList)
+                {
+                    // User only selected evaluation (not course improvement): PassedAndEvaluation
+                    determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedAndEvaluation.GetDescription();
+                }
+                else if (isInCourseImproveList)
+                {
+                    // User selected course improvement: PassedAndImproving
+                    determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedAndImproving.GetDescription();
                 }
                 else
                 {
-                    // Use original status from event
+                    // Default for passed subjects
                     determinedStatus = MapToSubjectImprovementStatus(subCode.Status);
                 }
             }
             else
             {
-                // Has AI analysis: map using standard logic
+                // No grade: use standard mapping logic
                 determinedStatus = MapToSubjectImprovementStatus(subCode.Status);
             }
             
