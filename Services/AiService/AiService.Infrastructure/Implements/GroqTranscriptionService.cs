@@ -54,7 +54,7 @@ namespace AiService.Infrastructure.Implements
 
 			// 1) Thử nén 1 phát
 			//var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt)
-			var videoUrlMp4 = CloudinaryAudio.BuildMp4Url(cloud, versionedIdNoExt);
+			var videoUrlMp4 = CloudinaryAudio.BuildMp3Url(cloud, versionedIdNoExt);
 			var attempt = await TryTranscribeUrlOnce(http, job, videoUrlMp4, 0, ct);
 			if (attempt.succeeded && attempt.result is not null)
 			{

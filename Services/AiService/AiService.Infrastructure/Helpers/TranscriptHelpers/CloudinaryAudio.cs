@@ -44,6 +44,9 @@
 		/// <param name="versionedIdNoExt"></param>
 		/// <returns></returns>
 
+		public static string BuildMp3Url(string cloud, string versionedIdNoExt)
+			=> $"https://res.cloudinary.com/{cloud}/video/upload/{versionedIdNoExt}.mp3";
+
 		public static string BuildMp4Url(string cloud, string versionedIdNoExt)
 			=> $"https://res.cloudinary.com/{cloud}/video/upload/{versionedIdNoExt}.mp4";
 
