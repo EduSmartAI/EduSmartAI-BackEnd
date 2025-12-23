@@ -30,3 +30,4 @@ public sealed record SubjectDetailDto
 
 
 
+
