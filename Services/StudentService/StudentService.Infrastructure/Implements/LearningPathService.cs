@@ -738,11 +738,11 @@ public class LearningPathService : ILearningPathService
 
             var ordered = courseItems.OrderBy(x => x.SemesterPosition).ToList();
 
-            // Parse Status from LearningPathSubjectCodeCollection to StudentTranscriptStatus
-            short learningCurrentStatus = (short)ConstantEnum.StudentTranscriptStatus.NotStarted;
+            // Parse Status from LearningPathSubjectCodeCollection to SubjectImprovementStatus
+            short learningCurrentStatus = (short)ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving;
             if (!string.IsNullOrWhiteSpace(subject.Status))
             {
-                foreach (ConstantEnum.StudentTranscriptStatus status in Enum.GetValues<ConstantEnum.StudentTranscriptStatus>())
+                foreach (ConstantEnum.SubjectImprovementStatus status in Enum.GetValues<ConstantEnum.SubjectImprovementStatus>())
                 {
                     if (string.Equals(status.GetDescription(), subject.Status, StringComparison.OrdinalIgnoreCase))
                     {
@@ -950,7 +950,7 @@ public class LearningPathService : ILearningPathService
                     SubjectCode = g.Key,
                     AnalysisMarkdown = null,
                     Status = AggregateGroupStatus(courses),
-                    LearningCurrentStatus = (short)ConstantEnum.StudentTranscriptStatus.NotStarted,
+                    LearningCurrentStatus = (short)ConstantEnum.SubjectImprovementStatus.NotStartedAndImproving,
                     Courses = courses
                 };
             })
@@ -1018,28 +1018,30 @@ public class LearningPathService : ILearningPathService
 
         if (dto.InternalLearningPath != null)
             allGroups.AddRange(dto.InternalLearningPath.SelectMany(m => m.MajorCourseGroups ?? new List<CourseGroupDto>()));
+        
+        // Group by SubjectCode to merge groups of the same subject
         var mergedBySubject = allGroups
             .GroupBy(g => string.IsNullOrWhiteSpace(g.SubjectCode) ? "UNKNOWN" : g.SubjectCode)
             .Select(g => new
             {
                 Subject = g.Key,
-                Courses = g.SelectMany(x => x.Courses ?? new List<CourseItemDto>())
-                           .Where(c => c.Status != (short)ConstantEnum.SubjectImprovementStatus.Skipped)
-                           .ToList()
+                // Get the LearningCurrentStatus from the groups (should be same for same subject)
+                LearningCurrentStatus = g.First().LearningCurrentStatus,
+                Groups = g.ToList()
             })
-            .Where(x => x.Courses.Count > 0)
-            .Select(x => new
-            {
-                x.Subject,
-                Status = AggregateGroupStatus(x.Courses)
-            })
+            // Exclude Skipped, PassedAndEvaluation, and PassedWithGoodGrade statuses
+            // Include: PassedAndImproving, NotPassedAndImproving, NotStartedAndImproving, Completed, Studying
+            .Where(x => x.LearningCurrentStatus != (short)ConstantEnum.SubjectImprovementStatus.Skipped &&
+                       x.LearningCurrentStatus != (short)ConstantEnum.SubjectImprovementStatus.PassedAndEvaluation &&
+                       x.LearningCurrentStatus != (short)ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade)
             .ToList();
 
         var totalSubjects = mergedBySubject.Count;
         if (totalSubjects == 0) return 0m;
 
+        // Count subjects with LearningCurrentStatus == Completed
         var completedSubjects = mergedBySubject.Count(x =>
-            x.Status == (short)ConstantEnum.StudentLearningPathCourseStatus.Completed);
+            x.LearningCurrentStatus == (short)ConstantEnum.SubjectImprovementStatus.Completed);
 
         var percent = (decimal)completedSubjects * 100m / totalSubjects;
         return Math.Round(percent, 2, MidpointRounding.AwayFromZero);
@@ -1956,7 +1958,7 @@ public class LearningPathService : ILearningPathService
 
                     if (subjectCode != null)
                     {
-                        var newStatus = subjectCompleted ? ConstantEnum.StudentTranscriptStatus.Passed.GetDescription() : ConstantEnum.StudentTranscriptStatus.Studying.GetDescription();
+                        var newStatus = subjectCompleted ? ConstantEnum.SubjectImprovementStatus.Completed.GetDescription() : ConstantEnum.SubjectImprovementStatus.Studying.GetDescription();
 
                         if (subjectCode.Status != newStatus)
                         {
