@@ -235,9 +235,9 @@ public class LearningFeedbackEventConsumer : IConsumer<LearningFeedbackEvent>
             if (transcriptGradeMap.TryGetValue(subCode.SubjectCode, out var grade))
             {
                 // Subject has a grade (Passed)
-                if (grade >= 8.0)
+                if (grade > 8.0)
                 {
-                    // Grade >= 8.0: PassedWithGoodGrade (no improvement needed)
+                    // Grade > 8.0: PassedWithGoodGrade (no improvement needed)
                     determinedStatus = ConstantEnum.SubjectImprovementStatus.PassedWithGoodGrade.GetDescription();
                 }
                 else if (isInEvalList && !isInCourseImproveList)
