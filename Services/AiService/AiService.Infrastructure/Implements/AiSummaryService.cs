@@ -921,7 +921,7 @@ namespace AiService.Infrastructure.Implements
                     // Nếu không có majorCode và không tìm thấy môn hiện tại, thêm vào
                     if (string.IsNullOrWhiteSpace(normalizedMajorCode))
                     {
-                        var found = allSubjects.Any(s => 
+                        var found = allSubjects.Any(s =>
                             s.SubjectCode.Equals(subjectCode, StringComparison.OrdinalIgnoreCase));
                         if (!found)
                         {
@@ -1183,8 +1183,8 @@ namespace AiService.Infrastructure.Implements
                     subjectInfoEvent,
                     ct);
 
-                if (subjectInfoResponse.Message.Success && 
-                    subjectInfoResponse.Message.Response != null && 
+                if (subjectInfoResponse.Message.Success &&
+                    subjectInfoResponse.Message.Response != null &&
                     subjectInfoResponse.Message.Response.Count > 0)
                 {
                     // Lấy MajorCode từ item đầu tiên
@@ -1235,7 +1235,7 @@ namespace AiService.Infrastructure.Implements
 
             // 5. Build dependent warnings - chỉ cảnh báo nếu điểm mới < 6
             var dependentWarnings = new List<DependentSubjectWarning>();
-            if (req.NewMark < 6.0 && dependents != null && dependents.Count > 0)
+            if (req.NewMark < 60 && dependents != null && dependents.Count > 0)
             {
                 dependentWarnings = dependents
                     .Select(dep =>
@@ -1248,7 +1248,7 @@ namespace AiService.Infrastructure.Implements
                             SubjectCode = dep.Item1,
                             SubjectName = dep.Item2,
                             SemesterIndex = dep.Item3,
-                            WarningMessage = $"⚠️ CẢNH BÁO: Điểm thấp ({req.NewMark}/10) ở {req.SubjectName} ({req.SubjectCode}) có thể ảnh hưởng nghiêm trọng đến kết quả học tập của {dep.Item2} ({dep.Item1}) {semesterLabel}. Cần củng cố kiến thức ngay lập tức."
+                            WarningMessage = $"⚠️ CẢNH BÁO: Điểm thấp ({req.NewMark}/100) ở {req.SubjectName} ({req.SubjectCode}) có thể ảnh hưởng nghiêm trọng đến kết quả học tập của {dep.Item2} ({dep.Item1}) {semesterLabel}. Cần củng cố kiến thức ngay lập tức."
                         };
                     })
                     .ToList();
@@ -1282,7 +1282,7 @@ namespace AiService.Infrastructure.Implements
             {
                 // Strip code fences nếu có
                 var cleanedJson = AiQuizEvaluatorCommon.StripCodeFence(jsonResponse);
-                
+
                 var doc = JsonDocument.Parse(cleanedJson);
                 string? improvementAnalysis = null;
                 string? comparisonAnalysis = null;
@@ -1391,39 +1391,39 @@ namespace AiService.Infrastructure.Implements
 
             // Strip code fences nếu có
             var cleaned = AiQuizEvaluatorCommon.StripCodeFence(markdown);
-            
+
             // Unescape các ký tự escape sequence
             cleaned = cleaned.Replace("\\n", "\n", StringComparison.Ordinal);
             cleaned = cleaned.Replace("\\t", "\t", StringComparison.Ordinal);
             cleaned = cleaned.Replace("\\r", "\r", StringComparison.Ordinal);
             cleaned = cleaned.Replace("\\\"", "\"", StringComparison.Ordinal);
             cleaned = cleaned.Replace("\\\\", "\\", StringComparison.Ordinal);
-            
+
             // Loại bỏ các dòng trống thừa ở đầu và cuối
             cleaned = cleaned.Trim();
-            
+
             // Đảm bảo format markdown đúng: các heading phải có dòng trống trước đó (trừ dòng đầu)
             var lines = cleaned.Split('\n').ToList();
             var result = new List<string>();
-            
+
             for (int i = 0; i < lines.Count; i++)
             {
                 var line = lines[i];
                 var trimmedLine = line.Trim();
-                
+
                 // Nếu là heading (## hoặc ###) và không phải dòng đầu
-                if ((trimmedLine.StartsWith("##", StringComparison.Ordinal) || 
-                     trimmedLine.StartsWith("###", StringComparison.Ordinal)) && 
-                    result.Count > 0 && 
+                if ((trimmedLine.StartsWith("##", StringComparison.Ordinal) ||
+                     trimmedLine.StartsWith("###", StringComparison.Ordinal)) &&
+                    result.Count > 0 &&
                     !string.IsNullOrWhiteSpace(result[result.Count - 1]))
                 {
                     // Thêm dòng trống trước heading
                     result.Add(string.Empty);
                 }
-                
+
                 result.Add(line);
             }
-            
+
             return string.Join("\n", result).Trim();
         }
 
@@ -1439,7 +1439,7 @@ namespace AiService.Infrastructure.Implements
             improvementSb.AppendLine($"## Phân tích cải thiện điểm số {req.SubjectName}");
             improvementSb.AppendLine();
             improvementSb.AppendLine("### Mức độ cải thiện");
-            
+
             // Phân loại theo điểm mới
             if (req.NewMark < 60.0)
             {
@@ -1521,7 +1521,7 @@ namespace AiService.Infrastructure.Implements
                     improvementSb.AppendLine("- Khen ngợi: Bạn đang ở mức xuất sắc, tiếp tục phát triển để duy trì phong độ.");
                 }
             }
-            
+
             improvementSb.AppendLine();
             if (hasOldMark)
             {
@@ -1545,7 +1545,7 @@ namespace AiService.Infrastructure.Implements
                 improvementSb.AppendLine("- Chưa có phân tích chi tiết về nguyên nhân cải thiện.");
             }
             improvementSb.AppendLine();
-            
+
             // Cảnh báo/Nhận xét về môn phụ thuộc
             improvementSb.AppendLine("### Cảnh báo/Nhận xét về môn phụ thuộc ở kỳ tiếp theo");
             if (dependents != null && dependents.Count > 0)
@@ -1595,10 +1595,10 @@ namespace AiService.Infrastructure.Implements
             {
                 improvementSb.AppendLine("- Không có môn học phụ thuộc trực tiếp.");
             }
-            
+
             improvementSb.AppendLine();
             improvementSb.AppendLine("### Đề xuất hành động tiếp theo");
-            
+
             // Phân loại lộ trình theo điểm mới
             if (req.NewMark < 6.0)
             {
@@ -1628,11 +1628,11 @@ namespace AiService.Infrastructure.Implements
             var rootCauses = ExtractSectionFromMarkdown(req.NewAnalysis, "Nguyên nhân gốc");
             var priorities = ExtractSectionFromMarkdown(req.NewAnalysis, "Ưu tiên hành động");
             var trends = ExtractSectionFromMarkdown(req.NewAnalysis, "Xu hướng theo thời gian");
-            
+
             var comparisonSb = new StringBuilder();
             comparisonSb.AppendLine("## So sánh chi tiết");
             comparisonSb.AppendLine();
-            
+
             // Điểm cũ - viết dài hơn, chi tiết hơn, sử dụng dữ liệu từ newAnalysis
             // Chỉ hiển thị nếu có OldMark
             if (hasOldMark)
@@ -1648,7 +1648,7 @@ namespace AiService.Infrastructure.Implements
                 comparisonSb.AppendLine("### Điểm cũ");
                 comparisonSb.AppendLine("Không có điểm cũ để so sánh.");
             }
-            
+
             // Sử dụng dữ liệu từ newAnalysis nếu có
             if (!string.IsNullOrWhiteSpace(strengths))
             {
@@ -1658,7 +1658,7 @@ namespace AiService.Infrastructure.Implements
                     comparisonSb.AppendLine($"Dựa trên phân tích, điểm mạnh của bạn ở thời điểm này bao gồm: {string.Join(", ", strengthBullets.Take(2))}.");
                 }
             }
-            
+
             if (!string.IsNullOrWhiteSpace(weaknesses))
             {
                 var weaknessBullets = ExtractBullets(weaknesses);
@@ -1685,14 +1685,14 @@ namespace AiService.Infrastructure.Implements
                 }
             }
             comparisonSb.AppendLine();
-            
+
             // Điểm mới - viết dài hơn, chi tiết hơn, sử dụng dữ liệu từ newAnalysis
             var newMarkInScale10 = req.NewMark / 10;
             comparisonSb.AppendLine($"### Điểm mới ({req.NewMark}/100)");
             var newLevel = ClassifyMarkLevel(newMarkInScale10);
             var newAssessment = GetMarkAssessment(newMarkInScale10);
             comparisonSb.AppendLine($"Điểm {req.NewMark}/100 cho thấy mức độ nắm vững kiến thức hiện tại ở mức {newLevel.ToLower()}. {newAssessment}");
-            
+
             // Sử dụng dữ liệu từ newAnalysis
             if (!string.IsNullOrWhiteSpace(strengths))
             {
@@ -1702,7 +1702,7 @@ namespace AiService.Infrastructure.Implements
                     comparisonSb.AppendLine($"Điểm mạnh hiện tại của bạn, dựa trên phân tích chi tiết, bao gồm: {string.Join(", ", strengthBullets)}. Đây là những điểm tích cực cần được duy trì và phát triển thêm.");
                 }
             }
-            
+
             if (!string.IsNullOrWhiteSpace(weaknesses))
             {
                 var weaknessBullets = ExtractBullets(weaknesses);
@@ -1720,7 +1720,7 @@ namespace AiService.Infrastructure.Implements
                 }
             }
             comparisonSb.AppendLine();
-            
+
             // So sánh chi tiết - sử dụng dữ liệu từ newAnalysis
             comparisonSb.AppendLine("### So sánh chi tiết");
             if (hasOldMark && markImprovement > 0)
@@ -1743,7 +1743,7 @@ namespace AiService.Infrastructure.Implements
                 {
                     comparisonSb.AppendLine($"Mặc dù chưa vượt qua ngưỡng mới, nhưng sự cải thiện này cho thấy bạn đang đi đúng hướng. Các phần kiến thức đã được củng cố và bạn đang tiến gần hơn đến mức cao hơn.");
                 }
-                
+
                 // Sử dụng dữ liệu từ newAnalysis
                 if (!string.IsNullOrWhiteSpace(strengths))
                 {
@@ -1753,7 +1753,7 @@ namespace AiService.Infrastructure.Implements
                         comparisonSb.AppendLine($"Những phần đã cải thiện rõ rệt, dựa trên phân tích chi tiết, bao gồm: {string.Join(", ", strengthBullets)}. Đây là những điểm tích cực cho thấy bạn đang đi đúng hướng.");
                     }
                 }
-                
+
                 if (!string.IsNullOrWhiteSpace(weaknesses))
                 {
                     var weaknessBullets = ExtractBullets(weaknesses);
@@ -1766,7 +1766,7 @@ namespace AiService.Infrastructure.Implements
             else if (hasOldMark && markImprovement < 0)
             {
                 comparisonSb.AppendLine($"Sự giảm {Math.Abs(markImprovement):F1} điểm ({Math.Abs(improvementPercentage):F1}%) cho thấy bạn cần chú ý và điều chỉnh phương pháp học tập.");
-                
+
                 // Sử dụng dữ liệu từ newAnalysis về nguyên nhân
                 if (!string.IsNullOrWhiteSpace(rootCauses))
                 {
@@ -1780,7 +1780,7 @@ namespace AiService.Infrastructure.Implements
                 {
                     comparisonSb.AppendLine($"Điều này có thể do nhiều nguyên nhân: chưa ôn tập đầy đủ, gặp khó khăn với các phần kiến thức mới, hoặc phương pháp học tập chưa phù hợp. Cần xác định nguyên nhân cụ thể để có biện pháp khắc phục.");
                 }
-                
+
                 if (newMarkInScale10 < 6.0)
                 {
                     comparisonSb.AppendLine($"Điểm hiện tại đã xuống dưới ngưỡng tối thiểu (60/100), đây là dấu hiệu cảnh báo. Cần củng cố lại kiến thức nền tảng ngay lập tức và tìm kiếm sự hỗ trợ từ giáo viên hoặc bạn học.");
@@ -1793,7 +1793,7 @@ namespace AiService.Infrastructure.Implements
             else if (hasOldMark)
             {
                 comparisonSb.AppendLine($"Điểm số giữ nguyên cho thấy bạn cần thay đổi cách tiếp cận để đạt kết quả tốt hơn.");
-                
+
                 // Sử dụng dữ liệu từ newAnalysis về nguyên nhân
                 if (!string.IsNullOrWhiteSpace(rootCauses))
                 {
@@ -1807,7 +1807,7 @@ namespace AiService.Infrastructure.Implements
                 {
                     comparisonSb.AppendLine($"Mặc dù đã có nỗ lực, nhưng điểm số không cải thiện có thể do: phương pháp học tập chưa hiệu quả, chưa tập trung vào đúng các phần kiến thức cần thiết, hoặc cần thêm thời gian để kiến thức được củng cố.");
                 }
-                
+
                 if (newMarkInScale10 < 6.0)
                 {
                     comparisonSb.AppendLine($"Điểm hiện tại vẫn ở dưới ngưỡng tối thiểu (60/100), cần có biện pháp khẩn cấp để cải thiện. Nên tham khảo ý kiến của giáo viên hoặc tìm kiếm các nguồn tài liệu học tập khác.");
@@ -1823,16 +1823,16 @@ namespace AiService.Infrastructure.Implements
                 comparisonSb.AppendLine($"Điểm số hiện tại là {req.NewMark}/100. Dựa trên phân tích, bạn cần tiếp tục cải thiện để đạt kết quả tốt hơn.");
             }
             comparisonSb.AppendLine();
-            
+
             // Xu hướng học tập - sử dụng dữ liệu từ newAnalysis
             comparisonSb.AppendLine("### Xu hướng học tập");
-            
+
             // Sử dụng dữ liệu từ newAnalysis về xu hướng nếu có
             if (!string.IsNullOrWhiteSpace(trends) && !trends.Trim().Equals("—", StringComparison.OrdinalIgnoreCase))
             {
                 comparisonSb.AppendLine($"Dựa trên phân tích xu hướng theo thời gian: {trends.Trim()}");
             }
-            
+
             if (hasOldMark && markImprovement > 0)
             {
                 if (newMarkInScale10 >= 8.0)
@@ -1876,14 +1876,14 @@ namespace AiService.Infrastructure.Implements
                 }
             }
             comparisonSb.AppendLine();
-            
+
             // Ý nghĩa của sự thay đổi - sử dụng dữ liệu từ newAnalysis
             comparisonSb.AppendLine("### Ý nghĩa của sự thay đổi");
             if (markImprovement > 0)
             {
                 comparisonSb.AppendLine($"Sự cải thiện này có ý nghĩa quan trọng đối với quá trình học tập của bạn. Nó cho thấy bạn đã tìm được phương pháp học tập phù hợp và đang đi đúng hướng.");
                 comparisonSb.AppendLine($"Đối với các môn học liên quan, việc cải thiện điểm số ở môn này sẽ tạo nền tảng tốt hơn để học các môn phụ thuộc. Kiến thức đã được củng cố sẽ giúp bạn tiếp thu các kiến thức mới dễ dàng hơn.");
-                
+
                 // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
                 if (!string.IsNullOrWhiteSpace(priorities))
                 {
@@ -1902,7 +1902,7 @@ namespace AiService.Infrastructure.Implements
             {
                 comparisonSb.AppendLine($"Sự giảm điểm này là một dấu hiệu cảnh báo về quá trình học tập của bạn. Nó cho thấy có thể có vấn đề với phương pháp học tập hoặc việc tiếp thu kiến thức.");
                 comparisonSb.AppendLine($"Đối với các môn học liên quan, việc điểm số giảm ở môn này có thể ảnh hưởng đến khả năng học các môn phụ thuộc. Cần củng cố lại kiến thức nền tảng để tránh ảnh hưởng đến các môn học khác.");
-                
+
                 // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
                 if (!string.IsNullOrWhiteSpace(priorities))
                 {
@@ -1921,7 +1921,7 @@ namespace AiService.Infrastructure.Implements
             {
                 comparisonSb.AppendLine($"Việc điểm số giữ nguyên cho thấy bạn cần thay đổi cách tiếp cận để đạt được sự cải thiện. Mặc dù đã có nỗ lực, nhưng phương pháp hiện tại có thể chưa phù hợp.");
                 comparisonSb.AppendLine($"Đối với các môn học liên quan, việc điểm số không cải thiện có thể ảnh hưởng đến khả năng học các môn phụ thuộc. Cần tìm cách củng cố kiến thức để tạo nền tảng tốt hơn.");
-                
+
                 // Sử dụng dữ liệu từ newAnalysis về ưu tiên hành động
                 if (!string.IsNullOrWhiteSpace(priorities))
                 {
@@ -2022,12 +2022,12 @@ namespace AiService.Infrastructure.Implements
         private async Task<List<SubjectCur>> LoadCurriculumSubjectsAsync(AiRecommendImprovementRequest req, CancellationToken ct)
         {
             var fallback = NormalizeCurriculumSubjects(BuildCurriculumFallbackFromRequest(req));
-            
+
             // ✅ UPDATED: Handle multiple majors - use first major or empty if none
-            var majorCode = req.Majors != null && req.Majors.Count > 0 
-                ? NormalizeSubjectCode(req.Majors[0].MajorCode) 
+            var majorCode = req.Majors != null && req.Majors.Count > 0
+                ? NormalizeSubjectCode(req.Majors[0].MajorCode)
                 : string.Empty;
-            
+
             var requestedSubjectCodes = (req.SubjectMarks)
                 .Select(mark => NormalizeSubjectCode(mark.SubjectCode))
                 .Where(code => !string.IsNullOrWhiteSpace(code))
@@ -2845,7 +2845,7 @@ namespace AiService.Infrastructure.Implements
                 {
                     summaryBuilder.AppendLine("- Chưa có dữ liệu điểm môn học hoặc năng lực để đánh giá tổng quan.");
                 }
-                
+
                 if (habits.Count > 0 || interests.Count > 0)
                 {
                     if (habits.Count > 0)
@@ -2857,7 +2857,7 @@ namespace AiService.Infrastructure.Implements
                         summaryBuilder.AppendLine($"- Sở thích học tập: {interests[0].Answer}.");
                     }
                 }
-                
+
                 if (!string.IsNullOrWhiteSpace(careerGoal))
                 {
                     summaryBuilder.AppendLine($"- Mục tiêu nghề nghiệp: {careerGoal}. Xây dựng lộ trình học tập phù hợp với mục tiêu này.");
@@ -2907,10 +2907,10 @@ namespace AiService.Infrastructure.Implements
 
             var personalityBuilder = new StringBuilder();
             personalityBuilder.AppendLine("## Phong cách học tập");
-            
+
             // Xác định phong cách dựa trên dữ liệu có sẵn
             double baseScore = scoredSubjects.Count > 0 ? avgSubject : (abilityMarks != null && abilityMarks.Count > 0 ? avgAbility : 0);
-            
+
             if (scoredSubjects.Count == 0 && (abilityMarks == null || abilityMarks.Count == 0))
             {
                 // Không có dữ liệu điểm, dựa vào quizSurvey
@@ -2944,12 +2944,12 @@ namespace AiService.Infrastructure.Implements
                 if (scoredSubjects.Count > 0)
                 {
                     learningAbilityBuilder.AppendLine($"- Điểm trung bình các môn: {avgSubject:F1}/10 - phản ánh năng lực tổng thể của bạn.");
-                    
-                    var techSubjects = scoredSubjects.Where(s => 
-                        s.SubjectCode.Contains("PRO") || s.SubjectCode.Contains("PRF") || 
-                        s.SubjectCode.Contains("WEB") || s.SubjectCode.Contains("DSA") || 
+
+                    var techSubjects = scoredSubjects.Where(s =>
+                        s.SubjectCode.Contains("PRO") || s.SubjectCode.Contains("PRF") ||
+                        s.SubjectCode.Contains("WEB") || s.SubjectCode.Contains("DSA") ||
                         s.SubjectCode.Contains("DBI")).ToList();
-                    
+
                     if (techSubjects.Count > 0)
                     {
                         var avgTech = techSubjects.Average(s => s.Mark!.Value);

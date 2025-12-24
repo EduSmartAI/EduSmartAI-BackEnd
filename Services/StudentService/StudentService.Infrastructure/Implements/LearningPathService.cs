@@ -1018,7 +1018,7 @@ public class LearningPathService : ILearningPathService
 
         if (dto.InternalLearningPath != null)
             allGroups.AddRange(dto.InternalLearningPath.SelectMany(m => m.MajorCourseGroups ?? new List<CourseGroupDto>()));
-        
+
         // Group by SubjectCode to merge groups of the same subject
         var mergedBySubject = allGroups
             .GroupBy(g => string.IsNullOrWhiteSpace(g.SubjectCode) ? "UNKNOWN" : g.SubjectCode)
@@ -2541,7 +2541,17 @@ public class LearningPathService : ILearningPathService
     {
         var response = new GetSubjectMarksByLearningPathResponse { Success = false };
 
-        // 1. Lấy learning path từ collection để lấy studentId
+        // 1. Lấy studentId từ identityService
+        var currentUser = _identityService.GetCurrentUser();
+        if (currentUser == null)
+        {
+            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
+            return response;
+        }
+
+        var studentId = currentUser.UserId;
+
+        // 2. Lấy learning path từ collection và kiểm tra quyền truy cập
         var learningPath = await _learningPathQueryRepository
             .FirstOrDefaultAsync(lp => lp.PathId == request.LearningPathId && lp.IsActive);
 
@@ -2551,13 +2561,12 @@ public class LearningPathService : ILearningPathService
             return response;
         }
 
-        if (learningPath.StudentId == null)
+        // Kiểm tra xem learning path có thuộc về student hiện tại không
+        if (learningPath.StudentId == null || learningPath.StudentId.Value != studentId)
         {
-            response.SetMessage(MessageId.E00000, "Learning path không có studentId");
+            response.SetMessage(MessageId.E00000, "Bạn không có quyền truy cập learning path này");
             return response;
         }
-
-        var studentId = learningPath.StudentId.Value;
 
         // 2. Lấy tất cả courses có InternalCourseId != null trong learning path từ collection
         var allCourses = learningPath.LearningPathMajors
@@ -2666,7 +2675,7 @@ public class LearningPathService : ILearningPathService
             var aiEvaluation = await _aiQuizEvaluateStudentService
                 .GetOverviewAiEvaludationAsync(studentId, courseId, cancellationToken);
             double? newMark = null;
-            newMark = aiEvaluation.AverageScore100Raw * 10;
+            newMark = aiEvaluation.AverageScore100Raw;
 
             var newAnalysis = aiEvaluation.Summary ?? string.Empty;
 

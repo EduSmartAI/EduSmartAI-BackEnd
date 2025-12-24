@@ -21,3 +21,5 @@ namespace BuildingBlocks.Messaging.Events.StudentService.GetOverviewAiEvaluation
 
 
 
+
+
