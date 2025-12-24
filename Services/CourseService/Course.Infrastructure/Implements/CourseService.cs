@@ -1348,6 +1348,12 @@ namespace Course.Infrastructure.Implements
                 .SelectMany(c => c.MajorCodes)
                 .Distinct()
                 .ToList();
+            
+            // If any course has empty MajorCodes, ensure SE is included for dictionary lookup
+            if (coursesData.Any(c => !c.MajorCodes.Any()) && !allMajorCodes.Contains("SE"))
+            {
+                allMajorCodes.Add("SE");
+            }
 
             // 6.2. Query Major names for these major codes
             var majorDictionary = await _syllabusSubjectRepository
@@ -1361,6 +1367,11 @@ namespace Course.Infrastructure.Implements
             var groupedCourses = coursesData
                 .SelectMany(c =>
                 {
+                    // If MajorCodes is empty, default to SE (common subjects)
+                    if (!c.MajorCodes.Any())
+                    {
+                        return new[] { new { MajorCode = "SE", c.CourseId, c.SubjectCode, c.Level } };
+                    }
                     // If course has SE in its MajorCodes, only assign to SE
                     if (c.MajorCodes.Contains("SE", StringComparer.OrdinalIgnoreCase))
                     {
