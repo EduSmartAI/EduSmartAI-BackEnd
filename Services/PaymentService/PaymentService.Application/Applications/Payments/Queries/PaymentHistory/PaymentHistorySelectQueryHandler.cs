@@ -73,19 +73,11 @@ public class PaymentHistorySelectQueryHandler(
             return response;
         }
 
-        // Lấy UserId từ request hoặc từ token
-        var userId = request.UserId ?? identityService.GetCurrentUser()?.UserId;
-        
-        if (userId == null || userId == Guid.Empty)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
-            return response;
-        }
-
         // Build query
         var query = paymentTransactionRepository
-            .Find(x => x.IsActive && x.Order.UserId == userId.Value)
+            .Find(x => x.IsActive)
             .Include(x => x.Order)
+            .ThenInclude(o => o.OrderItems)
             .AsQueryable();
 
         // Filter theo status
@@ -94,17 +86,21 @@ public class PaymentHistorySelectQueryHandler(
             query = query.Where(x => x.Status == request.Status.Value);
         }
 
-        // Filter theo ngày (chuyển DateOnly sang DateTime)
+        // Filter theo ngày (chuyển DateOnly sang DateTime với UTC)
         if (request.FromDate.HasValue)
         {
-            var fromDateTime = request.FromDate.Value.ToDateTime(TimeOnly.MinValue);
+            var fromDateTime = DateTime.SpecifyKind(
+                request.FromDate.Value.ToDateTime(TimeOnly.MinValue), 
+                DateTimeKind.Utc);
             query = query.Where(x => x.CreatedAt >= fromDateTime);
         }
 
         if (request.ToDate.HasValue)
         {
-            // Lấy cuối ngày (23:59:59.9999999)
-            var toDateTime = request.ToDate.Value.ToDateTime(TimeOnly.MaxValue);
+            // Lấy cuối ngày (23:59:59.9999999) với UTC
+            var toDateTime = DateTime.SpecifyKind(
+                request.ToDate.Value.ToDateTime(TimeOnly.MaxValue), 
+                DateTimeKind.Utc);
             query = query.Where(x => x.CreatedAt <= toDateTime);
         }
 
@@ -136,7 +132,18 @@ public class PaymentHistorySelectQueryHandler(
                     DiscountAmount = x.Order.DiscountAmount,
                     FinalAmount = x.Order.FinalAmount,
                     PaymentMethod = x.Order.PaymentMethod,
-                    PaidAt = x.Order.PaidAt
+                    PaidAt = x.Order.PaidAt,
+                    OrderItems = x.Order.OrderItems.Select(oi => new PaymentOrderItemInfo
+                    {
+                        OrderItemId = oi.OrderItemId,
+                        CourseId = oi.CourseId,
+                        CourseTitleSnapshot = oi.CourseTitleSnapshot,
+                        CourseImageUrlSnapshot = oi.CourseImageUrlSnapshot,
+                        PriceSnapshot = oi.PriceSnapshot,
+                        DealPriceSnapshot = oi.DealPriceSnapshot,
+                        FinalPrice = oi.FinalPrice,
+                        Quantity = oi.Quantity
+                    }).ToList()
                 }
             })
             .ToListAsync(cancellationToken);

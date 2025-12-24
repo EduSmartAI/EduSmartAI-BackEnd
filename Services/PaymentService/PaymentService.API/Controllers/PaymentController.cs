@@ -116,7 +116,8 @@ public class PaymentController(ISender sender) : ControllerBase
     [SwaggerOperation(
         Summary = "Lấy lịch sử thanh toán của người dùng",
         Description = "Trả về danh sách các giao dịch thanh toán của người dùng hiện tại với phân trang và bộ lọc. " +
-                      "Ngày bắt đầu và kết thúc sử dụng định dạng yyyy-MM-dd (ví dụ: 2024-12-24)"
+                      "Ngày bắt đầu và kết thúc sử dụng định dạng yyyy-MM-dd (ví dụ: 2024-12-24)" +
+                      "1 (Pending), 2 (Paid), 3 (Failed), 4 (SystemError)"
     )]
     public async Task<PaymentHistorySelectQueryResponse> SelectPaymentHistory(
         [FromQuery] int pageNumber = 1,

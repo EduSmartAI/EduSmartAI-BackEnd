@@ -1,4 +1,5 @@
 ﻿using BaseService.Infrastructure.Contexts;
+using BuildingBlocks.Messaging.Events.CourseService;
 using Course.Application.DTOs.SyllabusDTO;
 using Course.Application.Subjects.Commands.AddSubjectToSyllabus;
 using Course.Application.Syllabus.Commands.CloneCascadeSyllabus;
@@ -14,6 +15,7 @@ namespace Course.Infrastructure.Implements
 		IIdentityService _identityService,
 		IUnitOfWork unitOfWork,
 		AppDbContext _context,
+		IPublishEndpoint _publishEndpoint,
 		ICommandRepository<Syllabus> _syllabusCommandRepository,
 		ICommandRepository<SyllabusSemester> _syllabusSemesterCommandRepository,
 		ICommandRepository<SyllabusSubject> _syllabusSubjectCommandRepository,

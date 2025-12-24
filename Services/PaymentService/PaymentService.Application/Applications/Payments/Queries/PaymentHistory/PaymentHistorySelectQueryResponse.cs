@@ -141,5 +141,56 @@ public class PaymentOrderInfo
     /// Thời gian thanh toán thành công
     /// </summary>
     public DateTime? PaidAt { get; set; }
+    
+    /// <summary>
+    /// Danh sách các sản phẩm trong đơn hàng
+    /// </summary>
+    public List<PaymentOrderItemInfo> OrderItems { get; set; } = new();
+}
+
+/// <summary>
+/// Thông tin chi tiết sản phẩm trong đơn hàng
+/// </summary>
+public class PaymentOrderItemInfo
+{
+    /// <summary>
+    /// ID của item trong đơn hàng
+    /// </summary>
+    public Guid OrderItemId { get; set; }
+    
+    /// <summary>
+    /// ID khóa học
+    /// </summary>
+    public Guid CourseId { get; set; }
+    
+    /// <summary>
+    /// Tên khóa học (snapshot lúc mua)
+    /// </summary>
+    public string CourseTitleSnapshot { get; set; } = null!;
+    
+    /// <summary>
+    /// Ảnh khóa học (snapshot lúc mua)
+    /// </summary>
+    public string? CourseImageUrlSnapshot { get; set; }
+    
+    /// <summary>
+    /// Giá gốc (snapshot lúc mua)
+    /// </summary>
+    public decimal PriceSnapshot { get; set; }
+    
+    /// <summary>
+    /// Giá khuyến mãi (snapshot lúc mua)
+    /// </summary>
+    public decimal? DealPriceSnapshot { get; set; }
+    
+    /// <summary>
+    /// Giá cuối cùng
+    /// </summary>
+    public decimal FinalPrice { get; set; }
+    
+    /// <summary>
+    /// Số lượng
+    /// </summary>
+    public int Quantity { get; set; }
 }
 
