@@ -18,6 +18,61 @@ public class PaymentHistorySelectQueryHandler(
     {
         var response = new PaymentHistorySelectQueryResponse { Success = false };
 
+        // Validate PageNumber
+        if (request.PageNumber < 1)
+        {
+            response.SetMessage(MessageId.E00000, "Số trang phải lớn hơn hoặc bằng 1");
+            return response;
+        }
+
+        // Validate PageSize
+        if (request.PageSize < 1)
+        {
+            response.SetMessage(MessageId.E00000, "Số lượng bản ghi mỗi trang phải lớn hơn hoặc bằng 1");
+            return response;
+        }
+
+        if (request.PageSize > 100)
+        {
+            response.SetMessage(MessageId.E00000, "Số lượng bản ghi mỗi trang không được vượt quá 100");
+            return response;
+        }
+
+        // Validate Status (nếu có)
+        if (request.Status.HasValue)
+        {
+            var validStatuses = new[] { 
+                (short)ConstantEnum.PaymentStatus.Pending, 
+                (short)ConstantEnum.PaymentStatus.Paid, 
+                (short)ConstantEnum.PaymentStatus.Failed, 
+                (short)ConstantEnum.PaymentStatus.SystemError 
+            };
+            
+            if (!validStatuses.Contains(request.Status.Value))
+            {
+                response.SetMessage(MessageId.E00000, "Trạng thái thanh toán không hợp lệ. Giá trị hợp lệ: 1 (Pending), 2 (Paid), 3 (Failed), 4 (SystemError)");
+                return response;
+            }
+        }
+
+        // Validate FromDate và ToDate
+        if (request.FromDate.HasValue && request.ToDate.HasValue)
+        {
+            if (request.FromDate.Value > request.ToDate.Value)
+            {
+                response.SetMessage(MessageId.E00000, "Ngày bắt đầu không được lớn hơn ngày kết thúc");
+                return response;
+            }
+        }
+
+        // Validate ngày không được trong tương lai
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (request.FromDate.HasValue && request.FromDate.Value > today)
+        {
+            response.SetMessage(MessageId.E00000, "Ngày bắt đầu không được là ngày trong tương lai");
+            return response;
+        }
+
         // Lấy UserId từ request hoặc từ token
         var userId = request.UserId ?? identityService.GetCurrentUser()?.UserId;
         
@@ -39,16 +94,18 @@ public class PaymentHistorySelectQueryHandler(
             query = query.Where(x => x.Status == request.Status.Value);
         }
 
-        // Filter theo ngày
+        // Filter theo ngày (chuyển DateOnly sang DateTime)
         if (request.FromDate.HasValue)
         {
-            query = query.Where(x => x.CreatedAt >= request.FromDate.Value);
+            var fromDateTime = request.FromDate.Value.ToDateTime(TimeOnly.MinValue);
+            query = query.Where(x => x.CreatedAt >= fromDateTime);
         }
 
         if (request.ToDate.HasValue)
         {
-            var toDateEnd = request.ToDate.Value.Date.AddDays(1).AddTicks(-1);
-            query = query.Where(x => x.CreatedAt <= toDateEnd);
+            // Lấy cuối ngày (23:59:59.9999999)
+            var toDateTime = request.ToDate.Value.ToDateTime(TimeOnly.MaxValue);
+            query = query.Where(x => x.CreatedAt <= toDateTime);
         }
 
         // Đếm tổng số bản ghi

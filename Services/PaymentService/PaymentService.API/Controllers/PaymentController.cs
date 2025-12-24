@@ -106,23 +106,24 @@ public class PaymentController(ISender sender) : ControllerBase
     /// Lấy lịch sử thanh toán của người dùng hiện tại
     /// </summary>
     /// <param name="pageNumber">Số trang (mặc định = 1)</param>
-    /// <param name="pageSize">Số bản ghi mỗi trang (mặc định = 10)</param>
+    /// <param name="pageSize">Số bản ghi mỗi trang (mặc định = 10, tối đa = 100)</param>
     /// <param name="status">Trạng thái thanh toán (1=Pending, 2=Paid, 3=Failed, 4=SystemError)</param>
-    /// <param name="fromDate">Ngày bắt đầu lọc</param>
-    /// <param name="toDate">Ngày kết thúc lọc</param>
+    /// <param name="fromDate">Ngày bắt đầu lọc (định dạng: yyyy-MM-dd)</param>
+    /// <param name="toDate">Ngày kết thúc lọc (định dạng: yyyy-MM-dd)</param>
     /// <returns>Danh sách lịch sử thanh toán có phân trang</returns>
     [HttpGet("[action]")]
     [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
     [SwaggerOperation(
         Summary = "Lấy lịch sử thanh toán của người dùng",
-        Description = "Trả về danh sách các giao dịch thanh toán của người dùng hiện tại với phân trang và bộ lọc"
+        Description = "Trả về danh sách các giao dịch thanh toán của người dùng hiện tại với phân trang và bộ lọc. " +
+                      "Ngày bắt đầu và kết thúc sử dụng định dạng yyyy-MM-dd (ví dụ: 2024-12-24)"
     )]
     public async Task<PaymentHistorySelectQueryResponse> SelectPaymentHistory(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10,
         [FromQuery] short? status = null,
-        [FromQuery] DateTime? fromDate = null,
-        [FromQuery] DateTime? toDate = null)
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
     {
         var query = new PaymentHistorySelectQuery
         {

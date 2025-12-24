@@ -30,11 +30,11 @@ public class PaymentHistorySelectQuery : IQuery<PaymentHistorySelectQueryRespons
     /// <summary>
     /// Ngày bắt đầu lọc
     /// </summary>
-    public DateTime? FromDate { get; set; }
+    public DateOnly? FromDate { get; set; }
     
     /// <summary>
     /// Ngày kết thúc lọc
     /// </summary>
-    public DateTime? ToDate { get; set; }
+    public DateOnly? ToDate { get; set; }
 }
 
