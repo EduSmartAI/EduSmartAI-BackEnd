@@ -20,7 +20,7 @@ namespace AiService.Infrastructure.Helpers.AiQuizEvaluator
 				language = "vi",                // <- quan trọng
 				rubric_version = "quiz-v2.1",
 				normalization = "Chuyển điểm thô thành score100 (0..100). strengths<=3, improvements<=4, actions 3-5.",
-				context = "Đánh giá kết quả làm bài và đưa khuyến nghị ngắn gọn, súc tích.",
+				context = "Đánh giá kết quả làm bài và đưa khuyến nghị ngắn gọn, súc tích. Bổ sung phần đánh giá mức độ khó của bài quiz dựa trên các yếu tố sau: 1) Loại câu hỏi, 2) Thời gian làm bài (nếu có), 3) Tỉ lệ câu trả lời đúng sai, 4) Sự phân bổ câu hỏi từ dễ đến khó, 5) Phân tích các câu hỏi khó (nếu có)",
 				input = new
 				{
 					course_id = evt.CourseId,
