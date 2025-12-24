@@ -115,11 +115,11 @@ public class StudentSurveyService : IStudentSurveyService
         }
 
         // 1.3. Validate semester requirement for skipping test
-        if (!request.IsWantToTakeTest && majorAndSemesterEventResponse.Message.Response.SemesterNumber < 5)
-        {
-            response.SetMessage(MessageId.E00000, "Chỉ những sinh viên từ học kỳ 5 trở lên mới được phép tạo lộ trình học tập mà không tham gia kiểm tra đánh giá đầu vào.");
-            return response;
-        }
+        // if (!request.IsWantToTakeTest && majorAndSemesterEventResponse.Message.Response.SemesterNumber < 5)
+        // {
+        //     response.SetMessage(MessageId.E00000, "Chỉ những sinh viên từ học kỳ 5 trở lên mới được phép tạo lộ trình học tập mà không tham gia kiểm tra đánh giá đầu vào.");
+        //     return response;
+        // }
 
         // 1.4. Validate survey existence
         var surveyExist = await ValidateSurveyExistenceAsync(request, response);

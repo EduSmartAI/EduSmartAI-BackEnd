@@ -17,7 +17,7 @@ public class ProcessAndExportSubjectMarksHandler : IRequestHandler<ProcessAndExp
     private readonly IIdentityService _identityService;
 
     public ProcessAndExportSubjectMarksHandler(
-        IMediator mediator, 
+        IMediator mediator,
         IRequestClient<SubjectMarkUpdateEvent> aiRequestClient,
         IRequestClient<PdfUploadEvent> pdfUploadRequestClient,
         IIdentityService identityService)
@@ -74,11 +74,11 @@ public class ProcessAndExportSubjectMarksHandler : IRequestHandler<ProcessAndExp
 
             // 3. Gọi AI service để phân tích subject marks (đồng bộ, chờ response)
             List<SubjectMarkUpdateAnalysisDto>? aiAnalysisResults = null;
-            
+
             var marksToAnalyze = filteredMarks
                 .Where(m => m.NewMark.HasValue) // Chỉ phân tích các item có newMark
                 .ToList();
-            
+
             if (marksToAnalyze.Any())
             {
                 var subjectMarkUpdateEvent = new SubjectMarkUpdateEvent
@@ -97,7 +97,7 @@ public class ProcessAndExportSubjectMarksHandler : IRequestHandler<ProcessAndExp
 
                 // Gọi AI service và chờ response
                 var aiResponse = await _aiRequestClient.GetResponse<SubjectMarkUpdateEventResponse>(
-                    subjectMarkUpdateEvent, 
+                    subjectMarkUpdateEvent,
                     cancellationToken);
 
                 if (aiResponse.Message.Success && aiResponse.Message.Response != null)
@@ -106,32 +106,38 @@ public class ProcessAndExportSubjectMarksHandler : IRequestHandler<ProcessAndExp
                 }
             }
 
-            // 4. Chuyển đổi sang format cho ExportSubjectMarkUpdateWordCommand
+            // 4. Lấy thông tin student từ identityService
+            var currentUser = _identityService.GetCurrentUser();
+            var studentName = currentUser?.FullName ?? string.Empty;
+
+            // 5. Chuyển đổi sang format cho ExportSubjectMarkUpdateWordCommand
             // Sử dụng kết quả từ AI analysis nếu có, nếu không thì dùng dữ liệu gốc
             var exportCommand = new ExportSubjectMarkUpdateWordCommand
             {
                 SubjectMarkUpdates = filteredMarks.Select(m =>
                 {
                     // Tìm kết quả phân tích từ AI service
-                    var aiResult = aiAnalysisResults?.FirstOrDefault(r => 
+                    var aiResult = aiAnalysisResults?.FirstOrDefault(r =>
                         r.SubjectCode.Equals(m.SubjectCode, StringComparison.OrdinalIgnoreCase));
-                    
+
                     return new SubjectMarkUpdateDto
                     {
                         SubjectCode = m.SubjectCode,
                         SubjectName = m.SubjectName,
                         OldMark = m.OldMark,
                         NewMark = m.NewMark ?? 0,
-                        MarkImprovement = aiResult != null 
-                            ? aiResult.MarkImprovement 
+                        MarkImprovement = aiResult != null
+                            ? aiResult.MarkImprovement
                             : ((m.NewMark ?? 0) - (m.OldMark ?? 0)),
                         ImprovementAnalysis = aiResult?.ImprovementAnalysis ?? m.NewAnalysis,
                         ComparisonAnalysis = aiResult?.ComparisonAnalysis
                     };
-                }).ToList()
+                }).ToList(),
+                Title = "Tài liệu đánh giá hiệu suất",
+                StudentName = studentName
             };
 
-            // 5. Gọi ExportSubjectMarkUpdateWordCommand để tạo PDF
+            // 6. Gọi ExportSubjectMarkUpdateWordCommand để tạo PDF
             var exportResponse = await _mediator.Send(exportCommand, cancellationToken);
 
             if (!exportResponse.Success)
@@ -140,11 +146,10 @@ public class ProcessAndExportSubjectMarksHandler : IRequestHandler<ProcessAndExp
                 return response;
             }
 
-            // 6. Lấy email của student từ identity service
-            var currentUser = _identityService.GetCurrentUser();
+            // 7. Lấy email của student từ identity service (đã lấy ở trên)
             var studentEmail = currentUser?.Email ?? string.Empty;
 
-            // 7. Upload PDF lên Cloudinary qua Utility Service
+            // 8. Upload PDF lên Cloudinary qua Utility Service
             var pdfUploadEvent = new PdfUploadEvent
             {
                 FileName = exportResponse.FileName ?? "SubjectMarkUpdateReport.pdf",

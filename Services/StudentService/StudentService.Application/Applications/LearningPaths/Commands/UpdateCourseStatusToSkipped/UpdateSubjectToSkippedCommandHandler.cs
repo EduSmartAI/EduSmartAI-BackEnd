@@ -1,8 +1,11 @@
 using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
+using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.CQRS;
 using Microsoft.EntityFrameworkCore;
+using StudentService.Application.Applications.LearningPaths.Commands.UpdateReadModel;
+using StudentService.Application.Interfaces;
 using StudentService.Domain.ReadModels;
 using StudentService.Domain.WriteModels;
 
@@ -13,16 +16,18 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
     private readonly IIdentityService _identityService;
     private readonly ICommandRepository<LearningPath> _learningPathCommandRepository;
     private readonly ICommandRepository<Domain.WriteModels.LearningPathCourse> _learningPathCourseCommandRepository;
-    private readonly IQueryRepository<LearningPathCollection> _learningPathQueryRepository;
+    private readonly ICommandRepository<LearningPathSubjectCode> _learningPathSubjectCodeCommandRepository;
+    private readonly ILearningPathService _learningPathService;
     private readonly IUnitOfWork _unitOfWork;
 
-    public UpdateSubjectToSkippedCommandHandler(IIdentityService identityService, IUnitOfWork unitOfWork, ICommandRepository<LearningPath> learningPathCommandRepository, IQueryRepository<LearningPathCollection> learningPathQueryRepository, ICommandRepository<Domain.WriteModels.LearningPathCourse> learningPathCourseCommandRepository)
+    public UpdateSubjectToSkippedCommandHandler(IIdentityService identityService, IUnitOfWork unitOfWork, ICommandRepository<LearningPath> learningPathCommandRepository, ICommandRepository<Domain.WriteModels.LearningPathCourse> learningPathCourseCommandRepository, ICommandRepository<LearningPathSubjectCode> learningPathSubjectCodeCommandRepository, ILearningPathService learningPathService)
     {
         _identityService = identityService;
         _unitOfWork = unitOfWork;
         _learningPathCommandRepository = learningPathCommandRepository;
-        _learningPathQueryRepository = learningPathQueryRepository;
         _learningPathCourseCommandRepository = learningPathCourseCommandRepository;
+        _learningPathSubjectCodeCommandRepository = learningPathSubjectCodeCommandRepository;
+        _learningPathService = learningPathService;
     }
 
     public async Task<UpdateSubjectToSkippedCommandResponse> Handle(UpdateSubjectToSkippedCommand request, CancellationToken cancellationToken)
@@ -45,10 +50,41 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
             response.SetMessage(MessageId.E00000, "Không tìm thấy lộ trình học của bạn");
             return response;
         }
+            
+        // Load subject codes separately for all majors
+        var majorIds = learningPaths
+            .Where(lp => lp != null)
+            .SelectMany(lp => lp!.LearningPathMajors ?? Enumerable.Empty<LearningPathMajor>())
+            .Where(m => m != null && m.IsActive && (m.Type == (short)ConstantEnum.LearningPathMajor.Internal || m.Type == (short)ConstantEnum.LearningPathMajor.Basic))
+            .Select(m => m!.LearningPathMajorId)
+            .ToList();
+            
+        var subjectCodes = await _learningPathSubjectCodeCommandRepository
+            .Find(sc => majorIds.Contains(sc.LearningPathMajorId) && sc.IsActive,
+                isTracking: true,
+                cancellationToken: cancellationToken)
+            .ToListAsync(cancellationToken: cancellationToken);
+            
+        // Attach subject codes to their majors
+        foreach (var learningPath in learningPaths)
+        {
+            if (learningPath?.LearningPathMajors == null) continue;
+            foreach (var major in learningPath.LearningPathMajors.Where(m => m != null && m.IsActive))
+            {
+                if (major == null) continue;
+                major.LearningPathSubjectCodes = subjectCodes
+                    .Where(sc => sc != null && sc.LearningPathMajorId == major.LearningPathMajorId)
+                    .Cast<LearningPathSubjectCode>()
+                    .ToList();
+            }
+        }
         
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             var updatedCourseIds = new List<Guid>();
+            var updatedSubjectCodeIds = new List<Guid>();
+            var skippedStatusDescription = ConstantEnum.SubjectImprovementStatus.Skipped.GetDescription();
+            
             foreach (var learningPath in learningPaths)
             {
                 var learningPathMajors = learningPath!
@@ -61,6 +97,7 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
                     // Loop through all SubjectCodes in the request
                     foreach (var subjectCode in request.SubjectCode)
                     {
+                        // Update courses
                         var learningPathCoursesToSkip = learningPathMajor.LearningPathCourses
                             .Where(c => c.IsActive && c.SubjectCode == subjectCode)
                             .ToList();
@@ -73,69 +110,43 @@ public class UpdateSubjectToSkippedCommandHandler : ICommandHandler<UpdateSubjec
                                 _learningPathCourseCommandRepository.Update(course);
                             }
                         }
-                    }
-                }
-            }
-            if (!updatedCourseIds.Any())
-            {
-                response.SetMessage(MessageId.E00000, "Tất cả khóa học có mã môn này đã được skip trước đó");
-                return false;
-            }
-            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
-
-            // 6. Update read model
-            // Extract PathIds to a simple list to avoid complex LINQ expression
-            var pathIds = learningPaths.Select(p => p.PathId).ToList();
-            
-            // Query each PathId individually since Marten cannot handle complex Contains with Select
-            var learningPathCollections = new List<LearningPathCollection>();
-            foreach (var pathId in pathIds)
-            {
-                var pathCollection = await _learningPathQueryRepository
-                    .FirstOrDefaultAsync(pc => pc.PathId == pathId);
-                if (pathCollection != null)
-                {
-                    learningPathCollections.Add(pathCollection);
-                }
-            }
-
-            foreach (var learningPathCollection in learningPathCollections)
-            {
-                var learningPathMajors = learningPathCollection!
-                    .LearningPathMajors
-                    .Where(x => x.IsActive 
-                                && (x.Type == (short) ConstantEnum.LearningPathMajor.Internal) || 
-                                x.Type == (short) ConstantEnum.LearningPathMajor.Basic).ToList();
-
-                foreach (var major in learningPathMajors)
-                {
-                    // Loop through all SubjectCodes in the request
-                    foreach (var subjectCode in request.SubjectCode)
-                    {
-                        var learningPathCoursesToSkip = major.LearningPathCourses
-                            .Where(c => c.IsActive && c.SubjectCode == subjectCode)
+                        
+                        // Update subject codes
+                        var learningPathSubjectCodesToSkip = learningPathMajor.LearningPathSubjectCodes
+                            .Where(sc => sc.IsActive && sc.SubjectCode == subjectCode)
                             .ToList();
-                        foreach (var course in learningPathCoursesToSkip)
+                        foreach (var subjectCodeEntity in learningPathSubjectCodesToSkip)
                         {
-                            if (updatedCourseIds.Contains(course.LearningPathCourseId))
+                            if (subjectCodeEntity.Status != skippedStatusDescription)
                             {
-                                course.Status = (short) ConstantEnum.SubjectImprovementStatus.Skipped;
+                                subjectCodeEntity.Status = skippedStatusDescription;
+                                updatedSubjectCodeIds.Add(subjectCodeEntity.LearningPathSubjectCodeId);
+                                _learningPathSubjectCodeCommandRepository.Update(subjectCodeEntity);
                             }
                         }
                     }
                 }
+            }
+            if (!updatedCourseIds.Any() && !updatedSubjectCodeIds.Any())
+            {
+                response.SetMessage(MessageId.E00000, "Tất cả khóa học và môn học có mã môn này đã được skip trước đó");
+                return false;
+            }
+            await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
 
-                _unitOfWork.Store(learningPathCollection);
-                await _unitOfWork.SessionSaveChangesAsync();
-
-                var lpIdStr = learningPathCollection.PathId.ToString("D");
-                await _unitOfWork.CacheRemoveAsync($"learning_path:select:{currentUser.UserId}:{lpIdStr}");
-                await _unitOfWork.CacheRemoveAsync($"learning_path:{lpIdStr}");
-                await _unitOfWork.CacheRemoveAsync($"learning_path_major:list:{lpIdStr}");
+            // 6. Sync read model using UpdateStatusLearningPathReadModelByIdAndSortPosition
+            var pathIds = learningPaths.Where(p => p != null).Select(p => p!.PathId).Distinct().ToList();
+            foreach (var pathId in pathIds)
+            {
+                var syncRequest = new UpdateReadModelLearningPathCommand
+                {
+                    LearningPathId = pathId
+                };
+                await _learningPathService.UpdateStatusLearningPathReadModelByIdAndSortPosition(syncRequest, cancellationToken);
             }
 
             response.Success = true;
-            response.SetMessage(MessageId.I00001, "Cập nhật trạng thái khóa học");
+            response.SetMessage(MessageId.I00001, "Cập nhật trạng thái khóa học và môn học");
             return true;
         }, cancellationToken);
 

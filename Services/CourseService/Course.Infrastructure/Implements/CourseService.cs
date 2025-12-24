@@ -1178,13 +1178,13 @@ namespace Course.Infrastructure.Implements
             // 2. Determine which major codes to query
             var majorCodesToQuery = request.MajorCodes.ToList();
 
-            // If semester < 4 and "SE" not in majorCodes, add "SE"
-            if (semester.SemesterNumber < 4 && !majorCodesToQuery.Contains("SE"))
+            // Always add "SE" if not present (SE contains common/foundation subjects)
+            if (!majorCodesToQuery.Contains("SE"))
             {
                 majorCodesToQuery.Add("SE");
             }
 
-            // Get courses for future semesters (SemesterNumber > current semester)
+            // Get courses for current semester and future semesters (SemesterNumber >= current semester)
             var coursesData = await _courseRepository
                 .Find(c => c.Subject.SyllabusSubjects.Any(
                                ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
@@ -1200,7 +1200,7 @@ namespace Course.Infrastructure.Implements
                 c.Level,
                 MajorCodes = c.Subject.SyllabusSubjects
                     .Where(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-                                 ss.Semester.SemesterNumber > semester.SemesterNumber)
+                                 ss.Semester.SemesterNumber >= semester.SemesterNumber)
                     .Select(ss => ss.Syllabus.Major.MajorCode)
                     .Distinct()
                     .ToList()
@@ -1257,12 +1257,14 @@ namespace Course.Infrastructure.Implements
             // Logic: If AbilityMarks Name contains SubjectCode and Mark < 60 → Level 1, 60-70 → Level 2
             if (request.AbilityImprove != null && request.AbilityImprove.Any())
             {
-                // Get all subject codes from existing courses
-                var allSubjectCodes = await _courseRepository
+                // Get all subject codes from existing courses with their available levels
+                var subjectCodesWithLevels = await _courseRepository
                     .Find(c => c.IsActive)
-                    .Select(c => c.Subject.SubjectCode)
+                    .Select(c => new { c.Subject.SubjectCode, c.Level })
                     .Distinct()
                     .ToListAsync(cancellationToken: ct);
+                
+                var allSubjectCodes = subjectCodesWithLevels.Select(x => x.SubjectCode).Distinct().ToList();
 
                 // Find matching AbilityMarks where Name contains a SubjectCode
                 var abilityMarkSubjectLevels = new List<(string SubjectCode, short Level)>();
@@ -1275,21 +1277,39 @@ namespace Course.Infrastructure.Implements
                     
                     if (matchedSubjectCode != null)
                     {
-                        short level;
+                        short preferredLevel;
                         if (abilityMark.Mark < 60)
                         {
-                            level = 1; // Beginner
+                            preferredLevel = 1; // Beginner
                         }
                         else if (abilityMark.Mark < 70)
                         {
-                            level = 2; // Intermediate
+                            preferredLevel = 2; // Intermediate
                         }
                         else
                         {
                             continue; // Mark >= 70, skip (no need to add course for improvement)
                         }
                         
-                        abilityMarkSubjectLevels.Add((matchedSubjectCode, level));
+                        // Check if course exists with preferred level, otherwise fallback to any available level
+                        var availableLevels = subjectCodesWithLevels
+                            .Where(x => x.SubjectCode == matchedSubjectCode && x.Level.HasValue)
+                            .Select(x => x.Level!.Value)
+                            .Distinct()
+                            .OrderBy(l => l)
+                            .ToList();
+                        
+                        if (availableLevels.Any())
+                        {
+                            // Use preferred level if available, otherwise use the closest available level
+                            var levelToUse = availableLevels.Contains(preferredLevel) 
+                                ? preferredLevel 
+                                : availableLevels.FirstOrDefault(l => l >= preferredLevel) != 0 
+                                    ? availableLevels.First(l => l >= preferredLevel)
+                                    : availableLevels.First();
+                            
+                            abilityMarkSubjectLevels.Add((matchedSubjectCode, (short)levelToUse));
+                        }
                     }
                 }
 
@@ -1332,13 +1352,23 @@ namespace Course.Infrastructure.Implements
                 }
             }
 
-            // 5. Filter out passed subjects EXCEPT those in CourseImproves (student wants to retake them)
+            // 5. Filter out passed subjects EXCEPT those in CourseImproves or AbilityImprove (student wants to retake them)
+            // Get abilityMarkSubjectCodes for filtering
+            var abilityImproveSubjectCodes = request.AbilityImprove != null && request.AbilityImprove.Any()
+                ? coursesData.Where(c => request.AbilityImprove.Any(ai => 
+                    ai.Name.Contains(c.SubjectCode, StringComparison.OrdinalIgnoreCase)))
+                    .Select(c => c.SubjectCode)
+                    .Distinct()
+                    .ToList()
+                : new List<string>();
+            
             if (request.StudentPassedSubjects != null && request.StudentPassedSubjects.Any())
             {
                 coursesData = coursesData
                     .Where(c =>
                         !request.StudentPassedSubjects.Contains(c.SubjectCode) ||
-                        courseImproveSubjectCodes.Contains(c.SubjectCode))
+                        courseImproveSubjectCodes.Contains(c.SubjectCode) ||
+                        abilityImproveSubjectCodes.Contains(c.SubjectCode))
                     .ToList();
             }
 
@@ -1348,6 +1378,12 @@ namespace Course.Infrastructure.Implements
                 .SelectMany(c => c.MajorCodes)
                 .Distinct()
                 .ToList();
+            
+            // If any course has empty MajorCodes, ensure SE is included for dictionary lookup
+            if (coursesData.Any(c => !c.MajorCodes.Any()) && !allMajorCodes.Contains("SE"))
+            {
+                allMajorCodes.Add("SE");
+            }
 
             // 6.2. Query Major names for these major codes
             var majorDictionary = await _syllabusSubjectRepository
@@ -1361,6 +1397,11 @@ namespace Course.Infrastructure.Implements
             var groupedCourses = coursesData
                 .SelectMany(c =>
                 {
+                    // If MajorCodes is empty, default to SE (common subjects)
+                    if (!c.MajorCodes.Any())
+                    {
+                        return new[] { new { MajorCode = "SE", c.CourseId, c.SubjectCode, c.Level } };
+                    }
                     // If course has SE in its MajorCodes, only assign to SE
                     if (c.MajorCodes.Contains("SE", StringComparer.OrdinalIgnoreCase))
                     {
@@ -1404,7 +1445,7 @@ namespace Course.Infrastructure.Implements
 
                 var notStartedSubjects = await _syllabusSubjectRepository
                     .Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-                               ss.Semester.SemesterNumber > semester.SemesterNumber &&
+                               ss.Semester.SemesterNumber >= semester.SemesterNumber &&
                                !existingSubjectCodes.Contains(ss.Subject.SubjectCode),
                         includes: ss => ss.Subject
                     )
@@ -1423,10 +1464,10 @@ namespace Course.Infrastructure.Implements
             else
             {
                 // 7.2. If no transcript, get ALL subjects from major's syllabus
-                // Query directly from SyllabusSubject (not Course) to get all subjects in future semesters
+                // Query directly from SyllabusSubject (not Course) to get all subjects from current semester onwards
                 var allSubjectsInMajor = await _syllabusSubjectRepository
                     .Find(ss => majorCodesToQuery.Contains(ss.Syllabus.Major.MajorCode) &&
-                               ss.Semester.SemesterNumber > semester.SemesterNumber,
+                               ss.Semester.SemesterNumber >= semester.SemesterNumber,
                         includes: ss => ss.Subject
                     )
                     .Select(ss => ss.Subject.SubjectCode)

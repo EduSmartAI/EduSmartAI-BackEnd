@@ -7,6 +7,8 @@ using OpenIddict.Validation.AspNetCore;
 using PaymentService.Application.Applications.Payments.Commands.PaymentCallback;
 using PaymentService.Application.Applications.Payments.Commands.ProcessPayment;
 using PaymentService.Application.Applications.Payments.Commands.RePayment;
+using PaymentService.Application.Applications.Payments.Queries;
+using PaymentService.Application.Applications.Payments.Queries.PaymentHistory;
 using Swashbuckle.AspNetCore.Annotations;
 using PaymentCallbackCommand = PaymentService.Application.Applications.Payments.Commands.PaymentCallback.PaymentCallbackCommand;
 using PaymentCallbackResponse = PaymentService.Application.Applications.Payments.Commands.PaymentCallback.PaymentCallbackResponse;
@@ -83,6 +85,60 @@ public class PaymentController(ISender sender) : ControllerBase
             ModelState,
             async () => await sender.Send(command),
             new RePaymentResponse()
+        );
+    }
+    
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    public async Task<PaymentAmountsSelectQueryResponse> SelectAmounts()
+    {
+        var query = new PaymentAmountsSelectQuery();
+        return await ApiControllerHelper.HandleRequest<PaymentAmountsSelectQuery, PaymentAmountsSelectQueryResponse, decimal>(
+            query,
+            _logger,
+            ModelState,
+            async () => await sender.Send(query),
+            new PaymentAmountsSelectQueryResponse()
+        );
+    }
+    
+    /// <summary>
+    /// Lấy lịch sử thanh toán của người dùng hiện tại
+    /// </summary>
+    /// <param name="pageNumber">Số trang (mặc định = 1)</param>
+    /// <param name="pageSize">Số bản ghi mỗi trang (mặc định = 10, tối đa = 100)</param>
+    /// <param name="status">Trạng thái thanh toán (1=Pending, 2=Paid, 3=Failed, 4=SystemError)</param>
+    /// <param name="fromDate">Ngày bắt đầu lọc (định dạng: yyyy-MM-dd)</param>
+    /// <param name="toDate">Ngày kết thúc lọc (định dạng: yyyy-MM-dd)</param>
+    /// <returns>Danh sách lịch sử thanh toán có phân trang</returns>
+    [HttpGet("[action]")]
+    [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+    [SwaggerOperation(
+        Summary = "Lấy lịch sử thanh toán của người dùng",
+        Description = "Trả về danh sách các giao dịch thanh toán của người dùng hiện tại với phân trang và bộ lọc. " +
+                      "Ngày bắt đầu và kết thúc sử dụng định dạng yyyy-MM-dd (ví dụ: 2024-12-24)"
+    )]
+    public async Task<PaymentHistorySelectQueryResponse> SelectPaymentHistory(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] short? status = null,
+        [FromQuery] DateOnly? fromDate = null,
+        [FromQuery] DateOnly? toDate = null)
+    {
+        var query = new PaymentHistorySelectQuery
+        {
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            Status = status,
+            FromDate = fromDate,
+            ToDate = toDate
+        };
+        return await ApiControllerHelper.HandleRequest<PaymentHistorySelectQuery, PaymentHistorySelectQueryResponse, PaymentHistoryResponseData>(
+            query,
+            _logger,
+            ModelState,
+            async () => await sender.Send(query),
+            new PaymentHistorySelectQueryResponse()
         );
     }
 }
