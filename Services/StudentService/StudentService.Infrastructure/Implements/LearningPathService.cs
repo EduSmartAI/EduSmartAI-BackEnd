@@ -1159,6 +1159,41 @@ public class LearningPathService : ILearningPathService
             .ToList();
         dto.CompletionPercent = CalculateCompletionPercentFromGroups(dto);
 
+        // Check if CompletionPercent is 100% and update status to Completed
+        if (dto.CompletionPercent >= 100m)
+        {
+            var currentUser = _identityService.GetCurrentUser();
+            if (currentUser != null)
+            {
+                var learningPath = await _learningPathCommandRepository
+                    .Find(lp => lp.PathId == query.LearningPathId && lp.IsActive,
+                          isTracking: true,
+                          cancellationToken: cancellationToken)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (learningPath != null && 
+                    learningPath.Status != (short)ConstantEnum.LearningPathStatus.Completed)
+                {
+                    learningPath.Status = (short)ConstantEnum.LearningPathStatus.Completed;
+                    learningPath.UpdatedAt = DateTime.UtcNow;
+
+                    _learningPathCommandRepository.Update(learningPath);
+                    await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
+
+                    // Update DTO status to reflect the change immediately
+                    dto.Status = (int)ConstantEnum.LearningPathStatus.Completed;
+
+                    // Sync read model
+                    await SyncLearningPathReadModelByIdAsync(query.LearningPathId, userId, cancellationToken);
+
+                    // Clear cache
+                    await _unitOfWork.CacheRemoveAsync(cacheKey);
+                    await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPath(query.LearningPathId));
+                    await _unitOfWork.CacheRemoveAsync(CacheKey.LearningPathMajorList(query.LearningPathId));
+                }
+            }
+        }
+
         // Done
         res.Response = dto;
         res.Success = true;
