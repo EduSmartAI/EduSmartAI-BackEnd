@@ -31,6 +31,8 @@ public static class SendMailLogic
         // The password for the email is obtained from the system configuration (SYSTEM_CONFIG).
         var mailPassword = configs.Find(c => c.Id == SystemConfig.MailPassword)?.Value;
         
+        var fromAddress = new MailAddress(mailFrom, "EduSmartAI");
+
         var client = new SmtpClient
         {
             Host = mailSmtp,
@@ -44,11 +46,11 @@ public static class SendMailLogic
         // Generate a message instance and set parameters.
         using (var message = new MailMessage())
         {
-            message.From = new MailAddress(mailFrom);
+            message.From = fromAddress;
             message.To.Add(mailAddress);
             message.Subject = title;
             message.Body = body;
-            message.Bcc.Add(mailToBcc);
+            message.Bcc.Add(mailToBcc!);
             message.IsBodyHtml = true;
             client.Send(message);
         }
