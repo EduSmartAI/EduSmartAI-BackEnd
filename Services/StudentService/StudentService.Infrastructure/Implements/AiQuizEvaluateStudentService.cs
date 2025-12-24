@@ -20,6 +20,8 @@ namespace StudentService.Infrastructure.Implements
         IUnitOfWork unitOfWork,
         ICommandRepository<AiEvaluation> _aiEvaluateCommandRepository,
         ICommandRepository<AiEvaluationImprovement> _aiEvaluationImprovementCommandRepository,
+        IRequestClient<QuizAiFeedBackModuleEvent> _quizAiFeedBackModuleClient,
+        IRequestClient<QuizAiFeedBackOverviewEvent> _quizAiFeedBackOverviewClient,
         IPublishEndpoint _publishEndpoint) : IAiQuizEvaluateStudentService
     {
         /// <summary>
@@ -74,16 +76,6 @@ namespace StudentService.Infrastructure.Implements
 
                             return true; // yêu cầu của BeginTransactionAsync: trả true để commit
                         }, ct);
-            if (aiEvaluationUpsertEvent.Scope == QuizScope.Module)
-            {
-                var insertModuleEvent = new QuizAiFeedBackModuleEvent(
-                    aiEvaluationUpsertEvent.CourseId,
-                    aiEvaluationUpsertEvent.UserId,
-                    aiEvaluationUpsertEvent.ScopeId);
-
-                await _publishEndpoint.Publish(insertModuleEvent, ct);
-            }
-            await _publishEndpoint.Publish(insertOverviewEvent, ct);
 
             if (aiEvaluationUpsertEvent.Improvements is { Count: > 0 })
             {
@@ -104,6 +96,51 @@ namespace StudentService.Infrastructure.Implements
                     await unitOfWork.SaveChangesAsync(ct);
                     return true; // yêu cầu của BeginTransactionAsync: trả true để commit
                 }, ct);
+            }
+
+            // Publish events AFTER all related data has been saved,
+            // so consumers won't read incomplete data (avoid "missing data" race condition).
+            if (aiEvaluationUpsertEvent.Scope == QuizScope.Module)
+            {
+                var insertModuleEvent = new QuizAiFeedBackModuleEvent(
+                    aiEvaluationUpsertEvent.CourseId,
+                    aiEvaluationUpsertEvent.UserId,
+                    aiEvaluationUpsertEvent.ScopeId);
+
+                // Synchronous (request/response) to make sure module feedback is generated & saved
+                // before returning. If it times out/faults, fall back to async publish to avoid breaking old flow.
+                try
+                {
+                    var busResp = await _quizAiFeedBackModuleClient
+                        .GetResponse<QuizAiFeedBackModuleResponse>(insertModuleEvent, ct);
+
+                    if (!busResp.Message.Success)
+                    {
+                        await _publishEndpoint.Publish(insertModuleEvent, ct);
+                    }
+                }
+                catch
+                {
+                    await _publishEndpoint.Publish(insertModuleEvent, ct);
+                }
+            }
+
+            // Synchronous overview: wait until AiService generates/saves overview feedback.
+            // Avoid extra short timeouts by not using a custom CancelAfter here.
+            // If it faults, fall back to async publish to preserve old behavior.
+            try
+            {
+                var busResp = await _quizAiFeedBackOverviewClient
+                    .GetResponse<QuizAiFeedBackOverviewResponse>(insertOverviewEvent, ct);
+
+                if (!busResp.Message.Success)
+                {
+                    await _publishEndpoint.Publish(insertOverviewEvent, ct);
+                }
+            }
+            catch
+            {
+                await _publishEndpoint.Publish(insertOverviewEvent, ct);
             }
 
             // response

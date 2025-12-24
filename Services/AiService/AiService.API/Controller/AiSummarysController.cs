@@ -50,6 +50,27 @@ namespace AiService.API.Controller
                 _httpContextAccessor,
                 new AiSummaryResponse());
         }
+
+        /// <summary>
+        /// Preview feedback course overall (ONLY generate AI content, DO NOT save to DB)
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        [HttpPost("feedback-course-preview")]
+        [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+        public async Task<AiSummaryResponse> PreviewSummaryOverviewCourse(AiSummaryPreviewRequest request)
+        {
+            var placeholder = new IdentityEntity();
+            return await ApiControllerHelper.HandleRequest<AiSummaryPreviewRequest, AiSummaryResponse, string>(
+                request,
+                _logger,
+                ModelState,
+                async () => await _mediator.Send(request),
+                _identityService,
+                placeholder,
+                _httpContextAccessor,
+                new AiSummaryResponse());
+        }
         /// <summary>
         /// Gen and summary feedback module
         /// </summary>

@@ -18,6 +18,12 @@ namespace AiService.Application.Consumers.AiSummaryAndFeedback
                 ModuleId = message.ModuleId
             };
             await _mediator.Send(request, context.CancellationToken);
+
+            // Support synchronous request/response from other services
+            if (context.RequestId.HasValue)
+            {
+                await context.RespondAsync(new QuizAiFeedBackModuleResponse(true));
+            }
         }
     }
 }
