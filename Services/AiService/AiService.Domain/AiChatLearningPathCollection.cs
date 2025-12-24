@@ -6,6 +6,11 @@
         public Guid UserId { get; set; }
         public string? Name { get; set; }
         public virtual ICollection<ChatHistoryLearningPathItem> Messages { get; set; } = new List<ChatHistoryLearningPathItem>();
+        
+        /// <summary>
+        /// Simple state machine for chat confirmations (e.g., regenerate learning path).
+        /// </summary>
+        public string? PendingAction { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
         public string? CreatedBy { get; set; }

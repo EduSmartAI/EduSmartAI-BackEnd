@@ -64,6 +64,9 @@ public static class MessagingExtensions
             x.AddConsumer<GetAllLearningPathConsumer>();
             x.AddConsumer<GetLearningPathInfoConsumer>();
             x.AddConsumer<AiUpdateCourseStatusToSkippedConsumer>();
+            x.AddConsumer<AiRegenerateLearningPathConsumer>();
+            x.AddConsumer<AiGetCurrentLearningGoalConsumer>();
+            x.AddConsumer<AiSetLearningGoalConsumer>();
             x.AddConsumer<LearningFeedbackEventConsumer>();
             x.AddConsumer<GetStudentNameEventConsumer>();
 
