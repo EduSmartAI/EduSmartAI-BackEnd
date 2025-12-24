@@ -35,7 +35,7 @@ public class PdfUploadEventConsumer(
                 await PerformanceLearningPathSendMail.SendMailPdfReady(
                     emailTemplateRepository,
                     systemConfigRepository,
-                    "tranduyanh7766@gmail.com",
+                    evt.StudentEmail,
                     evt.FileName,
                     uploadUrl,
                     expiresMinutes: 30,
