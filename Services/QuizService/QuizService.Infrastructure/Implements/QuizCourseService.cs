@@ -794,12 +794,22 @@ public class QuizCourseService : IQuizCourseService
     /// <exception cref="ValidationException"></exception>
     private static (QuizScope scope, Guid scopeId) ValidateAndResolveScope(StudentQuizCourseInsertCommand req)
     {
-        var hasModule = req.ModuleId.HasValue;
-        var hasLesson = req.LessonId.HasValue;
-        if (hasModule == hasLesson) // cả 2 hoặc cả 0
-            throw new ValidationException("Phải truyền đúng 1 trong ModuleId hoặc LessonId.");
+        // BE tolerant: FE may accidentally send BOTH ids. In that case, prefer LessonId (more specific).
+        // Also reject Guid.Empty values to avoid invalid ScopeId in DB.
+        var hasLesson = req.LessonId.HasValue && req.LessonId.Value != Guid.Empty;
+        var hasModule = req.ModuleId.HasValue && req.ModuleId.Value != Guid.Empty;
 
-        return hasModule ? (QuizScope.Module, req.ModuleId!.Value) : (QuizScope.Lesson, req.LessonId!.Value);
+        if (hasLesson)
+        {
+            return (QuizScope.Lesson, req.LessonId!.Value);
+        }
+
+        if (hasModule)
+        {
+            return (QuizScope.Module, req.ModuleId!.Value);
+        }
+
+        throw new ValidationException("Phải truyền LessonId hoặc ModuleId hợp lệ.");
     }
 
     /// <summary>
