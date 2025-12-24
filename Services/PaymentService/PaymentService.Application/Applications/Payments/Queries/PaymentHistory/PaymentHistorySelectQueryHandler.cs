@@ -94,17 +94,21 @@ public class PaymentHistorySelectQueryHandler(
             query = query.Where(x => x.Status == request.Status.Value);
         }
 
-        // Filter theo ngày (chuyển DateOnly sang DateTime)
+        // Filter theo ngày (chuyển DateOnly sang DateTime với UTC)
         if (request.FromDate.HasValue)
         {
-            var fromDateTime = request.FromDate.Value.ToDateTime(TimeOnly.MinValue);
+            var fromDateTime = DateTime.SpecifyKind(
+                request.FromDate.Value.ToDateTime(TimeOnly.MinValue), 
+                DateTimeKind.Utc);
             query = query.Where(x => x.CreatedAt >= fromDateTime);
         }
 
         if (request.ToDate.HasValue)
         {
-            // Lấy cuối ngày (23:59:59.9999999)
-            var toDateTime = request.ToDate.Value.ToDateTime(TimeOnly.MaxValue);
+            // Lấy cuối ngày (23:59:59.9999999) với UTC
+            var toDateTime = DateTime.SpecifyKind(
+                request.ToDate.Value.ToDateTime(TimeOnly.MaxValue), 
+                DateTimeKind.Utc);
             query = query.Where(x => x.CreatedAt <= toDateTime);
         }
 
