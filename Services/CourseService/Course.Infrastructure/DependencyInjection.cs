@@ -26,8 +26,8 @@ namespace Course.Infrastructure
 
             var redisConnectionString = Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!;
 
-            // C#
-            services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
+			// C#
+			services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
             services.AddScoped(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
 
             // DbContext (PostgreSQL)
@@ -37,10 +37,18 @@ namespace Course.Infrastructure
             // Identity
             services.AddHttpContextAccessor();
             services.AddScoped<IIdentityService, IdentityService>();
+            
+            // HttpClient for Major Embedding Builder (Gradio API)
+            var gradioApiBaseUrl = "http://localhost:7860";
+            services.AddHttpClient<IMajorEmbeddingBuilderClient, MajorEmbeddingBuilderClient>(client =>
+            {
+                client.BaseAddress = new Uri(gradioApiBaseUrl.TrimEnd('/'));
+                client.Timeout = TimeSpan.FromMinutes(10); // Embedding generation can take time
+            });
 
 
-            // Repositories
-            services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
+			// Repositories
+			services.AddScoped<ICommandRepository<CourseEntity>, CommandRepository<CourseEntity>>();
             services.AddScoped<IQueryRepository<CourseEntity>, QueryRepository<CourseEntity>>();
             services.AddScoped<ICommandRepository<CourseStudentEnrollment>, CommandRepository<CourseStudentEnrollment>>();
             services.AddScoped<IQueryRepository<CourseStudentEnrollmentCollection>, QueryRepository<CourseStudentEnrollmentCollection>>();

@@ -1,4 +1,5 @@
 using BaseService.Application.Common;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.QuizService.MajorSelectsEvents;
 using Course.Application.DTOs.SyllabusDTO.Majors;
 using Course.Application.Majors.Commands.CreateMajor;
@@ -14,6 +15,7 @@ namespace Course.Infrastructure.Implements;
 public class MajorService(
 	IIdentityService identityService,
 	IUnitOfWork unitOfWork,
+	IPublishEndpoint _publishEndpoint,
 	ICommandRepository<Major> _majorCommandRepository) : IMajorService
 {
 	/// <summary>
@@ -69,9 +71,17 @@ public class MajorService(
 		await _majorCommandRepository.AddAsync(entity, userEmail);
 		await unitOfWork.SaveChangesAsync(userEmail, cancellationToken);
 
+		// Publish event to rebuild embeddings asynchronously
+		var rebuildEvent = new MajorEmbeddingsRebuildRequestedEvent
+		{
+			MaxRows = null,
+			Reason = "CreateSyllabus"
+		};
+		await _publishEndpoint.Publish(rebuildEvent, cancellationToken);
+
 		response.Success = true;
 		response.Response = true;
-		response.SetMessage(MessageId.I00001, "Tạo chuyên ngành thành công.");
+		response.SetMessage(MessageId.I00001, "Tạo chuyên ngành");
 
 		return response;
 	}
@@ -234,9 +244,17 @@ public class MajorService(
 		_majorCommandRepository.Update(entity, currentUser.Email);
 		await unitOfWork.SaveChangesAsync(currentUser.Email, ct);
 
+		// Publish event to rebuild embeddings asynchronously
+		var rebuildEvent = new MajorEmbeddingsRebuildRequestedEvent
+		{
+			MaxRows = null,
+			Reason = "CreateSyllabus"
+		};
+		await _publishEndpoint.Publish(rebuildEvent, ct);
+
 		response.Response = true;
 		response.Success = true;
-		response.SetMessage(MessageId.I00001, "Cập nhật mô tả ngành học thành công");
+		response.SetMessage(MessageId.I00001, "Cập nhật mô tả ngành học");
 		return response;
 	}
 
