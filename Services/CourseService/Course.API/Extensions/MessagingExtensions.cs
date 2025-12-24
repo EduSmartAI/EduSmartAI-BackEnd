@@ -1,4 +1,5 @@
 ﻿using BaseService.Common.Settings;
+using BuildingBlocks.Messaging.Events.CourseService;
 using BuildingBlocks.Messaging.Events.CourseService.LessonQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.ModuleQuizScoresSelectEvents;
 using BuildingBlocks.Messaging.Events.CourseService.QuizCourseCheckAttemptEvents;
@@ -62,6 +63,7 @@ namespace Course.API.Extensions
                 x.AddConsumer<MappingSubjectCodeWithMajorCodeEventConsumer>();
                 x.AddConsumer<GetCourseBasicInfoEventConsumer>();
                 x.AddConsumer<GetSuggestedCoursesEventConsumer>();
+                x.AddConsumer<MajorEmbeddingsRebuildRequestedConsumer>();
 
                 x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "course", includeNamespace: false));
 
