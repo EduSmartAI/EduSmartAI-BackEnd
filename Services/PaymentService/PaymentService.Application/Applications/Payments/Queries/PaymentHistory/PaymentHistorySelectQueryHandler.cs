@@ -86,6 +86,7 @@ public class PaymentHistorySelectQueryHandler(
         var query = paymentTransactionRepository
             .Find(x => x.IsActive && x.Order.UserId == userId.Value)
             .Include(x => x.Order)
+            .ThenInclude(o => o.OrderItems)
             .AsQueryable();
 
         // Filter theo status
@@ -140,7 +141,18 @@ public class PaymentHistorySelectQueryHandler(
                     DiscountAmount = x.Order.DiscountAmount,
                     FinalAmount = x.Order.FinalAmount,
                     PaymentMethod = x.Order.PaymentMethod,
-                    PaidAt = x.Order.PaidAt
+                    PaidAt = x.Order.PaidAt,
+                    OrderItems = x.Order.OrderItems.Select(oi => new PaymentOrderItemInfo
+                    {
+                        OrderItemId = oi.OrderItemId,
+                        CourseId = oi.CourseId,
+                        CourseTitleSnapshot = oi.CourseTitleSnapshot,
+                        CourseImageUrlSnapshot = oi.CourseImageUrlSnapshot,
+                        PriceSnapshot = oi.PriceSnapshot,
+                        DealPriceSnapshot = oi.DealPriceSnapshot,
+                        FinalPrice = oi.FinalPrice,
+                        Quantity = oi.Quantity
+                    }).ToList()
                 }
             })
             .ToListAsync(cancellationToken);
