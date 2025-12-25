@@ -575,7 +575,7 @@ public class PracticeTestService
                 SubmissionId = submission.SubmissionId,
                 Status = DetermineStatus(pollResults),
                 PassedTests = passedCount,
-                TotalTests = problem.TestCases.Count,
+                TotalTests = privateTestCases.Count, // FIX: Use privateTestCases.Count instead of problem.TestCases.Count
                 AverageTimeMs = pollResults.Count > 0 ? (int) (totalTimeMs / pollResults.Count) : 0,
                 TestResults = testResults
             };
