@@ -1,0 +1,11 @@
+﻿namespace Course.Application.Courses.Commands.CreateCourse
+{
+	public class CreateCourseHandler(ICourseService courseService)
+	: ICommandHandler<CreateCourseCommand, CreateCourseResponse>
+	{
+		public async Task<CreateCourseResponse> Handle(CreateCourseCommand request, CancellationToken cancellationToken)
+		{
+			return await courseService.CreateAsync(request.Payload, cancellationToken);
+		}
+	}
+}

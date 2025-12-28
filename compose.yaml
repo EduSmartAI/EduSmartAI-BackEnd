@@ -4,8 +4,15 @@
     build:
       context: .
       dockerfile: Services/StudentService/StudentService.API/Dockerfile
+      cache_from:
+        - studentservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: studentservice.api:latest
     ports:
       - "7002:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/studentservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -27,8 +34,15 @@
     build:
       context: .
       dockerfile: Services/AuthService/AuthService.API/Dockerfile
+      cache_from:
+        - authservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: authservice.api:latest
     ports:
       - "7001:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/authservice:/app/logs
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://0.0.0.0:80
@@ -47,16 +61,243 @@
     networks:
       - edusmartai-network
 
+  quizservice.api:
+    build:
+      context: .
+      dockerfile: Services/QuizService/QuizService.API/Dockerfile
+      cache_from:
+        - quizservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: quizservice.api:latest
+    ports:
+      - "7003:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/quizservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - QUIZ_SERVICE_DB=${QUIZ_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - JUDGE0_API_KEY=${JUDGE0_API_KEY}
+      - JUDGE0_BASE_URL=${JUDGE0_BASE_URL}
+    networks:
+      - edusmartai-network
+  
+  teacherservice.api:
+    build:
+      context: .
+      dockerfile: Services/TeacherService/TeacherService.API/Dockerfile
+      cache_from:
+        - teacherservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: teacherservice.api:latest
+    ports:
+      - "7004:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/teacherservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - TEACHER_SERVICE_DB=${TEACHER_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+      
+  paymentservice.api:
+    build:
+      context: .
+      dockerfile: Services/PaymentService/PaymentService.API/Dockerfile
+      cache_from:
+        - paymentservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: paymentservice.api:latest
+    ports:
+      - "7007:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/paymentservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - PAYMENT_SERVICE_DB=${PAYMENT_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+        
+  notificationservice.api:
+    build:
+      context: .
+      dockerfile: Services/NotificationService/NotificationService.API/Dockerfile
+      cache_from:
+        - notificationservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: notificationservice.api:latest
+    ports:
+      - "7008:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/notificationservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - NOTIFICATION_SERVICE_DB=${NOTIFICATION_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+  
+  utilityservice.api:
+    build:
+      context: .
+      dockerfile: Services/UtilityService/UtilityService.API/Dockerfile
+      cache_from:
+        - utilityservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: utilityservice.api:latest
+    ports:
+      - "7010:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/utilityservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - UTILITY_SERVICE_DB=${UTILITY_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+  
+  courseservice.api:
+    build:
+      context: .
+      dockerfile: Services/CourseService/Course.API/Dockerfile
+      cache_from:
+        - courseservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: courseservice.api:latest
+    ports:
+      - "7005:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/courseservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - COURSE_SERVICE_DB=${COURSE_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+    networks:
+      - edusmartai-network
+        
+  aiservice.api:
+    build:
+      context: .
+      dockerfile: Services/AiService/AiService.API/Dockerfile
+      cache_from:
+        - aiservice.api:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: aiservice.api:latest
+    ports:
+      - "7006:80"
+    volumes:
+      - /root/apps/EduSmart-BackEnd/logs/aiservice:/app/logs
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://0.0.0.0:80
+      - AI_SERVICE_DB=${AI_SERVICE_DB}
+      - REDIS_CACHE_CONNECTION=${REDIS_CACHE_CONNECTION}
+      - RABBITMQ_HOST=${RABBITMQ_HOST}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENCRYPTION_IV=${ENCRYPTION_IV}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHAT_MODEL=${CHAT_MODEL}
+      - EMBED_MODEL=${EMBED_MODEL}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_AI_VOICE_TO_TEXT_KEY=${GROQ_AI_VOICE_TO_TEXT_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+    networks:
+      - edusmartai-network
+    
+    
   # Gateway
   reverseproxy:
     build:
       context: .
       dockerfile: Gateways/ReverseProxy/Dockerfile
+      cache_from:
+        - reverseproxy:latest
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: reverseproxy:latest
     ports:
       - "8080:80"
     depends_on:
       - studentservice.api
       - authservice.api
+      - quizservice.api
+      - teacherservice.api
+      - paymentservice.api
+      - notificationservice.api
+      - utilityservice.api
+      - courseservice.api
+      - aiservice.api
     networks:
       - edusmartai-network
     environment:
@@ -64,8 +305,17 @@
       - ASPNETCORE_URLS=http://0.0.0.0:80
       - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
       - STUDENT_SERVICE_URL=${STUDENT_SERVICE_URL}
+      - QUIZ_SERVICE_URL=${QUIZ_SERVICE_URL}
+      - TEACHER_SERVICE_URL=${TEACHER_SERVICE_URL}
+      - PAYMENT_SERVICE_URL=${PAYMENT_SERVICE_URL}
+      - NOTIFICATION_SERVICE_URL=${NOTIFICATION_SERVICE_URL}
+      - UTILITY_SERVICE_URL=${UTILITY_SERVICE_URL}
+      - COURSE_SERVICE_URL=${COURSE_SERVICE_URL}
+      - AI_SERVICE_URL=${AI_SERVICE_URL}
+      - WEBSITE_DOMAIN=${WEBSITE_DOMAIN}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
+      - REVERSE_PROXY_URL=${REVERSE_PROXY_URL}
       - JWT_AUDIENCE=${JWT_AUDIENCE}
 
 
@@ -79,3 +329,4 @@ volumes:
   postgres_data:
   redis_data:
   rabbitmq_data:
+

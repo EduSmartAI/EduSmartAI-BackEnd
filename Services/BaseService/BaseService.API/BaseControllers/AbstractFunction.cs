@@ -118,7 +118,7 @@ public abstract class AbstractFunction<TResponse, TEntityResponse>
 
             // Set the error message
             detailError.ErrorMessage = errorMessage;
-
+            detailError.MessageId = MessageId.E10000;
             detailErrorList.Add(detailError);
         }
 

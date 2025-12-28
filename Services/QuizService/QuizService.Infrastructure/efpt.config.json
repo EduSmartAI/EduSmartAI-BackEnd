@@ -1,0 +1,101 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "QuizServiceContext",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "Contexts",
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "QuizService.Infrastructure",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 1,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "public.answer_rules",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.answers",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.course_quiz_settings",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.outbox_messages",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.placement_test_quiz_settings",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.questions",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.quizzes",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_answers",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_quiz_answers",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_quizzes",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.student_tests",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.survey_quiz_settings",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.survey_types",
+         "ObjectType": 0
+      },
+      {
+         "Name": "public.tests",
+         "ObjectType": 0
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": true,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": false,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}

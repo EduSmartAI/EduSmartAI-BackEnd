@@ -24,11 +24,16 @@ public class RoleAuthorizationService : IRoleAuthorizationService
             var allowedRoles = route.Metadata != null && route.Metadata.TryGetValue("AllowedRoles", out var r) ? r : "";
             var exceptions = route.Metadata != null && route.Metadata.TryGetValue("Exceptions", out var e) ? e : "";
 
+            var endpointRules = route.Metadata != null && route.Metadata.TryGetValue("EndpointRules", out var ep)
+                ? ParseEndpointRules(ep)
+                : new List<EndpointRule>();
+
             var meta = new RouteMeta
             {
                 ServicePrefix = servicePrefix,
                 AllowedRoles = allowedRoles.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray(),
-                Exceptions = ParseExceptions(exceptions)
+                Exceptions = ParseExceptions(exceptions),
+                EndpointRules = endpointRules
             };
 
             _map[servicePrefix] = meta;
@@ -68,21 +73,40 @@ public class RoleAuthorizationService : IRoleAuthorizationService
         // 2. If AllowedRoles contains "Anonymous" => public route
         if (meta.AllowedRoles.Any(r => string.Equals(r, "Anonymous", StringComparison.OrdinalIgnoreCase)))
             return Task.FromResult(true);
+        
+        if (meta.EndpointRules.Any(er => 
+                er.Roles.Any(role => 
+                    string.Equals(role, "Anonymous", StringComparison.OrdinalIgnoreCase))))
+            return Task.FromResult(true);
 
         // 3. If user not authenticated => deny
         if (identity == null || !identity.IsAuthenticated)
             return Task.FromResult(false);
-
+        
         // 4. Extract user roles from claims
         var roles = user?.Claims.Where(c => c.Type == ClaimTypes.Role || c.Type == "role" || c.Type == "roles")
             .Select(c => c.Value)
             .SelectMany(v => v.Split(',', StringSplitOptions.RemoveEmptyEntries))
             .Select(x => x.Trim())
             .ToArray();
+        
+        // 5. Check endpoint rules first
+        var epRule = meta.EndpointRules
+            .FirstOrDefault(r => r.Method.Equals(method, StringComparison.OrdinalIgnoreCase)
+                                 && PathMatches(r.PathPattern, relativePath));
 
-        // 5. Check intersection
-        var allowed = meta.AllowedRoles.Intersect(roles, StringComparer.OrdinalIgnoreCase).Any();
-        return Task.FromResult(allowed);
+        if (epRule != null)
+        {
+            if (epRule.Roles.Any(r => r.Equals("Anonymous", StringComparison.OrdinalIgnoreCase)))
+                return Task.FromResult(true);
+
+            var epAllowed = epRule.Roles.Intersect(roles, StringComparer.OrdinalIgnoreCase).Any();
+            return Task.FromResult(epAllowed);
+        }
+
+        // 6. Check intersection
+        var globalAllowed = meta.AllowedRoles.Intersect(roles, StringComparer.OrdinalIgnoreCase).Any();
+        return Task.FromResult(globalAllowed);
     }
     
     /// <summary>
@@ -163,5 +187,36 @@ public class RoleAuthorizationService : IRoleAuthorizationService
         // prefix: pattern "/public" should match "/public/sub"?
         if (actual.StartsWith(pattern + "/", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
+    }
+    
+    private static List<EndpointRule> ParseEndpointRules(string raw)
+    {
+        var list = new List<EndpointRule>();
+        if (string.IsNullOrWhiteSpace(raw)) return list;
+
+        var rules = raw.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var rule in rules)
+        {
+            var parts = rule.Split('=', 2);
+            if (parts.Length != 2) continue;
+
+            var methodAndPath = parts[0].Split(':', 2);
+            if (methodAndPath.Length != 2) continue;
+
+            var method = methodAndPath[0].Trim().ToUpperInvariant();
+            var path = methodAndPath[1].Trim();
+            var roles = parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(r => r.Trim())
+                .ToArray();
+
+            list.Add(new EndpointRule
+            {
+                Method = method,
+                PathPattern = NormalizePath(path),
+                Roles = roles
+            });
+        }
+
+        return list;
     }
 }

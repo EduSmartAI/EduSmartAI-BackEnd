@@ -1,0 +1,12 @@
+﻿using BuildingBlocks.Pagination;
+using Course.Application.DTOs.CoursesDTO;
+
+namespace Course.Application.Courses.Queries.GetCourses
+{
+	public record GetCoursesQuery(PaginationRequest Pagination, CourseQuery? Filter = null) : IQuery<GetCoursesResponse>;
+
+	public record GetCoursesResponse : AbstractApiResponse<PaginatedResult<CourseDto>>
+	{
+		public override PaginatedResult<CourseDto> Response { get; set; }
+	}
+}

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text.Json;
+using BaseService.Application.Common;
 using BaseService.Application.Interfaces.Repositories;
 using Marten;
 using StackExchange.Redis;
@@ -28,6 +29,69 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
         return result.ToList();
     }
 
+    public async Task<PagedResult<TCollection>> PagedAsync(int? pageNumber, int? pageSize, Expression<Func<TCollection, bool>> predicate)
+    {
+        var query =  documentSession.Query<TCollection>().Where(predicate);
+        
+        // Validate pageNumber, pageSize
+        int validPageNumber = pageNumber.GetValueOrDefault(1);
+        if (validPageNumber < 1) validPageNumber = 1;
+
+        int validPageSize = pageSize.GetValueOrDefault(10);
+        if (validPageSize <= 0) validPageSize = 10;
+        
+        // Count total
+        var totalCount = await query.CountAsync();
+        
+        // Apply paging
+        int skip = (validPageNumber - 1) * validPageSize;
+        var items = await query
+            .Skip(skip)
+            .Take(validPageSize)
+            .ToListAsync();
+
+        // Return paged result
+        return new PagedResult<TCollection>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = validPageNumber,
+            PageSize = validPageSize
+        };
+    }
+    
+    public async Task<PagedResult<TCollection>> PagedAsync(int? pageNumber, int? pageSize)
+    {
+        var query =  documentSession.Query<TCollection>();
+        
+        // Validate pageNumber, pageSize
+        int validPageNumber = pageNumber.GetValueOrDefault(1);
+        if (validPageNumber < 1) validPageNumber = 1;
+
+        int validPageSize = pageSize.GetValueOrDefault(10);
+        if (validPageSize <= 0) validPageSize = 10;
+        
+        // Count total
+        var totalCount = await query.CountAsync();
+        
+        // Apply paging
+        int skip = (validPageNumber - 1) * validPageSize;
+        var items = await query
+            .Skip(skip)
+            .Take(validPageSize)
+            .ToListAsync();
+
+        // Return paged result
+        return new PagedResult<TCollection>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            PageNumber = validPageNumber,
+            PageSize = validPageSize
+        };
+
+    }
+
     /// <summary>
     /// Find all entities
     /// </summary>
@@ -42,9 +106,10 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
     /// </summary>
     /// <param name="predicate"></param>
     /// <returns></returns>
-    public async Task<TCollection?> FirstOrDefaultAsync(Expression<Func<TCollection, bool>> predicate)
+    public async Task<TCollection?> FirstOrDefaultAsync(Expression<Func<TCollection, bool>>? predicate)
     {
-        return await documentSession.Query<TCollection>().FirstOrDefaultAsync(predicate);
+        if (predicate != null) return await documentSession.Query<TCollection>().FirstOrDefaultAsync(predicate);
+        return await documentSession.Query<TCollection>().FirstOrDefaultAsync();
     }
     
     /// <summary>
@@ -90,11 +155,22 @@ public class QueryRepository<TCollection>(IDocumentSession documentSession, IDat
     }
 
     /// <summary>
-    /// Remove a collection from cache
+    /// Get or set a paged collection in cache
     /// </summary>
     /// <param name="key"></param>
-    public async Task RemoveAsync(string key)
+    /// <param name="factory"></param>
+    /// <param name="expiry"></param>
+    /// <returns></returns>
+    public async Task<PagedResult<TCollection>> GetOrSetPagedAsync(string key, Func<Task<PagedResult<TCollection>>> factory, TimeSpan? expiry = null)
     {
-        await cache.KeyDeleteAsync(key);
+        var cached = await cache.StringGetAsync(key);
+        if (cached.HasValue)
+            return JsonSerializer.Deserialize<PagedResult<TCollection>>(cached!) ?? new PagedResult<TCollection>();
+        var result = await factory();
+        if (result.Items.Any())
+        {
+            await cache.StringSetAsync(key, JsonSerializer.Serialize(result), expiry);
+        }
+        return result;
     }
 }

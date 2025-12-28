@@ -11,5 +11,6 @@ public record UserLoginEntity(
     Guid UserId,
     string FullName,
     string Email,
-    string RoleName
+    string RoleName,
+    string? AvatarUrl
 );

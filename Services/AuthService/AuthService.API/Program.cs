@@ -3,6 +3,7 @@ using AuthService.API.Extensions;
 using AuthService.API.Helpers;
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;
 
 // Load environment variables
 EnvLoader.Load();
@@ -27,11 +28,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.SuppressModelStateInvalidFilter = true;
 });
 
-// Kestrel configuration
-builder.WebHost.ConfigureKestrel(serverOptions =>
-{
-    serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
-});
+// Add background service for outbox message publishing
+builder.Services.AddHostedService<OutboxPublisher>();
 
 var app = builder.Build();
 app.UseForwardedHeaders();
@@ -54,7 +52,7 @@ app.UseStatusCodePages();
 app.UseAuthorization();
 app.UseHttpsRedirection();
 app.MapControllers();
-app.UseSwagger();
+app.UseSwagger(c => c.OpenApiVersion = OpenApiSpecVersion.OpenApi2_0);
 app.UseSwaggerUI(settings =>
 {
     settings.RoutePrefix = "swagger";

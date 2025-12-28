@@ -50,24 +50,7 @@ secrets.json
 # Publish output
 wwwroot/
 
-# ASP.NET Scaffolding
-ScaffoldingReadMe.txt
-
-# Resharper (nếu dùng cùng Rider/VS plugin)
-_ReSharper*/
-*.[Rr]e[Ss]harper
-*.DotSettings.user
-
-# Test results
-TestResult*/
-*.VisualState.xml
-*.vsp
-*.vspx
-*.coverage
-*.coveragexml
-
-# Others
-*.dbmdl        # Local DB files
-*.bak          # Backup files
-*.mdf
-*.ldf
+# Local AI memory files (DO NOT COMMIT)
+.local_memory/
+*.local.md
+*.local.json

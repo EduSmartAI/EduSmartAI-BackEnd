@@ -1,0 +1,40 @@
+﻿using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using MassTransit;
+using StudentService.Application.Applications.LearningPaths.Commands;
+using StudentService.Application.Interfaces;
+
+namespace StudentService.Application.Consumers
+{
+    public class InsertLearningPathEventConsumer(ILearningPathService service) : IConsumer<InsertLearningPathEvent>
+    {
+        public async Task Consume(ConsumeContext<InsertLearningPathEvent> context)
+        {
+            var evt = context.Message;
+
+            var request = new LearningPathInsertCommand
+            {
+                PathId = evt.LearningPathId,
+                StudentEmail = evt.CurrentUserEmail,
+                StudentId = evt.StudentId,
+                PathName = evt.PathName,
+                Level = evt.Level,
+                LevelReason = evt.LevelReason,
+                IsSkipTest = evt.IsSkipTest,
+                LimitTime = evt.LimitTime,
+                EvaluationAndImprove = evt.EvaluationAndImprove,
+                StudentSurveyIds = evt.StudentSurveyIds,
+                StudentTestId = evt.StudentTestId,
+                PracticeSubmissionIds = evt.PracticeSubmissionIds,
+            };
+    
+            var response = await service.InsertLearningPathAsync(request, context.CancellationToken);
+            var messageResponse = new InsertLearningPathEventResponse
+            {
+                Success = response.Success,
+                Message = response.Message,
+            };
+            
+            await context.RespondAsync(messageResponse);
+        }
+    }
+}

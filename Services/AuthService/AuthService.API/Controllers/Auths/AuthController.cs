@@ -160,6 +160,7 @@ public class AuthController : ControllerBase
             Email = loginResponse.Email,
             FullName = loginResponse.FullName,
             RoleName = loginResponse.RoleName,
+            AvatarUrl = loginResponse.AvatarUrl
         };
 
         var claimsPrincipal = await _tokenService.GenerateClaimsPrincipal(userLoginDto);

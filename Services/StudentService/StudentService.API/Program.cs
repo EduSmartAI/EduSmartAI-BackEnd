@@ -1,7 +1,8 @@
 using BaseService.Common.Settings;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi;
+using StudentService.API;
 using StudentService.API.Extensions;
-using StudentService.Infrastructure.Contexts;
 
 EnvLoader.Load();
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +17,7 @@ builder.Services.AddRepositoryServices();
 builder.Services.AddMessagingServices();
 builder.Services.AddSwaggerServices();
 builder.Services.AddCorsServices();
+builder.Services.AddApplicationMapster();
 
 builder.Services.AddDataProtection();
 builder.Services.AddHttpContextAccessor();
@@ -30,6 +32,10 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.Configure(builder.Configuration.GetSection("Kestrel"));
 });
+
+// Add background service for outbox message publishing
+builder.Services.AddHostedService<OutboxPublisher>();
+
 #region Application build and middleware pipeline
 var app = builder.Build();
 await app.EnsureDatabaseCreatedAsync();
@@ -40,17 +46,15 @@ if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 }
 
-// Remove hardcoded URL configuration - let Docker handle port mapping
-// app.Urls.Clear();
-// app.Urls.Add("http://0.0.0.0:7002");
 app.UseCors();
-app.UseRouting();
 app.UsePathBase("/student");
+app.UseRouting();
 app.UseAuthentication();
+app.UseStatusCodePages();
 app.UseAuthorization();
 app.UseHttpsRedirection();
 app.MapControllers();
-app.UseSwagger();
+app.UseSwagger(c => c.OpenApiVersion = OpenApiSpecVersion.OpenApi2_0);
 app.UseSwaggerUI(settings =>
 {
     settings.RoutePrefix = "swagger";

@@ -15,33 +15,41 @@ public static class DatabaseExtensions
     {
         var connectionString = Environment.GetEnvironmentVariable(ConstEnv.StudentServiceDb);
         var redisConnectionString = Environment.GetEnvironmentVariable(ConstEnv.RedisCacheConnection)!;
-        
-        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));        
+
+        services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnectionString));
         services.AddScoped<IDatabase>(sp => sp.GetRequiredService<IConnectionMultiplexer>().GetDatabase());
-        
+
         // Entity Framework configuration
         services.AddDbContext<StudentServiceContext>(options =>
         {
             options.UseNpgsql(connectionString);
         });
-        
+
         services.AddScoped<AppDbContext, StudentServiceContext>();
-        
+
         // Marten document database configuration
         services.AddMarten(options =>
         {
             options.Connection(connectionString!);
             options.AutoCreateSchemaObjects = AutoCreate.All;
-            options.DatabaseSchemaName = "UserServiceDB_Marten";
-            
+            options.DatabaseSchemaName = "StudentServiceDB_Marten";
+
             options.Schema.For<StudentCollection>().Identity(x => x.StudentId);
-            options.Schema.For<TeacherCollection>().Identity(x => x.TeacherId);
-            options.Schema.For<TeacherRatingCollection>().Identity(x => x.RatingId);
+            options.Schema.For<LearningGoalCollection>().Identity(x => x.GoalId);
+            options.Schema.For<TechnologyCollection>().Identity(x => x.TechnologyId);
+            options.Schema.For<LearningPathMajorCollection>().Identity(x => x.LearningPathMajorId);
+            options.Schema.For<LearningPathSubjectCodeCollection>().Identity(x => x.LearningPathSubjectCodeId);
+            options.Schema.For<LearningPathCourseCollection>().Identity(x => x.LearningPathCourseId);
+            options.Schema.For<LearningPathCollection>().Identity(x => x.PathId);
+            options.Schema.For<StudentOrientationCollection>().Identity(x => x.StudentOrientationId);
+            options.Schema.For<UserBehaviourCollection>().Identity(x => x.Id);
+            options.Schema.For<AiEvaluationCollection>().Identity(x => x.EvaluationId);
+            options.Schema.For<CourseSuggestionCollection>().Identity(x => x.CourseSuggestionId);
         });
-        
+
         return services;
     }
-    
+
     public static async Task<WebApplication> EnsureDatabaseCreatedAsync(this WebApplication app)
     {
         using var scope = app.Services.CreateScope();

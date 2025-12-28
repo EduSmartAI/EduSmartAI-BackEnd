@@ -9,6 +9,15 @@ builder.Services.AddControllers();
 builder.Services.AddSwaggerGen();
 builder.Services.AddOpenApi();
 
+// Thêm HttpClient cho SwaggerController
+builder.Services.AddHttpClient();
+builder.Services.AddCors(o =>
+{
+    o.AddPolicy("AllowAll", b => b
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader());
+});
 // Add Authentication with OpenIdConnect/JWT
 builder.Services.AddReverseProxyAuthentication(builder.Configuration);
 
@@ -23,6 +32,12 @@ builder.Services.AddReverseProxy()
         handler.AllowAutoRedirect = false;
     });
 
+builder.WebHost.ConfigureKestrel(o =>
+{
+    o.Limits.MaxRequestBodySize = 2L * 1024 * 1024 * 1024;
+    o.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(10);
+});
+
 // Add Role Authorization service
 builder.Services.AddSingleton<IRoleAuthorizationService, RoleAuthorizationService>();
 
@@ -30,6 +45,7 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 app.UseRouting();
+app.UseCors("AllowAll");
 app.Use(async (context, next) =>
 {
     context.Request.EnableBuffering();

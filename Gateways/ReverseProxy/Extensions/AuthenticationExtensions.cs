@@ -12,8 +12,7 @@ public static class AuthenticationExtensions
     /// <param name="services"></param>
     /// <param name="configuration"></param>
     /// <returns></returns>
-    public static IServiceCollection AddReverseProxyAuthentication(this IServiceCollection services,
-        IConfiguration configuration)
+    public static IServiceCollection AddReverseProxyAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         // Load environment variables from .env file
         EnvLoader.Load();

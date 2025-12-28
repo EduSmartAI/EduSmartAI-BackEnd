@@ -1,0 +1,392 @@
+﻿using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
+using BuildingBlocks.Pagination;
+using Course.Application.Courses.Commands.CreateCourse;
+using Course.Application.Courses.Commands.DeleteCourse;
+using Course.Application.Courses.Commands.UpdateCourse;
+using Course.Application.Courses.Commands.UpdateCourseModules;
+using Course.Application.Courses.Queries.GetCourseBasicInfo;
+using Course.Application.Courses.Queries.GetCourseById;
+using Course.Application.Courses.Queries.GetCourseBySlug;
+using Course.Application.Courses.Queries.GetCourses;
+using Course.Application.Courses.Queries.GetCoursesByLecture;
+using Course.Application.Courses.Queries.GetCourseTags;
+using Course.Application.Courses.Queries.GetEnrolledUsers;
+using Course.Application.Courses.Queries.GetInProgressCourse;
+using Course.Application.Courses.Queries.LocalTest.GetSuggestedCoursesStudentService;
+using Course.Application.DTOs.CoursesDTO;
+using Course.Application.DTOs.CourseTagsDTO;
+using Course.Application.Interfaces;
+
+namespace Course.API.Controllers
+{
+	[Route("api/v1/[controller]")]
+	[ApiController]
+	public class CoursesController(ISender sender) : ControllerBase
+	{
+		private static readonly Logger _logger = LogManager.GetCurrentClassLogger();
+
+		#region Controllers for Courses Service (Role based: Lecturer, Guest)
+
+		/// <summary>
+		/// Get list of courses with pagination and optional filtering
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpGet]
+		[SwaggerOperation(
+			Summary = "Get list of courses with pagination and optional filtering",
+			Description =
+				"Retrieve a paginated list of courses with optional filtering by title, category, or instructor."
+		)]
+		public async Task<GetCoursesResponse> ProcessRequest([FromQuery] GetCoursesQuery request)
+		{
+			return await ApiControllerHelper
+				.HandleRequest<GetCoursesQuery, GetCoursesResponse, PaginatedResult<CourseDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetCoursesResponse()
+				);
+		}
+
+		/// <summary>
+		/// Get list of courses with pagination and optional filtering for lecture
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpGet("lecture")]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get list of courses for lecture",
+			Description = "Retrieve a paginated list of courses created by a specific teacher with optional filtering."
+		)]
+		public async Task<GetCoursesByTeacherIdResponse> GetCoursesByTeacherId(
+			[FromQuery] GetCoursesByLectureQuery request)
+		{
+			return await ApiControllerHelper
+				.HandleRequest<GetCoursesByLectureQuery, GetCoursesByTeacherIdResponse, PaginatedResult<CourseDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetCoursesByTeacherIdResponse()
+				);
+		}
+
+		/// <summary>
+		/// Get course details by ID for guest users
+		/// </summary>
+		/// <param name="id"></param>
+		/// <returns></returns>
+		[HttpGet("{id:guid}")]
+		[SwaggerOperation(
+			Summary = "Get course details by ID for guest users",
+			Description =
+				"Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to guest users."
+		)]
+		public async Task<GetCourseByIdForGuestResponse> ProcessRequestById(Guid id)
+		{
+			var query = new GetCourseByIdForGuestQuery(id);
+
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseByIdForGuestQuery, GetCourseByIdForGuestResponse, CourseDetailForGuestDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseByIdForGuestResponse()
+				);
+		}
+
+		/// <summary>
+		/// Get course details by ID for lectures
+		/// </summary>
+		/// <param name="id"></param>
+		/// <returns></returns>
+		[HttpGet("auth/{id:guid}")]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by ID for lectures",
+			Description =
+				"Retrieve detailed information about a specific course by its ID, including modules and lessons, accessible to lectures."
+		)]
+		public async Task<GetCourseByIdForLectureResponse> ProcessRequestByIdAuth(Guid id)
+		{
+			var query = new GetCourseByIdForLectureQuery(id);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseByIdForLectureQuery, GetCourseByIdForLectureResponse,
+					CourseDetailForLectureDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseByIdForLectureResponse()
+				);
+		}
+
+		/// <summary>
+		/// Get course details by slug for guest users
+		/// </summary>
+		/// <param name="slug"></param>
+		/// <returns></returns>
+		[HttpGet("slug/{slug}")]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for guest users",
+			Description =
+				"Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to guest users."
+		)]
+		public async Task<GetCourseBySlugForGuestResponse> ProcessRequestBySlug(string slug)
+		{
+			var query = new GetCourseBySlugForGuestQuery(slug);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseBySlugForGuestQuery, GetCourseBySlugForGuestResponse, CourseDetailForGuestDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseBySlugForGuestResponse()
+				);
+		}
+
+		/// <summary>
+		/// Get course details by slug for lectures
+		/// </summary>
+		/// <param name="slug"></param>
+		/// <returns></returns>
+		[HttpGet("auth/slug/{slug}")]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get course details by slug for lectures",
+			Description =
+				"Retrieve detailed information about a specific course by its slug, including modules and lessons, accessible to lectures."
+		)]
+		public async Task<GetCourseBySlugForLectureResponse> ProcessRequestBySlugAuth(string slug)
+		{
+			var query = new GetCourseBySlugForLectureQuery(slug);
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseBySlugForLectureQuery, GetCourseBySlugForLectureResponse,
+					CourseDetailForLectureDto>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseBySlugForLectureResponse()
+				);
+		}
+
+		/// <summary>
+		/// Create a new course
+		/// </summary>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpPost]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Create a new course",
+			Description =
+				"Create a new course with its modules, lessons, and tags. Course tags are optional and can be used to categorize courses."
+		)]
+		public async Task<CreateCourseResponse> ProcessRequestPost([FromBody] CreateCourseCommand request)
+		{
+			return await ApiControllerHelper.HandleRequest<CreateCourseCommand, CreateCourseResponse, string>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new CreateCourseResponse()
+			);
+		}
+
+		/// <summary>
+		/// Update an existing course (only course details, not modules or lessons)
+		/// </summary>
+		/// <param name="id"></param>
+		/// <param name="request"></param>
+		/// <returns></returns>
+		[HttpPut("{id:guid}")]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Update an existing course",
+			Description = "Update an existing course (only course details, not modules or lessons)"
+		)]
+		public async Task<UpdateCourseResponse> ProcessRequestPut([FromRoute] Guid id,
+			[FromBody] UpdateCourseCommand request)
+		{
+			var response = new UpdateCourseResponse();
+
+			if (request.CourseId == Guid.Empty)
+				request = request with { CourseId = id };
+			else if (request.CourseId != id)
+			{
+				response.Success = false;
+				response.SetMessage("CourseId in route and payload do not match.");
+				return response;
+			}
+
+			return await ApiControllerHelper.HandleRequest<UpdateCourseCommand, UpdateCourseResponse, string>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new UpdateCourseResponse()
+			);
+		}
+
+		/// <summary>
+		/// Update multiple modules in a course (bulk update)
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <param name="request"></param>
+		/// <param name="ct"></param>
+		/// <returns></returns>
+		[HttpPut("{courseId}/modules")]
+		[Authorize(Roles = ConstRole.Lecturer,
+			AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Update multiple modules in a course",
+			Description = "Update multiple modules in a course with its Objectives and Lessons"
+		)]
+		public async Task<UpdateCourseModulesResponse> UpdateCourseModules(
+			[FromRoute] Guid courseId,
+			[FromBody] UpdateCourseModulesCommand request)
+		{
+			return await ApiControllerHelper
+				.HandleRequest<UpdateCourseModulesCommand, UpdateCourseModulesResponse, string>(
+					request with { CourseId = courseId },
+					_logger,
+					ModelState,
+					async () => await sender.Send(request with { CourseId = courseId }),
+					new UpdateCourseModulesResponse()
+				);
+		}
+
+		/// <summary>
+		/// Delete a course by ID
+		/// </summary>
+		/// <param name="courseId"></param>
+		/// <returns></returns>
+		[HttpDelete("{courseId}")]
+		[Authorize(Roles = ConstRole.Lecturer, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Delete a course by ID",
+			Description = "Delete a specific course by its ID. Only the lecturer who created the course can delete it."
+		)]
+		public async Task<DeleteCourseResponse> DeleteCourse([FromRoute] Guid courseId)
+		{
+			var command = new DeleteCourseCommand(courseId);
+			return await ApiControllerHelper.HandleRequest<DeleteCourseCommand, DeleteCourseResponse, bool>(
+				command,
+				_logger,
+				ModelState,
+				async () => await sender.Send(command),
+				new DeleteCourseResponse()
+			);
+		}
+
+		/// <summary>
+		/// Get all course tags
+		/// </summary>
+		/// <returns></returns>
+		[HttpGet("tags")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get all course tags",
+			Description = "Retrieve all available course tags"
+		)]
+		public async Task<GetCourseTagsResponse> GetCourseTags()
+		{
+			var query = new GetCourseTagsQuery();
+
+			return await ApiControllerHelper
+				.HandleRequest<GetCourseTagsQuery, GetCourseTagsResponse, List<CourseTagDetailsDto>>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetCourseTagsResponse()
+				);
+		}
+
+		#endregion
+
+		[HttpGet("[action]")]
+		[Authorize(Roles = ConstRole.Student, AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get in-progress courses by student ID",
+			Description = "Retrieve a list of courses that are currently in progress for a specific student."
+		)]
+		public async Task<GetInProgressCourseByStudentIdResponse> GetInProgressCourseByStudentId()
+		{
+			var query = new GetInProgressCourseByStudentIdQuery();
+			return await ApiControllerHelper.HandleRequest<GetInProgressCourseByStudentIdQuery, GetInProgressCourseByStudentIdResponse, IReadOnlyList<InProgressCourseDto>>(
+					query,
+					_logger,
+					ModelState,
+					async () => await sender.Send(query),
+					new GetInProgressCourseByStudentIdResponse()
+				);
+		}
+
+		[HttpGet("[action]")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		[SwaggerOperation(
+			Summary = "Get enrolled users for a course",
+			Description = "Retrieve a paginated list of users enrolled in a specific course."
+		)]
+		public async Task<GetEnrolledUsersResponse> GetEnrolledUsers([FromQuery] GetEnrolledUsersQuery request)
+		{
+			return await ApiControllerHelper
+				.HandleRequest<GetEnrolledUsersQuery, GetEnrolledUsersResponse, PaginatedResult<EnrolledUsersDto>>(
+					request,
+					_logger,
+					ModelState,
+					async () => await sender.Send(request),
+					new GetEnrolledUsersResponse()
+				);
+		}
+
+		/// <summary>
+		/// Lấy thông tin cơ bản của nhiều khóa học (test API)
+		/// </summary>
+		[HttpGet("basic-info")]
+		[Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
+		public async Task<GetCourseBasicInfoResponse> GetBasicInfo([FromQuery] GetCourseBasicInfoRequest dto)
+		{
+			var request = new GetCourseBasicInfoCommand(dto.CourseIds);
+
+			return await ApiControllerHelper.HandleRequest<GetCourseBasicInfoCommand, GetCourseBasicInfoResponse, List<CourseBasicInfoDto>>
+				(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetCourseBasicInfoResponse()
+			);
+		}
+
+		[HttpGet("suggested-courses")]
+		public async Task<GetSuggestedCoursesEventResponse> GetSuggestedCoursesForStudent([FromQuery] GetSuggestedCoursesStudentServiceDto getSuggestedCoursesStudentServiceDto)
+		{
+			var request = new GetSuggestedCoursesStudentServiceQuery(getSuggestedCoursesStudentServiceDto);
+			return await ApiControllerHelper.HandleRequest<GetSuggestedCoursesStudentServiceQuery, GetSuggestedCoursesEventResponse, List<CourseBasicInfoDto>>(
+				request,
+				_logger,
+				ModelState,
+				async () => await sender.Send(request),
+				new GetSuggestedCoursesEventResponse()
+			);
+		}
+
+		public sealed class GetCourseBasicInfoRequest
+		{
+			public List<Guid> CourseIds { get; set; } = new();
+		}
+	}
+}

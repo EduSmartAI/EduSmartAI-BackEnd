@@ -1,3 +1,4 @@
+using BaseService.API;
 using Microsoft.OpenApi.Models;
 
 namespace StudentService.API.Extensions;
@@ -11,7 +12,7 @@ public static class SwaggerExtensions
         {
             c.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "User Service",
+                Title = "Student Service Swagger",
                 Version = "v1"
             });
         
@@ -37,6 +38,9 @@ public static class SwaggerExtensions
                     []
                 }
             });
+            c.EnableAnnotations();
+            // Add custom document filter to order operations by action name
+            c.DocumentFilter<SwaggerOrderByActionFilter>();
         });
         
         return services;

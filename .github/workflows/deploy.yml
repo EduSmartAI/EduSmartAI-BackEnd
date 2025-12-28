@@ -1,9 +1,13 @@
-name: Deploy EduSmartAI Microservices to VPS
+name: Deploy EduSmartAI Microservices to VPS (Optimized)
 
 on:
   push:
     branches:
       - deploy
+
+env:
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
 
 jobs:
   deploy:
@@ -14,19 +18,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Setup SSH key từ secret
-      - name: Setup SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-
-      # 3. Tạo file .env từ secret trong GitHub
+      # 2. Create .env file từ secret
       - name: Write .env file from ENV_FILE_CONTENT
         run: echo "${{ secrets.ENV_FILE_CONTENT }}" > .env
 
-      # 4. Copy source code và .env lên VPS
+      # 3. Copy source code và .env lên VPS (tối ưu hóa)
       - name: Copy source code and .env to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -36,37 +32,81 @@ jobs:
           source: "."
           target: "~/apps/EduSmart-BackEnd"
           rm: true
+          strip_components: 0
+          overwrite: true
 
-      # 5. SSH vào VPS và deploy Docker Compose
-      - name: SSH into VPS and deploy Docker Compose
+      # 4. SSH vào VPS và deploy với tối ưu hóa
+      - name: SSH into VPS and deploy Docker Compose (Optimized)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
           script: |
-            echo "📦 Deploying EduSmartAI Microservices..."
+            echo "🚀 Deploying EduSmartAI Microservices (Optimized)..."
             cd ~/apps/EduSmart-BackEnd
 
-            echo "🔧 Setting permissions for scripts"
+            echo "🔧 Setting up environment"
+            export DOCKER_BUILDKIT=1
+            export COMPOSE_DOCKER_CLI_BUILD=1
             chmod +x *.sh || true
 
-            echo "🧹 Cleanup old containers and images"
-            docker compose down --volumes --remove-orphans || true
-            docker system prune -af || true
-            docker builder prune -af || true
+            echo "🧹 Smart cleanup - preserving cache when possible"
+            docker compose down --remove-orphans || true
+            
+            # Only remove dangling images to preserve cache
+            docker image prune -f --filter "dangling=true" || true
 
-            echo "🐳 Building and starting Docker containers"
-            docker compose build --no-cache --pull
-            docker compose up -d
+            echo "🐳 Building services with parallel processing and cache"
+            docker compose build --parallel --progress=plain --build-arg BUILDKIT_INLINE_CACHE=1
 
-            echo "⏳ Waiting for containers to start..."
-            sleep 30
+            if [ $? -ne 0 ]; then
+              echo "❌ Build failed!"
+              exit 1
+            fi
 
-            echo "✅ Docker containers status:"
-            docker ps -a
+            echo "🚀 Starting containers with extended timeout"
+            docker compose up -d --wait --wait-timeout 300
 
-            echo "📊 docker-compose service status:"
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to start services!"
+              docker compose logs --tail=50
+              exit 1
+            fi
+
+            echo "⏳ Waiting for services to fully initialize..."
+            sleep 45
+
+            echo "🔍 Performing health checks..."
+            services=("studentservice.api" "authservice.api" "quizservice.api" "teacherservice.api" "paymentservice.api" "notificationservice.api" "utilityservice.api" "courseservice.api" "aiservice.api" "reverseproxy")
+            
+            failed_services=()
+            for service in "${services[@]}"; do
+              if docker compose ps $service | grep -q "Up\|healthy"; then
+                echo "✅ $service is running"
+              else
+                echo "❌ $service failed to start"
+                failed_services+=("$service")
+                echo "--- Logs for $service ---"
+                docker compose logs $service --tail=20 || true
+                echo ""
+              fi
+            done
+
+            echo "📊 Final deployment status:"
             docker compose ps
 
-            echo "✅ Deployment completed!"
+            echo "💾 Current disk usage:"
+            df -h /var/lib/docker 2>/dev/null || df -h /
+
+            if [ ${#failed_services[@]} -eq 0 ]; then
+              echo "✅ All services deployed successfully!"
+              echo "🌐 Services should be accessible soon!"
+            else
+              echo "⚠️  Some services may need attention: ${failed_services[*]}"
+              echo "📝 Check the logs above for details"
+            fi
+            
+            echo "🎉 Deployment completed!"

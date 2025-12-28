@@ -64,9 +64,9 @@ public class CommonLogic : ICommonLogic
     /// <param name="beforeDecrypt"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentException"></exception>
-    public DecryptTextResponse DecryptText(string beforeDecrypt)
+    public DecryptTextEmailAndIdResponse DecryptTextEmailAndId(string beforeDecrypt)
     {
-        var response = new DecryptTextResponse {Success = false};
+        var response = new DecryptTextEmailAndIdResponse {Success = false};
         
         EnvLoader.Load();
         
@@ -195,5 +195,58 @@ public class CommonLogic : ICommonLogic
     
         // Format as a 6-digit string with leading zeros if needed
         return value.ToString("D6");
+    }
+
+    /// <summary>
+    /// Decrypt the text with DateTime and Id
+    /// </summary>
+    /// <param name="beforeDecrypt"></param>
+    /// <returns></returns>
+    public DecryptTextIdAndDateTimeResponse DecryptTextDateTimeAndEmail(string beforeDecrypt)
+    {
+        var response = new DecryptTextIdAndDateTimeResponse { Success = false };
+
+        EnvLoader.Load();
+
+        var key = Environment.GetEnvironmentVariable(ConstEnv.EncryptionKey);
+        var iv = Environment.GetEnvironmentVariable(ConstEnv.EncryptionIv);
+
+        // Check for null
+        if (key == null)
+        {
+            response.SetMessage(MessageId.E99999);
+            return response;
+        }
+        // Decrypt the text
+        var aes = Aes.Create();
+
+        // Set the key and IV
+        aes.Key = Encoding.UTF8.GetBytes(key);
+        if (iv != null) aes.IV = Encoding.UTF8.GetBytes(iv);
+
+        // Decrypt
+        var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+        using var ms = new MemoryStream(Convert.FromBase64String(beforeDecrypt));
+        using var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read);
+        using var sr = new StreamReader(cs);
+        var decrypted = sr.ReadToEnd();
+
+        var parts = decrypted.Split('-', 2);
+        if (parts.Length != 2)
+        {
+            response.SetMessage(MessageId.E99999);
+            return response;
+        }
+
+        // Read the decrypted text
+        response.Response = new DecryptTextIdAndDateTimeResponseEntity
+        {
+            DateTimeValue = DateTime.Parse(parts[0]),
+            Email = parts[1].ToString()
+        };
+
+        // True
+        response.Success = true;
+        return response;
     }
 }

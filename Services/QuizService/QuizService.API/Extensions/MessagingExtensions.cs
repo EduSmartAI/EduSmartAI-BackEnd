@@ -1,0 +1,62 @@
+using BaseService.Common.Settings;
+using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AIService.InsertLearningPathEvent;
+using BuildingBlocks.Messaging.Events.QuizService;
+using BuildingBlocks.Messaging.Events.StudentService;
+using MassTransit;
+using QuizService.Application.Applications.Consumers;
+using QuizService.Application.Applications.QuizCourses.Consumers;
+using QuizService.Application.Applications.StudentSurveys.Consumers.StudentQuizCollectionInsertEvents;
+
+namespace QuizService.API.Extensions;
+
+public static class MessagingExtensions
+{
+    public static IServiceCollection AddMessagingServices(this IServiceCollection services)
+    {
+        EnvLoader.Load();
+        
+        var rabbitMqHost = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqHost);
+        var rabbitMqUsername = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqUsername);
+        var rabbitMqPassword = Environment.GetEnvironmentVariable(ConstEnv.RabbitMqPassword);
+        
+        services.AddMassTransit(x =>
+        {
+            x.AddConsumer<StudentQuizCollectionInsertConsumer>();
+            x.AddConsumer<QuizCourseCollectionUpsertEventConsumer>();
+            x.AddConsumer<QuizCourseSelectConsumer>();
+			x.AddConsumer<QuizCourseInsertConsumer>();
+			x.AddConsumer<StudentQuizCourseInsertEventConsumer>();
+            x.AddConsumer<QuizCourseCheckAttemptConsumer>();
+            x.AddConsumer<GetLatestModuleQuizScoresConsumer>();
+            x.AddConsumer<GetLatestLessonQuizScoresConsumer>();
+            x.AddConsumer<RegenerateLearningPathEventConsumer>();
+
+			x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "quiz", includeNamespace: false));
+
+			x.UsingRabbitMq((context, cfg) =>
+            {
+                cfg.Host(rabbitMqHost, "/", h =>
+                {
+                    h.Username(rabbitMqUsername!);
+                    h.Password(rabbitMqPassword!);
+                });
+                
+                cfg.ConfigureEndpoints(context);
+                
+                cfg.UseMessageRetry(r => r.Exponential(5,
+                    TimeSpan.FromSeconds(1),
+                    TimeSpan.FromSeconds(30),
+                    TimeSpan.FromSeconds(5)));
+
+                cfg.UseInMemoryOutbox(); 
+            });
+            
+            x.AddRequestClient<SubjectCodeSelectEvent>();
+            x.AddRequestClient<AiRecommendImprovementEvent>();
+            x.AddRequestClient<InsertLearningPathEvent>();
+        });
+        
+        return services;
+    }
+}

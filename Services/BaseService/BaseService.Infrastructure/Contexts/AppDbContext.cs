@@ -11,6 +11,16 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
     /// <summary>
     /// Save changes async with common value
     /// </summary>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public　async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+    
+    /// <summary>
+    /// Save changes async with common value
+    /// </summary>
     /// <param name="updateUserId"></param>
     /// <param name="cancellationToken"></param>
     /// <param name="needLogicalDelete"></param>
@@ -39,7 +49,7 @@ public abstract class AppDbContext(DbContextOptions options) : DbContext(options
             .Select(e => e.Entity);
 
         // Get current time
-        var now = StringUtil.ConvertToVietNamTime();
+        var now = DateTime.UtcNow;
 
         // Set newEntities
         foreach (dynamic newEntity in newEntities)

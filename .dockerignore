@@ -1,25 +1,61 @@
-﻿**/.dockerignore
-**/.env
-**/.git
-**/.gitignore
-**/.project
-**/.settings
-**/.toolstarget
-**/.vs
-**/.vscode
-**/.idea
-**/*.*proj.user
-**/*.dbmdl
-**/*.jfm
-**/azds.yaml
-**/bin
-**/charts
-**/docker-compose*
-**/Dockerfile*
-**/node_modules
-**/npm-debug.log
-**/obj
-**/secrets.dev.yaml
-**/values.dev.yaml
-LICENSE
-README.md
+﻿# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+README*
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# Dependencies
+**/node_modules/
+**/packages/
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env.local
+.env.development
+.env.staging
+.env.production
+
+# Cache
+.cache/
+tmp/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Testing
+**/TestResults/
+**/*.trx
+**/*.coverage
+
+# Publish
+**/publish/
+
+# User-specific files
+*.user
+*.userosscache
+*.sln.docstates

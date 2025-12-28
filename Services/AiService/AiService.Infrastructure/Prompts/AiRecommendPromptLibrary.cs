@@ -1,0 +1,781 @@
+using AiService.Application.Features.AiRecommend;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace AiService.Infrastructure.Prompts;
+
+internal static class AiRecommendPromptLibrary
+{
+    public static readonly string[] AbilityLabels =
+    [
+        "Lập trình hướng đối tượng",
+        "Lập trình web HTML/CSS cơ bản",
+        "Cấu trúc dữ liệu và giải thuật",
+        "Cơ sở dữ liệu"
+    ];
+
+    private static readonly JsonSerializerOptions PromptJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
+
+    public const string SystemPrompt = """
+Bạn là cố vấn học tập bậc đại học. Luôn trả về duy nhất **một** JSON hợp lệ theo schema mà user prompt yêu cầu. Không bao giờ bao quanh JSON bằng ``` hoặc thêm chú thích bên ngoài.
+- Tất cả nội dung phải viết bằng tiếng Việt có dấu, ngắn gọn nhưng giàu dẫn chứng.
+- Các chuỗi có thể dùng Markdown (###, bullet -) để trình bày rõ ràng.
+- Nếu dữ liệu thiếu, hãy ghi chú "chưa có đủ dữ liệu" thay vì suy đoán.
+""";
+
+    public static string BuildAbilityPrompt(IEnumerable<AbilityMark>? abilityMarks, string careerGoal)
+    {
+        var abilityEntries = (abilityMarks ?? [])
+            .Select(m => new { name = m.Name, mark = m.Mark })
+            .ToList();
+
+        var payload = new
+        {
+            abilityMarks = abilityEntries,
+            expectedAbilities = AbilityLabels,
+            markScale = "0-10",
+            careerGoal = careerGoal
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU NĂNG LỰC:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+- Nếu `abilityMarks` rỗng hoặc null: Điều này có nghĩa là sinh viên đã ở kỳ 5 trở lên và đã có bảng điểm môn học đầy đủ, không cần đánh giá năng lực cơ bản nữa. 
+  Trong trường hợp này, trả về JSON với thông báo rằng sinh viên đã vượt qua giai đoạn đánh giá năng lực cơ bản, và hệ thống sẽ phân tích dựa trên **kết quả học tập thực tế từ bảng điểm môn học**.
+- Nếu có `abilityMarks`: Đánh giá từng khả năng lập trình theo thang 0-10 và liên hệ trực tiếp với mục tiêu nghề nghiệp `careerGoal` (nếu có).
+  1. Tình trạng hiện tại (điểm/10).
+  2. Kiến thức/nền tảng cần củng cố (nêu ví dụ cụ thể).
+  3. Lộ trình hành động **2–4 tuần** với số buổi/bài cụ thể.
+
+OUTPUT JSON (không thêm văn bản khác):
+{
+  "abilityAnalyses": [
+    {
+      "name": "<trùng tên khả năng HOẶC 'Phân tích dựa trên bảng điểm' nếu null>",
+      "analysisMarkdown": "## <Tên khả năng>\n### Hiện trạng\n- ...\n### Kiến thức trọng tâm\n- ...\n### Lộ trình 2–4 tuần\n- ... (nêu rõ khối lượng luyện tập và liên hệ careerGoal)"
+    }
+  ]
+}
+
+LƯU Ý ĐẶC BIỆT:
+- Nếu `abilityMarks` null/rỗng, trả về 1 phần tử duy nhất với `name: "Phân tích dựa trên bảng điểm"` và nội dung giải thích rằng sinh viên đã có đủ bảng điểm môn học, không cần đánh giá năng lực cơ bản riêng.
+
+YÊU CẦU ĐỊNH DẠNG:
+- Luôn mở đầu `analysisMarkdown` bằng `## <Tên khả năng>`.
+- Bắt buộc đủ 3 heading `### Hiện trạng`, `### Kiến thức trọng tâm`, `### Lộ trình 2–4 tuần`.
+- Mỗi heading có 2-3 bullet, bắt đầu bằng động từ, ghi rõ khối lượng (vd: “Ôn 3 buổi/tuần”, “Làm 5 bài/tuần”).
+""";
+    }
+
+    public static string BuildSubjectPrompt(
+        IEnumerable<SubjectMark> subjectMarks,
+        IEnumerable<SubjectCur> curriculumSubjects,
+        string careerGoal)
+    {
+        var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.Mark.HasValue).ToList();
+        var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
+
+        var curriculumLookup = curriculumListRaw
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
+            .ToDictionary(
+                x => x.SubjectCode,
+                x => x,
+                StringComparer.OrdinalIgnoreCase);
+
+        var markLookup = subjectMarkList
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
+            .ToDictionary(
+                x => x.SubjectCode,
+                x => x.Mark,
+                StringComparer.OrdinalIgnoreCase);
+
+        var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
+
+        var subjectList = scoredSubjects.Select(s =>
+        {
+            curriculumLookup.TryGetValue(s.SubjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.SubjectName)
+                ? subjectInfo.SubjectName
+                : s.SubjectName;
+
+            var prereqDetails = (subjectInfo?.SubjectPrerequisiteCode ?? new List<string>())
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code =>
+                {
+                    curriculumLookup.TryGetValue(code, out var prereqInfo);
+                    var name = prereqInfo == null
+                        ? code
+                        : string.IsNullOrWhiteSpace(prereqInfo.SubjectName) ? code : prereqInfo.SubjectName;
+                    return new
+                    {
+                        subjectCode = code,
+                        subjectName = name,
+                        mark = markLookup.TryGetValue(code, out var prereqMark) ? prereqMark : (int?)null,
+                        semesterIndex = prereqInfo?.Index
+                    } as object;
+                })
+                .ToList();
+
+            dependentsLookup.TryGetValue(s.SubjectCode, out var dependents);
+            var dependentDetails = dependents?.Select(dep => new
+            {
+                subjectCode = dep.subjectCode,
+                subjectName = dep.subjectName,
+                semesterIndex = dep.semesterIndex
+            } as object).ToList() ?? new List<object>();
+
+            var dependentWarningTexts = dependents?.Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return $"Điểm thấp ở {canonicalName} → {dep.subjectName} ({dep.subjectCode}) {scopeSuffix} có thể ảnh hưởng đến kết quả sau cùng; cần củng cố sớm.";
+            }).ToList() ?? new List<string>();
+
+            return new
+            {
+                subjectCode = s.SubjectCode,
+                subjectName = canonicalName,
+                mark = s.Mark!.Value,
+                semesterIndex = subjectInfo?.Index,
+                prerequisites = prereqDetails,
+                dependents = dependentDetails,
+                dependentWarnings = dependentWarningTexts
+            };
+        }).ToList();
+
+        var curriculumScopeCodes = CollectCurriculumScope(scoredSubjects, curriculumLookup, dependentsLookup);
+
+        var curriculumList = curriculumListRaw
+            .Where(s => curriculumScopeCodes.Contains(s.SubjectCode))
+            .Select(s => new
+            {
+                subjectCode = s.SubjectCode,
+                subjectName = s.SubjectName,
+                index = s.Index,
+                prerequisites = s.SubjectPrerequisiteCode ?? new List<string>()
+            }).ToList();
+
+        var dependencyEdges = curriculumListRaw
+            .Where(subject => curriculumScopeCodes.Contains(subject.SubjectCode))
+            .SelectMany(subject => (subject.SubjectPrerequisiteCode ?? new List<string>())
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(prerequisite =>
+                {
+                    curriculumLookup.TryGetValue(prerequisite, out var prereqInfo);
+                    return new
+                    {
+                        prerequisite,
+                        prerequisiteIndex = prereqInfo?.Index,
+                        dependentCode = subject.SubjectCode,
+                        dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
+                            ? subject.SubjectCode
+                            : subject.SubjectName,
+                        dependentIndex = subject.Index
+                    };
+                }))
+            .Where(edge => curriculumScopeCodes.Contains(edge.prerequisite) && curriculumScopeCodes.Contains(edge.dependentCode))
+            .ToList();
+
+        var payload = new
+        {
+            subjectMarks = subjectList,
+            curriculum = new { subjects = curriculumList },
+            dependencyEdges,
+            careerGoal
+        };
+
+        var json = Serialize(payload);
+
+        //Console.WriteLine(json);
+
+        return $$"""
+DỮ LIỆU MÔN HỌC VÀ CHƯƠNG TRÌNH:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+- Phân loại từng môn theo thang 0-10 và viết rõ ràng: tình hình, kiến thức trọng tâm cần bù, **liên kết tiền đề** (nếu có trong `prerequisites`), cảnh báo ảnh hưởng đến môn kế tiếp (dựa trên `dependents`), kế hoạch hành động **2–4 tuần**.
+- `semesterIndex` thể hiện kỳ học (1 = kỳ 1, 2 = kỳ 2...). Trong `### Tình hình`, mở đầu bằng câu nêu rõ môn học nào (nếu có dữ liệu) rồi mới đến đánh giá điểm.
+- `prerequisites` chính là các môn PHẢI hoàn thành tốt trước khi học môn hiện tại. Nếu điểm < 7.0 hoặc chưa có điểm, phải cảnh báo trực tiếp trong phần của môn hiện tại (ví dụ: "PRO192 phụ thuộc PRF192 đang thấp nên cần ôn lại") và đề xuất cách củng cố trước khi tiếp tục.
+- Mỗi bullet trong `### Môn nền tảng quan trọng` phải viết theo mẫu:
+  `- {Tên môn tiền đề} ({mã}){nếu có kỳ → " – Kỳ {index}"}: {điểm/trạng thái hiện tại} – nhận xét ngắn gọn về cách hỗ trợ môn đang phân tích`
+  (nếu chưa có điểm → ghi “Chưa có điểm – cần hoàn thành trước khi học sâu môn hiện tại”).
+- Trường `dependents` trong từng môn liệt kê CHÍNH XÁC các môn bị ảnh hưởng khi điểm hiện tại thấp. Chỉ tạo cảnh báo dựa trên danh sách này, nêu rõ kỳ (`semesterIndex`) của từng môn phụ thuộc. Nếu điểm hiện tại < 70, bắt buộc liệt kê từng phần trong `dependents`.
+- `dependentWarnings` là danh sách câu văn đã chuẩn hoá cho từng phụ thuộc. Khi viết `### Tình hình` và đặc biệt là `### Cảnh báo`, **phải** chép nguyên văn từng câu (mỗi câu một bullet). Không được bỏ sót câu nào khi mảng này không rỗng.
+- Tuyệt đối không suy đoán thêm mối quan hệ ngoài dữ liệu được cung cấp. Nếu danh sách rỗng thì ghi rõ “—” hoặc “Không có”.
+- Luôn liên hệ với `careerGoal` (nếu có) để giải thích vì sao môn này quan trọng hoặc nên ưu tiên.
+
+OUTPUT JSON:
+{
+  "subjectAnalyses": [
+    {
+      "subjectCode": "...",
+      "subjectName": "...",
+      "analysisMarkdown": "## <Tên môn> (<Mã>)\n### Tình hình\n- ...\n### Kiến thức trọng tâm\n- ...\n### Cảnh báo (nếu có)\n- ...\n### Lộ trình 2–4 tuần\n- ... (mỗi bullet nêu số buổi/bài, kiến thức phải nắm, liên hệ careerGoal)"
+    }
+  ]
+}
+
+QUY TẮC ĐỊNH DẠNG:
+- `analysisMarkdown` phải mở đầu bằng `## <Tên môn> (<Mã>)`.
+- Luôn có `### Tình hình`, `### Kiến thức trọng tâm`, `### Môn nền tảng quan trọng` (khi có `prerequisites`), `### Lộ trình 2–4 tuần`.
+- Heading `### Cảnh báo` bắt buộc xuất hiện khi `dependents` hoặc `dependentWarnings` không rỗng; mỗi bullet phải lặp lại đúng câu trong `dependentWarnings` (có thể bổ sung thêm nhấn mạnh nhưng không được bỏ câu).
+- Bullet cần viện dẫn thẳng tên môn hoặc kỹ năng để người học dễ áp dụng.
+""";
+    }
+
+    public static string BuildMissingSubjectPrompt(
+        IEnumerable<SubjectMark> missingSubjects,
+        IEnumerable<SubjectCur> curriculumSubjects,
+        string careerGoal)
+    {
+        var missingList = (missingSubjects ?? Enumerable.Empty<SubjectMark>())
+            .Where(s => !string.IsNullOrWhiteSpace(s.SubjectCode))
+            .ToList();
+
+        var curriculumListRaw = (curriculumSubjects ?? Enumerable.Empty<SubjectCur>()).ToList();
+        var curriculumLookup = curriculumListRaw
+            .Where(x => !string.IsNullOrWhiteSpace(x.SubjectCode))
+            .ToDictionary(
+                x => x.SubjectCode,
+                x => x,
+                StringComparer.OrdinalIgnoreCase);
+        var dependentsLookup = BuildDependentsLookup(curriculumListRaw);
+
+        var subjects = missingList.Select(s =>
+        {
+            curriculumLookup.TryGetValue(s.SubjectCode, out var subjectInfo);
+            var canonicalName = subjectInfo != null && !string.IsNullOrWhiteSpace(subjectInfo.SubjectName)
+                ? subjectInfo.SubjectName
+                : (string.IsNullOrWhiteSpace(s.SubjectName) ? s.SubjectCode : s.SubjectName);
+
+            var semesterIndex = subjectInfo?.Index;
+
+            var prereqDetails = (subjectInfo?.SubjectPrerequisiteCode ?? new List<string>())
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Select(code =>
+                {
+                    curriculumLookup.TryGetValue(code, out var prereqInfo);
+                    return new
+                    {
+                        subjectCode = code,
+                        subjectName = string.IsNullOrWhiteSpace(prereqInfo?.SubjectName) ? code : prereqInfo.SubjectName,
+                        semesterIndex = prereqInfo?.Index
+                    };
+                })
+                .ToList();
+
+            dependentsLookup.TryGetValue(s.SubjectCode, out var dependents);
+            var dependentDetails = dependents?.Select(dep => (object)new
+            {
+                subjectCode = dep.subjectCode,
+                subjectName = dep.subjectName,
+                semesterIndex = dep.semesterIndex
+            }).ToList() ?? new List<object>();
+
+            return new
+            {
+                subjectCode = s.SubjectCode,
+                subjectName = canonicalName,
+                semesterIndex,
+                prerequisites = prereqDetails,
+                dependents = dependentDetails
+            };
+        }).ToList();
+
+        var payload = new
+        {
+            subjects,
+            careerGoal
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU MÔN THIẾU ĐIỂM:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+- Với mỗi môn (chưa học hoặc chưa có điểm), viết 1 phân tích Markdown gồm 3 heading:
+  1. `### Vì sao nên chuẩn bị sớm`: nêu lý do phải chuẩn bị trước khi vào môn (kỳ học, tiến độ, careerGoal).
+  2. `### Môn phụ thuộc dễ bị ảnh hưởng`: liệt kê các môn phụ thuộc trong `dependents`, giải thích hậu quả nếu nền tảng yếu.
+  3. `### Hành động cần làm`: 3–5 bullet nêu rõ phải ôn/làm bài gì để xây nền, ghi khối lượng cụ thể.
+- Liên hệ `careerGoal` khi có thông tin.
+
+OUTPUT JSON:
+{
+  "withoutMarkAnalysis": [
+    {
+      "subjectCode": "...",
+      "subjectName": "...",
+      "analysisMarkdown": "## <Tên môn> (<Mã>)\n### Vì sao nên chuẩn bị sớm\n- ...\n### Môn phụ thuộc dễ bị ảnh hưởng\n- ...\n### Hành động cần làm\n- ..."
+    }
+  ]
+}
+
+LƯU Ý:
+- Nếu không có môn phụ thuộc, ghi rõ “Không có môn phụ thuộc trực tiếp”.
+- Bullet phải bắt đầu bằng động từ và nêu khối lượng (ví dụ: “Ôn 2 buổi/tuần ...”).
+""";
+    }
+
+    public static string BuildPersonaPrompt(
+        IEnumerable<SubjectMark>? subjectMarks,
+        IEnumerable<AbilityMark>? abilityMarks,
+        QuizSurvey quizSurvey,
+        string careerGoal)
+    {
+        quizSurvey ??= new QuizSurvey();
+
+        var subjectMarkList = (subjectMarks ?? Enumerable.Empty<SubjectMark>()).ToList();
+        var scoredSubjects = subjectMarkList.Where(s => s.Mark.HasValue).ToList();
+        var abilityMarkList = (abilityMarks ?? Enumerable.Empty<AbilityMark>()).ToList();
+
+        var subjectList = subjectMarkList.Select(s => new
+        {
+            subjectCode = s.SubjectCode,
+            subjectName = s.SubjectName,
+            mark = s.Mark
+        }).ToList();
+
+        var abilityList = abilityMarkList.Select(a => new { name = a.Name, mark = a.Mark }).ToList();
+
+        var stats = new
+        {
+            avgSubject = scoredSubjects.Count > 0 ? scoredSubjects.Average(s => s.Mark!.Value) : 0,
+            avgAbility = abilityMarkList.Count > 0 ? abilityMarkList.Average(a => a.Mark) : 0,
+            strongSubjects = scoredSubjects.Where(s => s.Mark >= 8.0).Select(s => s.SubjectName).ToList(),
+            weakSubjects = scoredSubjects.Where(s => s.Mark < 6.5).Select(s => s.SubjectName).ToList(),
+            strongAbilities = abilityMarkList.Where(a => a.Mark >= 8.0).Select(a => a.Name).ToList(),
+            weakAbilities = abilityMarkList.Where(a => a.Mark < 6.5).Select(a => a.Name).ToList()
+        };
+
+        var surveyPayload = new
+        {
+            quizHabits = quizSurvey.QuizHabits, quizInterests = quizSurvey.QuizInterests
+        };
+
+        var payload = new
+        {
+            subjectMarks = subjectList,
+            abilityMarks = abilityList,
+            survey = surveyPayload,
+            stats,
+            careerGoal
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU TỔNG HỢP:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+- Viết 4 đoạn mô tả bằng tiếng Việt, mỗi đoạn bắt đầu bằng tiêu đề `##` và kết thúc bằng gợi ý hành động cụ thể (ưu tiên tầm 2–4 tuần).
+- **QUAN TRỌNG**: Nếu `subjectMarks` rỗng hoặc không có điểm nào (tất cả `mark` đều null):
+  - Phân tích dựa trên **`abilityMarks`** (nếu có) và **`survey`** (quizHabits, quizInterests) để đánh giá tổng quan.
+  - Trong `summaryFeedback`: Tập trung vào năng lực hiện tại từ `abilityMarks`, thói quen học từ `quizHabits`, và sở thích từ `quizInterests`. Không nhắc đến điểm môn học vì chưa có dữ liệu.
+  - Trong `learningAbility`: Đánh giá dựa trên điểm trung bình `abilityMarks` và đưa ra lộ trình phù hợp với `careerGoal`.
+- Nếu `abilityMarks` null/rỗng: Đây là sinh viên kỳ 5+ đã có bảng điểm đầy đủ. Phân tích dựa trên **kết quả môn học thực tế** thay vì năng lực cơ bản. 
+  Trong `learningAbility`, nhấn mạnh rằng sinh viên đã vượt qua giai đoạn đánh giá cơ bản, nên tập trung vào chuyên môn sâu và dự án thực tế.
+- Nếu có cả `subjectMarks` và `abilityMarks`: Dùng dữ liệu môn học + năng lực + khảo sát để soi chiếu tính cách học tập, thói quen, năng lực tiếp thu.
+- Nhấn mạnh các môn/khả năng nổi bật và liệt kê tối đa 2 ưu tiên cải thiện rõ ràng, đo được để tiến gần `careerGoal`.
+
+OUTPUT JSON:
+{
+  "summaryFeedback": "<Markdown 3-4 câu tổng kết kết quả học tập>",
+  "habitAndInterestAnalysis": "<Markdown 2-3 câu kết nối quizHabits + quizInterests>",
+  "personality": "<Đoạn văn mô tả phong cách/tính cách học tập>",
+  "learningAbility": "<Đánh giá năng lực học và tốc độ bắt kịp kiến thức kèm khuyến nghị>"
+}
+
+LƯU Ý:
+- Mỗi chuỗi phải mở đầu bằng tiêu đề `##`.
+- Dẫn chứng bằng tên môn hoặc khả năng cụ thể thay vì nói chung chung.
+- Nếu khảo sát thiếu câu trả lời, ghi chú rõ và đề xuất 1 hành động để bổ sung dữ liệu.
+- Mỗi đoạn phải đề cập tới kế hoạch hành động (ít nhất 2 tuần) để tiến gần mục tiêu.
+- **learningAbility**: Nếu `abilityMarks` null/rỗng (sinh viên kỳ 5+), phân tích dựa trên điểm trung bình các môn chuyên ngành, khuyến nghị tập trung dự án thực tế thay vì kiến thức cơ bản.
+""";
+    }
+
+    private static string Serialize(object payload) => JsonSerializer.Serialize(payload, PromptJsonOptions);
+
+    private static HashSet<string> CollectCurriculumScope(
+        IEnumerable<SubjectMark> subjects,
+        Dictionary<string, SubjectCur> curriculumLookup,
+        Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> dependentsLookup)
+    {
+        var scope = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var subject in subjects ?? Enumerable.Empty<SubjectMark>())
+        {
+            if (string.IsNullOrWhiteSpace(subject.SubjectCode)) continue;
+
+            scope.Add(subject.SubjectCode);
+
+            if (curriculumLookup.TryGetValue(subject.SubjectCode, out var subjectInfo))
+            {
+                foreach (var prereq in subjectInfo.SubjectPrerequisiteCode ?? Enumerable.Empty<string>())
+                {
+                    if (!string.IsNullOrWhiteSpace(prereq))
+                    {
+                        scope.Add(prereq);
+                    }
+                }
+            }
+
+            if (dependentsLookup.TryGetValue(subject.SubjectCode, out var dependents))
+            {
+                foreach (var dependent in dependents)
+                {
+                    if (!string.IsNullOrWhiteSpace(dependent.subjectCode))
+                    {
+                        scope.Add(dependent.subjectCode);
+                    }
+                }
+            }
+        }
+
+        return scope;
+    }
+
+    private static Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>> BuildDependentsLookup(IEnumerable<SubjectCur> subjects)
+    {
+        var map = new Dictionary<string, List<(string subjectCode, string subjectName, int? semesterIndex)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var subject in subjects ?? Enumerable.Empty<SubjectCur>())
+        {
+            foreach (var prerequisite in subject.SubjectPrerequisiteCode ?? new List<string>())
+            {
+                if (string.IsNullOrWhiteSpace(prerequisite)) continue;
+
+                if (!map.TryGetValue(prerequisite, out var list))
+                {
+                    list = new List<(string subjectCode, string subjectName, int? semesterIndex)>();
+                    map[prerequisite] = list;
+                }
+
+                var dependentName = string.IsNullOrWhiteSpace(subject.SubjectName)
+                    ? subject.SubjectCode
+                    : subject.SubjectName;
+                var semesterIndex = subject.Index > 0 ? subject.Index : (int?)null;
+
+                if (!list.Any(dep => dep.subjectCode.Equals(subject.SubjectCode, StringComparison.OrdinalIgnoreCase)))
+                {
+                    list.Add((subject.SubjectCode, dependentName, semesterIndex));
+                }
+            }
+        }
+
+        return map;
+    }
+
+    private static string? FormatSemesterLabel(int? semesterIndex) =>
+        semesterIndex.HasValue && semesterIndex.Value > 0
+            ? $"Kỳ {semesterIndex.Value}"
+            : null;
+
+    public static string BuildSubjectAnalysisPrompt(
+        string subjectCode,
+        string subjectName,
+        double mark,
+        List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents,
+        string? careerGoal)
+    {
+        var dependentDetails = (dependents ?? new List<(string, string, int?)>())
+            .Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return new
+                {
+                    subjectCode = dep.subjectCode,
+                    subjectName = dep.subjectName,
+                    semesterIndex = dep.semesterIndex,
+                    semesterLabel = scopeSuffix
+                };
+            })
+            .ToList();
+
+        var payload = new
+        {
+            subjectCode,
+            subjectName,
+            mark,
+            markScale = "0-100",
+            dependents = dependentDetails,
+            careerGoal = careerGoal ?? string.Empty
+        };
+
+        var json = Serialize(payload);
+
+        return $$"""
+DỮ LIỆU MÔN HỌC:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+Phân tích điểm số của môn học `{{subjectName}}` ({{subjectCode}}) với điểm {{mark}}/100. PHÂN TÍCH THEO MỨC ĐIỂM:
+
+**ĐIỂM DƯỚI 60 (0-59) - CẢNH BÁO NGHIÊM TRỌNG:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức RẤT YẾU, có nguy cơ rớt môn.
+- Điểm yếu: Phân tích chi tiết các phần kiến thức còn yếu, cần củng cố ngay lập tức.
+- Lộ trình: Lộ trình cải thiện KHẨN CẤP 2-4 tuần với khối lượng học tập cao (5-7 buổi/tuần, 10+ bài tập/tuần).
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó, nêu rõ lý do cụ thể.
+
+**ĐIỂM 60-79 - NHẬN XÉT VÀ GỢI Ý:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TRUNG BÌNH, cần cải thiện để đạt kết quả tốt hơn.
+- Điểm yếu: Chỉ ra các phần kiến thức còn cần củng cố thêm.
+- Lộ trình: Lộ trình cải thiện vừa phải 2-4 tuần (3-4 buổi/tuần, 5-7 bài tập/tuần).
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, nhận xét về ảnh hưởng có thể có đến các môn đó, khuyến khích củng cố để tránh khó khăn.
+
+**ĐIỂM 80-89 - KHEN NGỢI VỪA PHẢI:**
+- Đánh giá: Khen ngợi vừa phải - "Bạn đã nắm vững kiến thức tốt", "Kết quả học tập khá tốt", gợi ý duy trì và phát triển thêm.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm (không gọi là "yếu").
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+
+**ĐIỂM 90-99 - KHEN NGỢI TÍCH CỰC:**
+- Đánh giá: Khen ngợi tích cực - "Bạn đã nắm vững kiến thức rất tốt", "Kết quả học tập xuất sắc", khuyến khích tiếp tục phát triển.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm ở mức nâng cao.
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+
+**ĐIỂM 100 - KHEN NGỢI CAO NHẤT:**
+- Đánh giá: Khen ngợi cao nhất - "Bạn đã nắm vững kiến thức xuất sắc", "Kết quả học tập hoàn hảo", nhưng vẫn gợi ý các bước tiếp theo để phát triển.
+- Điểm có thể phát triển: Chỉ ra các phần có thể phát triển thêm ở mức chuyên sâu.
+- Lộ trình: Lộ trình phát triển chuyên sâu (2-3 buổi/tuần, 3-5 bài tập chuyên sâu/tuần).
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+
+OUTPUT JSON (không thêm văn bản khác):
+{
+  "improvementAnalysis": "<Markdown text với format: ## Phân tích điểm số [Tên môn]\\n### Đánh giá điểm số\\n- [Đánh giá theo mức điểm]\\n### [Điểm yếu cần cải thiện / Điểm có thể phát triển thêm]\\n- ...\\n### [Lộ trình cải thiện / Lộ trình phát triển] 2-4 tuần\\n- ... (nêu rõ khối lượng học tập cụ thể)\\n### [Cảnh báo / Nhận xét] môn phụ thuộc\\n[Nếu có dependents: liệt kê từng môn với nhận xét/cảnh báo phù hợp. Nếu không có: ghi 'Không có môn học phụ thuộc trực tiếp.']"
+}
+
+QUY TẮC QUAN TRỌNG:
+- **ĐIỂM DƯỚI 60**: Dùng từ ngữ CẢNH BÁO, NGHIÊM TRỌNG, KHẨN CẤP. Nếu có `dependents`, CẢNH BÁO RÕ RÀNG về nguy cơ rớt.
+- **ĐIỂM 60-79**: Dùng từ ngữ NHẬN XÉT, GỢI Ý, CẢI THIỆN. Nếu có `dependents`, nhận xét về ảnh hưởng có thể có.
+- **ĐIỂM 80-89**: Dùng từ ngữ KHEN NGỢI VỪA PHẢI - "nắm vững tốt", "kết quả khá tốt", không khen quá.
+- **ĐIỂM 90-99**: Dùng từ ngữ KHEN NGỢI TÍCH CỰC - "nắm vững rất tốt", "kết quả xuất sắc".
+- **ĐIỂM 100**: Dùng từ ngữ KHEN NGỢI CAO NHẤT - "nắm vững xuất sắc", "kết quả hoàn hảo", nhưng vẫn thực tế và gợi ý phát triển.
+- Nếu `dependents` có dữ liệu, BẮT BUỘC phải liệt kê từng môn với nhận xét/cảnh báo phù hợp với mức điểm.
+- Nếu `dependents` rỗng hoặc null, ghi rõ "Không có môn học phụ thuộc trực tiếp."
+- Nếu có `careerGoal`, liên hệ với mục tiêu nghề nghiệp trong phần đánh giá và gợi ý.
+
+YÊU CẦU ĐỊNH DẠNG:
+- Luôn mở đầu `improvementAnalysis` bằng `## Phân tích điểm số [Tên môn]`.
+- Bắt buộc đủ 4 heading với tên phù hợp theo mức điểm.
+- Mỗi heading có 2-4 bullet, bắt đầu bằng động từ, ghi rõ khối lượng.
+- KHÔNG được khen quá mức, phải thực tế và có mức độ.
+""";
+    }
+
+    public static string BuildSubjectMarkUpdatePrompt(
+        string subjectCode,
+        string subjectName,
+        double? oldMark,
+        double newMark,
+        string newAnalysis,
+        List<(string subjectCode, string subjectName, int? semesterIndex)>? dependents,
+        string? careerGoal)
+    {
+        var hasOldMark = oldMark.HasValue;
+        var markImprovement = hasOldMark ? newMark - oldMark.Value : 0;
+        var improvementPercentage = hasOldMark && oldMark.Value > 0 ? (markImprovement / oldMark.Value) * 100 : 0;
+
+        var dependentDetails = (dependents ?? new List<(string, string, int?)>())
+            .Select(dep =>
+            {
+                var semesterLabel = FormatSemesterLabel(dep.semesterIndex);
+                var scopeSuffix = semesterLabel == null ? "trong các kỳ sau" : $"ở {semesterLabel}";
+                return new
+                {
+                    subjectCode = dep.subjectCode,
+                    subjectName = dep.subjectName,
+                    semesterIndex = dep.semesterIndex,
+                    semesterLabel = scopeSuffix
+                };
+            })
+            .ToList();
+
+        var payload = new
+        {
+            subjectCode,
+            subjectName,
+            oldMark = hasOldMark ? oldMark.Value : (double?)null,
+            newMark,
+            markImprovement = hasOldMark ? markImprovement : (double?)null,
+            improvementPercentage = hasOldMark ? Math.Round(improvementPercentage, 2) : (double?)null,
+            markScale = "0-100",
+            newAnalysis,
+            dependents = dependentDetails,
+            careerGoal = careerGoal ?? string.Empty,
+            hasComparison = hasOldMark
+        };
+
+        var json = Serialize(payload);
+
+        var taskDescription = hasOldMark
+            ? $"Phân tích sự thay đổi điểm số của môn học `{subjectName}` ({subjectCode}) từ {oldMark.Value}/100 lên {newMark}/100."
+            : $"Phân tích điểm số hiện tại của môn học `{subjectName}` ({subjectCode}) là {newMark}/100 (không có điểm cũ để so sánh).";
+
+        var improvementSection = hasOldMark
+            ? $"""
+   - Tính toán mức cải thiện: {markImprovement} điểm ({Math.Round(improvementPercentage, 2)}%).
+   - Đánh giá mức độ cải thiện theo phân loại trên.
+   - Phân tích nguyên nhân cải thiện dựa trên `newAnalysis` (nếu có).
+   - Nếu có cải thiện: Khen ngợi phù hợp với mức điểm mới.
+"""
+            : """
+   - Đánh giá điểm số hiện tại theo phân loại trên (không có điểm cũ để so sánh).
+   - Phân tích điểm mạnh và điểm yếu dựa trên `newAnalysis` (nếu có).
+   - Đưa ra nhận xét về mức độ nắm vững kiến thức hiện tại.
+""";
+
+        var comparisonSection = hasOldMark
+            ? """
+   - Phân tích sâu về điểm cũ: Mức độ nắm vững kiến thức, dựa vào `newAnalysis` để xác định điểm mạnh và điểm yếu cụ thể từ phần "Điểm mạnh nổi bật" và "Vấn đề & Khoảng trống kỹ năng", các phần kiến thức nào đã nắm được và chưa nắm được (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Phân tích sâu về điểm mới: Mức độ nắm vững kiến thức hiện tại, so sánh với điểm cũ để xác định điểm mạnh mới (từ phần "Điểm mạnh nổi bật" trong `newAnalysis`), điểm yếu còn lại (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`), các phần kiến thức nào đã cải thiện và còn cần cải thiện (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - So sánh chi tiết: Đánh giá sự tiến bộ cụ thể dựa trên so sánh điểm cũ và mới, đã vượt qua ngưỡng nào (nếu có), còn thiếu gì để đạt mức cao hơn (dựa vào phần "Vấn đề & Khoảng trống kỹ năng" và "Nguyên nhân gốc" trong `newAnalysis`), những phần nào đã cải thiện rõ rệt (so sánh điểm mạnh) và những phần nào vẫn cần chú ý (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`) (4-5 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Nhận xét về xu hướng học tập: Đánh giá xu hướng dựa trên sự thay đổi điểm số và thông tin từ `newAnalysis` (phần "Xu hướng theo thời gian" nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần "Nguyên nhân gốc" trong `newAnalysis` (2-3 câu).
+   
+   - Ý nghĩa của sự thay đổi: Giải thích ý nghĩa của việc cải thiện/giảm điểm này đối với quá trình học tập và các môn học liên quan, liên hệ với phần "Ưu tiên hành động" trong `newAnalysis` để đưa ra nhận xét về tác động (2-3 câu).
+"""
+            : """
+   - Phân tích sâu về điểm số hiện tại: Mức độ nắm vững kiến thức hiện tại, dựa vào `newAnalysis` để xác định điểm mạnh (từ phần "Điểm mạnh nổi bật" trong `newAnalysis`) và điểm yếu (từ phần "Vấn đề & Khoảng trống kỹ năng" trong `newAnalysis`), các phần kiến thức nào đã nắm được và còn cần cải thiện (4-5 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Đánh giá tổng quan: Đánh giá tổng quan về mức độ nắm vững kiến thức hiện tại, dựa vào phần "Nguyên nhân gốc" trong `newAnalysis` để giải thích nguyên nhân, và phần "Ưu tiên hành động" để đưa ra nhận xét về tác động (3-4 câu, phải trích dẫn cụ thể từ `newAnalysis`).
+   
+   - Nhận xét về xu hướng học tập: Đánh giá xu hướng dựa trên thông tin từ `newAnalysis` (phần "Xu hướng theo thời gian" nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần "Nguyên nhân gốc" trong `newAnalysis` (2-3 câu).
+""";
+
+        var comparisonTitle = hasOldMark ? "So sánh điểm cũ và mới" : "Phân tích điểm số hiện tại";
+
+        return $$"""
+DỮ LIỆU CẬP NHẬT ĐIỂM MÔN HỌC:
+```json
+{{json}}
+```
+
+NHIỆM VỤ:
+{{taskDescription}}
+
+PHÂN LOẠI ĐÁNH GIÁ THEO MỨC ĐIỂM MỚI:
+
+**ĐIỂM MỚI < 60 - CẢNH BÁO NGHIÊM TRỌNG:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức RẤT YẾU, có nguy cơ rớt môn.
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó ở kỳ tiếp theo, nêu rõ lý do cụ thể và tác động.
+- Lộ trình: Lộ trình cải thiện KHẨN CẤP 2-4 tuần với khối lượng học tập cao (5-7 buổi/tuần, 10+ bài tập/tuần).
+- Nếu có cải thiện từ điểm cũ: Ghi nhận sự nỗ lực nhưng vẫn nhấn mạnh cần cải thiện nhiều hơn.
+
+**ĐIỂM MỚI 60-69 - CẦN CẢI THIỆN:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TRUNG BÌNH YẾU, cần cải thiện để đạt kết quả tốt hơn.
+- Cảnh báo môn phụ thuộc: NẾU CÓ `dependents`, nhận xét về ảnh hưởng có thể có đến các môn đó, khuyến khích củng cố để tránh khó khăn.
+- Lộ trình: Lộ trình cải thiện vừa phải 2-4 tuần (4-5 buổi/tuần, 7-9 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi sự tiến bộ nhưng nhấn mạnh cần duy trì và cải thiện thêm.
+
+**ĐIỂM MỚI 70-79 - KHÁ TỐT:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức KHÁ, đã đạt chuẩn nhưng có thể phát triển thêm.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+- Lộ trình: Lộ trình phát triển vừa phải (3-4 buổi/tuần, 5-7 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi sự tiến bộ và khuyến khích tiếp tục phát triển.
+
+**ĐIỂM MỚI 80-89 - TỐT:**
+- Đánh giá: Điểm này cho thấy mức độ nắm vững kiến thức ở mức TỐT, đã nắm vững kiến thức tốt và có thể phát triển lên mức xuất sắc.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+- Lộ trình: Lộ trình phát triển tốt (2-3 buổi/tuần, 4-6 bài tập/tuần).
+- Nếu có cải thiện: Khen ngợi mạnh mẽ về sự tiến bộ và khuyến khích phấn đấu đạt mức xuất sắc.
+
+**ĐIỂM MỚI 90-100 - XUẤT SẮC:**
+- Đánh giá: Khen ngợi tích cực - "Bạn đã nắm vững kiến thức rất tốt", "Kết quả học tập xuất sắc", khuyến khích tiếp tục phát triển và duy trì phong độ.
+- Nhận xét môn phụ thuộc: NẾU CÓ `dependents`, nhận xét rất tích cực về khả năng học tốt các môn đó.
+- Lộ trình: Lộ trình phát triển nâng cao (2-3 buổi/tuần, 3-5 bài tập nâng cao/tuần).
+- Nếu có cải thiện: Khen ngợi mạnh mẽ về sự tiến bộ và khuyến khích duy trì phong độ xuất sắc.
+
+YÊU CẦU PHÂN TÍCH:
+1. **Phân tích cải thiện điểm số**:
+{{improvementSection}}
+
+2. **{{comparisonTitle}} (CHI TIẾT VÀ DÀI HƠN - SỬ DỤNG DỮ LIỆU TỪ newAnalysis)**:
+   - **QUAN TRỌNG**: Phải sử dụng thông tin từ `newAnalysis` để phân tích chính xác. Trong `newAnalysis` đã có:
+     * Điểm mạnh nổi bật (phần "## Điểm mạnh nổi bật")
+     * Vấn đề & Khoảng trống kỹ năng (phần "## Vấn đề & Khoảng trống kỹ năng")
+     * Nguyên nhân gốc (phần "## Nguyên nhân gốc")
+     * Ưu tiên hành động (phần "## Ưu tiên hành động")
+   
+{{comparisonSection}}
+
+3. **Cảnh báo/Nhận xét về môn phụ thuộc**:
+   - Nếu điểm mới < 60 và có `dependents`: CẢNH BÁO NGHIÊM TRỌNG về nguy cơ rớt các môn đó, nêu rõ từng môn và kỳ học.
+   - Nếu điểm mới 60-69 và có `dependents`: Nhận xét về ảnh hưởng có thể có, khuyến khích củng cố.
+   - Nếu điểm mới 70-79 và có `dependents`: Nhận xét tích cực về khả năng học tốt các môn đó, nhưng vẫn nhắc nhở duy trì.
+   - Nếu điểm mới >= 80 và có `dependents`: Nhận xét rất tích cực về khả năng học tốt các môn đó.
+   - Nếu không có `dependents`: Ghi "Không có môn học phụ thuộc trực tiếp."
+
+4. **Đề xuất hành động tiếp theo**:
+   - Theo phân loại mức điểm ở trên.
+   - Lộ trình phải cụ thể với số buổi/bài tập rõ ràng.
+
+OUTPUT JSON (không thêm văn bản khác):
+{
+  "improvementAnalysis": "<Markdown text với format: ## Phân tích cải thiện điểm số [Tên môn]\n### Mức độ cải thiện\n- [Đánh giá mức cải thiện và % theo phân loại]\n### So sánh điểm cũ và mới\n- [So sánh chi tiết]\n### Nguyên nhân cải thiện\n- [Phân tích dựa trên newAnalysis]\n### [Cảnh báo/Nhận xét] về môn phụ thuộc ở kỳ tiếp theo\n[Nếu có dependents: liệt kê từng môn với cảnh báo/nhận xét phù hợp với mức điểm. Nếu không có: ghi 'Không có môn học phụ thuộc trực tiếp.']\n### Đề xuất hành động tiếp theo\n- [Lộ trình cụ thể với khối lượng học tập]",
+  "comparisonAnalysis": "<Markdown text với format CHÍNH XÁC:\n\n## So sánh chi tiết\n\n### Điểm cũ ({{oldMark}}/100)\n\n[Viết 3-4 câu phân tích sâu về điểm cũ: mức độ nắm vững kiến thức, điểm mạnh và điểm yếu cụ thể DỰA VÀO phần 'Điểm mạnh nổi bật' và 'Vấn đề & Khoảng trống kỹ năng' trong newAnalysis, các phần kiến thức nào đã nắm được và chưa nắm được. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### Điểm mới ({{newMark}}/100)\n\n[Viết 3-4 câu phân tích sâu về điểm mới: mức độ nắm vững kiến thức hiện tại, điểm mạnh mới (từ phần 'Điểm mạnh nổi bật' trong newAnalysis), điểm yếu còn lại (từ phần 'Vấn đề & Khoảng trống kỹ năng' trong newAnalysis), các phần kiến thức nào đã cải thiện và còn cần cải thiện. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### So sánh chi tiết\n\n[Viết 4-5 câu so sánh chi tiết: đánh giá sự tiến bộ cụ thể dựa trên so sánh điểm cũ và mới, đã vượt qua ngưỡng nào, còn thiếu gì để đạt mức cao hơn (dựa vào phần 'Vấn đề & Khoảng trống kỹ năng' và 'Nguyên nhân gốc' trong newAnalysis), những phần nào đã cải thiện rõ rệt và những phần nào vẫn cần chú ý. PHẢI trích dẫn cụ thể từ newAnalysis]\n\n### Xu hướng học tập\n\n[Viết 2-3 câu nhận xét về xu hướng học tập: đánh giá dựa trên sự thay đổi điểm số và thông tin từ newAnalysis (phần 'Xu hướng theo thời gian' nếu có), dự đoán xu hướng tiếp theo nếu duy trì phương pháp hiện tại, và đề xuất điều chỉnh dựa trên phần 'Nguyên nhân gốc' trong newAnalysis]\n\n### Ý nghĩa của sự thay đổi\n\n[Viết 2-3 câu giải thích ý nghĩa của việc cải thiện/giảm điểm này đối với quá trình học tập và các môn học liên quan, liên hệ với phần 'Ưu tiên hành động' trong newAnalysis để đưa ra nhận xét về tác động]"
+}
+
+LƯU Ý QUAN TRỌNG VỀ FORMAT MARKDOWN:
+- Trong JSON, các ký tự xuống dòng phải được biểu diễn bằng `\n` (không phải `\\n`)
+- Markdown phải là chuỗi hợp lệ, không có code fences (```) bao quanh
+- **QUAN TRỌNG**: Các heading (##, ###) PHẢI có dòng trống trước đó (trừ heading đầu tiên `## So sánh chi tiết`)
+- Mỗi heading con (###) PHẢI có dòng trống trước và sau heading
+- Mỗi bullet point (-) phải ở dòng riêng
+- Không được escape các ký tự markdown đặc biệt như #, -, *
+- `comparisonAnalysis` PHẢI có đầy đủ 5 heading con: "Điểm cũ", "Điểm mới", "So sánh chi tiết", "Xu hướng học tập", "Ý nghĩa của sự thay đổi"
+
+QUY TẮC QUAN TRỌNG:
+- **ĐIỂM MỚI < 60**: Dùng từ ngữ CẢNH BÁO, NGHIÊM TRỌNG, KHẨN CẤP. Nếu có `dependents`, CẢNH BÁO RÕ RÀNG về nguy cơ rớt các môn đó ở kỳ tiếp theo.
+- **ĐIỂM MỚI 60-69**: Dùng từ ngữ NHẬN XÉT, GỢI Ý, CẢI THIỆN. Nếu có `dependents`, nhận xét về ảnh hưởng có thể có.
+- **ĐIỂM MỚI 70-79**: Dùng từ ngữ KHEN NGỢI VỪA PHẢI - "nắm vững tốt", "kết quả khá tốt". Nếu có `dependents`, nhận xét tích cực.
+- **ĐIỂM MỚI 80-89**: Dùng từ ngữ KHEN NGỢI TỐT - "nắm vững kiến thức tốt", "kết quả tốt". Nếu có `dependents`, nhận xét rất tích cực.
+- **ĐIỂM MỚI 90-100**: Dùng từ ngữ KHEN NGỢI TÍCH CỰC - "nắm vững rất tốt", "kết quả xuất sắc". Nếu có `dependents`, nhận xét rất tích cực.
+- Nếu có cải thiện từ điểm cũ: Khen ngợi phù hợp với mức điểm mới.
+- Nếu `dependents` có dữ liệu, BẮT BUỘC phải liệt kê từng môn với cảnh báo/nhận xét phù hợp với mức điểm.
+- Nếu `dependents` rỗng hoặc null, ghi rõ "Không có môn học phụ thuộc trực tiếp."
+- Nếu có `careerGoal`, liên hệ với mục tiêu nghề nghiệp trong phần đánh giá và gợi ý.
+
+YÊU CẦU ĐỊNH DẠNG:
+- `improvementAnalysis` mở đầu bằng `## Phân tích cải thiện điểm số [Tên môn]`.
+- `comparisonAnalysis` mở đầu bằng `## So sánh chi tiết` và PHẢI DÀI HƠN, CHI TIẾT HƠN với ít nhất 5 heading con.
+- Mỗi heading trong `improvementAnalysis` có 2-4 bullet, bắt đầu bằng động từ, ghi rõ khối lượng.
+- Mỗi heading trong `comparisonAnalysis` có 2-5 câu văn (không phải bullet), viết dưới dạng đoạn văn mạch lạc, chi tiết.
+- **QUAN TRỌNG**: Trong `comparisonAnalysis`, PHẢI sử dụng và trích dẫn cụ thể thông tin từ `newAnalysis`, đặc biệt là:
+  * Phần "Điểm mạnh nổi bật" để xác định điểm mạnh
+  * Phần "Vấn đề & Khoảng trống kỹ năng" để xác định điểm yếu và vấn đề cần cải thiện
+  * Phần "Nguyên nhân gốc" để giải thích nguyên nhân
+  * Phần "Ưu tiên hành động" để đánh giá tác động
+- Sử dụng tiếng Việt có dấu, ngắn gọn nhưng đầy đủ thông tin cho `improvementAnalysis`.
+- Sử dụng tiếng Việt có dấu, viết DÀI HƠN và CHI TIẾT HƠN cho `comparisonAnalysis` (mỗi phần ít nhất 2-3 câu), và PHẢI trích dẫn cụ thể từ `newAnalysis`.
+- KHÔNG được khen quá mức, phải thực tế và có mức độ.
+""";
+    }
+}
+

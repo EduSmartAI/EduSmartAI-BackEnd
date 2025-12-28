@@ -1,7 +1,9 @@
+using AuthService.Application.Consumers;
 using BuildingBlocks.Messaging.Events.UserLoginEvents;
 using MassTransit;
 using BaseService.Common.Utils.Const;
 using BaseService.Common.Settings;
+using BuildingBlocks.Messaging.Events.AuthService.UserLoginEvents;
 
 namespace AuthService.API.Extensions;
 
@@ -18,6 +20,9 @@ public static class MessagingExtensions
         
         services.AddMassTransit(x =>
         {
+            x.SetEndpointNameFormatter(new KebabCaseEndpointNameFormatter(prefix: "auth", includeNamespace: false));
+            x.AddConsumer<AccountCollectionEventConsumer>();
+            
             x.UsingRabbitMq((context, cfg) =>
             {
                 cfg.Host(rabbitMqHost, "/", h =>
@@ -30,7 +35,8 @@ public static class MessagingExtensions
             });
             
             // Add RequestClient for UserLoginEvent
-            x.AddRequestClient<UserLoginEvent>();
+            x.AddRequestClient<StudentLoginEvent>();
+            x.AddRequestClient<TeacherLoginEvent>();
         });
         
         return services;

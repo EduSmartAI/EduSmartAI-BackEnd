@@ -12,18 +12,24 @@ public sealed class StudentCollection
     public short? Gender { get; set; }
     public string? AvatarUrl { get; set; }
     public string? Address { get; set; }
-    public short? Marjor { get; set; }
-    public short? SkillLevel { get; set; }
+    public Guid? MajorId { get; set; }
+    public string? MajorName { get; set; }
+    public Guid? SemesterId { get; set; }
+    public string? SemesterName { get; set; }
     public string? Bio { get; set; }
-    public DateTime? CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     public string? CreatedBy { get; set; }
     public string? UpdatedBy { get; set; }
-    public bool? IsActive { get; set; }
+    public bool IsActive { get; set; }
     
-    public static StudentCollection FromWriteModel(Student model)
+    public List<StudentLearningGoalCollection>? LearningGoals { get; set; }
+    
+    public List<StudentTechnologyCollection>? Technologies { get; set; }
+
+    public static StudentCollection FromWriteModel(Student model, string? semesterName, string? majorName, bool included = false)
     {
-        return new StudentCollection
+        var studentCollection = new StudentCollection
         {
             StudentId = model.StudentId,
             FirstName = model.FirstName,
@@ -33,8 +39,35 @@ public sealed class StudentCollection
             Gender = model.Gender,
             AvatarUrl = model.AvatarUrl,
             Address = model.Address,
-            Marjor = model.Marjor,
-            SkillLevel = model.SkillLevel,
+            MajorId = model.MajorId,
+            SemesterId = model.SemesterId,
+            Bio = model.Bio,
+            SemesterName = semesterName,
+            MajorName = majorName,
+            CreatedAt = model.CreatedAt,
+            UpdatedAt = model.UpdatedAt,
+            CreatedBy = model.CreatedBy,
+            UpdatedBy = model.UpdatedBy,
+            IsActive = model.IsActive
+        };
+        
+        return studentCollection;
+    }
+    
+    public static StudentCollection FromWriteModel(Student model)
+    {
+        var studentCollection = new StudentCollection
+        {
+            StudentId = model.StudentId,
+            FirstName = model.FirstName,
+            LastName = model.LastName,
+            DateOfBirth = model.DateOfBirth,
+            PhoneNumber = model.PhoneNumber,
+            Gender = model.Gender,
+            AvatarUrl = model.AvatarUrl,
+            Address = model.Address,
+            MajorId = model.MajorId,
+            SemesterId = model.SemesterId,
             Bio = model.Bio,
             CreatedAt = model.CreatedAt,
             UpdatedAt = model.UpdatedAt,
@@ -42,5 +75,7 @@ public sealed class StudentCollection
             UpdatedBy = model.UpdatedBy,
             IsActive = model.IsActive
         };
+
+        return studentCollection;
     }
 }

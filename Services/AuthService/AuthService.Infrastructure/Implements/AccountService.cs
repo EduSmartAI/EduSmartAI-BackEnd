@@ -1,15 +1,16 @@
+using System.Text.Json;
 using AuthService.Application.Accounts.Commands.Inserts;
 using AuthService.Application.Accounts.Commands.Verifies;
+using AuthService.Application.Consumers;
 using AuthService.Application.Interfaces;
 using AuthService.Domain.ReadModels;
 using AuthService.Domain.Snapshort;
 using AuthService.Domain.WriteModels;
 using BaseService.Application.Interfaces.Commons;
 using BaseService.Application.Interfaces.Repositories;
-using BaseService.Common.Utils;
 using BaseService.Common.Utils.Const;
+using BuildingBlocks.Messaging.Events.AuthService.InsertUserEvents;
 using BuildingBlocks.Messaging.Events.InsertUserEvents;
-using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace AuthService.Infrastructure.Implements;
@@ -20,24 +21,26 @@ public class AccountService : IAccountService
     private readonly ICommandRepository<Role> _roleCommandRepository;
     private readonly IQueryRepository<AccountCollection> _accountQueryRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IRequestClient<UserInsertEvent> _requestUserClient;
-    private readonly IPublishEndpoint _requestPublishEndpoint; 
+    private readonly ICommandRepository<OutboxMessage> _outboxCommandRepository;
+    private readonly ICommandRepository<AdminAccount> _adminAccountCommandRepository;
     private readonly ICommonLogic _commonLogic;
 
     public AccountService(
         ICommandRepository<Account> accountCommandRepository,
         ICommandRepository<Role> roleCommandRepository,
         IQueryRepository<AccountCollection> accountQueryRepository,
-        IUnitOfWork unitOfWork, IRequestClient<UserInsertEvent> requestUserClient,
-        ICommonLogic commonLogic, IPublishEndpoint requestPublishEndpoint)
+        IUnitOfWork unitOfWork,
+        ICommonLogic commonLogic,
+        ICommandRepository<OutboxMessage> outboxCommandRepository, 
+        ICommandRepository<AdminAccount> adminAccountCommandRepository)
     {
         _accountCommandRepository = accountCommandRepository;
         _roleCommandRepository = roleCommandRepository;
         _accountQueryRepository = accountQueryRepository;
         _unitOfWork = unitOfWork;
-        _requestUserClient = requestUserClient;
         _commonLogic = commonLogic;
-        _requestPublishEndpoint = requestPublishEndpoint;
+        _outboxCommandRepository = outboxCommandRepository;
+        _adminAccountCommandRepository = adminAccountCommandRepository;
     }
 
     /// <summary>
@@ -46,24 +49,15 @@ public class AccountService : IAccountService
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task<StudentInsertResponse> InsertStudentAsync(StudentInsertCommand request, CancellationToken cancellationToken)
+    public async Task<AccountInsertResponse> InsertAccountAsync(AccountInsertCommand request, CancellationToken cancellationToken)
     {
-        var response = new StudentInsertResponse { Success = false };
+        var response = new AccountInsertResponse { Success = false };
 
-        // Check role existence
-        var role = await _roleCommandRepository.FirstOrDefaultAsync(
-            x => x.Name == nameof(ConstantEnum.UserRole.Student), cancellationToken);
-        if (role == null)
-        {
-            response.SetMessage(MessageId.E99999);
-            return response;
-        }
+        // Determine role based on email domain
+        var role = await DetermineUserRoleAsync(request.Email, cancellationToken);
 
         // Check the existing account
-        var existingAccount = await _accountCommandRepository.FirstOrDefaultAsync(
-            x => x.Email == request.Email && x.IsActive,
-            cancellationToken);
-
+        var existingAccount = await _accountCommandRepository.FirstOrDefaultAsync(x => x.Email == request.Email && x.IsActive, cancellationToken);
         if (existingAccount != null)
         {
             if (existingAccount.EmailConfirmed && existingAccount.IsActive)
@@ -76,55 +70,9 @@ public class AccountService : IAccountService
             if (!existingAccount.EmailConfirmed)
             {
                 // If the account was created more than 5 minutes ago
-                if (existingAccount.CreatedAt < StringUtil.ConvertToVietNamTime().AddMinutes(-5))
+                if (existingAccount.CreatedAt < DateTime.UtcNow.AddMinutes(-5))
                 {
-                    await _unitOfWork.BeginTransactionAsync(async () =>
-                    {
-                        // Deactivate existing account
-                        _accountCommandRepository.Update(existingAccount);
-                        await _unitOfWork.SaveChangesAsync(existingAccount.Email, cancellationToken, true);
-
-                        var userCollectionExisting = await _accountQueryRepository.FirstOrDefaultAsync(x => x.Email == request.Email && x.IsActive);
-                        if (userCollectionExisting != null)
-                        {
-                            // Delete from AccountCollection
-                            _unitOfWork.Delete(AccountCollection.FromWriteModel(existingAccount, userCollectionExisting.UserInformation));
-                            await _unitOfWork.SessionSaveChangesAsync();
-                        }
-
-                        // Insert new account
-                        var newUser = await InsertAccountAsync(request, role.Id);
-                        if (newUser == null)
-                        {
-                            response.SetMessage(MessageId.E00000, "Có lỗi xảy ra khi tạo tài khoản");
-                            return false;
-                        }
-
-                        // Insert into User service
-                        var @event = new UserInsertEvent
-                        {
-                            UserId = newUser.AccountId,
-                            OldUserId = existingAccount.AccountId,
-                            FirstName = request.FirstName,
-                            LastName = request.LastName,
-                            UserRole = (byte)ConstantEnum.UserRole.Student,
-                            Email = newUser.Email,
-                        };
-
-                        var userInsertResponse = await _requestUserClient.GetResponse<UserInsertEventResponse>(@event, cancellationToken);
-                        if (!userInsertResponse.Message.Success)
-                        {
-                            response.SetMessage(MessageId.E00000, userInsertResponse.Message.Message);
-                            return false;
-                        }
-
-                        // True
-                        response.Success = true;
-                        response.SetMessage(MessageId.I00001, "Đăng ký");
-                        return true;
-                    }, cancellationToken);
-
-                    return response;
+                    return await HandleAccountRecreationAsync(request, role, existingAccount, cancellationToken);
                 }
 
                 // If the account was created less than 5 minutes ago
@@ -134,42 +82,52 @@ public class AccountService : IAccountService
         }
 
         // Begin transaction for inserting new account
+        return await HandleNewAccountCreationAsync(request, role, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Determines user role based on email domain
+    /// </summary>
+    private async Task<Role> DetermineUserRoleAsync(string email, CancellationToken cancellationToken)
+    {
+        if (email.Contains("@fe.edu.vn"))
+        {
+            return (await _roleCommandRepository.FirstOrDefaultAsync(
+                x => x.Name == nameof(ConstantEnum.UserRole.Lecturer), cancellationToken))!;
+        }
+        
+        return (await _roleCommandRepository.FirstOrDefaultAsync(
+            x => x.Name == nameof(ConstantEnum.UserRole.Student), cancellationToken))!;
+    }
+
+    /// <summary>
+    /// Handles account recreation when existing account is not confirmed
+    /// </summary>
+    private async Task<AccountInsertResponse> HandleAccountRecreationAsync(AccountInsertCommand request, Role role, Account existingAccount, CancellationToken cancellationToken)
+    {
+        var response = new AccountInsertResponse { Success = false };
+
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            var newAccount = await InsertAccountAsync(request, role.Id);
-            if (newAccount == null)
+            // Deactivate existing account
+            _accountCommandRepository.Update(existingAccount, existingAccount.Email, true);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            var userCollectionExisting = await _accountQueryRepository.FirstOrDefaultAsync(x => x.Email == request.Email && x.IsActive);
+            if (userCollectionExisting != null)
             {
-                response.SetMessage(MessageId.E00000 , "Có lỗi xảy ra khi tạo tài khoản");
-                return false;
+                // Delete from AccountCollection
+                _unitOfWork.Delete(AccountCollection.FromWriteModel(existingAccount, userCollectionExisting.UserInformation));
+                await _unitOfWork.SessionSaveChangesAsync();
             }
 
-            var @userInsertEvent = new UserInsertEvent
+            // Create and save outbox messages
+            var success = await CreateAccountAndPublishEventsAsync(request, role, existingAccount.AccountId, cancellationToken);
+            if (!success)
             {
-                UserId = newAccount.AccountId,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                UserRole = (byte)ConstantEnum.UserRole.Student,
-                Email = newAccount.Email,
-            };
-
-            var userInsertResponse = await _requestUserClient.GetResponse<UserInsertEventResponse>(@userInsertEvent, cancellationToken);
-            if (!userInsertResponse.Message.Success)
-            {
-                response.SetMessage(MessageId.E00000, userInsertResponse.Message.Message);
+                response.SetMessage(MessageId.E00000, "Có lỗi xảy ra khi tạo tài khoản");
                 return false;
             }
-
-            var userInformation = new UserInformation
-            {
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-            };
-
-            // Send key to email user
-            await _requestPublishEndpoint.Publish(new SendKeyEvent { Key = newAccount.Key! }, cancellationToken);
-
-            _unitOfWork.Store(AccountCollection.FromWriteModel(newAccount, userInformation));
-            await _unitOfWork.SessionSaveChangesAsync();
 
             // True
             response.Success = true;
@@ -178,6 +136,136 @@ public class AccountService : IAccountService
         }, cancellationToken);
 
         return response;
+    }
+
+    /// <summary>
+    /// Handles new account creation
+    /// </summary>
+    private async Task<AccountInsertResponse> HandleNewAccountCreationAsync(AccountInsertCommand request, Role role, Guid? oldUserId, CancellationToken cancellationToken)
+    {
+        var response = new AccountInsertResponse { Success = false };
+
+        await _unitOfWork.BeginTransactionAsync(async () =>
+        {
+            var success = await CreateAccountAndPublishEventsAsync(request, role, oldUserId, cancellationToken);
+            if (!success)
+            {
+                response.SetMessage(MessageId.E00000, "Có lỗi xảy ra khi tạo tài khoản");
+                return false;
+            }
+
+            // True
+            response.Success = true;
+            response.SetMessage(MessageId.I00001, "Đăng ký");
+            return true;
+        }, cancellationToken);
+
+        return response;
+    }
+
+    /// <summary>
+    /// Creates account and publishes events to outbox
+    /// </summary>
+    private async Task<bool> CreateAccountAndPublishEventsAsync(AccountInsertCommand request, Role role, Guid? oldUserId, CancellationToken cancellationToken)
+    {
+        // Insert new account
+        var newUser = await CreateAccountAsync(request, role.Id);
+        if (newUser == null)
+        {
+            return false;
+        }
+
+        var outboxMessages = new List<OutboxMessage>();
+
+        // Add user insert event based on role
+        var userInsertMessage = CreateUserInsertEventMessage(newUser, request, role, oldUserId);
+        outboxMessages.Add(userInsertMessage);
+
+        // Add send key event
+        var sendKeyMessage = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = nameof(SendKeyEvent),
+            Content = JsonSerializer.Serialize(new SendKeyEvent { Key = newUser.Key!, Email = newUser.Email }),
+            OccurredOnUtc = DateTime.UtcNow,
+        };
+        outboxMessages.Add(sendKeyMessage);
+
+        // Add account collection event
+        var userInformation = new UserInformation
+        {
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+        };
+
+        var accountCollection = AccountCollection.FromWriteModel(newUser, userInformation);
+        var accountCollectionEvent = new AccountCollectionEvent
+        {
+            Account = accountCollection
+        };
+
+        var accountOutboxMessage = new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = nameof(AccountCollectionEvent),
+            Content = JsonSerializer.Serialize(accountCollectionEvent),
+            OccurredOnUtc = DateTime.UtcNow,
+        };
+        outboxMessages.Add(accountOutboxMessage);
+
+        // Save all outbox messages
+        await _outboxCommandRepository.AddRangeAsync(outboxMessages);
+        await _unitOfWork.SaveChangesAsync(request.Email, cancellationToken);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Creates outbox message for user insert event based on role
+    /// </summary>
+    private OutboxMessage CreateUserInsertEventMessage(Account newUser, AccountInsertCommand request, Role role, Guid? oldUserId)
+    {
+        var isLecturer = role.Name == nameof(ConstantEnum.UserRole.Lecturer);
+
+        if (isLecturer)
+        {
+            var lecturerInsertEvent = new LecturerInsertEvent
+            {
+                UserId = newUser.AccountId,
+                OldUserId = oldUserId,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Email = newUser.Email,
+            };
+
+            return new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = nameof(LecturerInsertEvent),
+                Content = JsonSerializer.Serialize(lecturerInsertEvent),
+                OccurredOnUtc = DateTime.UtcNow,
+            };
+        }
+        else
+        {
+            var studentEvent = new StudentInsertEvent
+            {
+                UserId = newUser.AccountId,
+                OldUserId = oldUserId,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                UserRole = (byte)ConstantEnum.UserRole.Student,
+                Email = newUser.Email,
+            };
+
+            return new OutboxMessage
+            {
+                Id = Guid.NewGuid(),
+                Type = nameof(StudentInsertEvent),
+                Content = JsonSerializer.Serialize(studentEvent),
+                OccurredOnUtc = DateTime.UtcNow,
+            };
+        }
     }
 
     /// <summary>
@@ -226,7 +314,7 @@ public class AccountService : IAccountService
         if (account.AccessFailedCount >= 5)
             account.LockoutEnd = DateTimeOffset.Now + TimeSpan.FromMinutes(5);
 
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -237,7 +325,7 @@ public class AccountService : IAccountService
     {
         account.AccessFailedCount = 0;
         account.LockoutEnd = null;
-        _accountCommandRepository.Update(account);
+        _accountCommandRepository.Update(account, account.Email);
     }
 
     /// <summary>
@@ -262,8 +350,8 @@ public class AccountService : IAccountService
     public async Task<AccountVerifyResponse> VerifyAccount(string requestKey)
     {
         var response = new AccountVerifyResponse { Success = false };
-        
-        var emailDecrypted = _commonLogic.DecryptText(requestKey);
+
+        var emailDecrypted = _commonLogic.DecryptTextEmailAndId(requestKey);
         if (!emailDecrypted.Success)
         {
             response.SetMessage(MessageId.E00000, "Liên kết xác nhận không hợp lệ hoặc đã hết hạn.");
@@ -277,9 +365,9 @@ public class AccountService : IAccountService
             response.SetMessage(MessageId.E00000, "Liên kết không hợp lệ hoặc đã hết hạn");
             return response;
         }
-        
+
         // Check if the key is expired (5 minutes)
-        if (account.CreatedAt.AddMinutes(5) < StringUtil.ConvertToVietNamTime())
+        if (account.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
             response.SetMessage(MessageId.E00000, "Liên kết không hợp lệ hoặc đã hết hạn");
             return response;
@@ -292,24 +380,25 @@ public class AccountService : IAccountService
             response.Success = true;
             return response;
         }
-        
-        var accountCollection = await _accountQueryRepository.FirstOrDefaultAsync(x => x.AccountId == account.AccountId);
+
+        var accountCollection =
+            await _accountQueryRepository.FirstOrDefaultAsync(x => x.AccountId == account.AccountId);
 
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
             // Update the account
             account.EmailConfirmed = true;
             account.Key = null;
-        
+
             accountCollection!.EmailConfirmed = true;
             accountCollection.Key = null;
-        
-            _accountCommandRepository.Update(account);
-            await _unitOfWork.SaveChangesAsync(account.Email);
+
+            _accountCommandRepository.Update(account, account.Email);
+            await _unitOfWork.SaveChangesAsync();
 
             _unitOfWork.Store(accountCollection);
             await _unitOfWork.SessionSaveChangesAsync();
-        
+
             // True
             response.Success = true;
             response.SetMessage(MessageId.I00001, "Xác nhận email");
@@ -319,12 +408,26 @@ public class AccountService : IAccountService
     }
 
     /// <summary>
+    /// Retrieves admin account details by account ID.
+    /// </summary>
+    /// <param name="accountAccountId"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public Task<AdminAccount?> GetAdminAccountByIdAsync(Guid accountAccountId, CancellationToken cancellationToken)
+    {
+        var adminAccount = _adminAccountCommandRepository
+            .Find(x => x.AccountId == accountAccountId && x.IsActive)
+            .FirstOrDefaultAsync(cancellationToken: cancellationToken);
+        return adminAccount;
+    }
+
+    /// <summary>
     /// Inserts a new account into the database.
     /// </summary>
     /// <param name="request"></param>
     /// <param name="roleId"></param>
     /// <returns></returns>
-    private async Task<Account?> InsertAccountAsync(StudentInsertCommand request, Guid roleId)
+    private async Task<Account?> CreateAccountAsync(AccountInsertCommand request, Guid roleId)
     {
         var accountId = Guid.NewGuid();
         var key = _commonLogic.EncryptText($"{request.Email}-{accountId}");
@@ -332,6 +435,7 @@ public class AccountService : IAccountService
         {
             return null;
         }
+
         var newAccount = new Account
         {
             AccountId = accountId,
@@ -342,8 +446,8 @@ public class AccountService : IAccountService
             RoleId = roleId,
         };
 
-        await _accountCommandRepository.AddAsync(newAccount);
-        await _unitOfWork.SaveChangesAsync(newAccount.Email);
+        await _accountCommandRepository.AddAsync(newAccount, request.Email);
+        await _unitOfWork.SaveChangesAsync();
 
         return newAccount;
     }

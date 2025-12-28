@@ -21,4 +21,8 @@ public static class SystemConfig
     public const string PayOsCheckSumKey = "PAYOS_CHECK_SUM_KEY";
     
     public const string PayOsClientId = "PAYOS_CLIENTID";
+    
+    public const string PaymentReturnUrl = "PAYMENT_RETURN_URL";
+    
+    public const string PaymentCancelUrl = "PAYMENT_CANCEL_URL";
 }
