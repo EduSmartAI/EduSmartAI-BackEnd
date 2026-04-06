@@ -52,10 +52,9 @@ namespace AiService.Infrastructure.Implements
 				return response;
 			}
 
-			// 1) Thử nén 1 phát
 			//var audioUrl = CloudinaryAudio.BuildAudioUrl(cloud, versionedIdNoExt)
-			var videoUrlMp4 = CloudinaryAudio.BuildMp3Url(cloud, versionedIdNoExt);
-			var attempt = await TryTranscribeUrlOnce(http, job, videoUrlMp4, 0, ct);
+			var videoUrlMp3 = CloudinaryAudio.BuildMp3Url(cloud, versionedIdNoExt);
+			var attempt = await TryTranscribeUrlOnce(http, job, videoUrlMp3, 0, ct);
 			if (attempt.succeeded && attempt.result is not null)
 			{
 				await SaveAndPublish(job, attempt.result, ct);
