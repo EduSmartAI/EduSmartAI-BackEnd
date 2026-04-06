@@ -6,6 +6,7 @@ using BaseService.Application.Interfaces.IdentityHepers;
 using BaseService.Application.Interfaces.Repositories;
 using BaseService.Common.Utils.Const;
 using BuildingBlocks.Messaging.Events.AIService.AiChatLearningPathEvents;
+using BuildingBlocks.Messaging.Events.QuizService.LearningGoalSelectsEvents;
 using MassTransit;
 using OpenAI.Chat;
 using System.Linq;
@@ -21,7 +22,11 @@ namespace AiService.Infrastructure.Implements
         IQueryRepository<AiChatLearningPathCollection> lpQuery,
         IRequestClient<GetAllLearningPath> getAllLearningPathClient,
         IRequestClient<GetLearningPathInfo> getLearningPathInfoClient,
-        IRequestClient<AiUpdateCourseStatusToSkipped> updateCourseStatusToSkippedClient
+        IRequestClient<AiUpdateCourseStatusToSkipped> updateCourseStatusToSkippedClient,
+        IRequestClient<AiGetCurrentLearningGoal> getCurrentLearningGoalClient,
+        IRequestClient<LearningGoalSelectsEvent> selectLearningGoalsClient,
+        IRequestClient<AiSetLearningGoal> setLearningGoalClient,
+        IRequestClient<AiRegenerateLearningPath> regenerateLearningPathClient
     ) : IChatBotLearningPathService
     {
         private const string SystemMessage =
@@ -31,8 +36,15 @@ namespace AiService.Infrastructure.Implements
             "(2) design a clear step-by-step learning path grouped by phases, " +
             "(3) for each phase, specify key skills and short outcomes, " +
             "(4) when possible, map to concrete course names/codes mentioned by the user. " +
-            "You have three tools: `get_user_learning_paths` (list all saved paths), `get_user_learning_path_detail` (detail for a path by ID), and `skip_learning_path_subject` (mark a subject as skipped inside a learning path). " +
+            "You have seven tools: `get_user_learning_paths` (list all saved paths), `get_user_learning_path_detail` (detail for a path by ID), `skip_learning_path_subject` (mark a subject as skipped inside a learning path), `get_current_learning_goal` (get the learner's current active learning goal), `select_learning_goals` (list available learning goals), `set_learning_goal` (set a new learning goal for the learner), and `regenerate_learning_path` (regenerate the learner's learning path). " +
             "Whenever you list learning paths, show each entry with its full name, exact GUID, created date, and status label derived from the provided status code (0: Đang tạo, 1: Đang chọn chuyên ngành, 2: Đang học, 3: Đã hoàn thành, 4: Đã đóng, 5: Tạm dừng). " +
+            "IMPORTANT for regeneration flow: when the learner asks to regenerate/recreate their learning path, you MUST do the following steps:\n" +
+            "(1) Call `get_current_learning_goal` and ask: 'Bạn vẫn muốn follow theo learning goal cũ chứ?'.\n" +
+            "(2) If learner says YES, continue to step (4).\n" +
+            "(3) If learner says NO, call `select_learning_goals` and help them pick ONE goal. If learner says 'Chưa có định hướng', ask up to 10 concise questions to clarify, then choose ONE goal from the tool result and call `set_learning_goal`.\n" +
+            "(4) Then ask for confirmation to regenerate and explain: 'lộ trình sẽ được gen dựa trên những dữ liệu cũ mà hệ thống có về bạn'. Only after learner explicitly confirms should you call `regenerate_learning_path` with confirmed=true.\n" +
+            "If the learner cancels at any point, do not call regenerate.\n" +
+            "When you call `select_learning_goals` to help choose a goal, make the conversation state RawFinishReason = ChoosingGoal.\n" +
             "Always call the appropriate tool instead of guessing any learner data. " +
             "Always answer in concise Vietnamese Markdown with headings (###) and bullet lists. " +
             "Do not return JSON, only natural language answer for the learner.";
@@ -95,6 +107,63 @@ namespace AiService.Infrastructure.Implements
             }
             """));
 
+        private static readonly ChatTool RegenerateLearningPathTool = ChatTool.CreateFunctionTool(
+            functionName: "regenerate_learning_path",
+            functionDescription:
+                "Regenerate the learner's learning path. ONLY call this after the learner explicitly confirmed. " +
+                "If not confirmed, do not call; ask for confirmation and explain the learning path will be generated based on existing data.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{
+                "confirmed":{
+                  "type":"boolean",
+                  "description":"Set true only after the learner explicitly confirms regeneration"
+                }
+              },
+              "required":["confirmed"],
+              "additionalProperties":false
+            }
+            """));
+
+        private static readonly ChatTool GetCurrentLearningGoalTool = ChatTool.CreateFunctionTool(
+            functionName: "get_current_learning_goal",
+            functionDescription: "Fetch the learner's current active learning goal (if any).",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{},
+              "additionalProperties":false
+            }
+            """));
+
+        private static readonly ChatTool SelectLearningGoalsTool = ChatTool.CreateFunctionTool(
+            functionName: "select_learning_goals",
+            functionDescription: "List available learning goals so the learner can choose ONE.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{},
+              "additionalProperties":false
+            }
+            """));
+
+        private static readonly ChatTool SetLearningGoalTool = ChatTool.CreateFunctionTool(
+            functionName: "set_learning_goal",
+            functionDescription: "Set the learner's learning goal to a selected learning_goal_id.",
+            functionParameters: BinaryData.FromString("""
+            {
+              "type":"object",
+              "properties":{
+                "learning_goal_id":{
+                  "type":"string",
+                  "description":"GUID of the chosen learning goal"
+                }
+              },
+              "required":["learning_goal_id"],
+              "additionalProperties":false
+            }
+            """));
 
         public async Task<ChatResponseDto> ChatAsync(
             AIChatBotLearningPathRequest req,
@@ -288,7 +357,16 @@ namespace AiService.Infrastructure.Implements
         {
             var options = new ChatCompletionOptions
             {
-                Tools = { GetLearningPathsTool, GetLearningPathDetailTool, SkipLearningPathSubjectTool }
+                Tools =
+                {
+                    GetLearningPathsTool,
+                    GetLearningPathDetailTool,
+                    SkipLearningPathSubjectTool,
+                    GetCurrentLearningGoalTool,
+                    SelectLearningGoalsTool,
+                    SetLearningGoalTool,
+                    RegenerateLearningPathTool
+                }
             };
 
             string? lastToolCalled = null;
@@ -335,6 +413,9 @@ namespace AiService.Infrastructure.Implements
                 "get_user_learning_paths" => ConstantEnum.ChatBotRawReason.GetAllLearningPath.ToString(),
                 "get_user_learning_path_detail" => ConstantEnum.ChatBotRawReason.GetDetailTrainingPath.ToString(),
                 "skip_learning_path_subject" => ConstantEnum.ChatBotRawReason.SkipSubjectLearningPath.ToString(),
+                "select_learning_goals" => "ChoosingGoal",
+                "set_learning_goal" => "ChoosingGoal",
+                "regenerate_learning_path" => "RegenerateLearningPath",
                 _ => toolName
             };
         }
@@ -624,6 +705,107 @@ namespace AiService.Infrastructure.Implements
                             };
 
                             return JsonSerializer.Serialize(payload, ToolSerializerOptions);
+                        }
+
+                    case "get_current_learning_goal":
+                        {
+                            var response = await getCurrentLearningGoalClient
+                                .GetResponse<AiGetCurrentLearningGoalResponse>(new AiGetCurrentLearningGoal(userId), ct);
+
+                            return JsonSerializer.Serialize(new
+                            {
+                                success = response.Message.Success,
+                                message = response.Message.Message,
+                                currentGoal = response.Message.Response
+                            }, ToolSerializerOptions);
+                        }
+
+                    case "select_learning_goals":
+                        {
+                            var resp = await selectLearningGoalsClient
+                                .GetResponse<LearningGoalSelectsEventResponse>(new LearningGoalSelectsEvent(), ct);
+
+                            return JsonSerializer.Serialize(new
+                            {
+                                success = resp.Message.Success,
+                                message = resp.Message.Message,
+                                learningGoals = resp.Message.Response
+                            }, ToolSerializerOptions);
+                        }
+
+                    case "set_learning_goal":
+                        {
+                            if (!root.TryGetProperty("learning_goal_id", out var idProp) ||
+                                !Guid.TryParse(idProp.GetString(), out var goalId) ||
+                                goalId == Guid.Empty)
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "learning_goal_id is required and must be a valid GUID"
+                                }, ToolSerializerOptions);
+                            }
+
+                            if (string.IsNullOrWhiteSpace(email))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "Missing user email in context"
+                                }, ToolSerializerOptions);
+                            }
+
+                            var resp = await setLearningGoalClient
+                                .GetResponse<AiSetLearningGoalResponse>(new AiSetLearningGoal(userId, email, goalId), ct);
+
+                            return JsonSerializer.Serialize(new
+                            {
+                                success = resp.Message.Success,
+                                message = resp.Message.Message,
+                                updated = resp.Message.Response
+                            }, ToolSerializerOptions);
+                        }
+
+                    case "regenerate_learning_path":
+                        {
+                            if (!root.TryGetProperty("confirmed", out var confirmedProp) ||
+                                confirmedProp.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "confirmed is required and must be boolean"
+                                }, ToolSerializerOptions);
+                            }
+
+                            var confirmed = confirmedProp.GetBoolean();
+                            if (!confirmed)
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "confirmation_required"
+                                }, ToolSerializerOptions);
+                            }
+
+                            if (string.IsNullOrWhiteSpace(email))
+                            {
+                                return JsonSerializer.Serialize(new
+                                {
+                                    success = false,
+                                    message = "Missing user email in context"
+                                }, ToolSerializerOptions);
+                            }
+
+                            var response = await regenerateLearningPathClient
+                                .GetResponse<AiRegenerateLearningPathResponse>(new AiRegenerateLearningPath(userId, email), ct);
+
+                            return JsonSerializer.Serialize(new
+                            {
+                                success = response.Message.Success,
+                                message = response.Message.Message,
+                                learningPathId = response.Message.Response
+                            }, ToolSerializerOptions);
                         }
 
                     default:

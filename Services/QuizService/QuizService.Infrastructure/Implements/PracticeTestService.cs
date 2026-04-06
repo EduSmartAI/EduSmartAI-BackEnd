@@ -319,9 +319,12 @@ public class PracticeTestService
             };
             
             // Submit to Judge0 API
+            // Filter private test cases for submission - use this list for result processing
+            var privateTestCases = problem.TestCases.Where(ts => ts.IsPublic == false).ToList();
+            
             var batchRequest = new BatchSubmissionRequest
             {
-                Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
+                Submissions = privateTestCases.Select(tc => new SubmissionRequest
                 {
                     SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
                     LanguageId = request.LanguageId,
@@ -370,7 +373,8 @@ public class PracticeTestService
             for (int i = 0; i < pollResults!.Count; i++)
             {
                 var result = pollResults[i];
-                var testCase = problem.TestCases.ToList()[i];
+                // FIX: Use privateTestCases instead of problem.TestCases to match correct index
+                var testCase = privateTestCases[i];
 
                 bool passed = result.Status.Id == (short) ConstantEnum.Judge0Status.Accepted;
                 if (passed) passedCount++;
@@ -473,9 +477,12 @@ public class PracticeTestService
             };
             
             // Submit to Judge0 API
+            // Filter private test cases for submission - use this list for result processing
+            var privateTestCases = problem.TestCases.Where(ts => ts.IsPublic == false).ToList();
+            
             var batchRequest = new BatchSubmissionRequest
             {
-                Submissions = problem.TestCases.Where(ts => ts.IsPublic == false).Select(tc => new SubmissionRequest
+                Submissions = privateTestCases.Select(tc => new SubmissionRequest
                 {
                     SourceCode = $"{problemTemplate.TemplatePrefix} \n{request.SourceCode}\n {problemTemplate.TemplateSuffix}",
                     LanguageId = request.LanguageId,
@@ -524,7 +531,8 @@ public class PracticeTestService
             for (int i = 0; i < pollResults!.Count; i++)
             {
                 var result = pollResults[i];
-                var testCase = problem.TestCases.ToList()[i];
+                // FIX: Use privateTestCases instead of problem.TestCases to match correct index
+                var testCase = privateTestCases[i];
 
                 bool passed = result.Status.Id == (short) ConstantEnum.Judge0Status.Accepted;
                 if (passed) passedCount++;
@@ -567,7 +575,7 @@ public class PracticeTestService
                 SubmissionId = submission.SubmissionId,
                 Status = DetermineStatus(pollResults),
                 PassedTests = passedCount,
-                TotalTests = problem.TestCases.Count,
+                TotalTests = privateTestCases.Count, // FIX: Use privateTestCases.Count instead of problem.TestCases.Count
                 AverageTimeMs = pollResults.Count > 0 ? (int) (totalTimeMs / pollResults.Count) : 0,
                 TestResults = testResults
             };
@@ -1739,3 +1747,4 @@ public class PracticeTestService
         return response;
     }
 }
+

@@ -443,8 +443,11 @@ public class StudentSurveyService : IStudentSurveyService
                 
                 var learningPathCreateRequest = new LearningPathCreationContext
                 {
+                    // Danh sách các bài khảo sát (HABIT, INTEREST) mà sinh viên đã hoàn thành
                     StudentQuizCollections = studentQuizCollections,
+                    // Thông tin người dùng hiện tại (sinh viên)
                     CurrentUser = currentUser,
+                    // Thông tin về học kỳ, mục tiêu học tập và công nghệ quan tâm của sinh viên
                     InformationResponse = new StudentInformationSelectsEventResponseEntity
                     {
                         SemesterId = request.StudentInformation.SemesterId,
@@ -456,10 +459,15 @@ public class StudentSurveyService : IStudentSurveyService
                             TechnologyType = x.TechnologyType
                         }).ToList(),
                     },
+                    // ID của lộ trình học tập mới được tạo
                     LearningPathId = learningPathId,
+                    // Số giờ học mỗi tuần mà sinh viên có thể dành ra (dựa trên bài khảo sát HABIT)
                     LimitTime = limitTime,
+                    // Trình độ của sinh viên (1: Beginner, 2: Intermediate, 3: Advanced) - tính từ bảng điểm
                     StudentLevel = studentLevelResult.Response.Level,
+                    // Danh sách các môn học cần cải thiện (dựa trên OtherQuestionAnswerCodes: môn có điểm 5-7, 7-8, 8-9)
                     CourseImprove = courseImporve,
+                    // Điểm số của các môn học: bao gồm môn chưa đạt + môn đã đạt nhưng muốn đánh giá lại (từ subjectCodesForEvaluation)
                     SubjectMarks = studentTranscripts
                         .Where(x => 
                             x.Status == ConstantEnum.StudentTranscriptStatus.NotPassed.GetDescription() ||
@@ -473,19 +481,22 @@ public class StudentSurveyService : IStudentSurveyService
                             Mark = x.Grade
                         })
                         .ToList(),
+                    // Điểm năng lực từ bài test - Survey không có bài test nên để null
                     AbilityMarks = null,
+                    // Thông tin chuyên ngành của sinh viên
                     StudentMajor = new StudentMajor
                     {
                         MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
                         MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
                     },
+                    // Bảng điểm đầy đủ của sinh viên (tất cả các môn đã học)
                     StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
                     {
                         SubjectCode = x.SubjectCode,
                         Status = x.Status,
                         Mark = x.Grade
                     }).ToList(),
-                    // Survey thì không có bài test nên null
+                    // Danh sách các năng lực cần cải thiện từ bài test - Survey không có bài test nên để null
                     AbilityImprove = null
                 };
 

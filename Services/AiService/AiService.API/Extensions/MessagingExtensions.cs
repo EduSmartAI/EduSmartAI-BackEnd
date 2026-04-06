@@ -21,6 +21,7 @@ using BuildingBlocks.Messaging.Events.AIService.UpdateExternalMajorEvent;
 using BuildingBlocks.Messaging.Events.StudentService.GetInfoInternalCourse;
 using BuildingBlocks.Messaging.Events.StudentService.GetOverviewAiEvaluation;
 using BuildingBlocks.Messaging.Events.UtilityService;
+using BuildingBlocks.Messaging.Events.QuizService.LearningGoalSelectsEvents;
 using MassTransit;
 
 namespace AiService.API.Extensions;
@@ -78,6 +79,11 @@ public static class MessagingExtensions
             x.AddRequestClient<GetAllLearningPath>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<GetLearningPathInfo>(TimeSpan.FromSeconds(200));
             x.AddRequestClient<AiUpdateCourseStatusToSkipped>(TimeSpan.FromSeconds(200));
+            // Regenerate may take a while (delete old LP + call AI). Give it a long timeout.
+            x.AddRequestClient<AiRegenerateLearningPath>(TimeSpan.FromSeconds(900));
+            x.AddRequestClient<AiGetCurrentLearningGoal>(TimeSpan.FromSeconds(60));
+            x.AddRequestClient<AiSetLearningGoal>(TimeSpan.FromSeconds(120));
+            x.AddRequestClient<LearningGoalSelectsEvent>(TimeSpan.FromSeconds(120));
             x.AddRequestClient<SubjectInfoEvent>(TimeSpan.FromSeconds(120));
             x.AddRequestClient<GetSubjectDetailEvent>(TimeSpan.FromSeconds(120));
             x.AddRequestClient<GetOverviewAiEvaluationEvent>(TimeSpan.FromSeconds(200));

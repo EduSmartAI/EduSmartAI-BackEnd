@@ -81,14 +81,17 @@ public class StudentTestService : IStudentTestService
     /// <returns></returns>
     public async Task<StudentTestInsertResponse> InsertStudentTestAsync(StudentTestInsertCommand request, CancellationToken cancellationToken)
     {
+        // Khởi tạo response với trạng thái mặc định là thất bại - cần thiết để trả về kết quả cho client
         var response = new StudentTestInsertResponse { Success = false };
         
-        // Get current user id
+        // Lấy thông tin người dùng hiện tại từ JWT token - cần để xác định sinh viên nào đang submit bài test
         var currentUser = _identityService.GetCurrentUser()!;
 
+        // Lấy thời gian hiện tại theo UTC để đảm bảo tính nhất quán về timezone khi lưu database
         var currentTime = DateTime.UtcNow;
         
-        // Validate startedAt and finishedAt
+        // Kiểm tra thời gian bắt đầu không được lớn hơn thời gian hiện tại
+        // Vì không hợp lý khi bắt đầu test ở tương lai nhưng đã submit xong ở hiện tại
         if (request.StartedAt > currentTime)
         {
                 response.SetMessage(MessageId.E00000, 
@@ -97,7 +100,8 @@ public class StudentTestService : IStudentTestService
             return response;
         }
         
-        // Validate testId
+        // Kiểm tra TestId có tồn tại trong hệ thống hay không
+        // Cần thiết để đảm bảo sinh viên submit đúng bài test hợp lệ
         var testExist = await _testQueryRepository.FirstOrDefaultAsync(x => x.TestId == request.TestId);
         if (testExist == null)
         {
@@ -105,7 +109,8 @@ public class StudentTestService : IStudentTestService
             return response;
         }
         
-        // Validate quizIds
+        // Validate danh sách QuizIds mà sinh viên đã làm có thuộc Test này không
+        // Đảm bảo tính toàn vẹn dữ liệu - không cho phép submit quiz không thuộc test
         var quizIds = request.QuizIds;
         var validQuizIds = testExist.Quizzes.Where(q => quizIds.Contains(q.QuizId)).Select(q => q.QuizId).ToList();
         if (validQuizIds.Count != quizIds.Count)
@@ -114,7 +119,8 @@ public class StudentTestService : IStudentTestService
             return response;
         }
         
-        // Validate questionIds in answers
+        // Validate tất cả QuestionIds trong các câu trả lời có tồn tại trong database không
+        // Ngăn chặn việc submit câu hỏi giả mạo hoặc không tồn tại
         var questionIds = request.Answers.Select(a => a.QuestionId).Distinct().ToList();
         var validQuestions = await _questionQueryRepository.ToListAsync(x => questionIds.Contains(x.QuestionId));
         if (validQuestions.Count != questionIds.Count)
@@ -123,7 +129,8 @@ public class StudentTestService : IStudentTestService
             return response;
         }
         
-        // Validate answerIds in answers
+        // Validate tất cả AnswerIds trong các câu trả lời có thuộc các câu hỏi hợp lệ không
+        // Đảm bảo sinh viên không chọn các đáp án không thuộc câu hỏi đó
         var answerIds = request.Answers.Select(a => a.AnswerId).ToList();
         var validAnswers = validQuestions
             .SelectMany(q => q.Answers)
@@ -145,50 +152,59 @@ public class StudentTestService : IStudentTestService
         //     }
         // }
 
-        // Begin transaction
+        // Bắt đầu transaction để đảm bảo tính ACID (Atomicity, Consistency, Isolation, Durability)
+        // Nếu có lỗi xảy ra ở bất kỳ đâu, toàn bộ quá trình sẽ rollback
         await _unitOfWork.BeginTransactionAsync(async () =>
         {
-            // Insert new student test
+            // Tạo đối tượng StudentTest mới để lưu thông tin bài test của sinh viên
             var studentTest = new StudentTest
             {
-                StudentId = currentUser.UserId,
-                TestId = request.TestId,
-                StartedAt = StringUtil.ConvertToUtcTime(request.StartedAt),
-                FinishedAt = currentTime,
+                StudentId = currentUser.UserId, // ID sinh viên đang làm bài
+                TestId = request.TestId, // ID bài test
+                StartedAt = StringUtil.ConvertToUtcTime(request.StartedAt), // Thời gian bắt đầu (convert sang UTC)
+                FinishedAt = currentTime, // Thời gian kết thúc (thời điểm submit)
+                // Map danh sách câu trả lời của sinh viên
                 StudentAnswers = request.Answers.Select(a => new StudentAnswer
                 {
-                    QuestionId = a.QuestionId,
-                    AnswerId = a.AnswerId,
+                    QuestionId = a.QuestionId, // ID câu hỏi
+                    AnswerId = a.AnswerId, // ID đáp án sinh viên chọn
                 }).ToList()
             };
             
-            // Insert into StudentQuiz
+            // Tạo danh sách StudentQuiz cho từng quiz mà sinh viên đã làm
+            // Cần thiết để tracking sinh viên đã làm những quiz nào
             var studentQuizzes = request.QuizIds.Select(x => new StudentQuiz
             {
                 StudentId = currentUser.UserId,
                 QuizId = x,
-                QuizType = (short) ConstantEnum.TestType.Quiz,
+                QuizType = (short) ConstantEnum.TestType.Quiz, // Loại quiz (không phải survey)
             }).ToList();
             await _studentQuizRepository.AddRangeAsync(studentQuizzes);
             
-            // Save to database
+            // Lưu StudentTest vào database (write model - SQL Server)
             await _studentTestRepository.AddAsync(studentTest);
             await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken);
             
+            // Khởi tạo list để chứa StudentQuizCollection (read model - MongoDB)
             var studentQuizCollections = new List<StudentQuizCollection>();
             
-            // Map to StudentTestCollection
+            // Map từ write model (SQL) sang read model (MongoDB) cho từng StudentQuiz
+            // Read model dùng để query nhanh, tối ưu cho việc đọc dữ liệu
             foreach (var studentQuiz in studentQuizzes)
             {
                 var quiz = testExist.Quizzes.FirstOrDefault(qu => qu.QuizId == studentQuiz.QuizId);
                 var studentQuizCollection = StudentQuizCollection.FromWriteModel(studentQuiz, quiz, new UserInformation{Email = currentUser.Email, FullName = currentUser.FullName});
-                _unitOfWork.Store(studentQuizCollection);
+                _unitOfWork.Store(studentQuizCollection); // Lưu vào MongoDB
                 studentQuizCollections.Add(studentQuizCollection);
             }
 
+            // Tạo dictionary để map nhanh từ AnswerId sang AnswerCollection
+            // Tối ưu hiệu suất khi cần tra cứu answer thay vì dùng loop
             var answerDict = new Dictionary<Guid?, AnswerCollection>();
             foreach (var answer in validAnswers) answerDict.Add(answer.AnswerId, answer);
 
+            // Tạo StudentTestCollection (read model) từ StudentTest (write model)
+            // Chứa đầy đủ thông tin test, câu trả lời, và thông tin sinh viên
             var studentTestCollection = new StudentTestCollection
             {
                 StudentTestId = studentTest.StudentTestId,
@@ -202,11 +218,12 @@ public class StudentTestService : IStudentTestService
                 UpdatedAt = studentTest.UpdatedAt,
                 UpdatedBy = studentTest.UpdatedBy,
                 Student = new UserInformation {Email = currentUser.Email, FullName = currentUser.FullName},
+                // Map danh sách câu trả lời với đầy đủ thông tin question và answer
                 StudentAnswers = studentTest.StudentAnswers.Select(sa => new StudentAnswerCollection
                 {
                     QuestionId = sa.QuestionId,
                     AnswerId = sa.AnswerId,
-                    Answer = answerDict[sa.AnswerId],
+                    Answer = answerDict[sa.AnswerId], // Lấy answer từ dictionary để tối ưu
                     Question = validQuestions.FirstOrDefault(q => q.QuestionId == sa.QuestionId),
                     CreatedAt = sa.CreatedAt,
                     CreatedBy = sa.CreatedBy,
@@ -217,10 +234,12 @@ public class StudentTestService : IStudentTestService
                 StudentQuizzes = studentQuizCollections,
             };
             
+            // Lưu StudentTestCollection vào MongoDB
             _unitOfWork.Store(studentTestCollection);
             await _unitOfWork.SessionSaveChangesAsync();
             
-            // Get student transcript first (needed for level calculation and SubjectMarks)
+            // Lấy bảng điểm của sinh viên từ StudentService thông qua message bus (RabbitMQ)
+            // Cần thiết để tính toán level và đánh giá năng lực dựa trên điểm đã học
             var studentTranscriptEvent = new StudentTranscriptSelectEvent
             {
                 StudentId = currentUser.UserId
@@ -229,79 +248,90 @@ public class StudentTestService : IStudentTestService
             var transcriptResponse = await _requestStudentTranscriptClient.GetResponse<StudentTranscriptSelectEventResponse>(studentTranscriptEvent, cancellationToken);
             var studentTranscripts = transcriptResponse.Message.Response;
             
-            // Calculate level from Quiz (60% weight if has practice test, or base for transcript calculation)
+            // Xác định level sinh viên dựa trên kết quả bài quiz (1: Beginner, 2: Intermediate, 3: Advanced)
+            // difficultyPerformance chứa thông tin chi tiết về tỷ lệ đúng/sai theo từng độ khó
             var quizLevel = DetermineStudentLevel(studentTestCollection.StudentAnswers.ToList(), testExist.Quizzes.ToList(), out var difficultyPerformance);
             
-            int baseLevel = quizLevel; // Level from quiz alone
+            // baseLevel là level tính từ quiz - sẽ dùng để kết hợp với practice test và transcript
+            int baseLevel = quizLevel;
             
-            // Declare practiceTestResults outside to use it later for ability marks calculation
+            // Dictionary lưu kết quả submit các bài practice test (Easy, Medium, Hard)
+            // Cần khai báo ở đây để dùng sau này tính level và ability marks
             var practiceTestResults = new Dictionary<string, PracticeTestSubmitInsertResponse>();
             
-            // If PracticeTestAnswers is provided, calculate combined level (60% quiz + 40% practice test)
+            // Nếu sinh viên có làm bài practice test (bài tự luận về thuật toán)
             if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
             {
-                // Submit each practice test answer and collect results
+                // Submit từng bài practice test lên hệ thống chấm code
                 
                 foreach (var practiceAnswer in request.PracticeTestAnswers)
                 {
+                    // Tạo request submit bài practice test
                     var submitRequest = new PracticeTestSubmitInsertRequest
                     {
-                        ProblemId = practiceAnswer.ProblemId,
-                        SourceCode = practiceAnswer.CodeSubmission,
-                        LanguageId = practiceAnswer.LanguageId
+                        ProblemId = practiceAnswer.ProblemId, // ID bài toán
+                        SourceCode = practiceAnswer.CodeSubmission, // Code sinh viên viết
+                        LanguageId = practiceAnswer.LanguageId // Ngôn ngữ lập trình (C++, Java, Python...)
                     };
                     
+                    // Gọi service chấm bài (không dùng transaction riêng vì đang trong transaction lớn)
                     var submitResponse = await _practiceTestService.InsertPracticeTestSubmitWithoutTransactionAsync(submitRequest, cancellationToken);
                     
+                    // Nếu submit thất bại (lỗi hệ thống chấm), rollback toàn bộ
                     if (!submitResponse.Success)
                     {
                         response.SetMessage(MessageId.E00000, $"Không thể submit bài practice test: {submitResponse.Message}");
                         return false;
                     }
                     
-                    // Get problem difficulty from database to map the result
+                    // Lấy độ khó của bài toán để map kết quả (Easy/Medium/Hard)
                     var problem = await _problemRepository.FirstOrDefaultAsync(p => p.ProblemId == practiceAnswer.ProblemId, cancellationToken: cancellationToken);
                     if (problem != null)
                     {
+                        // Lưu kết quả theo độ khó - để sau này tính level và ability marks
                         practiceTestResults[problem.Difficulty] = submitResponse;
                     }
                 }
                 
-                // Calculate practice test level
+                // Tính level từ kết quả practice test (dựa vào số test case pass)
                 var practiceTestLevel = DeterminePracticeTestLevel(practiceTestResults);
                 
-                // Combine levels: 60% quiz + 40% practice test
+                // Kết hợp level: 60% từ quiz + 40% từ practice test
+                // Quiz chiếm tỷ trọng cao hơn vì đánh giá kiến thức lý thuyết rộng
                 baseLevel = (int)Math.Round(quizLevel * 0.6 + practiceTestLevel * 0.4);
                 
-                // Ensure level is between 1 and 3
+                // Đảm bảo level nằm trong khoảng 1-3
                 baseLevel = Math.Max(1, Math.Min(3, baseLevel));
             }
             
-            // Check if transcript has relevant subjects matching quiz subjects
-            // If yes, incorporate transcript score (20%) into final level calculation
+            // Kiểm tra xem bảng điểm có môn nào liên quan đến các quiz đã làm không
+            // Nếu có thì kết hợp điểm bảng điểm (20%) vào level cuối cùng
             int finalStudentLevel = baseLevel;
             var transcriptSubjectsUsed = new List<(string SubjectCode, string SubjectName, double Grade)>();
             
+            // Nếu sinh viên có bảng điểm
             if (studentTranscripts.Any())
             {
-                // Get all subject codes from quizzes
+                // Lấy tên các môn từ quiz settings (ví dụ: "Toán rời rạc (DSAP201)")
                 var quizSubjectNames = testExist.Quizzes
                     .Where(q => q.PlacementTestQuizSetting != null)
                     .Select(q => q.PlacementTestQuizSetting!.SubjectCodeName)
                     .ToList();
                 
-                // Find matching transcripts: check if transcript SubjectCode is contained in quiz SubjectCodeName
+                // Tìm các môn trong bảng điểm khớp với môn trong quiz
+                // Kiểm tra xem SubjectCode có nằm trong SubjectCodeName không (case-insensitive)
                 var matchingTranscripts = studentTranscripts
                     .Where(t => quizSubjectNames.Any(qsn => qsn.Contains(t.SubjectCode, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
                 
+                // Nếu có môn khớp, tính level kết hợp
                 if (matchingTranscripts.Any())
                 {
-                    // Calculate average transcript score (scale 0-10 to level 1-3)
-                    // Grade 0-5 -> Level 1, Grade 5-7.5 -> Level 2, Grade 7.5-10 -> Level 3
+                    // Tính điểm trung bình các môn khớp (thang điểm 0-10)
                     var avgGrade = matchingTranscripts.Average(t => t.Grade ?? 0);
                     
-                    // Convert grade to level (1-3)
+                    // Chuyển đổi điểm sang level (1-3)
+                    // 0-5: Beginner, 5-7.5: Intermediate, 7.5-10: Advanced
                     int transcriptLevel = avgGrade switch
                     {
                         < 5 => 1,
@@ -309,23 +339,26 @@ public class StudentTestService : IStudentTestService
                         _ => 3
                     };
                     
-                    // Store for LevelReason
+                    // Lưu danh sách môn đã dùng để tạo LevelReason (giải thích tại sao được level này)
                     transcriptSubjectsUsed = matchingTranscripts
                         .Where(t => t.Grade.HasValue)
                         .Select(t => (t.SubjectCode, t.SubjectName, t.Grade!.Value))
                         .ToList();
                     
-                    // Combine: 80% from quiz/practice test + 20% from transcript
+                    // Kết hợp: 80% từ quiz/practice test + 20% từ bảng điểm
+                    // Test chiếm tỷ trọng cao hơn vì đánh giá thời điểm hiện tại
                     finalStudentLevel = (int)Math.Round(baseLevel * 0.8 + transcriptLevel * 0.2);
                     
-                    // Ensure level is between 1 and 3
+                    // Đảm bảo level nằm trong khoảng 1-3
                     finalStudentLevel = Math.Max(1, Math.Min(3, finalStudentLevel));
                 }
             }
             
+            // Gán level cuối cùng
             var studentLevel = finalStudentLevel;
             
-            // Build detailed level reason
+            // Tạo chuỗi giải thích chi tiết tại sao sinh viên được level này
+            // Bao gồm: điểm quiz, điểm practice test, điểm bảng điểm, và cách tính
             var levelReason = BuildLevelReason(
                 quizLevel, 
                 finalStudentLevel, 
@@ -333,25 +366,26 @@ public class StudentTestService : IStudentTestService
                 difficultyPerformance,
                 transcriptSubjectsUsed);
             
-            // Prepare SubjectMarks if OtherQuestionAnswerCodes is provided
+            // Khởi tạo biến subjectMarks là null - chỉ được gán khi sinh viên chọn OtherQuestionAnswerCodes
+            // SubjectMarks chứa điểm các môn học từ bảng điểm, dùng để AI đánh giá và đề xuất khóa học
             List<SubjectMarkContext>? subjectMarks = null;
             
-            // Get technologies from StudentService
-            // Send message to StudentService to get student information
+            // Lấy thông tin sinh viên từ StudentService thông qua message bus
+            // Cần để biết: học kỳ hiện tại, chuyên ngành, công nghệ quan tâm
             var studentInformationSelectsEvent = new StudentInformationSelectsEvent
             {
                 StudentId = currentUser.UserId
             };
             var informationResponse = await _requestStudentInformationSelectsClient.GetResponse<StudentInformationSelectsEventResponse>(studentInformationSelectsEvent, cancellationToken);
             
-            // Get major information from CourseService
+            // Tạo event để lấy thông tin chuyên ngành và học kỳ từ CourseService
             var majorAndSemesterEvent = new CourseMajorSemesterSelectEvent
             {
-                SemesterId = informationResponse.Message.Response.SemesterId,
-                MajorId = informationResponse.Message.Response.MajorId
+                SemesterId = informationResponse.Message.Response.SemesterId, // Học kỳ hiện tại
+                MajorId = informationResponse.Message.Response.MajorId // Chuyên ngành của sinh viên
             };
             
-            // Request major and semester information
+            // Gọi CourseService để lấy thông tin chi tiết về chuyên ngành và học kỳ
             var majorAndSemesterEventResponse = await _requestCourseMajorSemesterClient.GetResponse<CourseMajorSemesterSelectEventResponse>(majorAndSemesterEvent, cancellationToken);
             if (!majorAndSemesterEventResponse.Message.Success)
             {
@@ -360,16 +394,22 @@ public class StudentTestService : IStudentTestService
                 return false;
             }
             
+            // Kiểm tra logic nghiệp vụ: Sinh viên từ kỳ 5 trở lên PHẢI có bảng điểm
+            // Vì từ kỳ 5, lộ trình học tập cần dựa vào điểm các môn nền tảng đã học
             if (!studentTranscripts.Any() && majorAndSemesterEventResponse.Message.Response.SemesterNumber > 4)
             {
                 response.SetMessage(MessageId.E00000, "Sinh viên chưa có bảng điểm, không thể tạo lộ trình học tập cho sinh viên từ kỳ 5 trở lên");
                 return false;
             }
             
+            // Khởi tạo list chứa các môn học cần cải thiện (improvement courses)
             List<CourseImproveContext> courseImporve = new();
+            
+            // Nếu sinh viên có trả lời câu hỏi bổ sung (OtherQuestionAnswerCodes)
+            // Ví dụ: "Tôi muốn cải thiện các môn có điểm 5-7", "Tôi muốn đánh giá lại môn có điểm 7-8"
             if (request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any())
             {
-                // Map transcript to SubjectMarks and add OtherQuestionAnswerCodes
+                // Map toàn bộ bảng điểm sang SubjectMarks để AI phân tích
                 subjectMarks = studentTranscripts.Select(st => new SubjectMarkContext
                 {
                     SubjectCode = st.SubjectCode,
@@ -377,6 +417,8 @@ public class StudentTestService : IStudentTestService
                     Mark = st.Grade
                 }).ToList();
                 
+                // Lấy danh sách tất cả các mã môn học hợp lệ từ CourseService
+                // Để kiểm tra các môn trong bảng điểm có tồn tại trong hệ thống khóa học không
                 var subjectCodeEventResponse = await _subjectCodeSelectEventRequestClient.GetResponse<SubjectCodeSelectEventResponse>(new SubjectCodeSelectEvent(), cancellationToken);
                 if (!subjectCodeEventResponse.Message.Success)
                 {
@@ -386,34 +428,39 @@ public class StudentTestService : IStudentTestService
     
                 var subjectCodes = subjectCodeEventResponse.Message.Response;
                 
+                // HashSet chứa các môn cần đánh giá lại (có điểm trung bình nhưng sinh viên muốn nâng cao)
                 HashSet<string> subjectCodesForEvaluation = new();
-                // Add OtherQuestionAnswerCodes to SubjectMarks
+                
+                // Xử lý từng loại OtherQuestionAnswerCode
                 foreach (var questionCode in request.OtherQuestionAnswerCodes)
                 {
                     switch (questionCode)
                     {
                         case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_COURSE:
+                            // Các môn có điểm 5-7 (yếu-trung bình) -> Cần học lại ở mức Beginner
                             courseImporve.AddRange(
                                 studentTranscripts
-                                    .Where(t => t.Grade >= 5 && t.Grade < 7)
+                                    .Where(t => t.Grade >= 5 && t.Grade < 7) // Lọc môn điểm 5-7
                                     .Select(t => new CourseImproveContext
                                     {
                                         SubjectCode = t.SubjectCode,
-                                        Level = (short)ConstantEnum.CourseLevel.Beginner,
-                                        SubjectPrerequisiteCode = t.Prerequisite
+                                        Level = (short)ConstantEnum.CourseLevel.Beginner, // Khóa học cơ bản
+                                        SubjectPrerequisiteCode = t.Prerequisite // Môn tiên quyết (nếu có)
                                     })
+                                    // Chỉ thêm những môn có trong hệ thống khóa học
                                     .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
                             );
                             break;
 
                         case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_COURSE:
+                            // Các môn có điểm 7-8 (khá) -> Có thể học nâng cao ở mức Intermediate
                             courseImporve.AddRange(
                                 studentTranscripts
                                     .Where(t => t.Grade >= 7 && t.Grade < 8)
                                     .Select(t => new CourseImproveContext
                                     {
                                         SubjectCode = t.SubjectCode,
-                                        Level = (short)ConstantEnum.CourseLevel.Intermidiate,
+                                        Level = (short)ConstantEnum.CourseLevel.Intermidiate, // Khóa học trung cấp
                                         SubjectPrerequisiteCode = t.Prerequisite
                                     })
                                     .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
@@ -421,13 +468,14 @@ public class StudentTestService : IStudentTestService
                             break;
 
                         case ConstantEnum.OtherQuestionCode.GRADE_8_TO_9_COURSE:
+                            // Các môn có điểm 8-9 (giỏi) -> Muốn học chuyên sâu ở mức Advanced
                             courseImporve.AddRange(
                                 studentTranscripts
                                     .Where(t => t.Grade >= 8 && t.Grade < 9)
                                     .Select(t => new CourseImproveContext
                                     {
                                         SubjectCode = t.SubjectCode,
-                                        Level = (short)ConstantEnum.CourseLevel.Advanced,
+                                        Level = (short)ConstantEnum.CourseLevel.Advanced, // Khóa học nâng cao
                                         SubjectPrerequisiteCode = t.Prerequisite
                                     })
                                     .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code.SubjectCode))
@@ -435,17 +483,20 @@ public class StudentTestService : IStudentTestService
                             break;
 
                         case ConstantEnum.OtherQuestionCode.GRADE_5_TO_7_EVALUATION:
+                            // Sinh viên muốn AI đánh giá lại các môn điểm 5-7 (có thể do học lâu, quên kiến thức)
                             var subjects5To7 = studentTranscripts
                                 .Where(t => t.Grade >= 5 && t.Grade < 7)
                                 .Select(t => t.SubjectCode)
                                 .Where(code => subjectCodes.Any(sc => sc.SubjectCode == code));
                             foreach (var subjectCode in subjects5To7)
                             {
+                                // Thêm vào danh sách cần đánh giá - AI sẽ tạo quiz/bài tập để kiểm tra lại
                                 subjectCodesForEvaluation.Add(subjectCode);
                             }
                             break;
 
                         case ConstantEnum.OtherQuestionCode.GRADE_7_TO_8_EVALUATION:
+                            // Sinh viên muốn AI đánh giá lại các môn điểm 7-8
                             var subjects7To8 = studentTranscripts
                                 .Where(t => t.Grade >= 7 && t.Grade < 8)
                                 .Select(t => t.SubjectCode)
@@ -459,53 +510,70 @@ public class StudentTestService : IStudentTestService
                 }
             }
             
-            // Calculate AbilityMarks based on each Quiz (by SubjectCodeName from PlacementTestQuizSetting)
+            // Tính toán điểm năng lực (AbilityMarks) cho từng môn học dựa trên kết quả quiz
+            // AbilityMarks dùng để đánh giá chi tiết năng lực của sinh viên ở từng lĩnh vực cụ thể
             var abilityMarks = new List<AbilityMarkContext>();
             
-            // Get all quiz IDs that student has answered
+            // Lấy danh sách các QuizId mà sinh viên đã trả lời
+            // Cần để biết sinh viên có làm quiz nào, bỏ quiz nào (vì không bắt buộc làm hết)
             var answeredQuizIds = studentTestCollection.StudentQuizzes
                 .Select(sq => sq.QuizId)
                 .ToHashSet();
             
-            // Loop through ALL quizzes in the test (not just the ones student answered)
+            // Duyệt qua TẤT CẢ các quiz trong test (kể cả quiz sinh viên không làm)
+            // Vì cần tính điểm cho tất cả các năng lực, quiz không làm sẽ được tính điểm 0 hoặc dựa vào bảng điểm
             foreach (var quiz in testExist.Quizzes)
             {
+                // Bỏ qua quiz không có PlacementTestQuizSetting (không phải quiz đánh giá năng lực)
                 if (quiz?.PlacementTestQuizSetting == null)
                     continue;
                 
+                // Lấy tên môn học từ quiz setting (ví dụ: "Toán rời rạc (DSAP201)")
                 var subjectCodeName = quiz.PlacementTestQuizSetting.SubjectCodeName;
                 
-                // Check if student has answered this quiz
+                // Kiểm tra sinh viên có trả lời quiz này không
                 var hasAnsweredQuiz = answeredQuizIds.Contains(quiz.QuizId);
                 
-                // Find matching transcript by checking if SubjectCodeName contains SubjectCode from transcript
+                // Tìm môn học tương ứng trong bảng điểm
+                // Kiểm tra xem SubjectCode có nằm trong SubjectCodeName không (case-insensitive)
+                // Ví dụ: "DSAP201" có trong "Toán rời rạc (DSAP201)"
                 var matchingTranscript = studentTranscripts?
                     .FirstOrDefault(t => !string.IsNullOrEmpty(t.SubjectCode) && 
                                          !string.IsNullOrEmpty(subjectCodeName) &&
                                          subjectCodeName.Contains(t.SubjectCode, StringComparison.OrdinalIgnoreCase));
                 
+                // Khởi tạo điểm quiz = 0
                 double quizScore = 0;
                 
+                // Nếu sinh viên có làm quiz này
                 if (hasAnsweredQuiz)
                 {
-                    // Calculate quiz score from student answers
+                    // Tính điểm quiz dựa trên số câu trả lời đúng
+                    
+                    // Lấy tất cả QuestionId trong quiz này
                     var quizQuestionIds = quiz.Questions.Select(q => q.QuestionId).ToHashSet();
+                    
+                    // Lọc ra các câu trả lời của sinh viên cho quiz này
                     var quizAnswers = studentTestCollection.StudentAnswers
                         .Where(sa => quizQuestionIds.Contains(sa.QuestionId))
                         .ToList();
                     
-                    var correctCount = 0;
-                    var totalQuestions = quiz.Questions.Count;
+                    var correctCount = 0; // Số câu trả lời đúng
+                    var totalQuestions = quiz.Questions.Count; // Tổng số câu hỏi
                     
+                    // Duyệt qua từng câu hỏi để chấm điểm
                     foreach (var question in quiz.Questions)
                     {
+                        // Lấy danh sách AnswerId mà sinh viên đã chọn cho câu hỏi này
                         var studentSelectedAnswerIds = quizAnswers
                             .Where(sa => sa.QuestionId == question.QuestionId && sa.AnswerId.HasValue)
                             .Select(sa => sa.AnswerId!.Value)
                             .ToHashSet();
                         
+                        // Nếu sinh viên không chọn đáp án nào, bỏ qua (tính là sai)
                         if (!studentSelectedAnswerIds.Any()) continue;
                         
+                        // Lấy danh sách AnswerId chính xác của câu hỏi
                         var correctAnswerIds = question.Answers
                             .Where(a => a.IsCorrect)
                             .Select(a => a.AnswerId)
@@ -513,130 +581,153 @@ public class StudentTestService : IStudentTestService
                         
                         bool isCorrect;
                         
+                        // Kiểm tra câu trả lời đúng hay sai dựa vào loại câu hỏi
                         if (question.QuestionType == (short)ConstantEnum.QuestionType.MultipleChoice)
                         {
+                            // Câu hỏi nhiều đáp án đúng: phải chọn CHÍNH XÁC tất cả đáp án đúng
+                            // Số lượng phải bằng nhau VÀ tất cả đáp án chọn đều phải đúng
                             isCorrect = studentSelectedAnswerIds.Count == correctAnswerIds.Count 
                                         && studentSelectedAnswerIds.All(id => correctAnswerIds.Contains(id));
                         }
                         else
                         {
+                            // Câu hỏi một đáp án đúng: chọn đúng 1 trong các đáp án đúng là được
                             isCorrect = studentSelectedAnswerIds.Any(id => correctAnswerIds.Contains(id));
                         }
                         
+                        // Nếu trả lời đúng, tăng số câu đúng
                         if (isCorrect)
                         {
                             correctCount++;
                         }
                     }
                     
+                    // Tính điểm quiz theo phần trăm (0-100)
                     quizScore = totalQuestions > 0 ? (double)correctCount / totalQuestions * 100 : 0;
                 }
                 
+                // Tính điểm năng lực cuối cùng (finalScore) bằng cách kết hợp quiz score và transcript score
                 double finalScore;
                 
                 if (matchingTranscript != null && matchingTranscript.Grade.HasValue)
                 {
-                    // Has transcript: 60% from transcript (scale 0-10 to 0-100) + 40% from quiz
-                    var transcriptScore = matchingTranscript.Grade.Value * 10; // Convert 0-10 to 0-100
+                    // Trường hợp 1: Có cả bảng điểm và quiz
+                    // Kết hợp: 60% từ bảng điểm (kiến thức lâu dài) + 40% từ quiz (đánh giá hiện tại)
+                    var transcriptScore = matchingTranscript.Grade.Value * 10; // Chuyển từ thang 0-10 sang 0-100
                     finalScore = (transcriptScore * 0.6) + (quizScore * 0.4);
                 }
                 else if (hasAnsweredQuiz)
                 {
-                    // No transcript but answered quiz: 100% from quiz
+                    // Trường hợp 2: Không có bảng điểm nhưng có làm quiz
+                    // Lấy 100% từ quiz (đây là đánh giá duy nhất)
                     finalScore = quizScore;
                 }
                 else
                 {
-                    // No transcript and didn't answer quiz: 0 points
+                    // Trường hợp 3: Không có bảng điểm và không làm quiz
+                    // Không có dữ liệu để đánh giá -> điểm 0
                     finalScore = 0;
                 }
                 
+                // Thêm vào danh sách ability marks
                 abilityMarks.Add(new AbilityMarkContext
                 {
-                    Name = subjectCodeName,
-                    Mark = finalScore
+                    Name = subjectCodeName, // Tên môn học
+                    Mark = finalScore // Điểm năng lực (0-100)
                 });
             }
             
-            // If PracticeTestAnswers is provided, add practice test ability marks
+            // Nếu sinh viên có làm bài practice test (bài tự luận code), thêm điểm practice test vào ability marks
             if (request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any())
             {
-                // Calculate practice test ability marks based on actual submission results
-                // Store problem info with score: (Title, Difficulty, Score)
+                // Tính điểm practice test dựa trên kết quả submit thực tế (số test case pass)
+                // List chứa: (Tên bài, Độ khó, Điểm số)
                 var practiceTestScoresWithInfo = new List<(string Title, string Difficulty, double Score)>();
                 
+                // Duyệt qua từng bài practice test mà sinh viên đã submit
                 foreach (var practiceAnswer in request.PracticeTestAnswers)
                 {
+                    // Lấy thông tin bài toán từ database
                     var problem = await _problemRepository.FirstOrDefaultAsync(p => p.ProblemId == practiceAnswer.ProblemId, cancellationToken: cancellationToken);
                     if (problem != null)
                     {
                         double score = 0.0;
                         
-                        // Find the corresponding submission result
+                        // Tìm kết quả submit tương ứng theo độ khó (Easy/Medium/Hard)
                         if (practiceTestResults.TryGetValue(problem.Difficulty, out var submitResult))
                         {
-                            // Calculator score (total passed testcase / total testcase) * 100
+                            // Tính điểm: (số test case pass / tổng số test case) * 100
+                            // Ví dụ: pass 8/10 test cases -> điểm = 80
                             score = submitResult.Response.TotalTests > 0
                                 ? (double)submitResult.Response.PassedTests / submitResult.Response.TotalTests * 100
                                 : 0.0;
                         }
-                        // No submission result found, score remains 0
+                        // Nếu không tìm thấy kết quả submit (không bao giờ xảy ra vì đã submit ở trên), điểm = 0
                         
-                        // Store problem info with score
+                        // Lưu thông tin bài toán và điểm
                         practiceTestScoresWithInfo.Add((problem.Title, problem.Difficulty, score));
                     }
                 }
                 
-                // Add practice test ability marks với tên problem và điểm thực tế
+                // Thêm điểm practice test vào ability marks với tên mô tả chi tiết
                 foreach (var (title, difficulty, score) in practiceTestScoresWithInfo)
                 {
                     abilityMarks.Add(new AbilityMarkContext
                     {
                         Name = $"Bài test tự luận cấu trúc dữ liệu và giải thuật ({title}) với độ khó: {difficulty}",
-                        Mark = score
+                        Mark = score // Điểm từ 0-100 dựa trên % test case pass
                     });
                 }
             }
             
-            // Get StudentSurvey from cache
+            // Lấy tất cả bài khảo sát (survey) của sinh viên từ cache hoặc database
+            // Cache 10 phút để tối ưu hiệu suất - survey ít thay đổi
             var allStudentSurveys = await _studentQuizCollectionRepository.GetOrSetListAsync(
-                CacheKey.StudentSurvey(currentUser.UserId),
-                async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey),
-                TimeSpan.FromMinutes(10));
+                CacheKey.StudentSurvey(currentUser.UserId), // Cache key
+                async () => await _studentQuizCollectionRepository.ToListAsync(sq => sq.StudentId == currentUser.UserId && sq.QuizType == (short) ConstantEnum.TestType.Survey), // Hàm lấy data nếu cache miss
+                TimeSpan.FromMinutes(10)); // Thời gian cache
             
-            // Get latest HABIT survey
+            // Lấy bài khảo sát HABIT mới nhất
+            // HABIT survey: khảo sát về thói quen học tập (có bao nhiêu giờ/tuần để học)
             var latestHabitSurvey = allStudentSurveys
                 .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.HABIT))
-                .OrderByDescending(x => x.CreatedAt)
+                .OrderByDescending(x => x.CreatedAt) // Lấy bài mới nhất
                 .FirstOrDefault();
             
-            // Get latest INTEREST survey
+            // Lấy bài khảo sát INTEREST mới nhất
+            // INTEREST survey: khảo sát về sở thích học tập (thích học về AI, Web, Mobile...)
             var latestInterestSurvey = allStudentSurveys
                 .Where(x => x.Quiz?.SurveyQuizSetting?.SurveyCode == nameof(ConstantEnum.SurveyCode.INTEREST))
                 .OrderByDescending(x => x.CreatedAt)
                 .FirstOrDefault();
             
-            // Build list of latest surveys (HABIT and INTEREST)
+            // Xây dựng danh sách các survey mới nhất (HABIT và INTEREST)
             var studentSurveys = new List<StudentQuizCollection>();
             if (latestHabitSurvey != null) studentSurveys.Add(latestHabitSurvey);
             if (latestInterestSurvey != null) studentSurveys.Add(latestInterestSurvey);
             
+            // Kiểm tra sinh viên có hoàn thành survey nào không
+            // Nếu chưa làm survey -> không thể tạo lộ trình học tập
             if (!studentSurveys.Any())
             {
                 response.SetMessage(MessageId.E00000, "Sinh viên chưa hoàn thành bài khảo sát nào");
                 return false;
             }
             
+            // Ưu tiên lấy HABIT survey, nếu không có thì lấy survey đầu tiên
+            // Cần HABIT survey để tính limitTime (số giờ học/tuần)
             var surveyHabit = latestHabitSurvey ?? studentSurveys.First();
 
+            // Lấy tất cả AnswerId từ các câu trả lời trong HABIT survey
             var selectedAnswerIds = surveyHabit.Quiz.Questions
-                .SelectMany(q => q.Answers)
+                .SelectMany(q => q.Answers) // Flatten tất cả answers từ tất cả questions
                 .Select(a => a.AnswerId)
                 .ToList();
        
+            // Map sang StudentQuizAnswerCollection để tính limitTime
             var studentQuizAnswers = surveyHabit.Quiz.Questions
                 .SelectMany(q => q.Answers)
-                .Where(a => selectedAnswerIds.Contains(a.AnswerId))
+                .Where(a => selectedAnswerIds.Contains(a.AnswerId)) // Chỉ lấy các answer sinh viên đã chọn
                 .Select(a => new StudentQuizAnswerCollection
                 {
                     AnswerId = a.AnswerId,
@@ -644,74 +735,95 @@ public class StudentTestService : IStudentTestService
                 })
                 .ToList();
 
+            // Tính số giờ học mỗi tuần dựa trên câu trả lời trong HABIT survey
+            // Ví dụ: "Tôi có 10 giờ/tuần", "Tôi có 20 giờ/tuần"
             int limitTime = GetStudentStudyTime(studentQuizAnswers);
             
+            // Tạo ID mới cho lộ trình học tập
             var learningPathId = Guid.NewGuid();
 
+            // Chuyển đổi OtherQuestionAnswerCodes thành chuỗi để lưu vào database
+            // Ví dụ: [GRADE_5_TO_7_COURSE, GRADE_7_TO_8_EVALUATION] -> "1,4"
             var evaluationAndImprove = request.OtherQuestionAnswerCodes != null && request.OtherQuestionAnswerCodes.Any()
                 ? string.Join(",", request.OtherQuestionAnswerCodes.Select(c => ((int)c).ToString()))
                 : null;
             
+            // Lấy tên mục tiêu học tập từ request
             string learningGoalName = request.LearningGoal.LearningGoalName;
             
+            // Nếu sinh viên chọn "None" (không có mục tiêu cụ thể)
+            // Cần dùng AI để phân tích INTEREST survey và đề xuất mục tiêu phù hợp
             if (request.LearningGoal.LearningGoalType == (short) ConstantEnum.LearningGoalType.None)
             {
+                // Kiểm tra xem có INTEREST survey không
                 if (latestInterestSurvey == null)
                 {
                     response.SetMessage(MessageId.E00000, "Không tìm thấy bài khảo sát sở thích học tập");
                     return false;
                 }
 
+                // Lấy các AnswerId mà sinh viên đã chọn trong INTEREST survey
                 var selectedAnswerIdInterests = latestInterestSurvey!.StudentQuizAnswers
-                    .Where(a => a.AnswerId != Guid.Empty)
+                    .Where(a => a.AnswerId != Guid.Empty) // Lọc các answer hợp lệ
                     .Select(a => a.AnswerId)
                     .ToHashSet();
 
+                // Map sang format phù hợp để gửi cho AI
+                // Mỗi question kèm theo các answer sinh viên đã chọn
                 var interestQuestions = latestInterestSurvey.Quiz.Questions.Select(question => new StudentInterestQuestion
                 {
-                    QuestionText = question.QuestionText,
+                    QuestionText = question.QuestionText, // Nội dung câu hỏi
                     StudentAnswers = question.Answers
-                        .Where(a => selectedAnswerIdInterests.Contains(a.AnswerId))
-                        .Select(a => a.AnswerText)
+                        .Where(a => selectedAnswerIdInterests.Contains(a.AnswerId)) // Chỉ lấy answer sinh viên chọn
+                        .Select(a => a.AnswerText) // Text của answer
                         .ToList()
-                }).Where(q => q.StudentAnswers.Any()).ToList();
+                }).Where(q => q.StudentAnswers.Any()).ToList(); // Chỉ lấy question có answer
 
+                // Tạo event gửi đến AI Service để phân tích sở thích
                 var studentInterestAnalysisEvent = new StudentInterestSurveyAnalysisEvent
                 {
                     StudentId = currentUser.UserId,
                     Questions = interestQuestions
                 };
 
+                // Gọi AI Service thông qua message bus
                 var aiAnalysisResponse = await _requestStudentInterestAnalysisClient.GetResponse<StudentInterestSurveyAnalysisEventResponse>(
                     studentInterestAnalysisEvent, 
                     cancellationToken);
                 
+                // Nếu AI phân tích thất bại
                 if (!aiAnalysisResponse.Message.Success)
                 {
                     response.SetMessage(MessageId.E99999);
                     return false;
                 }
 
+                // Lấy mục tiêu học tập do AI đề xuất
+                // Ví dụ: "Backend Developer", "AI Engineer", "Mobile Developer"
                 learningGoalName = aiAnalysisResponse.Message.Response.LearningGoal;
             }
             
+            // Tạo event để insert learning path vào database (write model)
             var learningPathEvent = new InsertLearningPathEvent
             {
                 LearningPathId = learningPathId,
                 StudentId = currentUser.UserId,
                 CurrentUserEmail = currentUser.Email,
-                PathName = $"Lộ trình {learningGoalName}",
-                Level = (short) studentLevel,
-                LevelReason = levelReason,
-                IsSkipTest = false,
-                LimitTime = limitTime,
-                EvaluationAndImprove = evaluationAndImprove,
-                StudentTestId = studentTest.StudentTestId,
+                PathName = $"Lộ trình {learningGoalName}", // Tên lộ trình: "Lộ trình Backend Developer"
+                Level = (short) studentLevel, // Level của sinh viên (1-3)
+                LevelReason = levelReason, // Lý do được level này (chuỗi text chi tiết)
+                IsSkipTest = false, // Sinh viên đã làm test (không skip)
+                LimitTime = limitTime, // Số giờ học/tuần
+                EvaluationAndImprove = evaluationAndImprove, // Mã các môn cần đánh giá/cải thiện
+                StudentTestId = studentTest.StudentTestId, // ID bài test vừa submit
+                // Danh sách PracticeSubmissionIds nếu có làm practice test
                 PracticeSubmissionIds = request.PracticeTestAnswers != null && request.PracticeTestAnswers.Any()
                     ? practiceTestResults.Values.Select(ptr => ptr.Response.SubmissionId).ToList()
                     : null,
-                StudentSurveyIds = studentSurveys.Select(ss => ss.StudentQuizId).ToList(),
+                StudentSurveyIds = studentSurveys.Select(ss => ss.StudentQuizId).ToList(), // Danh sách survey IDs
             };
+            
+            // Gửi event tới CourseService để tạo learning path
             var learningPathResponse = await _requestInsertLearningPathEventClient.GetResponse<InsertLearningPathEventResponse>(learningPathEvent, cancellationToken);
             if (!learningPathResponse.Message.Success)
             {
@@ -720,20 +832,26 @@ public class StudentTestService : IStudentTestService
                 return false;
             }
             
-            // Create AbilityImprove from abilityMarks - subjects with score < 70 need improvement
+            // Tạo danh sách các năng lực cần cải thiện từ abilityMarks
+            // Các năng lực có điểm < 70 được coi là cần cải thiện
             var abilityImprove = abilityMarks
-                .Where(am => am.Mark < 70)
+                .Where(am => am.Mark < 70) // Ngưỡng 70 điểm
                 .Select(am => new AbilityImprove
                 {
-                    Name = am.Name,
-                    Mark = am.Mark
+                    Name = am.Name, // Tên năng lực
+                    Mark = am.Mark // Điểm hiện tại
                 })
                 .ToList();
             
+            // Tạo context chứa tất cả thông tin cần thiết để tạo lộ trình học tập chi tiết
+            // Context này sẽ được gửi đến LearningPathService để AI phân tích và tạo các khóa học cụ thể
             var context = new LearningPathCreationContext
             {
+                // Danh sách các bài khảo sát mới nhất (HABIT, INTEREST) mà sinh viên đã hoàn thành
                 StudentQuizCollections = studentSurveys,
+                // Thông tin người dùng hiện tại (sinh viên)
                 CurrentUser = currentUser,
+                // Thông tin về mục tiêu học tập, công nghệ quan tâm, học kỳ và chuyên ngành của sinh viên
                 InformationResponse = new StudentInformationSelectsEventResponseEntity
                 {
                     LearningGoalName = request.LearningGoal.LearningGoalName,
@@ -742,22 +860,32 @@ public class StudentTestService : IStudentTestService
                     SemesterId = informationResponse.Message.Response.SemesterId,
                     MajorId = informationResponse.Message.Response.MajorId
                 },
+                // ID của lộ trình học tập mới được tạo
                 LearningPathId = learningPathId,
+                // Số giờ học mỗi tuần mà sinh viên có thể dành ra (dựa trên bài khảo sát HABIT)
                 LimitTime = limitTime,
+                // Trình độ của sinh viên (1-3) - kết hợp từ điểm bài test (80%) và bảng điểm (20%)
                 StudentLevel = (short)studentLevel,
+                // Thông tin chuyên ngành của sinh viên
                 StudentMajor = new StudentMajor
                 {
                     MajorCode = majorAndSemesterEventResponse.Message.Response.MajorCode,
                     MajorName = majorAndSemesterEventResponse.Message.Response.MajorName
                 },
+                // Điểm số các môn học từ bảng điểm (chỉ có khi sinh viên chọn OtherQuestionAnswerCodes)
                 SubjectMarks = subjectMarks,
+                // Điểm năng lực từ các câu hỏi trong bài test: kết hợp điểm test (100%) hoặc bảng điểm (60%) + test (40%)
                 AbilityMarks = abilityMarks,
+                // Danh sách các môn học cần cải thiện (dựa trên OtherQuestionAnswerCodes: môn có điểm 5-7, 7-8, 8-9)
                 CourseImprove = courseImporve,
+                // Danh sách các năng lực cần cải thiện (các năng lực có điểm < 70 từ AbilityMarks)
                 AbilityImprove = abilityImprove
             };
 
+            // Nếu sinh viên có bảng điểm, thêm vào context
             if (studentTranscripts != null && studentTranscripts.Any())
             {
+                // Bảng điểm đầy đủ của sinh viên (tất cả các môn đã học) - nếu có
                 context.StudentTranscripts = studentTranscripts.Select(x => new StudentTranscriptContext
                 {
                     SubjectCode = x.SubjectCode,
@@ -766,6 +894,8 @@ public class StudentTestService : IStudentTestService
                 }).ToList();
             }
             
+            // Gọi LearningPathService để tạo lộ trình học tập chi tiết
+            // Service này sẽ phân tích context và tạo ra các khóa học cụ thể phù hợp với sinh viên
             var result = await _learningPathService.CreateLearningPathAsync(context, cancellationToken);
             if (!result.Success)
             {
@@ -774,14 +904,16 @@ public class StudentTestService : IStudentTestService
                 return false;
             }
             
-            // True
+            // Đến đây là thành công - set Success = true
             response.Success = true;
-            response.Response = learningPathId;
+            response.Response = learningPathId; // Trả về ID của lộ trình vừa tạo
             
-            // Map StudentTestSubmitResponse
+            // Map thông tin StudentTestSubmit để trả về cho client
+            // Client cần biết ID của test và các practice test submission để tracking
             response.StudentTestSubmit = new StudentTestSubmitResponse
             {
-                StudentTestId = studentTest.StudentTestId,
+                StudentTestId = studentTest.StudentTestId, // ID bài test vừa submit
+                // Danh sách ID các practice test submission (nếu có)
                 PracticeTestSubmits = practiceTestResults.Values
                     .Select(ptr => new StudentPracticeTestSubmitResponse
                     {
@@ -790,9 +922,15 @@ public class StudentTestService : IStudentTestService
                     .ToList()
             };
             
+            // Set message thành công
             response.SetMessage(MessageId.I00001, "Thêm bài kiểm tra của học sinh");
+            
+            // Return true để commit transaction
+            // Nếu return false, toàn bộ transaction sẽ rollback
             return true;
-        }, cancellationToken);
+        }, cancellationToken); // Kết thúc BeginTransactionAsync
+        
+        // Trả về response cho client
         return response;
     }
 

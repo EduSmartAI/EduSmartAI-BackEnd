@@ -73,18 +73,9 @@ public class PaymentHistorySelectQueryHandler(
             return response;
         }
 
-        // Lấy UserId từ request hoặc từ token
-        var userId = request.UserId ?? identityService.GetCurrentUser()?.UserId;
-        
-        if (userId == null || userId == Guid.Empty)
-        {
-            response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng");
-            return response;
-        }
-
         // Build query
         var query = paymentTransactionRepository
-            .Find(x => x.IsActive && x.Order.UserId == userId.Value)
+            .Find(x => x.IsActive)
             .Include(x => x.Order)
             .ThenInclude(o => o.OrderItems)
             .AsQueryable();

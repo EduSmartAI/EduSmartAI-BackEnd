@@ -51,7 +51,15 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
     {
        var response = new RegenerateLearningPathCommandResponse {Success = false};
 
-       var currentUser = _identityService.GetCurrentUser()!;
+        var currentUser = _identityService.GetCurrentUser();
+       var studentId = request.StudentId ?? currentUser?.UserId;
+       var studentEmail = request.StudentEmail ?? currentUser?.Email;
+
+       if (!studentId.HasValue || studentId.Value == Guid.Empty || string.IsNullOrWhiteSpace(studentEmail))
+        {
+           response.SetMessage(MessageId.E00000, "Không tìm thấy thông tin người dùng để tạo lại lộ trình.");
+           return response;
+       }
 
        #region Validate
 
@@ -66,7 +74,7 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
        await _unitOfWork.BeginTransactionAsync(async () =>
        {
            var learningPathOld = await _learningPathCommandRepository
-               .Find(x => x.IsActive && x.StudentId == currentUser.UserId, cancellationToken: cancellationToken)
+               .Find(x => x.IsActive && x.StudentId == studentId.Value, cancellationToken: cancellationToken)
                .OrderByDescending(x => x.CreatedAt)
                .Include(x => x.LearningPathMajors)
                .ThenInclude(m => m.LearningPathCourses)
@@ -98,7 +106,7 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
                    _learningPathCourseCommandRepository.Update(course);
            }
            _learningPathCommandRepository.Update(learningPathOld);
-           await _unitOfWork.SaveChangesAsync(currentUser.Email, cancellationToken, needLogicalDelete: true);
+           await _unitOfWork.SaveChangesAsync(studentEmail!, cancellationToken, needLogicalDelete: true);
        
            // Delete old collection
            var learningPathCollectionOld = await _learningPathCollectionRepository
@@ -119,7 +127,7 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
        
        #region Tính toán bảng điểm của student
        var studentTranscripts = await _studentTranscriptCommandRepository
-           .Find(x => x.StudentId == currentUser.UserId && x.IsActive)
+           .Find(x => x.StudentId == studentId.Value && x.IsActive)
            .ToListAsync(cancellationToken);
        
        List<int>? evaluationAndImprovementSubjectInt = null;
@@ -143,8 +151,8 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
             if (!subjectCodeEventResponse.Message.Success)
             {
                 response.SetMessage(MessageId.I00000, subjectCodeEventResponse.Message.Message);
-                return response;
-            }
+            return response;
+        }
 
             var allSubjectCodes = subjectCodeEventResponse.Message.Response;
             
@@ -249,7 +257,7 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
        #endregion
        
      #region Tạo lộ trình học tập mới
-     var studentProfile = await _studentCollectionRepository.FirstOrDefaultAsync(x => x.StudentId == currentUser.UserId && x.IsActive);
+     var studentProfile = await _studentCollectionRepository.FirstOrDefaultAsync(x => x.StudentId == studentId.Value && x.IsActive);
      var learningGoal = studentProfile!
          .LearningGoals!
          .OrderByDescending(x => x.CreatedAt)
@@ -273,8 +281,8 @@ public class RegenerateLearningPathCommandHandler : ICommandHandler<RegenerateLe
      var reRegenerateLearningPathEvent = new RegenerateLearningPathEvent
      {
          LearningPathId = learningPathId,
-         StudentId = currentUser.UserId,
-         StudentEmail = currentUser.Email,
+         StudentId = studentId.Value,
+         StudentEmail = studentEmail!,
          Level = studentLevel,
          LevelReason = levelReason!,
          IsSkipTest = isSkipTest,
